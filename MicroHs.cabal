@@ -67,6 +67,7 @@ executable mhs
                        MicroHs.Builtin
                        MicroHs.Compile
                        MicroHs.CompileCache
+                       MicroHs.Config
                        MicroHs.Deriving
                        MicroHs.Desugar
                        MicroHs.EncodeData
@@ -94,7 +95,6 @@ executable mhs
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
-                       MicroHs.TargetConfig
                        Text.ParserComb
                        Text.PrettyPrint.HughesPJLite
                        System.Console.SimpleReadline

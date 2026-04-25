@@ -12,19 +12,20 @@ import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
+import MicroHs.Config
 import MicroHs.Exp(Exp(Var, Lit))
 import MicroHs.Expr(Lit(LInt))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.Interactive
 import MicroHs.Lex(readInt)
 import MicroHs.List
+import MicroHs.MakeCArray
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(TModule(..), showValueExport, showTypeExport, showTypeExportAssocs, TypeExport)
-import MicroHs.Interactive
-import MicroHs.MakeCArray
 import MhsEval
 import System.Cmd
 import System.Exit
@@ -34,7 +35,6 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
-import MicroHs.TargetConfig
 
 main :: IO ()
 main = do
@@ -48,7 +48,9 @@ main = do
     ["--numeric-version"] -> putStrLn mhsVersion
     _ -> do
       let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
-          (flags, mdls, rargs) = decodeArgs dflags [] args
+          (eflags, mdls, rargs) = decodeArgs dflags [] args
+      conf <- readConfig eflags
+      let flags = eflags{ config = conf }
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
       preload' <- mapM (findAPackage flags) (preload flags)
@@ -177,46 +179,39 @@ decodeArgs f mdls (arg:args) =
   where
     dumpFlagTable = [(drop 1 $ show d, d) | d <- [minBound..maxBound]]
 
-readTargets :: Flags -> FilePath -> IO [Target]
-readTargets flags dir = do
-  let tgFilePath = dir </> "targets.conf"
-  exists <- doesFileExist tgFilePath
-  if not exists
-     then return []
-     else do
-       tgFile <- readFile tgFilePath
-       case parseTargets tgFilePath tgFile of
-         Left e -> do
-           putStrLn $ "Cannot parse " ++ tgFilePath
-           when (verbosityGT flags 0) $
-             putStrLn e
-           return []
-         Right tgs -> do
-           when (verbosityGT flags 0) $
-             putStrLn $ "Read targets file. Possible targets: " ++ show
-               [tg | Target tg _ <- tgs]
-           return tgs
+readConfig :: Flags -> IO Config
+readConfig flags = do
+  let cfFilePath = mhsdir flags </> "targets.conf"
+  exists <- doesFileExist cfFilePath
+  if not exists then
+    return []
+   else do
+    cfFile <- readFile cfFilePath
+    case parseConfig cfFilePath cfFile of
+      Left e -> do
+        putStrLn $ "Cannot parse " ++ cfFilePath
+        when (verbosityGT flags 0) $
+          putStrLn e
+        return []
+      Right cfs -> do
+        when (verbosityGT flags 0) $
+          putStrLn $ "Read targets file. Possible targets: " ++ show (map fst cfs)
+        return cfs
 
-readTarget :: Flags -> FilePath -> IO TTarget
-readTarget flags dir = do
-  targets <- readTargets flags dir
-  (n, cs) <-
-    case findTarget (target flags) targets of
-      Nothing -> do
-        when (verbosityGT flags 0) $
-          putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
-        return ("default", [])
-      Just (Target n cs) -> do
-        when (verbosityGT flags 0) $
-          putStrLn $ "Found target: " ++ show cs
-        return (n, cs)
-  return TTarget { tName    = n
-                 , tCC      = fromMaybe "cc"   $ lookup "cc"      cs
-                 , tCCFlags = fromMaybe ""     $ lookup "ccflags" cs
-                 , tCCLibs  = fromMaybe ""     $ lookup "cclibs"  cs
-                 , tConf    = fromMaybe "unix" $ lookup "conf"    cs
-                 , tOut     = fromMaybe "-o"   $ lookup "cout"    cs
-                 }
+findSection :: Flags -> IO [(Key, Value)]
+findSection flags = do
+  case lookup (target flags) (config flags) of
+    Nothing -> do
+      when (verbosityGT flags 0) $
+        putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
+      return []
+    Just cs -> do
+      when (verbosityGT flags 0) $
+        putStrLn $ "Found target: " ++ show (target flags, cs)
+      return cs
+
+getSectionKey :: [(Key, Value)] -> Key -> Value -> Value
+getSectionKey sect key dflt = fromMaybe dflt $ lookup key sect
 
 mainBuildPkg :: Flags -> String -> [String] -> IO ()
 mainBuildPkg flags namever amns = do
@@ -397,12 +392,17 @@ mainCompileC flags pkgs infile = do
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
-  tgt <- readTarget flags dir
+  sect <- findSection flags
   let optls = concatMap pkgOptl poptls -- optl from pkgs
-      cmd = unwords $ [tCC tgt,
-                       tCCFlags tgt,
+      vcc      = getSectionKey sect "cc"      "cc"
+      vccflags = getSectionKey sect "ccflags" ""
+      vcclibs  = getSectionKey sect "cclibs"  ""
+      vconf    = getSectionKey sect "conf"    "unix"
+      vcout    = getSectionKey sect "cout"    "-o"
+      cmd = unwords $ [vcc,
+                       vccflags,
                        "-I" ++ rtdir,
-                       "-I" ++ rtdir </> tConf tgt,
+                       "-I" ++ rtdir </> vconf,
                        incs,
                        defs,
                        cpps] ++
@@ -413,8 +413,8 @@ mainCompileC flags pkgs infile = do
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",
                         infile,
-                        tCCLibs tgt,
-                        tOut tgt ++ outFile
+                        vcclibs,
+                        vcout ++ outFile
                       ]
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd

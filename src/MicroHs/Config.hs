@@ -1,9 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-module MicroHs.TargetConfig(
-    Target(..)
-  , TTarget(..)
-  , parseTargets
-  , findTarget
+module MicroHs.Config(
+    Key, Value, SectionName, Section, Config
+  , parseConfig
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.List
@@ -12,31 +10,19 @@ import MicroHs.Ident
 import MicroHs.Lex
 
 {- File Format
-[target_name]
+[section_name]
 key = "value"
 ...
 
-[next_target]
+[next_section]
 key = ...
 -}
 
-data Target = Target String [(String,String)]
-  deriving Show
-
-data TTarget = TTarget
-  { tName    :: String
-  , tCC      :: String
-  , tCCFlags :: String
-  , tCCLibs  :: String
-  , tConf    :: String
-  , tOut     :: String  -- flag to set output file
-  }
-
-findTarget :: String -> [Target] -> Maybe Target
-findTarget _ [] = Nothing
-findTarget name ((Target n conf):ts) | n == name = Just $ Target n conf
-                                     | otherwise = findTarget name ts
-
+type Key = String
+type Value = String
+type SectionName = String
+type Section = (SectionName, [(Key, Value)])
+type Config = [Section]
 
 -- Parser
 
@@ -71,28 +57,28 @@ ident = satisfyM "key" is
   where is (TIdent _ _ x) = Just x
         is _              = Nothing
 
-key :: Parser String
+key :: Parser Key
 key = ident
 
-value :: Parser String
+value :: Parser Value
 value = satisfyM "value" isValue
   where isValue (TString _ x) = Just x
         isValue _             = Nothing
 
-targetName :: Parser String
-targetName = spec '[' *> key <* spec ']'
+sectionName :: Parser SectionName
+sectionName = spec '[' *> ident <* spec ']'
 
 keyValue :: Parser (String, String)
 keyValue = (,) <$> key <*> (spec '=' *> value)
 
-keyValues :: Parser [(String,String)]
+keyValues :: Parser [(Key, Value)]
 keyValues = keyValue `sepBy` nl
 
-target :: Parser Target
-target = Target <$> (targetName <* nl) <*> keyValues
+section :: Parser Section
+section = (,) <$> (sectionName <* nl) <*> keyValues
 
-targets :: Parser [Target]
-targets = (target `sepBy1` nl) <* nl <* eof
+sections :: Parser [Section]
+sections = (section `sepBy1` nl) <* nl <* eof
 
 formatFailed :: LastFail Token -> String
 formatFailed (LastFail _ ts msgs) =
@@ -102,8 +88,8 @@ formatFailed (LastFail _ ts msgs) =
           ]
   where sloc = tokensLoc ts
 
-parseTargets :: FilePath -> String -> Either String [Target]
-parseTargets fp file =
-  case runPrsr targets $ lex (SLoc fp 1 1) file of
+parseConfig :: FilePath -> String -> Either String Config
+parseConfig fp file =
+  case runPrsr sections $ lex (SLoc fp 1 1) file of
     Left lf -> Left $ formatFailed lf
     Right a -> Right a
