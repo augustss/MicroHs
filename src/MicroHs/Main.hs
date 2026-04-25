@@ -154,14 +154,14 @@ decodeArgs f mdls (arg:args) =
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
     '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
-    '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ [s]} mdls args
+    '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
     '-':'a':[]  -> decodeArgs f{pkgPaths = []} mdls args
-    '-':'a':s   -> decodeArgs f{pkgPaths = pkgPaths f ++ [s]} mdls args
+    '-':'a':s   -> decodeArgs f{pkgPaths = pkgPaths f ++ splitColonPath s} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
@@ -478,3 +478,6 @@ convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
 hasTheExtension f e = e `isSuffixOf` f
+
+splitColonPath :: String -> [String]
+splitColonPath = splitWhen (':' ==)
