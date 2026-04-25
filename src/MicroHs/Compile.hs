@@ -580,7 +580,9 @@ getPaths = do
       binDir <- takeDirectory <$> catch getExecutablePath (\ (_ :: SomeException) -> getProgName) -- ~/.mcabal/bin
       let upDir = binDir </> ".."
       inplace <- doesFileExist (upDir </> "src/runtime/eval.c")
-      when _isWindows $ print (upDir </> "src/runtime/eval.c", inplace)
+      when _isWindows $ do
+        getExecutablePath >>= print
+        print (upDir </> "src/runtime/eval.c", inplace)
       if inplace then do
         let libDir = upDir </> "lib"
             gmpDir | wantGMP   = [libDir </> "gmp"]
