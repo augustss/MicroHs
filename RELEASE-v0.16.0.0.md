@@ -3,3 +3,5 @@
 ## Features
  * More complete base library
  * Int aritmetic generates overflow exception instead of wrapping.
+ * Find compiler files relative to the binary instead with an absolute path.
+ 

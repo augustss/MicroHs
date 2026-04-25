@@ -8,7 +8,7 @@ data Flags = Flags {
   verbose    :: Int,        -- verbosity level
   runIt      :: Bool,       -- run instead of compile
   mhsdir     :: FilePath,   -- where MHS files live
-  paths      :: [FilePath], -- module search path
+  srcPaths   :: [FilePath], -- module search path
   output     :: String,     -- output file
   loading    :: Bool,       -- show loading message
   speed      :: Bool,       -- show lines/s
@@ -23,7 +23,7 @@ data Flags = Flags {
   base64     :: Bool,       -- base64 encode generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
   listPkg    :: Maybe FilePath, -- list package contents
-  pkgPath    :: [FilePath], -- package search path
+  pkgPaths   :: [FilePath], -- package search path
   installPkg :: Bool,       -- install a package
   preload    :: [String],   -- packages to preload
   target     :: String,     -- Compile target defined in target.conf
@@ -43,12 +43,12 @@ data Flags = Flags {
 verbosityGT :: Flags -> Int -> Bool
 verbosityGT flags v = verbose flags > v
 
-defaultFlags :: FilePath -> Flags
-defaultFlags dir = Flags {
+defaultFlags :: Flags
+defaultFlags = Flags {
   verbose    = 0,
   runIt      = False,
-  mhsdir     = dir,
-  paths      = ["."] ++ gmp ++ [dir ++ "/lib"],
+  mhsdir     = ".",
+  srcPaths   = [],
   output     = "out.comb",
   loading    = False,
   speed      = False,
@@ -63,7 +63,7 @@ defaultFlags dir = Flags {
   base64     = False,
   buildPkg   = Nothing,
   listPkg    = Nothing,
-  pkgPath    = [],
+  pkgPaths   = [],
   installPkg = False,
   preload    = [],
   target     = "default",
@@ -78,9 +78,6 @@ defaultFlags dir = Flags {
   editor      = Nothing,
   iPrint      = Nothing
   }
-  -- This is a hack so that the in-place mhs picks up GMP.
-  where gmp | dir == "." && wantGMP = ["lib/gmp"]
-            | otherwise             = []
 
 data DumpFlag = Dpreproc | Dparse | Dderive | DexpandInst | Dtypecheck | Ddesugar | Dlinked | Dtoplevel | Dcombinator | Dall
   deriving (Eq, Show, Enum, Bounded)

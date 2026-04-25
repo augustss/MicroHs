@@ -100,10 +100,9 @@ unsetEnv key = do
 
 foreign import ccall get_executable_path :: IO CString
 
-getExecutablePath :: IO String
+getExecutablePath :: IO FilePath
 getExecutablePath = do
   p <- throwErrnoIfNull "get_executable_path" get_executable_path
   s <- peekCAString p
   free p
   return s
-

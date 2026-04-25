@@ -1,4 +1,4 @@
-MP=paths/Paths_MicroHs.hs
+MP=src/MicroHs/Version.hs
 mv $MP $MP.bak
 grep -v '^version =' $MP.bak > $MP
 grep '^version:' MicroHs.cabal | sed -e 's/: */ = makeVersion [/' -e 's/\./,/g' -e 's/$/]/' >> $MP
