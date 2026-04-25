@@ -123,7 +123,7 @@ instance NFData EDef where
   rnf (DfltSign a b) = rnf a `seq` rnf b
   rnf (SetTCState a) = seq a ()
 
-data XTCState = XTCState
+data XTCState
 instance Eq XTCState where _ == _  =  True
 instance Show XTCState where show _ = "<<TCState>>"
 
