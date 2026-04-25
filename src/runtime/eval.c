@@ -91,6 +91,10 @@ char *get_executable_path(void) { return NULL; }
 
 #define NEED_INT64 (WANT_INT64 && WORD_SIZE < 64)
 
+#if !defined(MKDIR)
+#define MKDIR mkdir
+#endif
+
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -7244,7 +7248,7 @@ from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0)))
 from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_c_d_name(int s) { return mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
 from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
-from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, MKDIR(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
