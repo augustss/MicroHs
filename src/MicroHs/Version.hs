@@ -2,7 +2,7 @@
 module MicroHs.Version(
   version,
   ) where
-import qualified Prelude(); import MHSPrelude
+import qualified Prelude()
 import Data.Version
 
 version :: Version
