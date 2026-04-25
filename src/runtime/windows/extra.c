@@ -5,6 +5,7 @@
 #include <io.h>
 #include <stdlib.h>
 #include <windows.h>
+#include <string.h>
 
 /*
  * Find First Set
@@ -159,7 +160,8 @@ tmpname(const char* prefix, const char* suffix)
 
 /* Return path to executable as a null-terminated UTF-8 string. */
 char*
-get_executable_path(void) {
+get_executable_path(void)
+{
     DWORD size = MAX_PATH;
     WCHAR *wbuf = malloc(size * sizeof(WCHAR));
     if (!wbuf) return NULL;
@@ -182,3 +184,67 @@ get_executable_path(void) {
     return utf8_buf;
 }
 #define GET_EXECUTABLE_PATH get_executable_path
+
+/* Emulate directory functions, partially written by Gemini */
+
+struct dirent {
+  char d_name[MAX_PATH * 3];
+};
+
+typedef struct {
+  HANDLE hFind;
+  WIN32_FIND_DATAW findData;
+  struct dirent entry;
+  int first;
+} DIR;
+
+DIR*
+opendir(const char *path)
+{
+  DIR *d = (DIR*)malloc(sizeof(DIR));
+  if (!d)
+    return NULL;
+
+  WCHAR wpath[MAX_PATH];
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH);
+  wcscat_s(wpath, MAX_PATH, L"\\*");
+
+  d->hFind = FindFirstFileW(wpath, &d->findData);
+  if (d->hFind == INVALID_HANDLE_VALUE) {
+    free(d);
+    return NULL;
+  }
+  d->first = 1;
+  return d;
+}
+
+struct dirent*
+readdir(DIR *d)
+{
+  if (d->hFind == INVALID_HANDLE_VALUE)
+    return NULL;
+
+  if (d->first) {
+    d->first = 0;
+  } else {
+    if (!FindNextFileW(d->hFind, &d->findData))
+      return NULL;
+  }
+
+  WideCharToMultiByte(CP_UTF8, 0, d->findData.cFileName, -1, 
+                      d->entry.d_name, sizeof(d->entry.d_name), NULL, NULL);
+  return &d->entry;
+}
+
+int
+closedir(DIR *d)
+{
+  if (!d)
+    return -1;
+  if (d->hFind != INVALID_HANDLE_VALUE)
+    FindClose(d->hFind);
+  free(d);
+  return 0;
+}
+
+#define WANT_DIR_WIN 1

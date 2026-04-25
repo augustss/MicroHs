@@ -25,7 +25,7 @@ import System.Environment
 data DIR
 data Dirent
 
-foreign import ccall "unlink"   c_unlink   :: CString -> IO Int
+foreign import ccall "remove"   c_remove   :: CString -> IO Int
 foreign import ccall "opendir"  c_opendir  :: CString -> IO (Ptr DIR)
 foreign import ccall "closedir" c_closedir :: Ptr DIR -> IO Int
 foreign import ccall "readdir"  c_readdir  :: Ptr DIR -> IO (Ptr Dirent)
@@ -34,12 +34,16 @@ foreign import ccall "chdir"    c_chdir    :: CString -> IO Int
 foreign import ccall "mkdir"    c_mkdir    :: CString -> Int -> IO Int
 foreign import ccall "getcwd"   c_getcwd   :: CString -> Int -> IO CString
 
+-- XXX Use Foreign.C.Error
+
+-- OK on Windows
 removeFile :: FilePath -> IO ()
 removeFile fn = do
-  r <- withCAString fn c_unlink
+  r <- withCAString fn c_remove
   when (r /= 0) $
     error "removeFile failed"
 
+-- OK on Windows
 doesFileExist :: FilePath -> IO Bool
 doesFileExist fn = do
   mh <- openFileM fn ReadMode
@@ -47,6 +51,7 @@ doesFileExist fn = do
     Nothing -> return False
     Just h  -> do { hClose h; return True }
 
+-- Uses emulation in windows/extra.c
 doesDirectoryExist :: FilePath -> IO Bool
 doesDirectoryExist fn = withCAString fn $ \ cfn -> do
   dp <- c_opendir cfn
@@ -56,6 +61,7 @@ doesDirectoryExist fn = withCAString fn $ \ cfn -> do
     c_closedir dp
     return True
 
+-- Uses emulation in windows/extra.c
 getDirectoryContents :: FilePath -> IO [String]
 getDirectoryContents fn = withCAString fn $ \ cfn -> do
   dp <- c_opendir cfn
@@ -75,12 +81,14 @@ getDirectoryContents fn = withCAString fn $ \ cfn -> do
 listDirectory :: FilePath -> IO [String]
 listDirectory d = filter (\ n -> n /= "." && n /= "..") <$> getDirectoryContents d
 
+-- OK on Windows
 setCurrentDirectory :: FilePath -> IO ()
 setCurrentDirectory d = do
   r <- withCAString d c_chdir
   when (r /= 0) $
     error $ "setCurrentDirectory failed: " ++ d
 
+-- OK on Windows
 getCurrentDirectory :: IO FilePath
 getCurrentDirectory = do
   let len = 10000
@@ -96,6 +104,7 @@ withCurrentDirectory dir io =
     setCurrentDirectory dir
     io
 
+-- OK on Windows???
 createDirectory :: FilePath -> IO ()
 createDirectory d = do
   r <- withCAString d $ \ s -> c_mkdir s 0o775       -- rwxrwxr-x

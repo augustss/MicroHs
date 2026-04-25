@@ -7107,7 +7107,7 @@ from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1
 from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_remove(int s) { return mhs_from_Int(s, 1, remove(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_STDIO */
 #if WANT_FD
 from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
@@ -7238,7 +7238,7 @@ from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
 from_t mhs_sizeof_size_t(int s) { return mhs_from_Int(s, 0, sizeof(size_t)); }
-#if WANT_DIR
+#if WANT_DIR || WANT_DIR_WIN
 from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
 from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
 from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
@@ -7438,7 +7438,7 @@ const struct ffi_entry ffi_table[] = {
   { "putchar", 1, mhs_putchar},
   { "fopen", 2, mhs_fopen},
   { "tmpname", 2, mhs_tmpname},
-  { "unlink", 1, mhs_unlink},
+  { "remove", 1, mhs_remove},
   { "system", 1, mhs_system},
 #endif  /* WANT_STDIO */
 #if WANT_FD
@@ -7552,7 +7552,7 @@ const struct ffi_entry ffi_table[] = {
   { "sizeof_llong", 0, mhs_sizeof_llong},
   { "sizeof_long", 0, mhs_sizeof_long},
   { "sizeof_size_t", 0, mhs_sizeof_size_t},
-#if WANT_DIR
+#if WANT_DIR || WANT_DIR_WIN
   { "c_d_name", 1, mhs_c_d_name},
   { "closedir", 1, mhs_closedir},
   { "opendir", 1, mhs_opendir},
