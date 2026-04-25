@@ -248,3 +248,5 @@ closedir(DIR *d)
 }
 
 #define WANT_DIR_WIN 1
+
+#define MKDIR(s, m) mkdir(s)
