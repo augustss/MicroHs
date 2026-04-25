@@ -241,7 +241,7 @@ runtimeFFI = [
   "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "islinux", "ismacos", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
-  "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
+  "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "remove",
   "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",
   "scalbn", "scalbnf",
   "js_debug", "js_eval_run", "js_eval_call", "js_set_haskellCallback",
