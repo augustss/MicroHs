@@ -25,7 +25,7 @@ CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 #
 GHC= ghc
-GHCINCS= -ighc -isrc -ipaths
+GHCINCS= -ighc -isrc
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
@@ -39,7 +39,7 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 # Hugs
 HUGS= runhugs
 FFIHUGS= ffihugs
-HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
 EMCC=emcc
@@ -48,7 +48,7 @@ NODE=node
 #NODEFLAGS=--stack_size=8192
 #
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
-MHSINC=$(MHSINCNP) -ipaths
+MHSINC=$(MHSINCNP)
 MAINMODULE=MicroHs.Main
 #
 .PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
@@ -218,12 +218,12 @@ timecachecompile: bin/mhs
 timemhscompile:
 	@date
 	@git rev-parse HEAD
-	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
+	time mhs +RTS -v -RTS -z -imhs -isrc $(MAINMODULE)
 
 timegmhscompile:
 	@date
 	@git rev-parse HEAD
-	time bin/gmhs -imhs -isrc -ipaths $(MAINMODULE)
+	time bin/gmhs -imhs -isrc $(MAINMODULE)
 
 timeghccompile:
 	@date
@@ -290,8 +290,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.15.5.0
-HVERSION=0,15,5,0
+VERSION=0.15.6.0
+HVERSION=0,15,6,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -301,17 +301,12 @@ MDIST=dist-mcabal
 BASE=base-$(VERSION)
 BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq Control.Error Control.Exception Control.Exception.Base Control.Monad Control.Monad.Fail Control.Monad.Fix Control.Monad.IO.Class Control.Monad.ST Control.Monad.Zip Data.Array Data.Bifoldable Data.Bifunctor Data.Bitraversable Data.Bits Data.Bool Data.Bounded Data.ByteString Data.Char Data.Complex Data.Constraint Data.Data Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Fixed Data.Float Data.FloatW Data.Floating Data.Foldable Data.Foldable1 Data.Fractional Data.Function Data.Functor Data.Functor.Classes Data.Functor.Compose Data.Functor.Const Data.Functor.Contravariant Data.Functor.Identity Data.Functor.Product Data.Functor.Sum Data.Hashable Data.IOArray Data.IORef Data.Int Data.Integer Data.Integral Data.Ix Data.Kind Data.List Data.List.NonEmpty Data.Maybe Data.Monoid Data.Num Data.Ord Data.Proxy Data.Ratio Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Text Data.Traversable Data.Tuple Data.Tuple.Instances Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign Foreign.C Foreign.C.Error Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Error Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Exts GHC.Generics GHC.Stack Language.Haskell.TH.Syntax Mhs.Builtin Numeric Numeric.FormatFloat Numeric.Natural Prelude System.Cmd System.Console.GetOpt System.Compress System.Directory System.Environment System.Exit System.IO System.IO.Error System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.Info System.Process Text.Printf Text.ParserCombinators.ReadP Text.ParserCombinators.ReadPrec Text.Read Text.Read.Lex Text.Show Unsafe.Coerce
 
-$(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] targets.conf $(MDIST)/Paths_MicroHs.hs machdep
+$(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] targets.conf machdep
 	@mkdir -p $(MCABALBIN)
-	@mkdir -p $(MDIST)
-	bin/mhs -z $(MHSINCNP) -i$(MDIST) $(MAINMODULE) -o$(MCABALBIN)/mhs
+	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
 	@mkdir -p $(MRUNTIME)
 	cp targets.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
-
-$(MDIST)/Paths_MicroHs.hs:
-	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 
 $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
@@ -374,7 +369,7 @@ fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 #####
 # Hugs
 HUGS= runhugs
-HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
+HUGSINCS= '+Phugs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 generated/hmhs.c:
 	@mkdir -p generated

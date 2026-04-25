@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.15.5.0
+version:             0.15.6.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -30,7 +30,6 @@ extra-source-files:
       lib/**/*.hs
       lib/**/*.hs-boot
       mhs/**/*.hs
-      paths/Paths_MicroHs.hs
       src/runtime/*.c
       src/runtime/*.h
       src/runtime/**/*.c
@@ -109,9 +108,7 @@ executable mhs
                        System.IO.TimeMilli
                        System.IO.Transducers
                        System.Compress
-                       Paths_MicroHs
 
-  autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.30,
@@ -141,7 +138,6 @@ library
   default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances FlexibleContexts
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
                        -fwrite-ide-info -Wno-deprecations
-  autogen-modules:     Paths_MicroHs
   exposed-modules:
                         MicroHs.Abstract
                         MicroHs.Builtin
@@ -182,7 +178,6 @@ library
                         Text.ParserComb
                         Text.PrettyPrint.HughesPJLite
                         Data.Integer
-                        Paths_MicroHs
                         PrimTable
                         System.Compress
                         System.Console.SimpleReadline

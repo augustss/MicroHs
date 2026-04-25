@@ -20,9 +20,9 @@ import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU, stLookup)
 import MicroHs.Translate
 import MicroHs.TCMonad(TCState(..), tcStateToXTCState)
 import MicroHs.TypeCheck(TModule(..), Symbols)
+import MicroHs.Version
 import Unsafe.Coerce
 import System.Console.SimpleReadline
-import Paths_MicroHs(version)
 import System.Cmd
 import System.Environment
 import System.FilePath
@@ -198,7 +198,7 @@ commands =
     )
   , ("?           this text", help
     )
-  , ("! CMD       run command", \ line -> do
+  , ("! CMD       run shell command", \ line -> do
       _ <- liftIO $ system line
       return True
     )
@@ -240,8 +240,8 @@ reload = do
 helpText :: String
 helpText = "\
   \Commands (may be abbreviated):\n\
-  \expr         evaluate expression\n\
-  \defn         add top level definition\n\
+  \EXPR         evaluate expression\n\
+  \DEFN         add top level definition\n\
   \"
 
 updateLines :: (String -> String) -> I ()

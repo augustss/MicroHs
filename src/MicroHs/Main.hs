@@ -35,13 +35,11 @@ import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
 import MicroHs.TargetConfig
-import Paths_MicroHs(getDataDir)
 
 main :: IO ()
 main = do
+  (mhsDir, srcs, pkgs) <- getPaths
   args <- getArgs
-  dir <- getMhsDir
-  dataDir <- getDataDir
   case args of
     ["-h"] -> putStrLn usage
     ["-?"] -> putStrLn usage
@@ -49,10 +47,8 @@ main = do
     ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
     ["--numeric-version"] -> putStrLn mhsVersion
     _ -> do
-      let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
+      let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
           (flags, mdls, rargs) = decodeArgs dflags [] args
-          pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]   -- This is a bit ugly
-                   | otherwise                    = []                        -- No package search path
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
       preload' <- mapM (findAPackage flags) (preload flags)
@@ -157,15 +153,15 @@ decodeArgs f mdls (arg:args) =
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
-    '-':'i':[]  -> decodeArgs f{paths = []} mdls args
-    '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
+    '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
+    '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
-    '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
-    '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
+    '-':'a':[]  -> decodeArgs f{pkgPaths = []} mdls args
+    '-':'a':s   -> decodeArgs f{pkgPaths = pkgPaths f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
@@ -447,13 +443,13 @@ mainInstallPackage flags [pkgfn, dir] = do
         writeFile fn pkgout
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
-  case pkgPath flags of
-    [] -> mhsError "pkgPath is empty"
+  case pkgPaths flags of
+    [] -> mhsError "pkgPaths is empty"
     frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = mhsError usage
 
 findAllPackages :: Flags -> IO [(FilePath, [String])]
-findAllPackages flags = concat <$> mapM list (pkgPath flags)
+findAllPackages flags = concat <$> mapM list (pkgPaths flags)
   where list dir = do
           let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
