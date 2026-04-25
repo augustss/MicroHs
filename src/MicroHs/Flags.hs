@@ -3,6 +3,7 @@ module MicroHs.Flags(
   DumpFlag(..), dumpIf,
   wantGMP) where
 import qualified Prelude(); import MHSPrelude
+import MicroHs.Config
 
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level
@@ -36,7 +37,8 @@ data Flags = Flags {
   interactive:: Bool,       -- enter interactive mode
   evalArg    :: Maybe String, -- evaluate an expression
   editor     :: Maybe String, -- Hugs-like flag to invoke the editor.
-  iPrint     :: Maybe String  -- interactive print function
+  iPrint     :: Maybe String, -- interactive print function
+  config     :: Config        -- from mhs.config file
   }
   deriving (Show)
 
@@ -76,7 +78,8 @@ defaultFlags = Flags {
   interactive = False,
   evalArg     = Nothing,
   editor      = Nothing,
-  iPrint      = Nothing
+  iPrint      = Nothing,
+  config      = []
   }
 
 data DumpFlag = Dpreproc | Dparse | Dderive | DexpandInst | Dtypecheck | Ddesugar | Dlinked | Dtoplevel | Dcombinator | Dall
