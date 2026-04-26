@@ -114,7 +114,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-T                 Generate dynamic function usage statistics\n\
       \-tTARGET           Select target\n\
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
-      \                   Targets can be defined in targets.conf\n\
+      \                   Targets can be defined in mhs.conf\n\
       \-v                 Increase verbosity (flag can be repeated)\n\
       \--version          Print the version\n\
       \-XCPP              Run cpphs on source files\n\
@@ -181,7 +181,7 @@ decodeArgs f mdls (arg:args) =
 
 readConfig :: Flags -> IO Config
 readConfig flags = do
-  let cfFilePath = mhsdir flags </> "targets.conf"
+  let cfFilePath = mhsdir flags </> "mhs.conf"
   exists <- doesFileExist cfFilePath
   if not exists then
     return []
