@@ -1,3 +1,11 @@
+-- Target keys
+--  cc        C compiler to use, default "cc"
+--  ccflags   flags to pass at the beginning of the compiler command, default ""
+--  cclibs    flags to pass at the end of the compilation command, default ""
+--  conf      the config directory to use, default "unix"
+--  cout      flag to set the output file to cc, default "-o"
+
+-- If no target is set, we use 'default'
 [default]
 cc = "cc"
 ccflags = "-w -Wall -O3 GMPFLAGS"
