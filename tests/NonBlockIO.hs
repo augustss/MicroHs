@@ -111,7 +111,7 @@ server mv = do
   _ <- takeMVar mv
   putStrLn "accepted an incoming connection"
 
-connectToServer :: IO ()
+connectToServer :: Word16 -> IO ()
 connectToServer port = do
   fd <- c_socket aFINET sOCKSTREAM 0
   withSockAddr serverPort (127, 0, 0, 1) $ \p ->
@@ -138,7 +138,7 @@ main = do
   tick
   tick
 
-  connectToServer
+  connectToServer serverPort
   putMVar mv ()
   yield
 
