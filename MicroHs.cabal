@@ -145,6 +145,7 @@ library
                         MicroHs.Builtin
                         MicroHs.Compile
                         MicroHs.CompileCache
+                        MicroHs.Config
                         MicroHs.Deriving
                         MicroHs.Desugar
                         MicroHs.EncodeData
@@ -170,10 +171,10 @@ library
                         MicroHs.State
                         MicroHs.StateIO
                         MicroHs.SymTab
-                        MicroHs.TargetConfig
                         MicroHs.TCMonad
                         MicroHs.Translate
                         MicroHs.TypeCheck
+                        MicroHs.Version
                         MhsEval
 
   other-modules:        MHSPrelude
