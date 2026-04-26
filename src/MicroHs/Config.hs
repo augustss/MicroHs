@@ -78,7 +78,7 @@ section :: Parser Section
 section = (,) <$> (sectionName <* nl) <*> keyValues
 
 sections :: Parser [Section]
-sections = (section `sepBy1` nl) <* nl <* eof
+sections = nl *> (section `sepBy1` nl) <* nl <* eof
 
 formatFailed :: LastFail Token -> String
 formatFailed (LastFail _ ts msgs) =

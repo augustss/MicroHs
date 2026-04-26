@@ -95,8 +95,10 @@ executable mhs
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
+                       MicroHs.Version
                        Text.ParserComb
                        Text.PrettyPrint.HughesPJLite
+                       Text.PrettyPrint.HughesPJLiteClass
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
