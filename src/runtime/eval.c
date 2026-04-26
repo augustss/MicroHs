@@ -1135,6 +1135,20 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
+#if MHS_IO_POLL
+/*
+this is the callback that is sent to the io_poll framework. It is invoked
+when an event a thread is waiting for becomes ready.
+*/
+static void
+io_thread_ready(void *ptr)
+{
+  struct mthread *mt = (struct mthread *)ptr;
+  mt->mt_fd = -2;
+  add_runq_tail(mt);
+}
+#endif
+
 struct mthread*
 remove_q_head(struct mqueue *q)
 {
@@ -1327,7 +1341,7 @@ yield(void)
   if (io_waiter_count() > 0) {
     /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
        for the events should not block. */
-    io_poll(0);
+    io_poll(0, io_thread_ready);
   }
 #endif
 
@@ -1660,7 +1674,7 @@ IO event, we are deadlocked. */
       timeout_ms = (delta > 0) ? (int)((delta + 999) / 1000) : 0;
     }
 #endif
-    io_poll(timeout_ms);
+    io_poll(timeout_ms, io_thread_ready);
 #if defined(CLOCK_INIT)
     check_timeq();
 #endif
@@ -6083,9 +6097,9 @@ evali(NODEPTR an)
   case T_IO_WAITWRFD: {
     CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
 
-    /* io_poll sets mt_fd=-2 when waking the thread. By seeing if it is -2 here we
-       can learn that our registered event has happened and we can return unit. If
-       we did not do this check we would just register again.
+    /* io_thread_ready sets mt_fd=-2 when waking the thread. By seeing if it is -2
+       here we can learn that our registered event has happened and we can return
+       unit. If we did not do this check we would just register again.
 
        This seems to be how T_IO_THREADDELAY works, with mt_at == -1.
     */
