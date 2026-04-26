@@ -304,9 +304,6 @@ BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq C
 $(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] mhs.conf machdep
 	@mkdir -p $(MCABALBIN)
 	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
-	@mkdir -p $(MRUNTIME)
-	cp mhs.conf $(MDATA)
-	cp -r $(RTS)/* $(MRUNTIME)
 
 $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
@@ -320,11 +317,6 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
-
-#install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
-#	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
-
-# mkdir ~/.mcabal/packages/array-0.5.6.0
 
 preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
@@ -350,11 +342,13 @@ installmsg:
 	@echo '***************************************************'
 	@echo ''
 
-minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs machdep
-	cp bin/cpphs bin/mcabal $(MCABALBIN)
+minstall:	bin/mhs bin/cpphs bin/mcabal machdep
+	@mkdir -p $(MCABALBIN)
+	@mkdir -p $(MRUNTIME)
+	cp bin/mhs bin/cpphs bin/mcabal $(MCABALBIN)
+	cp mhs.conf $(MDATA)
+	cp -r $(RTS)/* $(MRUNTIME)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
-# We don't really need to rebuild mhs
-#	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 machdep:
