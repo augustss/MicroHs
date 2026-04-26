@@ -12,9 +12,7 @@
 #define IO_POLL_READ  1
 #define IO_POLL_WRITE 2
 
-struct mthread;  /* forward declaration; full definition is in eval.c */
-
 void io_init(void);
-void io_poll(int timeout_ms);
-void io_register(int fd, int events, struct mthread *mt);
+void io_poll(int timeout_ms, void (*on_ready)(void *cookie)); /* cookie is a struct mthread*, passed in from eval.c */
+void io_register(int fd, int events, void *cookie);
 int  io_waiter_count(void);
