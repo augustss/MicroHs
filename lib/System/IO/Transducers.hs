@@ -1,15 +1,15 @@
 module System.IO.Transducers(
-  addUTF8, addCRLF, addBuffer, addLZ77, addRLE, addBWT, addBase64, addLZMA,
+  addUTF8, addCRLF, addBuffer,
+  addCompress,
+  addLZ77, addRLE, addBWT, addBase64, addLZMA,
   ) where
 import qualified Prelude(); import MiniPrelude
---import Data.Maybe
 import Foreign.Ptr(Ptr)
 import System.IO.Base
 import System.IO.Internal
 
 foreign import ccall add_utf8              :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_crlf              :: Ptr BFILE -> IO (Ptr BFILE)
---foreign import ccall add_base64            :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_buf        :: Int -> Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_lz77_compressor   :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_lz77_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
@@ -43,6 +43,10 @@ addBuffer (BlockBuffering mb) h = addTransducer (add_buf (fromMaybe defaultBufSi
 
 defaultBufSize :: Int
 defaultBufSize = 512
+
+-- Add the default compressor
+addCompress :: Handle -> IO Handle
+addCompress = addLZ77
 
 addLZ77 :: Handle -> IO Handle
 addLZ77 = addTransducerRW add_lz77_decompressor add_lz77_compressor

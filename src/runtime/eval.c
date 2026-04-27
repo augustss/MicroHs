@@ -6745,10 +6745,7 @@ MHS_INIT_ARGS(
     }
 #endif
     if (c == 'z') {
-      /* add LZ77 compressor transducer */
-      bf = add_lz77_decompressor(bf);
-    } else if (c == 'q') {
-      /* add LZ77 compressor transducer */
+      /* add LZ77 decompressor transducer */
       bf = add_lzma_decompressor(bf);
     } else {
       /* put it back, we need it */

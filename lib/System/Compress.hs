@@ -1,5 +1,7 @@
 module System.Compress(
   compress, decompress,
+  compressLZ77, decompressLZ77,
+  compressLZMA, decompressLZMA,
   compressRLE, decompressRLE,
   compressBWT, decompressBWT,
   compressBWTRLE, decompressBWTRLE,
@@ -64,13 +66,13 @@ withGetTransducer trans file = unsafePerformIO $ do
   return cs
 
 compress :: [Char] -> [Char]
-compress = withPutTransducer c_add_lz77_compressor
+compress = compressLZMA
 
 decompress :: [Char] -> [Char]
-decompress = withGetTransducer c_add_lz77_decompressor
+decompress = decompressLZMA
 
-compressLZ :: [Char] -> [Char]
-compressLZ = withPutTransducer c_add_lz77_compressor
+compressLZ77 :: [Char] -> [Char]
+compressLZ77 = withPutTransducer c_add_lz77_compressor
 
 decompressLZ77 :: [Char] -> [Char]
 decompressLZ77 = withGetTransducer c_add_lz77_decompressor
