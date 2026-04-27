@@ -248,6 +248,7 @@ runtimeFFI = [
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
+  "add_lzma_compressor", "add_lzma_decompressor",
   "add_rle_compressor", "add_rle_decompressor",
   "add_base64_encoder", "add_base64_decoder",
   "add_bwt_compressor", "add_bwt_decompressor",

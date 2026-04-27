@@ -42,8 +42,6 @@ FFIHUGS= ffihugs
 HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
-EMCC=emcc
-EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 NODE=node
 #NODEFLAGS=--stack_size=8192
 #
@@ -95,7 +93,10 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 	@mkdir -p bin
 	$(CCEVAL) $(CCSANITIZE) $(RTSINC) $(RTS)/comb.c $(CCLIBS) -o bin/mhsevalsane
 
+#######################
 # mhseval, compiled with emscripten. Use in the browser!
+#EMCC=emcc
+#EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
 EMCCLIBS= -lm
 EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
@@ -103,6 +104,11 @@ generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
 	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
 
+bin/mhs.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf #generated/mhs.c
+	@mkdir -p bin
+	$(EMCCEVAL) generated/mhs.c $(EMCCLIBS) -o bin/mhs.js
+
+#######################
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
@@ -340,17 +346,23 @@ minstall:	bin/mhs bin/cpphs bin/mcabal machdep
 	cp bin/mhs bin/cpphs bin/mcabal $(MCABALBIN)
 	cp mhs.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
-	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
+	@mkdir -p $(MCABALMHS)
+	bin/mhsmhs -Q generated/base.pkg $(MCABALMHS)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
-# Install without recompiling anything.
-fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
+# Install with recompiling
+slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	@mkdir -p $(MCABALBIN)
-	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
-	mhs -Q generated/base.pkg $(MCABALMHS)
+	@mkdir -p $(MRUNTIME)
+	cp bin/cpphs bin/mcabal $(MCABALBIN)
+	cp mhs.conf $(MDATA)
+	cp -r $(RTS)/* $(MRUNTIME)
+	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
+	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 #####
 # Hugs

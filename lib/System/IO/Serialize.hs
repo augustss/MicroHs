@@ -29,12 +29,14 @@ writeSerialized p s = do
 
 foreign import ccall "add_lz77_compressor" c_add_lz77_compressor :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall "add_lz77_decompressor" c_add_lz77_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lzma_compressor" c_add_lzma_compressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lzma_decompressor" c_add_lzma_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
 
 writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
 writeSerializedCompressed p s = do
   h <- openBinaryFile p WriteMode
-  hPutChar h 'z'                               -- indicate compressed
-  h' <- addTransducer c_add_lz77_compressor h
+  hPutChar h 'q'                               -- indicate compressed
+  h' <- addTransducer c_add_lzma_compressor h
   hSerialize h' s
   hClose h'
 
@@ -43,9 +45,9 @@ readSerialized :: forall a . FilePath -> IO a
 readSerialized p = do
   h <- openBinaryFile p ReadMode
   c <- hLookAhead h
-  h' <- if c == 'z' then do                    -- compressed?
+  h' <- if c == 'q' then do                    -- compressed?
           hGetChar h   -- get rid of the 'z'
-          addTransducer c_add_lz77_decompressor h
+          addTransducer c_add_lzma_decompressor h
         else
           return h
   a <- hDeserialize h'
