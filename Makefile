@@ -347,7 +347,7 @@ minstall:	bin/mhs bin/cpphs bin/mcabal machdep
 	cp mhs.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
 	@mkdir -p $(MCABALMHS)
-	mhs -Q generated/base.pkg $(MCABALMHS)
+	bin/mhs -Q generated/base.pkg $(MCABALMHS)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 machdep:
