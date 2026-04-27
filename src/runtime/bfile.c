@@ -1769,6 +1769,7 @@ add_base64_decoder(BFILE *file) {
 #if WANT_LZMA
 
 #define LZMA_IMPLEMENTATION
+#define _7ZIP_ST
 #include "lzma.h"
 #undef MIN
 #undef MAX
