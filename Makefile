@@ -322,7 +322,7 @@ preparedist:	newmhsz bootstrapcpphs
 	$(MAKE) generated/mhseval.js
 #	$(MAKE) generated/base.pkg
 
-generated/base.pkg:
+generated/base.pkg: $(MCABALBIN)/mhs
 	cd lib; mcabal $(MCABALCMP) build
 	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
