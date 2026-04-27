@@ -320,10 +320,10 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/mhseval.js
-#	$(MAKE) generated/base.pkg
+	$(MAKE) generated/base.pkg
 
-generated/base.pkg:
-	cd lib; mcabal $(MCABALCMP) build
+generated/base.pkg: bin/mhs bin/mcabal
+	cd lib; PATH=../bin:"$$PATH" mcabal $(MCABALGMP) build
 	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
 install:	installmsg minstall
@@ -347,7 +347,7 @@ minstall:	bin/mhs bin/cpphs bin/mcabal machdep
 	cp mhs.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
 	@mkdir -p $(MCABALMHS)
-	bin/mhsmhs -Q generated/base.pkg $(MCABALMHS)
+	bin/mhs -Q generated/base.pkg $(MCABALMHS)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 machdep:
