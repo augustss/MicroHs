@@ -106,12 +106,12 @@ generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c $(MAINMODULE) -o bin/gmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) $(MAINMODULE) -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
 bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c -fhpc $(MAINMODULE) -o bin/cmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) -fhpc $(MAINMODULE) -o bin/cmhs
 
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs

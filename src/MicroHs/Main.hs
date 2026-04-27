@@ -26,7 +26,7 @@ import MicroHs.MakeCArray
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(TModule(..), showValueExport, showTypeExport, showTypeExportAssocs, TypeExport)
-import MhsEval
+--import MhsEval
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -331,10 +331,12 @@ mainCompile flags mn = do
     if compiledWithMhs then do
       let prg = translateAndRun cmdl
       prg
+{-
      else if compiledWithGhc then
       withMhsContext $ \ ctx -> do
         run ctx outData
-      else mhsError "The -r flag currently only works with mhs and ghc"
+-}
+     else mhsError "The -r flag currently only works with mhs and ghc"
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
