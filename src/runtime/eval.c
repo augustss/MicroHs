@@ -7705,14 +7705,43 @@ const struct ffi_entry ffi_table[] = {
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);
 
-bool
-xxindir(NODEPTR p)
+
+
+/*******************************/
+/* HsFFI.h API */
+
+void
+hs_init(int *argc, char **argv[])
 {
-  return ISINDIR(p);
+  (void)mhs_main(*argc, *argv);
 }
 
 void
-xxsetind(NODEPTR p, NODEPTR q)
+hs_exit(void)
 {
-  SETINDIR(p, q);
+  _exit(0);
+}
+
+void
+hs_set_argv(int argc, char *argv[])
+{
+  ERR("hs_set_argv not implemented");
+}
+
+void
+hs_perform_gc(void)
+{
+  gc();
+}
+
+void
+hs_free_stable_ptr(void *sp)
+{
+  free_stableptr((uvalue_t)sp);
+}
+
+void
+hs_free_fun_ptr(HsFunPtr fp)
+{
+  ERR("hs_free_fun_ptr not implemented");
 }
