@@ -23,7 +23,7 @@ typedef double        HsDouble;
 typedef int           HsBool;
 typedef void         *HsPtr;
 typedef void        (*HsFunPtr)(void);
-typedef	void         *StablePtr;
+typedef	void         *HsStablePtr;
 
 #define HS_CHAR_MIN     0
 #define HS_CHAR_MAX     0x10ffff
