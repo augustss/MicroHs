@@ -1,0 +1,6 @@
+server: listening, blocking on accept
+tick
+tick
+tick
+accepted an incoming connection
+client: connected to server

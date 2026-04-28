@@ -119,11 +119,12 @@ threadStatus thr = do
   st <- primThreadStatus thr
   return $
     case st of
-      0 -> ThreadRunning                 -- ts_runnable
-      1 -> ThreadBlocked BlockedOnMVar   -- ts_wait_mvar
-      2 -> ThreadBlocked BlockedOnOther  -- ts_wait_time
-      3 -> ThreadFinished                -- ts_finished
-      4 -> ThreadDied                    -- ts_died
+      0 -> ThreadRunning                      -- ts_runnable
+      1 -> ThreadBlocked BlockedOnMVar        -- ts_wait_mvar
+      2 -> ThreadBlocked BlockedOnOther       -- ts_wait_time
+      3 -> ThreadFinished                     -- ts_finished
+      4 -> ThreadDied                         -- ts_died
+      5 -> ThreadBlocked BlockedOnForeignCall -- ts_wait_io
 
 -------------------------------------------------------
 -- Just for GHC compatibility.

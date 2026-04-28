@@ -5,7 +5,7 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest: info test errtest testforimp testforexp testforimpexp testapplysp
+alltest: info test errtest testforimp testforexp testforimpexp testapplysp testnonblockio
 # interactivetest
 
 cache:
@@ -136,6 +136,9 @@ testforimpexp:
 
 testapplysp:
 	$(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
+
+testnonblockio:
+	MHSDIR=.. $(TMHS) -oNonBlockIO.exe NonBlockIO && ./NonBlockIO.exe > NonBlockIO.out && diff NonBlockIO.ref NonBlockIO.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
