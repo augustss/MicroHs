@@ -38,7 +38,8 @@ data Flags = Flags {
   evalArg    :: Maybe String, -- evaluate an expression
   editor     :: Maybe String, -- Hugs-like flag to invoke the editor.
   iPrint     :: Maybe String, -- interactive print function
-  config     :: Config        -- from mhs.config file
+  config     :: Config,       -- from mhs.config file
+  embedPkgs  :: [String]
   }
   deriving (Show)
 
@@ -79,7 +80,8 @@ defaultFlags = Flags {
   evalArg     = Nothing,
   editor      = Nothing,
   iPrint      = Nothing,
-  config      = []
+  config      = [],
+  embedPkgs   = []
   }
 
 data DumpFlag = Dpreproc | Dparse | Dderive | DexpandInst | Dtypecheck | Ddesugar | Dlinked | Dtoplevel | Dcombinator | Dall

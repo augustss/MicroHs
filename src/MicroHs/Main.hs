@@ -3,18 +3,21 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
+import Control.Monad
+import Control.Applicative
+import qualified Data.ByteString.Char8 as BS
 import Data.Char
 import Data.List
 import Data.Version
-import Control.Monad
-import Control.Applicative
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Config
+import MicroHs.Desugar(LDef)
+import MicroHs.EncodeData(encList)
 import MicroHs.Exp(Exp(Var, Lit))
-import MicroHs.Expr(Lit(LInt))
+import MicroHs.Expr(Lit(LInt, LBStr))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
@@ -87,6 +90,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
       \-ECMD              Set editor for :exit command\n\
       \-eEXPR             Evaluate EXPR\n\
+      \-embed-packages PKG* Embed packages in mhs binary\n\
       \-F                 Run a preprocessor\n\
       \-h                 Print usage\n\
       \--help             Print this message\n\
@@ -155,6 +159,8 @@ decodeArgs f mdls (arg:args) =
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
+    "--embed-packages" | s : args' <- args
+                -> decodeArgs f{embedPkgs = embedPkgs f ++ splitColonPath s} mdls args'
     '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
     '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -306,13 +312,14 @@ printDefinitions tmdl = do
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
   t0 <- getTimeMilli
-  (cash, (rmn, allDefs)) <- do
+  (cash, (rmn, allDefs')) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
     return (cash', rds)
 
   t1 <- getTimeMilli
+  allDefs <- addEmbedPkgs flags allDefs'
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
@@ -348,7 +355,8 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let (cFFI, hFFI) = makeFFI flags forExps outDefs
+    embeddedDefs <- mapM (getPackageDefs flags) (embedPkgs flags)
+    let (cFFI, hFFI) = makeFFI flags forExps (outDefs : embeddedDefs)
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
     let outFile = output flags
@@ -483,3 +491,26 @@ hasTheExtension f e = e `isSuffixOf` f
 
 splitColonPath :: String -> [String]
 splitColonPath = splitWhen (':' ==)
+
+-- Get all definitions from a package.
+-- Used to produce FFI wrappers for embedded packages.
+getPackageDefs :: Flags -> String -> IO [LDef]
+getPackageDefs flags pkgnm = do
+  pkgfn <- findAPackage flags pkgnm
+  pkg <- readSerialized pkgfn
+  return $ concatMap tBindingsOf (pkgExported pkg ++ pkgOther pkg)
+
+addEmbedPkgs :: Flags -> [LDef] -> IO [LDef]
+addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
+                      | otherwise = do
+  let get pkgnm = do
+        pkgfn <- findAPackage flags pkgnm
+        BS.readFile pkgfn
+  bss <- mapM get (embedPkgs flags)
+  let ps = encList $ map (\ bs -> Lit $ LBStr $ BS.unpack bs) bss
+      rep ie@(i, _) | i == mkIdent "MicroHs.Embed.packages" = (i, ps)
+                    | otherwise = ie
+  
+  when (verbosityGT flags (-1)) $
+    putStrLn $ "Embedded " ++ show (embedPkgs flags)
+  return $ map rep ds

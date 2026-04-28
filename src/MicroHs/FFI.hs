@@ -10,9 +10,9 @@ import MicroHs.Names
 --import Debug.Trace
 
 -- The export table has (internal-name, external-name, external-type)
-makeFFI :: Flags -> [(Ident, Ident, CType)] -> [LDef] -> (String, String)
-makeFFI _ forExps ds =
-  let ffiImports = nubBy eq [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
+makeFFI :: Flags -> [(Ident, Ident, CType)] -> [[LDef]] -> (String, String)
+makeFFI _ forExps dss =
+  let ffiImports = nubBy eq [ (ie, n, t) | ds <- dss, (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
                        eq (_, n, _) (_, n', _) = n == n'

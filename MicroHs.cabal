@@ -71,6 +71,7 @@ executable mhs
                        MicroHs.Deriving
                        MicroHs.Desugar
                        MicroHs.EncodeData
+                       MicroHs.Embed
                        MicroHs.Exp
                        MicroHs.ExpPrint
                        MicroHs.Expr

@@ -36,6 +36,7 @@ import MicroHs.Abstract
 import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
+import qualified MicroHs.Embed as Embed
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Flags
@@ -75,6 +76,7 @@ compileCacheTop flags mn ch = do
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
 compileMany flags mns ach =
   execStateIO (do mapM_ (loadPkg flags) (preload flags)
+                  mapM_ (loadEmbedPkg flags) Embed.packages
                   mapM_ (compileModuleCached flags ImpNormal) mns)
               ach
 
@@ -521,6 +523,10 @@ loadPkg flags fn = do
   when (pkgCompiler pkg /= mhsVersion) $
     mhsError $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
   modify $ addPackage fn pkg
+
+loadEmbedPkg :: Flags -> BS.ByteString -> CM ()
+loadEmbedPkg flags bs = do
+  
 
 -- XXX add function to find&load package from package name
 
