@@ -6,5 +6,7 @@
  * Find compiler files relative to the binary instead with an absolute path.
  * Use LZMA for compression
  * Fast install
+ * Enable embedding packages in the mhs binary
+
 
  

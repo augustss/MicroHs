@@ -71,7 +71,7 @@ main = do
           _                                   -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffi PKG:...] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -256,7 +256,7 @@ splitNameVer s =
 
 -- Take a file name of a package, or just a package name,
 -- return the full name of the package file.
--- It's an error if no package can be found.
+-- It's an error if no unique package can be found.
 findAPackage :: Flags -> FilePath -> IO FilePath
 findAPackage flags pkgnm = do
   ok <- doesFileExist pkgnm
@@ -264,6 +264,7 @@ findAPackage flags pkgnm = do
     return pkgnm
    else do
     dirpkgs <- findAllPackages flags
+    print dirpkgs
     case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
       [] -> mhsError $ "Package not found: " ++ show pkgnm
       [s] -> return s
@@ -507,7 +508,7 @@ addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
         pkgfn <- findAPackage flags pkgnm
         BS.readFile pkgfn
   bss <- mapM get (embedPkgs flags)
-  let ps = encList $ map (\ bs -> Lit $ LBStr $ BS.unpack bs) bss
+  let ps = encList $ map (\ bs -> Lit $ LBStr bs) bss
       rep ie@(i, _) | i == mkIdent "MicroHs.Embed.packages" = (i, ps)
                     | otherwise = ie
   

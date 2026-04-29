@@ -3,12 +3,14 @@
 module System.IO.Serialize(
   hSerialize, hDeserialize,
   writeSerialized, writeSerializedCompressed,
-  readSerialized,
+  readSerialized, readSerializedH, readSerializedBS,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
+import Data.ByteString(ByteString)
 import System.IO
 import System.IO.Internal
+import System.IO.StringHandle(withByteStringHandle)
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
 primHSerialize    = _primitive "IO.serialize"
@@ -41,12 +43,17 @@ writeSerializedCompressed p s = do
   hClose h'
 
 -- Read compressed or uncompressed
-readSerialized :: forall a . FilePath -> IO a
-readSerialized p = do
-  h <- openBinaryFile p ReadMode
+readSerialized :: FilePath -> IO a
+readSerialized p = openBinaryFile p ReadMode >>= readSerializedH
+
+readSerializedBS :: ByteString -> IO a
+readSerializedBS bs = withByteStringHandle bs readSerializedH
+
+readSerializedH :: Handle -> IO a
+readSerializedH h = do
   c <- hLookAhead h
   h' <- if c == 'q' then do                    -- compressed?
-          hGetChar h   -- get rid of the 'z'
+          hGetChar h   -- get rid of the 'q'
           addTransducer c_add_lzma_decompressor h
         else
           return h

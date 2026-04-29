@@ -17,9 +17,11 @@ module MicroHs.Compile(
   openFilePath,
   loadPkg,
   addPreludeImport,
+  loadEmbedded,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Exception
+import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -74,11 +76,15 @@ compileCacheTop flags mn ch = do
   return res
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
-compileMany flags mns ach =
+compileMany flags mns ach = do
   execStateIO (do mapM_ (loadPkg flags) (preload flags)
                   mapM_ (loadEmbedPkg flags) Embed.packages
                   mapM_ (compileModuleCached flags ImpNormal) mns)
               ach
+
+loadEmbedded :: Flags -> Cache -> IO Cache
+loadEmbedded flags ach =
+  execStateIO (mapM_ (loadEmbedPkg flags) Embed.packages) ach
 
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
@@ -520,13 +526,20 @@ loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
+  loadPkg' fn pkg
+
+loadPkg' :: FilePath -> Package -> CM ()
+loadPkg' fn pkg = do
   when (pkgCompiler pkg /= mhsVersion) $
     mhsError $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
   modify $ addPackage fn pkg
 
 loadEmbedPkg :: Flags -> BS.ByteString -> CM ()
 loadEmbedPkg flags bs = do
-  
+  pkg <- liftIO $ readSerializedBS bs
+  when (loading flags || verbosityGT flags 0) $
+    liftIO $ putStrLn $ "Loading embedded package " ++ showIdent (pkgName pkg)
+  loadPkg' "<<ByteString>>" pkg
 
 -- XXX add function to find&load package from package name
 

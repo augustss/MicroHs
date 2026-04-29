@@ -77,7 +77,8 @@ startIState flags mdls hist = do
   unless compiledWithMhs $ do
     --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
     mhsError "The interactive system currently only works with mhs"
-  cash <- getCached flags
+  ccash <- getCached flags
+  cash <- loadEmbedded flags ccash
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
   return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 ""
 

@@ -1,7 +1,9 @@
-module System.IO.StringHandle(handleWriteToString, stringToHandle) where
+module System.IO.StringHandle(handleWriteToString, stringToHandle, withByteStringHandle) where
 import Prelude; import MiniPrelude
+import qualified Data.ByteString.Internal as BS
 import Foreign.C.String
 import Foreign.C.Types
+import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Foreign.Ptr
@@ -38,3 +40,11 @@ stringToHandle file = do
   (ptr, len) <- newCAStringLen file            -- make memory buffer
   bf <- c_openb_rd_mem ptr len                 -- open it for reading
   mkHandle "stringToHandle" bf HRead           -- and make a handle
+
+withByteStringHandle :: BS.ByteString -> (Handle -> IO a) -> IO a
+withByteStringHandle bs act = do
+  let fp = BS.primBS2FPtr bs
+  withForeignPtr fp $ \ p -> do
+    bf <- c_openb_rd_mem p (BS.primBSlength bs)
+    h <- mkHandle "withByteStringHandle" bf HRead
+    act h
