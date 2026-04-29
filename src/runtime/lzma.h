@@ -1730,7 +1730,8 @@ BoolInt CPU_IsSupported_AES(void)
 
 #include <sys/auxv.h>
 
-#define USE_HWCAP
+// Don't use asm/hwcap.h, it does not seem to exist on all platforms.
+// #define USE_HWCAP
 
 #ifdef USE_HWCAP
 
