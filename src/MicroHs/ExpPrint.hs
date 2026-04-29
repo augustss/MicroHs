@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl) where
 import qualified Prelude(); import MHSPrelude
+import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
@@ -113,10 +114,10 @@ toStringP ae =
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LBStr (utf8encode s))))
+        toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LBStr (BS.pack (utf8encode s)))))
       else
         toStringP (encodeString s)
-    Lit (LBStr s) -> (quoteString s ++) . (' ' :)
+    Lit (LBStr s) -> (quoteString (BS.unpack s) ++) . (' ' :)
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
