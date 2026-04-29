@@ -19,6 +19,7 @@ module MicroHs.TypeCheck(
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
+import qualified Data.ByteString.Char8 as BS
 import Data.Char
 import Data.Function
 import Data.List
@@ -1916,7 +1917,7 @@ tcExprR mt ae =
                 Just (EApp (EVar lst) (EVar c))
                  | lst == identList && c == identChar -> tcLit mt loc lit
                 Just (EVar bs)
-                 | bs == identByteString -> tcLit mt loc (LBStr s)
+                 | bs == identByteString -> tcLit mt loc (LBStr (BS.pack s))
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft

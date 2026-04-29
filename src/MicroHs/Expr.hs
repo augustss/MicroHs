@@ -58,6 +58,7 @@ module MicroHs.Expr(
   dropForallContext,
   ) where
 import qualified Prelude(); import MHSPrelude
+import Data.ByteString(ByteString)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
@@ -342,7 +343,7 @@ data Lit
   | LRat Rational
   | LChar Char
   | LStr String
-  | LBStr String            -- bytestring
+  | LBStr ByteString        -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
   | LForImp ImpEnt String CType

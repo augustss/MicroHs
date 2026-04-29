@@ -59,7 +59,7 @@ trans r ae =
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LFloat i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
+    Lit (LBStr s) -> unsafeCoerce s
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit f@(LForImp _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
