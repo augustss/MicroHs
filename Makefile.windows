@@ -7,20 +7,20 @@ all:    bin/mhs.exe bin/mhseval.exe
 bin/mhs.exe:	src/runtime/*.c  src/runtime/windows/* #generated/mhs.c
 	@-mkdir bin
 	@-mkdir build
-	cl -Fobuild\ -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c generated/mhs.c -Febin/mhs.exe
+	cl -F"obuild\\" -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c generated/mhs.c -Fe"bin\\mhs.exe"
 
 # Compile combinator evaluator
 bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/* src/runtime/comb.c
 	@-mkdir bin
 	@-mkdir build
-	cl -Fobuild\ -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c src/runtime/comb.c -Febin/mhseval.exe
+	cl -F"obuild\\" -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c src/runtime/comb.c -Fe"bin\\mhseval.exe"
 
-targets.conf: targets.conf.in
-	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," targets.conf.in > targets.conf
+mhs.conf: mhs.conf.in
+	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
-exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs targets.conf
+exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs mhs.conf
 	bin\mhs -r Example
 	bin\mhs Example && bin\mhseval
-        bin\mhs -itests Nfib && bin\mhseval
+	bin\mhs -itests Nfib && bin\mhseval
 	bin\mhs -r -itests Info
 	bin\mhs -twindows Example -oEx.exe && Ex && rm Ex.exe

@@ -175,7 +175,7 @@ import Foreign.Marshal.Alloc (allocaBytes)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (pokeByteOff)
-import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout)
+import System.IO.Base(Handle, IOMode(..), hClose, openBinaryFile, stdin, stdout)
 import qualified System.IO.Base as P
 import System.IO.Internal(BFILE, withHandleRd, withHandleWr)
 import qualified Text.Read.Lex as L
@@ -616,18 +616,18 @@ interact transformer = getContents >>= putStr . transformer
 
 readFile :: FilePath -> IO ByteString
 readFile f = do
-  h <- openFile f ReadMode
+  h <- openBinaryFile f ReadMode
   hGetContents h
 
 writeFile :: FilePath -> ByteString -> IO ()
 writeFile f bs = do
-  h <- openFile f WriteMode
+  h <- openBinaryFile f WriteMode
   hPut h bs
   hClose h
 
 appendFile :: FilePath -> ByteString -> IO ()
 appendFile f bs = do
-  h <- openFile f AppendMode
+  h <- openBinaryFile f AppendMode
   hPut h bs
   hClose h
 

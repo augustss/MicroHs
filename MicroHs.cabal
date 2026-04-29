@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.15.5.0
+version:             0.15.7.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -30,7 +30,6 @@ extra-source-files:
       lib/**/*.hs
       lib/**/*.hs-boot
       mhs/**/*.hs
-      paths/Paths_MicroHs.hs
       src/runtime/*.c
       src/runtime/*.h
       src/runtime/**/*.c
@@ -68,6 +67,7 @@ executable mhs
                        MicroHs.Builtin
                        MicroHs.Compile
                        MicroHs.CompileCache
+                       MicroHs.Config
                        MicroHs.Deriving
                        MicroHs.Desugar
                        MicroHs.EncodeData
@@ -95,23 +95,22 @@ executable mhs
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
-                       MicroHs.TargetConfig
+                       MicroHs.Version
                        Text.ParserComb
                        Text.PrettyPrint.HughesPJLite
+                       Text.PrettyPrint.HughesPJLiteClass
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
                        PrimTable
-                       MhsEval
+--                       MhsEval
                        MHSPrelude
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
                        System.IO.Transducers
                        System.Compress
-                       Paths_MicroHs
 
-  autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.30,
@@ -125,9 +124,9 @@ executable mhs
                        text         >= 2.0 && < 2.5,
                        array        >= 0.5 && < 0.6
     include-dirs:      src/runtime src/runtime/unix
-    install-includes:  mhseval.h
-    c-sources:         src/runtime/mhseval.c
-    includes:          mhseval.h
+--    install-includes:  mhseval.h
+--    c-sources:         src/runtime/mhseval.c
+--    includes:          mhseval.h
 
   if impl(hugs)
     hs-source-dirs:    hugs src
@@ -136,82 +135,3 @@ executable mhs
     hs-source-dirs:    mhs src
     build-depends:     base         >= 0.1 && < 10.0,
 
-library
-  default-language:    Haskell2010
-  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances FlexibleContexts
-  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
-                       -fwrite-ide-info -Wno-deprecations
-  autogen-modules:     Paths_MicroHs
-  exposed-modules:
-                        MicroHs.Abstract
-                        MicroHs.Builtin
-                        MicroHs.Compile
-                        MicroHs.CompileCache
-                        MicroHs.Deriving
-                        MicroHs.Desugar
-                        MicroHs.EncodeData
-                        MicroHs.Exp
-                        MicroHs.ExpPrint
-                        MicroHs.Expr
-                        MicroHs.FFI
-                        MicroHs.Fixity
-                        MicroHs.Flags
-                        MicroHs.Graph
-                        MicroHs.Ident
-                        MicroHs.IdentMap
-                        MicroHs.Interactive
-                        MicroHs.IntMap
-                        MicroHs.IntSet
-                        MicroHs.Lex
-                        MicroHs.List
-                        MicroHs.Main
-                        MicroHs.MakeCArray
-                        MicroHs.Names
-                        MicroHs.Package
-                        MicroHs.Parse
-                        MicroHs.State
-                        MicroHs.StateIO
-                        MicroHs.SymTab
-                        MicroHs.TargetConfig
-                        MicroHs.TCMonad
-                        MicroHs.Translate
-                        MicroHs.TypeCheck
-                        MhsEval
-
-  other-modules:        MHSPrelude
-                        Text.ParserComb
-                        Text.PrettyPrint.HughesPJLite
-                        Data.Integer
-                        Paths_MicroHs
-                        PrimTable
-                        System.Compress
-                        System.Console.SimpleReadline
-                        System.IO.MD5
-                        System.IO.Serialize
-                        System.IO.TimeMilli
-                        System.IO.Transducers
-  if impl(ghc)
-    hs-source-dirs:     ghc src
-    build-depends:      base         >= 4.10 && < 4.30,
-                        bytestring   >= 0.5 && < 0.20,
-                        deepseq      >= 1.1 && < 1.8,
-                        filepath     >= 1.1 && < 1.8,
-                        haskeline    >= 0.8 && < 0.10,
-                        time         >= 1.9 && < 1.20,
-                        process      >= 1.6 && < 1.10,
-                        directory    >= 1.2 && < 1.6,
-                        text         >= 2.0 && < 2.5,
-                        array        >= 0.5 && < 0.6
-    include-dirs:       src/runtime src/runtime/unix
-    install-includes:   mhseval.h config.h extra.c
-    c-sources:          src/runtime/mhseval.c
-    includes:           mhseval.h
-
-  if impl(hugs)
-    hs-source-dirs:     hugs src
-    other-modules:      System.FilePath
-
-  if impl(mhs)
-    hs-source-dirs:     mhs src
-    build-depends:      base         >= 0.1 && < 10.0,
-    other-modules:      System.FilePath

@@ -3,7 +3,7 @@ name: MicroHs Nightly
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Every day at 04:00 UTC
+    - cron: '0 3 * * *'  # Every day at 03:00 UTC
 
 jobs:
   build-linux-x86_64:

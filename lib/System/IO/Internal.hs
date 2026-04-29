@@ -44,7 +44,7 @@ instance Show Handle where
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-  deriving (Eq, Ord, Enum)
+  deriving (Eq, Ord, Enum, Show)
 
 ioModeToHMode :: IOMode -> HandleState
 ioModeToHMode ReadMode = HRead

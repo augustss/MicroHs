@@ -23,12 +23,12 @@ module Text.PrettyPrint.HughesPJLiteClass (
     PrettyPrec,
     prettyShow,
     pPrint0,
+    appPrec,
 
     -- re-export HughesPJ
     module Text.PrettyPrint.HughesPJLite
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.Coerce
 
 import Text.PrettyPrint.HughesPJLite
 

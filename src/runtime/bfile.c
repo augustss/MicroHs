@@ -1764,3 +1764,228 @@ add_base64_decoder(BFILE *file) {
 }
 
 #endif  /* WANT_BASE64 */
+
+
+#if WANT_LZMA
+
+#define LZMA_IMPLEMENTATION
+#define _7ZIP_ST
+#include "lzma.h"
+#undef MIN
+#undef MAX
+
+/* This transducer was written by Clause Code and debugged by Lennart. */
+
+/***************** BFILE via LZMA compression ********************/
+/*
+ * Uses the single-header lzma.h library (Ciremun/lzma.h), which
+ * wraps Igor Pavlov's LZMA SDK.
+ *
+ * To use, #define LZMA_IMPLEMENTATION before including lzma.h,
+ * then compile with this file.
+ *
+ * Wire format (same envelope style as the lz77 transducer):
+ *   "LZ2"          -- 3-byte magic / version tag
+ *   uint32 olen    -- compressed length (little-endian, 4 bytes)
+ *   <olen bytes>   -- lzma_compress output (includes the 13-byte
+ *                     LZMA properties+size header)
+ *
+ * Both compressor and decompressor buffer the entire payload in
+ * memory, matching the existing lz77 design in bfile.c.
+ */
+
+struct BFILE_lzma {
+  BFILE          mets;
+  BFILE         *bfile;    /* underlying BFILE */
+  struct bfbuffer bf;
+  int            read;     /* 1 = decompressor, 0 = compressor */
+  int            numflush;
+};
+
+/* ---- shared getb / ungetb / putb / readb / writeb ---- */
+
+int
+getb_lzma(BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+  return bfbuffer_get(&p->bf);
+}
+
+void
+ungetb_lzma(int c, BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+  p->bf.pos--;
+}
+
+void
+putb_lzma(int b, BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+  bfbuffer_snoc(&p->bf, b);
+}
+
+size_t
+readb_lzma(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+  return bfbuffer_read(&p->bf, buf, size);
+}
+
+size_t
+writeb_lzma(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+  return bfbuffer_write(&p->bf, str, size);
+}
+
+/* ---- compressor flush / close ---- */
+
+void
+flushb_lzma(BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+
+  /* Nothing new since last flush — skip. */
+  if (p->numflush++ && !p->bf.pos)
+    return;
+
+  /*
+   * Worst-case LZMA output is slightly larger than input.
+   * The lzma.h docs don't give an exact bound, but input_size + (input_size/3)
+   * + LZMA_HEADER_SIZE is a safe over-estimate used by many wrappers.
+   */
+  size_t ilen  = p->bf.pos;
+  size_t olen  = ilen + (ilen / 3) + LZMA_HEADER_SIZE + 128;
+  uint8_t *obuf = MALLOC(olen);
+  if (!obuf)
+    memerr();
+
+  if (lzma_compress(obuf, &olen, p->bf.buf, ilen) != 0)
+    ERR("lzma_compress");
+  /* Put the size in place */
+  ilen = p->bf.pos;
+  for (int i = 0; i < 8; i++) {
+    obuf[LZMA_PROPS_SIZE + i] = ilen & 0xff;
+    ilen >>= 8;
+  }
+
+  putsb("LZ2", p->bfile);        /* magic / version */
+  putint32((value_t)olen, p->bfile); /* compressed length */
+  for (size_t i = 0; i < olen; i++)
+    putb(obuf[i], p->bfile);
+
+  FREE(obuf);
+  p->bf.pos = 0;
+  flushb(p->bfile);
+}
+
+void
+closeb_lzma(BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+
+  if (!p->read) {
+    /* Write mode: compress whatever is buffered. */
+    flushb_lzma(bp);
+    bfbuffer_free(&p->bf);
+  }
+  closeb(p->bfile);
+  FREE(p);
+}
+
+/* ---- public constructors ---- */
+
+BFILE *
+add_lzma_decompressor(BFILE *file)
+{
+  struct BFILE_lzma *p = MALLOC(sizeof(struct BFILE_lzma));
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof(struct BFILE_lzma));
+
+  p->mets.getb   = getb_lzma;
+  p->mets.ungetb = ungetb_lzma;
+  p->mets.putb   = 0;
+  p->mets.flushb = 0;
+  p->mets.closeb = closeb_lzma;
+  p->mets.readb  = readb_lzma;
+  p->mets.writeb = 0;
+  p->read        = 1;
+  p->bfile       = file;
+  p->numflush    = 0;
+
+  /* Check the 3-byte magic tag. */
+  if (getb(file) != 'L' || getb(file) != 'Z' || getb(file) != '2')
+    ERR("Bad LZMA signature");
+
+  /* Read the compressed payload length, then the payload itself. */
+  size_t clen = (size_t)getint32(file);
+  uint8_t *cbuf = MALLOC(clen);
+  if (!cbuf)
+    memerr();
+  for (size_t i = 0; i < clen; i++)
+    cbuf[i] = getb(file);
+
+  /*
+   * The LZMA header (bytes 5–12 of cbuf) encodes the uncompressed size.
+   * Read it as a little-endian 64-bit value so we can pre-allocate the
+   * output buffer without guessing.
+   */
+  if (clen < LZMA_HEADER_SIZE)
+    ERR("LZMA payload too short");
+
+  uint64_t ulen64 = 0;
+  for (int i = 0; i < 8; i++)
+    ulen64 |= (uint64_t)cbuf[LZMA_PROPS_SIZE + i] << (8 * i);
+
+  size_t ulen = (size_t)ulen64;
+  uint8_t *ubuf = MALLOC(ulen);
+  if (!ubuf)
+    memerr();
+
+  size_t src_len = clen;
+  if (lzma_uncompress(ubuf, &ulen, cbuf, &src_len) != 0)
+    ERR("lzma_uncompress");
+
+  FREE(cbuf);
+
+  p->bf.buf  = ubuf;
+  p->bf.size = ulen;
+  p->bf.pos  = 0;
+
+  return (BFILE *)p;
+}
+
+BFILE *
+add_lzma_compressor(BFILE *file)
+{
+  struct BFILE_lzma *p = MALLOC(sizeof(struct BFILE_lzma));
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof(struct BFILE_lzma));
+
+  p->mets.getb   = getb_lzma;
+  p->mets.ungetb = 0;
+  p->mets.putb   = putb_lzma;
+  p->mets.flushb = flushb_lzma;
+  p->mets.closeb = closeb_lzma;
+  p->mets.readb  = 0;
+  p->mets.writeb = writeb_lzma;
+  p->read        = 0;
+  p->bfile       = file;
+  p->numflush    = 0;
+
+  bfbuffer_init(&p->bf, 25000);  /* same initial size as lz77 */
+
+  return (BFILE *)p;
+}
+
+#endif /* WANT_LZMA */

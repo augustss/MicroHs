@@ -1,4 +1,4 @@
-module MicroHs.Interactive(mainInteractive) where
+module MicroHs.Interactive(mainInteractive, mainEvalArg) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
@@ -9,24 +9,30 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(showEType, EModule(..), EDef(..))
+import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, SLoc(..), slocIdent, isNoSLoc)
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU, stLookup)
 import MicroHs.Translate
-import MicroHs.TCMonad(TCState(..))
+import MicroHs.TCMonad(TCState(..), tcStateToXTCState)
 import MicroHs.TypeCheck(TModule(..), Symbols)
+import MicroHs.Version
 import Unsafe.Coerce
 import System.Console.SimpleReadline
-import Paths_MicroHs(version)
+import System.Cmd
 import System.Environment
 import System.FilePath
 import System.IO
+import Text.Printf
+import Text.Read(readMaybe)
 --import System.IO.TimeMilli
+
+defaultEditor :: String
+defaultEditor = "vim +%d %s"
 
 data IState = IState {
   isLines   :: String,
@@ -35,7 +41,9 @@ data IState = IState {
   isSymbols :: Symbols,
   isStats   :: Bool,
   isCComp   :: (Int, TCState, TranslateMap),
-  isHistory :: FilePath
+  isHistory :: FilePath,
+  isErrLine :: Int,
+  isErrFile :: FilePath
   }
 
 -- To speed up interactive use, the state of the symbol table after
@@ -45,24 +53,40 @@ data IState = IState {
 
 type I a = StateIO IState a
 
-mainInteractive :: Flags -> IO ()
-mainInteractive flags = do
+mainInteractive :: Flags -> [String] -> IO ()
+mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   when wantGMP $ putStrLn "Using GMP"
   mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
       mhsi = ".mhsi"
-  cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, error "tcstate", M.empty) hist
+  _ <- runStateIO startInteractive =<< startIState flags' mdls hist
   return ()
+
+mainEvalArg :: Flags -> String -> [String] -> IO ()
+mainEvalArg flags arg mdls = do
+  let eval = do
+        reload
+        oneline arg
+  _ <- runStateIO eval =<< startIState flags mdls (error "hist")
+  return ()
+
+startIState :: Flags -> [String] -> String -> IO IState
+startIState flags mdls hist = do
+  unless compiledWithMhs $ do
+    --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
+    mhsError "The interactive system currently only works with mhs"
+  cash <- getCached flags
+  let startMdl = preamble ++ unlines (map ("import " ++) mdls)
+  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ " where\n\
-           \import System.IO.PrintOrRun\n\
+           \import qualified System.IO.PrintOrRun\n\
            \default Num (Integer, Double)\n\
            \default IsString (String)\n\
            \default Show (())\n"
@@ -70,15 +94,12 @@ preamble = "module " ++ interactiveName ++ " where\n\
 putStrLnI :: String -> I ()
 putStrLnI = liftIO . putStrLn
 
-start :: I ()
-start = do
+startInteractive :: I ()
+startInteractive = do
   reload
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   putStrLnI "Type ':quit' to quit, ':help' for help"
-  unless compiledWithMhs $ do
-    --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
-    mhsError "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()
@@ -138,26 +159,22 @@ commands =
       return True
     )
   , ("reload      reload modules", const $ do
-      flgs <- gets isFlags
-      cash <- gets isCache
-      cash' <- liftIO $ validateCache flgs cash
-      modify $ \ is -> is{ isCache = cash' }
       reload
       return True
     )
-  , ("delete d    delete definition(s) d", \ line -> do
+  , ("delete PRE  delete definition(s) with prefix PRE", \ line -> do
       updateLines (unlines . filter (not . isPrefixOf line) . lines)
       return True
     )
-  , ("type e      show type of e", \ line -> do
+  , ("type EXPR   show type of EXPR", \ line -> do
       showType line
       return True
     )
-  , ("kind t      show kind of t", \ line -> do
+  , ("kind TYPE   show kind of TYPE", \ line -> do
       showKind line
       return True
     )
-  , ("main args   run main with arguments", \ line -> do
+  , ("main ARGS   run main with arguments", \ line -> do
       runMain line
       return True
     )
@@ -169,8 +186,20 @@ commands =
       saveDefs line
       return True
     )
-  , ("help        this text", const $ do
-      putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
+  , ("edit [FILE] edit file or last error location", \ line -> do
+      edit line
+      return True
+    )
+  , ("find NAME   find definition of NAME", \ line -> do
+      finds line
+      return True
+    )
+  , ("help        this text", help
+    )
+  , ("?           this text", help
+    )
+  , ("! CMD       run shell command", \ line -> do
+      _ <- liftIO $ system line
       return True
     )
   , ("set [FLAG]  (un)set flag", \ line -> do
@@ -178,6 +207,11 @@ commands =
       return True
     )
   ]
+
+help :: String -> I Bool
+help = const $ do
+  putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
+  return True
 
 setFlags :: String -> I ()
 setFlags "" = do
@@ -193,17 +227,21 @@ setFlags _ =
 
 reload :: I ()
 reload = do
+  cash <- gets isCache
+  flags <- gets isFlags
+  cash' <- liftIO $ validateCache flags cash
+  modify $ \ is -> is{ isCache = cash', isCComp = (-1, undefined, undefined) }
   ls <- gets isLines
   rld <- tryCompile ls   -- reload modules right away
   case rld of
-    Left msg -> liftIO $ err msg
+    Left msg -> err msg
     Right _  -> return ()
 
 helpText :: String
 helpText = "\
   \Commands (may be abbreviated):\n\
-  \expr         evaluate expression\n\
-  \defn         add top level definition\n\
+  \EXPR         evaluate expression\n\
+  \DEFN         add top level definition\n\
   \"
 
 updateLines :: (String -> String) -> I ()
@@ -234,9 +272,11 @@ mkIt :: String -> String
 mkIt l =
   itName ++ " = " ++ l ++ "\n"
 
-mkItIO :: Bool -> String -> String
-mkItIO stats l =
-  let prt = if stats then "_printOrRunStats" else "_printOrRun"
+mkItIO :: Flags -> Bool -> String -> String
+mkItIO flgs stats l =
+  let prt = fromMaybe
+              (if stats then "System.IO.PrintOrRun._printOrRunStats" else "System.IO.PrintOrRun._printOrRun")
+              (iPrint flgs)
   in  mkIt l ++
       itIOName ++ " = " ++ prt ++ " " ++ itName ++ "\n"
 
@@ -244,8 +284,22 @@ mkTypeIt :: String -> String
 mkTypeIt l =
   "type " ++ itTypeName ++ " = " ++ l ++ "\n"
 
-err :: SomeException -> IO ()
-err e = err' $ displayException e
+err :: SomeException -> I ()
+err e = do
+  let msg = displayException e
+  case parseError msg of
+    Just (f, l) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
+    Nothing -> return ()
+  liftIO $ err' msg
+
+-- Try to find a file and line number
+parseError :: String -> Maybe (FilePath, Int)
+parseError s =
+  case words s of
+    "error:" : ('"' : sfile) : "line" : sline : _ |
+      Just file <- stripSuffix "\":" sfile,
+      Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
+    _ -> Nothing
 
 err' :: String -> IO ()
 err' s = putStrLn $ "*** Exception: " ++ s
@@ -261,10 +315,11 @@ oneline aline = do
         case defTest of
           Right _ -> do
             updateLines (const lls)
-          Left  e -> liftIO $ err e
+          Left  e -> err e
       expr = do
 --        t1 <- liftIO getTimeMilli
-        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
+        flgs <- gets isFlags
+        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats line)
         case exprTest of
           Right (m, _) -> do
             evalExpr m
@@ -273,7 +328,7 @@ oneline aline = do
             when (stats) $
               liftIO $ putStrLn $ "total " ++ show (t2 - t1) ++ "ms"
 -}
-          Left  e -> liftIO $ err e
+          Left  e -> err e
   -- First try to parse as a definition,
   tryParse pTopModule lls def $ \ _ ->
     -- if that fails, parse as an expression.
@@ -296,7 +351,7 @@ compile file = do
   let mdl@(EModule mn es _) = parseDie pTopModule "" file
   defs <- updateTCStateCache mdl
   (_, tcstate, _) <- gets isCComp
-  let mdl' = EModule mn es (SetTCState tcstate : defs)
+  let mdl' = EModule mn es (SetTCState (tcStateToXTCState tcstate) : defs)
   flgs <- gets isFlags
   cash <- gets isCache
 --  putStrLnI $ " tryCompile compile " ++ show mdl'
@@ -312,14 +367,13 @@ evalExpr cmdl = do
   let ares = translateWithMap tmap (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
       res = unsafeCoerce ares :: IO ()
   mval <- liftIO $ try (seq res (return res))
-  liftIO $
-    case mval of
-      Left  e -> err e
-      Right val -> do
-        mio <- try val
-        case mio of
-          Left  e -> err e
-          Right _ -> return ()
+  case mval of
+    Left  e -> err e
+    Right val -> do
+      mio <- liftIO $ try val
+      case mio of
+        Left  e -> err e
+        Right _ -> return ()
 
 showType :: String -> I ()
 showType line = do
@@ -330,8 +384,7 @@ showType line = do
       case stLookup "" (mkIdent itName) (valueTable tcs) of
         Right (Entry _ t) -> putStrLnI $ showEType t
         _ -> error "showType"
-    Left  e ->
-      liftIO $ err e
+    Left  e -> err e
 
 showKind :: String -> I ()
 showKind line = do
@@ -342,11 +395,10 @@ showKind line = do
       case stLookup "" (mkIdent itTypeName) (typeTable tcs) of
         Right (Entry _ t) -> putStrLnI $ showEType t
         _ -> error "showKind"
-    Left  e ->
-      liftIO $ err e
+    Left  e -> err e
 
 runMain :: String -> I ()
-runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
+runMain line = oneline $ "System.IO.PrintOrRun._withArgs " ++ show (words line) ++ " main"
 
 showDefs :: I ()
 showDefs = do
@@ -358,7 +410,7 @@ saveDefs "" = saveDefs (interactiveName ++ ".hs")
 saveDefs line = do
   ls <- gets isLines
   liftIO $ writeFile line ls
-  liftIO $ putStrLn $ "wrote " ++ line
+  putStrLnI $ "wrote " ++ line
 
 -- This could be smarter:
 --  ":a"        should complete with commands
@@ -404,3 +456,37 @@ updateTCStateCache (EModule mn es ds) = do
 --    putStrLnI $ "*** update isFast " ++ show nImps
     modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }
   return notImps
+
+getEditor :: I String
+getEditor = fromMaybe defaultEditor <$> gets (editor . isFlags)
+
+edit :: String -> I ()
+edit s = do
+  ed <- getEditor
+  case s of
+    "" -> do
+      line <- gets isErrLine
+      file <- gets isErrFile
+      _ <- liftIO $ system $ printf ed line file
+      return ()
+    file -> do
+      _ <- liftIO $ system $ printf ed (1::Int) file
+      return ()
+  reload
+
+alt :: Either a b -> Either a b -> Either a b
+alt (Left _) r = r
+alt r _ = r
+
+finds :: String -> I ()
+finds str = do
+  (ts, vs) <- gets isSymbols
+  let i = mkIdent str
+  case stLookup "type" i vs `alt` stLookup "value" i ts of
+    Left s -> putStrLnI s
+    Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
+      ed <- getEditor
+      _ <- liftIO $ system $ printf ed l f
+      reload
+      return ()
+    _ -> putStrLnI "Unknown location"

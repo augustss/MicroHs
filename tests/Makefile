@@ -1,11 +1,11 @@
 MHSTARGET=
 MHSOUTPUT=
 MHS=../bin/gmhs
-TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
+TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest testforimp testforexp testforimpexp testapplysp
+alltest: info test errtest testforimp testforexp testforimpexp testapplysp
 # interactivetest
 
 cache:
@@ -120,24 +120,24 @@ test:
 	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
 	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
-	$(TMHS) Errno	   && $(EVAL) > Errno.out	   && diff Errno.ref Errno.out
+	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
 	$(TMHS) TypeSyn    && $(EVAL) > TypeSyn.out    && diff TypeSyn.ref TypeSyn.out
 	$(TMHS) TypeFam    && $(EVAL) > TypeFam.out    && diff TypeFam.ref TypeFam.out
 
 testforimp:
-	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
 
 testforimpjs:
-	MHSDIR=.. $(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
+	$(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
 
 testforexp:
-	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
+	$(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
 
 testforimpexp:
-	MHSDIR=.. $(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
+	$(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
 
 testapplysp:
-	MHSDIR=.. $(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
+	$(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

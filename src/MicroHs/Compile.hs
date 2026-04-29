@@ -13,7 +13,7 @@ module MicroHs.Compile(
   moduleToFile,
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
-  getMhsDir,
+  getPaths,
   openFilePath,
   loadPkg,
   addPreludeImport,
@@ -48,8 +48,8 @@ import MicroHs.StateIO
 import MicroHs.SymTab
 import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
+import MicroHs.Version
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
-import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
 mhsVersion = showVersion version
@@ -259,9 +259,9 @@ compileModuleP flags impt mdl@(EModule _ _ defs) = do
   return ((dmdl, syms, imported, tThis, tImp), tcstate)
 
 compileToCombinators :: TModule [LDef] -> TModule [LDef]
-compileToCombinators dmdl = do
+compileToCombinators dmdl =
   let cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
+  in seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
 
 -- Add implicit imports:
 --   import Prelude
@@ -402,7 +402,7 @@ findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle)
 findModulePath flags suf mn = do
   let
     fn = moduleToFile mn <.> suf
-  openFilePath (paths flags) fn
+  openFilePath (srcPaths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
 openFilePath adirs fileName =
@@ -453,8 +453,8 @@ mhsDefines =
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
-  datadir <- getMhsDir
-  let cpphs = fromMaybe "cpphs" mcpphs
+  let datadir = mhsdir flags
+      cpphs = fromMaybe "cpphs" mcpphs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
       args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
       cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
@@ -469,8 +469,8 @@ runHsc2hs :: Flags -> FilePath -> IO String
 runHsc2hs flags fni = do
   (fno, ho) <- openTmpFile "mhshsc2hs.hs"
   mhsc2hs <- lookupEnv "MHSHSC2HS"
-  datadir <- getMhsDir
-  let hsc2hs = fromMaybe "hsc2hs" mhsc2hs
+  let datadir = mhsdir flags
+      hsc2hs = fromMaybe "hsc2hs" mhsc2hs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"
                     ,"-I" ++ datadir </> "src/runtime/unix"]
       args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
@@ -494,7 +494,7 @@ findPkgModule :: Flags -> IdentModule -> CM (FilePath, (TModule [LDef], Symbols,
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn <.> packageTxtSuffix
-  mres <- liftIO $ openFilePath (pkgPath flags) fn
+  mres <- liftIO $ openFilePath (pkgPaths flags) fn
   case mres of
     Just (pfn, hdl) -> do
       -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
@@ -510,8 +510,8 @@ findPkgModule flags mn = do
     Nothing ->
       errorMessage (getSLoc mn) $
         "Module not found: " ++ show mn ++
-        "\nsearch path=" ++ show (paths flags) ++
-        "\npackage path=" ++ show (pkgPath flags)
+        "\nsearch path=" ++ show (srcPaths flags) ++
+        "\npackage path=" ++ show (pkgPaths flags)
 
 loadPkg :: Flags -> FilePath -> CM ()
 loadPkg flags fn = do
@@ -539,15 +539,12 @@ loadDependencies flags = do
 
 loadDeps :: Flags -> (IdentPackage, Version) -> CM ()
 loadDeps flags (pid, pver) = do
-  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
+  mres <- liftIO $ openFilePath (pkgPaths flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
   case mres of
     Nothing -> mhsError $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do
       liftIO $ hClose hdl
       loadPkg flags pfn
-
-getMhsDir :: IO FilePath
-getMhsDir = maybe getDataDir return =<< lookupEnv "MHSDIR"
 
 -- Deal with literate Haskell
 unlit :: FilePath -> String -> String
@@ -568,3 +565,28 @@ unlit fn = unlines . un 1 True . lines
     code n [] = err n "unlit: missing \\end{code}"
     err :: Int -> String -> a
     err n s = error $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s
+
+---------------
+
+getPaths :: IO (FilePath, [FilePath], [FilePath])
+getPaths = do
+  mdir <- lookupEnv "MHSDIR"
+  let srcs = ["."]
+  case mdir of
+    -- If MHSDIR is set, use that and no package directories
+    Just dir -> return (dir, srcs ++ [dir </> "lib"], [])
+    Nothing -> do
+      -- There are two scenarios: either we are running inplace or installed
+      binDir <- takeDirectory <$> catch getExecutablePath (\ (_ :: SomeException) -> getProgName) -- ~/.mcabal/bin
+      let upDir = binDir </> ".."
+      inplace <- doesFileExist (upDir </> "src/runtime/eval.c")
+      if inplace then do
+        let libDir = upDir </> "lib"
+            gmpDir | wantGMP   = [libDir </> "gmp"]
+                   | otherwise = []
+        return (upDir, srcs ++ gmpDir ++ [libDir], [])
+       else do
+        let vers = "mhs-" ++ mhsVersion
+            pkgDir = upDir </> vers                                   -- ~/.mcabal/bin/../mhs-VERSION
+            mhsDir = pkgDir </> "packages" </> vers </> "data"
+        return (mhsDir, srcs, [pkgDir])

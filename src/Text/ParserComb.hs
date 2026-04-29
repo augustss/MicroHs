@@ -115,7 +115,7 @@ instance TokenMachine tm t => Alternative (Prsr tm t) where
       r -> r
 
 instance TokenMachine tm t => MonadPlus (Prsr tm t) where
-  mzero = fail "mzero"
+  mzero = F.fail "mzero"
   mplus = (<|>)
 
 satisfy :: forall tm t . TokenMachine tm t => String -> (t -> Bool) -> Prsr tm t t

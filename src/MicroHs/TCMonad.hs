@@ -19,6 +19,7 @@ import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
 import System.IO.Unsafe(unsafePerformIO)
+import Unsafe.Coerce
 import Debug.Trace
 
 -----------------------------------------------
@@ -230,6 +231,13 @@ data TCState = TC {
   defaults    :: Defaults               -- current defaults
   }
   deriving (Show)
+
+-- Hack to avoid cricular module reference.
+-- See comment for SetTCState in Expr
+tcStateToXTCState :: TCState -> XTCState
+tcStateToXTCState = unsafeCoerce
+xTCStateToTCState :: XTCState -> TCState
+xTCStateToTCState = unsafeCoerce
 
 instTable :: TCState -> InstTable
 instTable tc = case ctxTables tc of (x,_,_,_,_) -> x

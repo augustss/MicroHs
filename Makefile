@@ -25,7 +25,7 @@ CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 #
 GHC= ghc
-GHCINCS= -ighc -isrc -ipaths
+GHCINCS= -ighc -isrc
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
@@ -39,23 +39,21 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 # Hugs
 HUGS= runhugs
 FFIHUGS= ffihugs
-HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
-EMCC=emcc
-EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 NODE=node
 #NODEFLAGS=--stack_size=8192
 #
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
-MHSINC=$(MHSINCNP) -ipaths
+MHSINC=$(MHSINCNP)
 MAINMODULE=MicroHs.Main
 #
 .PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
 
 all:	bin/mhs bin/cpphs bin/mcabal
 
-newmhs:	ghcgen targets.conf
+newmhs:	ghcgen mhs.conf
 	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g $(RTSINC) $(RTS)/eval.c $(MAINC) generated/mhs.c $(CCLIBS) -o bin/mhsgdb
 
@@ -63,11 +61,11 @@ newmhsz:	newmhs
 	rm generated/mhs.c
 	$(MAKE) generated/mhs.c
 
-sanitizemhs:	ghcgen targets.conf
+sanitizemhs:	ghcgen mhs.conf
 	$(CCEVAL) $(CCSANITIZE) generated/mhs.c $(CCLIBS) -o bin/mhssane
 
 # Compile mhs from distribution, with C compiler
-bin/mhs:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h targets.conf #generated/mhs.c
+bin/mhs:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf #generated/mhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
 
@@ -95,7 +93,10 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 	@mkdir -p bin
 	$(CCEVAL) $(CCSANITIZE) $(RTSINC) $(RTS)/comb.c $(CCLIBS) -o bin/mhsevalsane
 
+#######################
 # mhseval, compiled with emscripten. Use in the browser!
+#EMCC=emcc
+#EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
 EMCCLIBS= -lm
 EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
@@ -103,15 +104,20 @@ generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
 	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
 
+bin/mhs.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf #generated/mhs.c
+	@mkdir -p bin
+	$(EMCCEVAL) generated/mhs.c $(EMCCLIBS) -o bin/mhs.js
+
+#######################
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c $(MAINMODULE) -o bin/gmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) $(MAINMODULE) -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
 bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c -fhpc $(MAINMODULE) -o bin/cmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) -fhpc $(MAINMODULE) -o bin/cmhs
 
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
@@ -131,7 +137,7 @@ generated/mcabal.c:
 	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
 # Flags to read local file system, generate a single .js file, and to avoid ioctl()
-mhs.js:	src/*/*.hs $(RTS)/*.h $(RTS)/*/*.h targets.conf
+mhs.js:	src/*/*.hs $(RTS)/*.h $(RTS)/*/*.h mhs.conf
 	bin/mhs $(MHSINC) -temscripten $(MAINMODULE) -o mhs.js
 
 # Make sure boottrapping works
@@ -166,8 +172,8 @@ USECPPHS=bin/cpphs
 bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
-targets.conf: targets.conf.in
-	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," targets.conf.in > targets.conf
+mhs.conf: mhs.conf.in
+	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
@@ -218,12 +224,12 @@ timecachecompile: bin/mhs
 timemhscompile:
 	@date
 	@git rev-parse HEAD
-	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
+	time mhs +RTS -v -RTS -z -imhs -isrc $(MAINMODULE)
 
 timegmhscompile:
 	@date
 	@git rev-parse HEAD
-	time bin/gmhs -imhs -isrc -ipaths $(MAINMODULE)
+	time bin/gmhs -imhs -isrc $(MAINMODULE)
 
 timeghccompile:
 	@date
@@ -237,7 +243,7 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache .mhscache dist-mcabal Interactive.hs .mhsi lib/*.pkg lib/dist-mcabal targets.conf
+	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache .mhscache dist-mcabal Interactive.hs .mhsi lib/*.pkg lib/dist-mcabal mhs.conf
 	cd tests; $(MAKE) clean
 	-cabal clean
 	-git submodule deinit cpphssrc/malcolm-wallace-universe
@@ -250,7 +256,7 @@ oldinstall:
 	mkdir -p $(PREFIX)/lib/mhs/$(RTS)
 	cp -r lib $(PREFIX)/lib/mhs
 	cp -r $(RTS)/* $(PREFIX)/lib/mhs/$(RTS)
-	cp targets.conf $(PREFIX)/lib/mhs/targets.conf
+	cp mhs.conf $(PREFIX)/lib/mhs/mhs.conf
 	@echo "***"
 	@echo "*** Installation complete"
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
@@ -290,28 +296,17 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.15.5.0
-HVERSION=0,15,5,0
+VERSION=0.15.7.0
+HVERSION=0,15,7,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
 MRUNTIME=$(MDATA)/$(RTS)
 MCABALBIN=$(MCABAL)/bin
-MDIST=dist-mcabal
 BASE=base-$(VERSION)
-BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq Control.Error Control.Exception Control.Exception.Base Control.Monad Control.Monad.Fail Control.Monad.Fix Control.Monad.IO.Class Control.Monad.ST Control.Monad.Zip Data.Array Data.Bifoldable Data.Bifunctor Data.Bitraversable Data.Bits Data.Bool Data.Bounded Data.ByteString Data.Char Data.Complex Data.Constraint Data.Data Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Fixed Data.Float Data.FloatW Data.Floating Data.Foldable Data.Foldable1 Data.Fractional Data.Function Data.Functor Data.Functor.Classes Data.Functor.Compose Data.Functor.Const Data.Functor.Contravariant Data.Functor.Identity Data.Functor.Product Data.Functor.Sum Data.Hashable Data.IOArray Data.IORef Data.Int Data.Integer Data.Integral Data.Ix Data.Kind Data.List Data.List.NonEmpty Data.Maybe Data.Monoid Data.Num Data.Ord Data.Proxy Data.Ratio Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Text Data.Traversable Data.Tuple Data.Tuple.Instances Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign Foreign.C Foreign.C.Error Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Error Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Exts GHC.Generics GHC.Stack Language.Haskell.TH.Syntax Mhs.Builtin Numeric Numeric.FormatFloat Numeric.Natural Prelude System.Cmd System.Console.GetOpt System.Compress System.Directory System.Environment System.Exit System.IO System.IO.Error System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.Info System.Process Text.Printf Text.ParserCombinators.ReadP Text.ParserCombinators.ReadPrec Text.Read Text.Read.Lex Text.Show Unsafe.Coerce
-
-$(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] targets.conf $(MDIST)/Paths_MicroHs.hs machdep
+$(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] mhs.conf machdep
 	@mkdir -p $(MCABALBIN)
-	@mkdir -p $(MDIST)
-	bin/mhs -z $(MHSINCNP) -i$(MDIST) $(MAINMODULE) -o$(MCABALBIN)/mhs
-	@mkdir -p $(MRUNTIME)
-	cp targets.conf $(MDATA)
-	cp -r $(RTS)/* $(MRUNTIME)
-
-$(MDIST)/Paths_MicroHs.hs:
-	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
+	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
 
 $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
@@ -321,24 +316,14 @@ $(MCABALBIN)/mcabal: bin/mcabal
 	@mkdir -p $(MCABALBIN)
 	cp bin/mcabal $(MCABALBIN)
 
-$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
-	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
-	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
-	@rm $(BASE).pkg
-
-#install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
-#	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
-
-# mkdir ~/.mcabal/packages/array-0.5.6.0
-
 preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/mhseval.js
-#	$(MAKE) generated/base.pkg
+	$(MAKE) generated/base.pkg
 
-generated/base.pkg:
-	cd lib; mcabal $(MCABALCMP) build
+generated/base.pkg: bin/mhs bin/mcabal
+	cd lib; PATH=../bin:"$$PATH" mcabal $(MCABALGMP) build
 	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
 install:	installmsg minstall
@@ -355,26 +340,34 @@ installmsg:
 	@echo '***************************************************'
 	@echo ''
 
-minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs machdep
-	cp bin/cpphs bin/mcabal $(MCABALBIN)
-	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
-# We don't really need to rebuild mhs
-#	PATH=$(MCABALBIN):"$$PATH" mcabal install
+minstall:	bin/mhs bin/cpphs bin/mcabal machdep
+	@mkdir -p $(MCABALBIN)
+	@mkdir -p $(MRUNTIME)
+	cp bin/mhs bin/cpphs bin/mcabal $(MCABALBIN)
+	cp mhs.conf $(MDATA)
+	cp -r $(RTS)/* $(MRUNTIME)
+	@mkdir -p $(MCABALMHS)
+	bin/mhs -Q generated/base.pkg $(MCABALMHS)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
-# Install without recompiling anything.
-fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
+# Install with recompiling
+slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	@mkdir -p $(MCABALBIN)
-	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
-	mhs -Q generated/base.pkg $(MCABALMHS)
+	@mkdir -p $(MRUNTIME)
+	cp bin/cpphs bin/mcabal $(MCABALBIN)
+	cp mhs.conf $(MDATA)
+	cp -r $(RTS)/* $(MRUNTIME)
+	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
+	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 #####
 # Hugs
 HUGS= runhugs
-HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
+HUGSINCS= '+Phugs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 generated/hmhs.c:
 	@mkdir -p generated

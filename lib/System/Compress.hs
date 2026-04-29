@@ -1,5 +1,7 @@
 module System.Compress(
   compress, decompress,
+  compressLZ77, decompressLZ77,
+  compressLZMA, decompressLZMA,
   compressRLE, decompressRLE,
   compressBWT, decompressBWT,
   compressBWTRLE, decompressBWTRLE,
@@ -28,6 +30,8 @@ foreign import ccall "add_rle_compressor"    c_add_rle_compressor    :: Transduc
 foreign import ccall "add_rle_decompressor"  c_add_rle_decompressor  :: Transducer
 foreign import ccall "add_bwt_compressor"    c_add_bwt_compressor    :: Transducer
 foreign import ccall "add_bwt_decompressor"  c_add_bwt_decompressor  :: Transducer
+foreign import ccall "add_lzma_compressor"   c_add_lzma_compressor   :: Transducer
+foreign import ccall "add_lzma_decompressor" c_add_lzma_decompressor :: Transducer
 foreign import ccall "putb"                  c_putb                  :: Int -> PBFILE -> IO ()
 foreign import ccall "getb"                  c_getb                  :: PBFILE -> IO Int
 foreign import ccall "get_mem"               c_get_mem               :: PBFILE -> Ptr CString -> Ptr Int -> IO ()
@@ -62,10 +66,22 @@ withGetTransducer trans file = unsafePerformIO $ do
   return cs
 
 compress :: [Char] -> [Char]
-compress = withPutTransducer c_add_lz77_compressor
+compress = compressLZMA
 
 decompress :: [Char] -> [Char]
-decompress = withGetTransducer c_add_lz77_decompressor
+decompress = decompressLZMA
+
+compressLZ77 :: [Char] -> [Char]
+compressLZ77 = withPutTransducer c_add_lz77_compressor
+
+decompressLZ77 :: [Char] -> [Char]
+decompressLZ77 = withGetTransducer c_add_lz77_decompressor
+
+compressLZMA :: [Char] -> [Char]
+compressLZMA = withPutTransducer c_add_lzma_compressor
+
+decompressLZMA :: [Char] -> [Char]
+decompressLZMA = withGetTransducer c_add_lzma_decompressor
 
 compressRLE :: [Char] -> [Char]
 compressRLE = withPutTransducer c_add_rle_compressor

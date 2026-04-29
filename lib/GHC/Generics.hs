@@ -1,9 +1,31 @@
 -- This is a dummy module so deriving Generic can be spoofed.
 module GHC.Generics(
-  Generic(..), Rep,
-  Generic1(..), Rep1,
-  V1, U1(..), Par1(..), Rec1(..), K1(..), M1(..),
-  (:+:)(..), (:*:)(..), (:.:)(..),
+  -- * Generic representation types
+    V1, U1(..), Par1(..), Rec1(..), K1(..), M1(..)
+  , (:+:)(..), (:*:)(..), (:.:)(..)
+
+  -- ** Unboxed representation types
+  -- , URec(..)
+  -- , type UAddr, type UChar, type UDouble
+  -- , type UFloat, type UInt, type UWord
+
+  -- ** Synonyms for convenience
+  , Rec0, R
+  , D1, C1, S1, D, C, S
+
+  -- * Meta-information
+  -- , Datatype(..), Constructor(..), Selector(..)
+  -- , Fixity(..), FixityI(..), Associativity(..), prec
+  -- , SourceUnpackedness(..), SourceStrictness(..), DecidedStrictness(..)
+  -- , Meta(..)
+
+  -- * Generic type classes
+  , Generic(..), Rep
+  , Generic1(..), Rep1
+
+  -- * Generic wrapper
+  , Generically(..)
+  , Generically1(..)
   ) where
 
 import Control.Applicative(Alternative(..))
@@ -42,6 +64,72 @@ class Generic1 f where
 
 errGeneric :: a
 errGeneric = error "MicroHs does not implement Generic yet"
+
+--------------------------------------------------------------------------------
+-- 'Generic' wrapper
+--------------------------------------------------------------------------------
+
+newtype Generically a = Generically a
+
+-- | @since base-4.17.0.0
+instance (Generic a, Semigroup (Rep a ())) => Semigroup (Generically a) where
+  (<>) :: Generically a -> Generically a -> Generically a
+  Generically a <> Generically b = Generically (to (from a <> from b :: Rep a ()))
+
+-- | @since base-4.17.0.0
+instance (Generic a, Monoid (Rep a ())) => Monoid (Generically a) where
+  mempty :: Generically a
+  mempty = Generically (to (mempty :: Rep a ()))
+
+  mappend :: Generically a -> Generically a -> Generically a
+  mappend = (<>)
+
+type    Generically1 :: forall k. (k -> Type) -> (k -> Type)
+newtype Generically1 f a = Generically1 (f a)
+
+-- | @since base-4.18.0.0
+instance (Generic1 f, Eq (Rep1 f a)) => Eq (Generically1 f a) where
+   Generically1 x == Generically1 y = from1 x == from1 y
+   Generically1 x /= Generically1 y = from1 x /= from1 y
+
+-- | @since base-4.18.0.0
+instance (Generic1 f, Ord (Rep1 f a)) => Ord (Generically1 f a) where
+   Generically1 x `compare` Generically1 y = from1 x `compare` from1 y
+
+-- | @since base-4.17.0.0
+instance (Generic1 f, Functor (Rep1 f)) => Functor (Generically1 f) where
+  fmap :: (a -> a') -> (Generically1 f a -> Generically1 f a')
+  fmap f (Generically1 as) = Generically1
+    (to1 (fmap f (from1 as)))
+
+  (<$) :: a -> Generically1 f b -> Generically1 f a
+  a <$ Generically1 as = Generically1
+    (to1 (a <$ from1 as))
+
+-- | @since base-4.17.0.0
+instance (Generic1 f, Applicative (Rep1 f)) => Applicative (Generically1 f) where
+  pure :: a -> Generically1 f a
+  pure a = Generically1
+    (to1 (pure a))
+
+  (<*>) :: Generically1 f (a1 -> a2) -> Generically1 f a1 -> Generically1 f a2
+  Generically1 fs <*> Generically1 as = Generically1
+    (to1 (from1 fs <*> from1 as))
+
+  liftA2 :: (a1 -> a2 -> a3)
+         -> (Generically1 f a1 -> Generically1 f a2 -> Generically1 f a3)
+  liftA2 (·) (Generically1 as) (Generically1 bs) = Generically1
+    (to1 (liftA2 (·) (from1 as) (from1 bs)))
+
+-- | @since base-4.17.0.0
+instance (Generic1 f, Alternative (Rep1 f)) => Alternative (Generically1 f) where
+  empty :: Generically1 f a
+  empty = Generically1
+    (to1 empty)
+
+  (<|>) :: Generically1 f a -> Generically1 f a -> Generically1 f a
+  Generically1 as1 <|> Generically1 as2 = Generically1
+    (to1 (from1 as1 <|> from1 as2))
 
 --------------------------------------------------------------------------------
 -- Representation types
@@ -405,7 +493,31 @@ deriving instance (Foldable f, Foldable g) => Foldable (f :.: g)
 -- | @since 4.9.0.0
 deriving instance (Traversable f, Traversable g) => Traversable (f :.: g)
 
-----------------------------------------------------------------------------
+-- | Tag for K1: recursion (of kind @Type@)
+data R
+
+-- | Type synonym for encoding recursion (of kind @Type@)
+type Rec0  = K1 R
+
+-- | Tag for M1: datatype
+data D
+-- | Tag for M1: constructor
+data C
+-- | Tag for M1: record selector
+data S
+
+-- | Type synonym for encoding meta-information for datatypes
+type D1 = M1 D
+
+-- | Type synonym for encoding meta-information for constructors
+type C1 = M1 C
+
+-- | Type synonym for encoding meta-information for record selectors
+type S1 = M1 S
+
+--------------------------------------------------------------------------------
+-- Derived instances
+--------------------------------------------------------------------------------
 
 -- deriving Data.Complex causes a cycle.
 -- Maybe break up this module to keep the Rep types in another module?

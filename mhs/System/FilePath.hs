@@ -42,7 +42,7 @@ combineAlways a b {-x | null a = b
                   | otherwise -} = a ++ pathSeparator : b
 
 pathSeparator :: Char
-pathSeparator = '/'
+pathSeparator = if _isWindows then '\\' else '/'
 
 isPathSeparator :: Char -> Bool
 isPathSeparator = (pathSeparator ==)

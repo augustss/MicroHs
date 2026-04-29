@@ -65,6 +65,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include <direct.h>
+#define getcwd _getcwd
+
 /* Make these empty */
 #define NORETURN
 #define PACKED

@@ -12,20 +12,21 @@ import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
+import MicroHs.Config
 import MicroHs.Exp(Exp(Var, Lit))
 import MicroHs.Expr(Lit(LInt))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.Interactive
 import MicroHs.Lex(readInt)
 import MicroHs.List
+import MicroHs.MakeCArray
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(TModule(..), showValueExport, showTypeExport, showTypeExportAssocs, TypeExport)
-import MicroHs.Interactive
-import MicroHs.MakeCArray
-import MhsEval
+--import MhsEval
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -34,14 +35,11 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
-import MicroHs.TargetConfig
-import Paths_MicroHs(getDataDir)
 
 main :: IO ()
 main = do
+  (mhsDir, srcs, pkgs) <- getPaths
   args <- getArgs
-  dir <- getMhsDir
-  dataDir <- getDataDir
   case args of
     ["-h"] -> putStrLn usage
     ["-?"] -> putStrLn usage
@@ -49,77 +47,78 @@ main = do
     ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
     ["--numeric-version"] -> putStrLn mhsVersion
     _ -> do
-      let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
-          (flags, mdls, rargs) = decodeArgs dflags [] args
-          pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]   -- This is a bit ugly
-                   | otherwise                    = []                        -- No package search path
+      let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
+          (eflags, mdls, rargs) = decodeArgs dflags [] args
+      conf <- readConfig eflags
+      let flags = eflags{ config = conf }
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
-      case listPkg flags of
-        Just p -> mainListPkg flags p
-        Nothing -> do
-          preload' <- mapM (findAPackage flags) (preload flags)
-          let flags' = flags { preload = preload' }
-          case buildPkg flags' of
-            Just p -> mainBuildPkg flags' p mdls
-            Nothing ->
-              if installPkg flags' then mainInstallPackage flags' mdls else
-              withArgs rargs $ do
-                case mdls of
-                  []  | null (cArgs flags') -> mainInteractive flags'
-                      | otherwise -> mainCompileC flags' [] ""
-                  [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                  _   -> mhsError usage
+      preload' <- mapM (findAPackage flags) (preload flags)
+      let flags' = flags { preload = preload' }
+      withArgs rargs $
+        case () of
+          _ | Just p <- listPkg flags'        -> mainListPkg flags p
+          _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
+          _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
+          _ | installPkg flags'               -> mainInstallPackage flags' mdls
+          _ | null mdls && null (cArgs flags')-> mainInteractive flags' []
+          _ | null mdls                       -> mainCompileC flags' [] ""
+          _ | interactive flags'              -> mainInteractive flags' mdls
+          _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
+          _                                   -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
   where
     details = "\
-      \-h                 Print usage\n\
       \-?                 Print usage\n\
-      \--help             Print this message\n\
-      \--version          Print the version\n\
-      \--numeric-version  Print the version number\n\
-      \-v                 Increase verbosity (flag can be repeated)\n\
-      \-q                 Decrease verbosity (flag can be repeated)\n\
-      \-l                 Show every time a module is loaded\n\
-      \-s                 Show compilation speed in lines/s\n\
-      \-r                 Run directly\n\
-      \-c                 Do not generate executable\n\
+      \-a                 Clear package search path\n\
+      \-aPATH             Add PATH to package search path\n\
+      \-b64               Base64 encode the combinator code\n\
+      \-C                 Read and write compilation cache\n\
       \-CR                Read compilation cache\n\
       \-CW                Write compilation cache\n\
-      \-C                 Read and write compilation cache\n\
-      \-XCPP              Run cpphs on source files\n\
+      \-c                 Do not generate executable\n\
       \-Dxxx              Pass -Dxxx to cpphs\n\
+      \-ddump-PASS        Debug, print AST after PASS\n\
+      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
+      \-ECMD              Set editor for :exit command\n\
+      \-eEXPR             Evaluate EXPR\n\
+      \-F                 Run a preprocessor\n\
+      \-h                 Print usage\n\
+      \--help             Print this message\n\
       \-Ixxx              Pass -Ixxx to cpphs\n\
-      \-T                 Generate dynamic function usage statistics\n\
-      \-z                 Compress the combinator code\n\
-      \-b64               Base64 encode the combinator code\n\
       \-iPATH             Add PATH to module search path\n\
+      \--interactive      Start interactive mode even with module arguments\n\
+      \-l                 Show every time a module is loaded\n\
+      \-L[FILE|PKG]       List all modules of a package\n\
+      \--numeric-version  Print the version number\n\
       \-oFILE             Output to FILE\n\
       \                   If FILE ends in .comb produce a combinator file\n\
       \                   If FILE ends in .c produce a C file\n\
       \                   Otherwise compile the combinators together with the runtime system to produce a regular executable\n\
-      \-a                 Clear package search path\n\
-      \-aPATH             Add PATH to package search path\n\
-      \-L[FILE|PKG]       List all modules of a package\n\
-      \-PPKG              Build package PKG\n\
-      \-Q PKG [DIR]       Install package PKG\n\
-      \-pFILE             Pre-load package\n\
-      \-tTARGET           Select target\n\
-      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
-      \                   Targets can be defined in targets.conf\n\
+      \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
       \-optc OPTION       Options for the C compiler\n\
       \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
-      \--stdin            Use stdin in interactive system\n\
+      \-PPKG              Build package PKG\n\
+      \-pFILE             Pre-load package\n\
       \-pgmF CMD          Use CMD for the -F preprocessor\n\
-      \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
-      \-F                 Run a preprocessor\n\
-      \-ddump-PASS        Debug, print AST after PASS\n\
-      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
+      \-Q PKG [DIR]       Install package PKG\n\
+      \-q                 Decrease verbosity (flag can be repeated)\n\
+      \-r                 Run directly\n\
+      \-s                 Show compilation speed in lines/s\n\
+      \--stdin            Use stdin in interactive system\n\
+      \-T                 Generate dynamic function usage statistics\n\
+      \-tTARGET           Select target\n\
+      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
+      \                   Targets can be defined in mhs.conf\n\
+      \-v                 Increase verbosity (flag can be repeated)\n\
+      \--version          Print the version\n\
+      \-XCPP              Run cpphs on source files\n\
+      \-z                 Compress the combinator code\n\
       \"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
@@ -151,21 +150,27 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
     "-pgmF" | s : args' <- args
                 -> decodeArgs f{fPgm = Just s} mdls args'
+    "-interactive-print" | s : args' <- args
+                -> decodeArgs f{iPrint = Just s} mdls args'
     "-F"        -> decodeArgs f{doF = True} mdls args
-    '-':'i':[]  -> decodeArgs f{paths = []} mdls args
-    '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
+    "--stdin"   -> decodeArgs f{useStdin = True} mdls args
+    "--interactive"   -> decodeArgs f{interactive = True} mdls args
+    '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
+    '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
-    '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
-    '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
+    '-':'a':[]  -> decodeArgs f{pkgPaths = []} mdls args
+    '-':'a':s   -> decodeArgs f{pkgPaths = pkgPaths f ++ splitColonPath s} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
-    '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
+    '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
+    '-':'e':s   -> decodeArgs f{evalArg = Just s} mdls args
+    _ | Just r  <- stripPrefix "-ddump-" arg, Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
-    "--stdin"   -> decodeArgs f{useStdin = True} mdls args
+
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
@@ -174,46 +179,39 @@ decodeArgs f mdls (arg:args) =
   where
     dumpFlagTable = [(drop 1 $ show d, d) | d <- [minBound..maxBound]]
 
-readTargets :: Flags -> FilePath -> IO [Target]
-readTargets flags dir = do
-  let tgFilePath = dir </> "targets.conf"
-  exists <- doesFileExist tgFilePath
-  if not exists
-     then return []
-     else do
-       tgFile <- readFile tgFilePath
-       case parseTargets tgFilePath tgFile of
-         Left e -> do
-           putStrLn $ "Cannot parse " ++ tgFilePath
-           when (verbosityGT flags 0) $
-             putStrLn e
-           return []
-         Right tgs -> do
-           when (verbosityGT flags 0) $
-             putStrLn $ "Read targets file. Possible targets: " ++ show
-               [tg | Target tg _ <- tgs]
-           return tgs
+readConfig :: Flags -> IO Config
+readConfig flags = do
+  let cfFilePath = mhsdir flags </> "mhs.conf"
+  exists <- doesFileExist cfFilePath
+  if not exists then
+    return []
+   else do
+    cfFile <- readFile cfFilePath
+    case parseConfig cfFilePath cfFile of
+      Left e -> do
+        putStrLn $ "Cannot parse " ++ cfFilePath
+        when (verbosityGT flags 0) $
+          putStrLn e
+        return []
+      Right cfs -> do
+        when (verbosityGT flags 0) $
+          putStrLn $ "Read targets file. Possible targets: " ++ show (map fst cfs)
+        return cfs
 
-readTarget :: Flags -> FilePath -> IO TTarget
-readTarget flags dir = do
-  targets <- readTargets flags dir
-  (n, cs) <-
-    case findTarget (target flags) targets of
-      Nothing -> do
-        when (verbosityGT flags 0) $
-          putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
-        return ("default", [])
-      Just (Target n cs) -> do
-        when (verbosityGT flags 0) $
-          putStrLn $ "Found target: " ++ show cs
-        return (n, cs)
-  return TTarget { tName    = n
-                 , tCC      = fromMaybe "cc"   $ lookup "cc"      cs
-                 , tCCFlags = fromMaybe ""     $ lookup "ccflags" cs
-                 , tCCLibs  = fromMaybe ""     $ lookup "cclibs"  cs
-                 , tConf    = fromMaybe "unix" $ lookup "conf"    cs
-                 , tOut     = fromMaybe "-o"   $ lookup "cout"    cs
-                 }
+findSection :: Flags -> IO [(Key, Value)]
+findSection flags = do
+  case lookup (target flags) (config flags) of
+    Nothing -> do
+      when (verbosityGT flags 0) $
+        putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
+      return []
+    Just cs -> do
+      when (verbosityGT flags 0) $
+        putStrLn $ "Found target: " ++ show (target flags, cs)
+      return cs
+
+getSectionKey :: [(Key, Value)] -> Key -> Value -> Value
+getSectionKey sect key dflt = fromMaybe dflt $ lookup key sect
 
 mainBuildPkg :: Flags -> String -> [String] -> IO ()
 mainBuildPkg flags namever amns = do
@@ -263,7 +261,7 @@ findAPackage flags pkgnm = do
     case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
       [] -> mhsError $ "Package not found: " ++ show pkgnm
       [s] -> return s
-      ss -> mhsError $ "Package not is ambigous: " ++ show (pkgnm, ss)
+      ss -> mhsError $ "Package is ambigous: " ++ show (pkgnm, ss)
 
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg flags "" = mainListPackages flags
@@ -278,7 +276,8 @@ mainListPkg flags pkgnm = do
 
   let oneMdl tmdl = do
         putStrLn $ "  " ++ showIdent (tModuleName tmdl)
-        when (verbosityGT flags 0) $
+        when (verbosityGT flags 0) $ do
+          putStrLn $ "  file = " ++ slocFile (slocIdent (tModuleName tmdl))
           printExperted tmdl
         when (verbosityGT flags 1) $
           printDefinitions tmdl
@@ -332,10 +331,12 @@ mainCompile flags mn = do
     if compiledWithMhs then do
       let prg = translateAndRun cmdl
       prg
+{-
      else if compiledWithGhc then
       withMhsContext $ \ ctx -> do
         run ctx outData
-      else mhsError "The -r flag currently only works with mhs and ghc"
+-}
+     else mhsError "The -r flag currently only works with mhs and ghc"
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
@@ -393,12 +394,17 @@ mainCompileC flags pkgs infile = do
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
-  tgt <- readTarget flags dir
+  sect <- findSection flags
   let optls = concatMap pkgOptl poptls -- optl from pkgs
-      cmd = unwords $ [tCC tgt,
-                       tCCFlags tgt,
+      vcc      = getSectionKey sect "cc"      "cc"
+      vccflags = getSectionKey sect "ccflags" ""
+      vcclibs  = getSectionKey sect "cclibs"  ""
+      vconf    = getSectionKey sect "conf"    "unix"
+      vcout    = getSectionKey sect "cout"    "-o"
+      cmd = unwords $ [vcc,
+                       vccflags,
                        "-I" ++ rtdir,
-                       "-I" ++ rtdir </> tConf tgt,
+                       "-I" ++ rtdir </> vconf,
                        incs,
                        defs,
                        cpps] ++
@@ -409,8 +415,8 @@ mainCompileC flags pkgs infile = do
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",
                         infile,
-                        tCCLibs tgt,
-                        tOut tgt ++ outFile
+                        vcclibs,
+                        vcout ++ outFile
                       ]
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd
@@ -439,13 +445,13 @@ mainInstallPackage flags [pkgfn, dir] = do
         writeFile fn pkgout
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
-  case pkgPath flags of
-    [] -> mhsError "pkgPath is empty"
+  case pkgPaths flags of
+    [] -> mhsError "pkgPaths is empty"
     frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = mhsError usage
 
 findAllPackages :: Flags -> IO [(FilePath, [String])]
-findAllPackages flags = concat <$> mapM list (pkgPath flags)
+findAllPackages flags = concat <$> mapM list (pkgPaths flags)
   where list dir = do
           let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
@@ -474,3 +480,6 @@ convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
 hasTheExtension f e = e `isSuffixOf` f
+
+splitColonPath :: String -> [String]
+splitColonPath = splitWhen (':' ==)

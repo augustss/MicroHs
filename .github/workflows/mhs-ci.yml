@@ -112,6 +112,30 @@ jobs:
       run: make everytestmhs
       shell: alpine.sh {0}
 
+  build-linux-gmp-x86:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: x86
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+          gmp-dev
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
+      shell: alpine.sh {0}
+    - name: make install
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp minstall
+      shell: alpine.sh {0}
+
   build-emscripten:
     runs-on: ubuntu-latest
     steps:

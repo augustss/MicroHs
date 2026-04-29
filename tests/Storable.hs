@@ -1,9 +1,14 @@
 module Storable(main) where
+import Data.Int
 import Data.Word
+import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
+
+pokePeek :: (Storable a, Bounded a) => IO a
+pokePeek = alloca (\p -> poke p maxBound >> peek p)
 
 main :: IO ()
 main = do
@@ -28,3 +33,12 @@ main = do
   b2 <- peek (p3 `plusPtr` 1)
   print [b1, b2]
 -}
+
+  pokePeek @Word8  >>= print
+  pokePeek @Word16 >>= print
+  pokePeek @Word32 >>= print
+  pokePeek @Word64 >>= print
+  pokePeek @Int8   >>= print
+  pokePeek @Int16  >>= print
+  pokePeek @Int32  >>= print
+  pokePeek @Int64  >>= print

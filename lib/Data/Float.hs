@@ -1,12 +1,13 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Float(Float) where
+module Data.Float(Float, floatToDouble, doubleToFloat) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits.Base
 import Data.Bool
 import Data.Char
+import Data.Double(Double)
 import Data.Enum
 import Data.Eq
 import Data.Floating
@@ -197,3 +198,9 @@ scaleFloat32 n x = cscalbn x n
 
 encodeFloat32 :: Integer -> Int -> Float
 encodeFloat32 mant expn = scaleFloat32 expn (fromInteger mant)
+
+floatToDouble :: Float -> Double
+floatToDouble = primFloatToDouble
+
+doubleToFloat :: Double -> Float
+doubleToFloat = primDoubleToFloat
