@@ -616,10 +616,10 @@ parseImpEnt loc _cc ui s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
-    "static" : r -> rest r
-    r            -> rest r
- where rest (inc : r) | ".h" `isSuffixOf` inc = rest' (ImpStatic [inc]) r
-       rest r                                 = rest' (ImpStatic [])    r
+    "static" : r -> rest [] r
+    r            -> rest [] r
+ where rest incs (inc : r) | ".h" `isSuffixOf` inc = rest  (incs ++ [inc])  r
+       rest incs r                                 = rest' (ImpStatic incs) r
        rest' c ("&"     : r) = rest'' (c IPtr) r
        rest' c ['&'     : r] = rest'' (c IPtr) [r]
        rest' c ("value" : r) = rest'' (c IValue) [unwords r]
