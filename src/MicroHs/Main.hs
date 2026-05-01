@@ -268,8 +268,8 @@ findAPackage flags pkgnm = do
     return pkgnm
    else do
     dirpkgs <- findAllPackages flags
-    print dirpkgs
-    case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
+    let isVers = all (`elem` "0123456789-.")
+    case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, Just suf <- [stripPrefix pkgnm pkg], isVers suf ] of
       [] -> mhsError $ "Package not found: " ++ show pkgnm
       [s] -> return s
       ss -> mhsError $ "Package is ambigous: " ++ show (pkgnm, ss)
