@@ -581,7 +581,7 @@ instance HasLoc EDef where
 -- Approximate location; only identifiers and literals carry a location
 instance HasLoc Expr where
   getSLoc (EVar i) = getSLoc i
-  getSLoc (EApp e _) = getSLoc e
+  getSLoc (EApp f a) = getSLoc f `orSLoc` getSLoc a
   getSLoc (EOper e _) = getSLoc e
   getSLoc (ELam l _) = l
   getSLoc (ELit l _) = l
@@ -608,8 +608,7 @@ instance HasLoc Expr where
   getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
-  getSLoc (EForall _ [] e) = getSLoc e
-  getSLoc (EForall _ iks _) = getSLoc iks
+  getSLoc (EForall _ iks e) = getSLoc iks `orSLoc` getSLoc e
 
 instance HasLoc a => HasLoc [a] where
   getSLoc [] = noSLoc  -- XXX shouldn't happen
@@ -816,8 +815,10 @@ setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
 setSLocExpr l (ELit _ k) = ELit l k
+setSLocExpr l (EApp f a) = EApp (setSLocExpr l f) a
+setSLocExpr l (EForall q vs e) = EForall q vs (setSLocExpr l e)
 setSLocExpr _ e@(EUVar _) = e
-setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
+setSLocExpr _ e = error $ "setSLocExpr: unimpl " ++ show e  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con
 setSLocCon l (ConData ti i fs) = ConData ti (setSLocIdent l i) fs

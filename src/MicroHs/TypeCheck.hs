@@ -627,6 +627,10 @@ munify :: HasCallStack =>
 munify loc (Infer r) b = tSetRefType loc r b
 munify loc (Check a) b = unify loc a b
 
+-- Expand type synonyms, but keep location info
+expandSynLoc :: EType -> T EType
+expandSynLoc at = setSLocExpr (getSLoc at) <$> expandSyn at
+
 -- Synonyms are expanded after kind checking.
 -- There should be no synonyms in any of the symbol tables (except synTable).
 expandSyn :: HasCallStack =>
@@ -1657,14 +1661,14 @@ tcDefValue adef =
       return $ Fcn (qualIdent' mn i) teqns
     ForImp cc ie i t -> do
       mn <- gets moduleName
-      t' <- withNewtypeAsSyns (expandSyn t)
+      t' <- withNewtypeAsSyns (expandSynLoc t)
       pure $ ForImp cc ie (qualIdent' mn i) t'
     -- Check that a foreign export match the declaration type.
     -- In most cases the types will be the same, but the declaration can be overloaded
     -- so we need to ensure that it is compatible with the export definition.
     ForExp cc ms e t -> do
       ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
-      t'' <- withNewtypeAsSyns (expandSyn t')
+      t'' <- withNewtypeAsSyns (expandSynLoc t')
       let e'' = eLetB (eBinds ds) e'
       pure $ ForExp cc (Just $ fromMaybe (showExpr e) ms) e'' t''
     Pattern{} -> impossible
