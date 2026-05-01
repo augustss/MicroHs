@@ -71,7 +71,7 @@ main = do
           _                                   -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffi PKG:...] [MODULENAME...|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -90,6 +90,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
       \-ECMD              Set editor for :exit command\n\
       \-eEXPR             Evaluate EXPR\n\
+      \-embed-ffis PKG*   Embed packages FFI stubs in mhs binary\n\
       \-embed-packages PKG* Embed packages in mhs binary\n\
       \-F                 Run a preprocessor\n\
       \-h                 Print usage\n\
@@ -159,8 +160,11 @@ decodeArgs f mdls (arg:args) =
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
-    "--embed-packages" | s : args' <- args
-                -> decodeArgs f{embedPkgs = embedPkgs f ++ splitColonPath s} mdls args'
+    "--embed-ffis" | s : args' <- args
+                -> decodeArgs f{embedFFIs = embedFFIs f ++ splitColonPath s} mdls args'
+    "--embed-packages" | s : args' <- args, let ps = splitColonPath s
+                -> decodeArgs f{embedPkgs = embedPkgs f ++ ps, embedFFIs = embedFFIs f ++ ps} mdls args'
+
     '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
     '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -356,7 +360,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    embeddedDefs <- mapM (getPackageDefs flags) (embedPkgs flags)
+    embeddedDefs <- mapM (getPackageDefs flags) (embedFFIs flags)
     let (cFFI, hFFI) = makeFFI flags forExps (outDefs : embeddedDefs)
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
@@ -508,10 +512,10 @@ addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
         pkgfn <- findAPackage flags pkgnm
         BS.readFile pkgfn
   bss <- mapM get (embedPkgs flags)
-  let ps = encList $ map (\ bs -> Lit $ LBStr bs) bss
+  let ps = encList $ map (Lit . LBStr) bss
       rep ie@(i, _) | i == mkIdent "MicroHs.Embed.packages" = (i, ps)
                     | otherwise = ie
   
-  when (verbosityGT flags (-1)) $
+  when (verbosityGT flags 0) $
     putStrLn $ "Embedded " ++ show (embedPkgs flags)
   return $ map rep ds
