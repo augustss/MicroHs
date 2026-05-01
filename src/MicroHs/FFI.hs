@@ -1,5 +1,6 @@
 module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
+import Data.Char
 import Data.List
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
@@ -138,18 +139,30 @@ mkHdr (ImpStatic _ IPtr fn, f, iot) =
 mkHdr (ImpStatic _ IFunc fn, f, t) =
   let (as, ior) = getArrows t
       r = checkIO ior
-      n = length as
+      len = length as
       call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
       fcall =
         if isUnit r then
-          call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
+          call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
         else
-          "return " ++ mkRet r n call
+          "return " ++ mkRet r len call
   in  mkMhsFun f fcall
-mkHdr (ImpStatic _ IValue val, f, iot) =
-  let r = checkIO iot
-      body = "return " ++ mkRet r 0 val
-  in  mkMhsFun f body
+mkHdr (ImpStatic _ IValue val, f, t) =
+  let (as, ior) = getArrows t
+      r = checkIO ior
+      len = length as
+      call = expand val
+      expand [] = []
+      expand ('$':c:cs) | isDigit c =
+        let n = digitToInt c - 1
+        in mkArg (as !! n) n ++ expand cs
+      expand (c:cs) = c : expand cs
+      fcall =
+        if isUnit r then
+          call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
+        else
+          "return " ++ mkRet r len call
+  in  mkMhsFun f fcall
 mkHdr (ImpJS s, f, ty) =
   let (as, ior) = getArrows ty
       rt = checkIO ior
