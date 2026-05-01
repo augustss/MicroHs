@@ -39,7 +39,8 @@ data Flags = Flags {
   editor     :: Maybe String, -- Hugs-like flag to invoke the editor.
   iPrint     :: Maybe String, -- interactive print function
   config     :: Config,       -- from mhs.config file
-  embedPkgs  :: [String]
+  embedFFIs  :: [String],     -- embed FFI stubs from these packages
+  embedPkgs  :: [String]      -- embed these packages
   }
   deriving (Show)
 
@@ -81,6 +82,7 @@ defaultFlags = Flags {
   editor      = Nothing,
   iPrint      = Nothing,
   config      = [],
+  embedFFIs   = [],
   embedPkgs   = []
   }
 
