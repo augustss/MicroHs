@@ -26,7 +26,7 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData Exp where
   rnf (Var a) = rnf a

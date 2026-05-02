@@ -371,6 +371,9 @@ instance NFData Lit where
 newtype CType = CType EType
   deriving (Show)
 
+instance Pretty CType where
+  pPrintPrec l p (CType t) = pPrintPrec l p t
+
 instance Eq CType where
   _ == _  =  True    -- Just ignore the CType
 

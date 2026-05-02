@@ -14,7 +14,7 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Config
 import MicroHs.Exp(Exp(Var, Lit))
-import MicroHs.Expr(Lit(LInt))
+import MicroHs.Expr(Lit(LInt, LForImp))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
@@ -35,6 +35,7 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
 main = do
@@ -362,11 +363,17 @@ mainCompile flags mn = do
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    if outFile `hasTheExtension` ".comb" then do
+    if outFile `hasTheExtension` ".comb" || outFile `hasTheExtension` ".combffi" then do
       h <- openBinaryFile outFile WriteMode
       h' <- if base64 flags then do addBase64 h else return h
       h'' <- if compress flags then do hPutChar h' 'z'; addLZ77 h' else return h'
       hPutStr h'' outData
+      when (outFile `hasTheExtension` ".combffi") $ do
+        -- add FFI info
+        hPutStrLn h'' "\n#####"
+        let putFFI (_, Lit (LForImp i n t)) = hPutStrLn h'' $ n ++ " = " ++ show i ++ " :: " ++ prettyShow t
+            putFFI _ = return ()
+        mapM_ putFFI outDefs
       hClose h''
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
