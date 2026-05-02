@@ -346,7 +346,7 @@ data Lit
   | LBStr ByteString        -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
-  | LForImp ImpEnt String CType
+  | LForImp IdentModule ImpEnt String CType
   | LCType CType            -- used for foreign export
   | LTick String
   deriving (Eq, Show)
@@ -363,7 +363,7 @@ instance NFData Lit where
   rnf (LBStr a) = rnf a
   rnf (LPrim a) = rnf a
   rnf (LExn a) = rnf a
-  rnf (LForImp a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (LForImp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (LCType e) = rnf e
   rnf (LTick a) = rnf a
 
@@ -1095,7 +1095,7 @@ instance Pretty Lit where
     LBStr s    -> show s
     LPrim s    -> s
     LExn s     -> s
-    LForImp ie s _-> '^' : if isPtr then '&':s else s
+    LForImp _ ie s _-> '^' : if isPtr then '&':s else s
       where isPtr = case ie of ImpStatic _ IPtr _ -> True; _ -> False
     LCType (CType t) -> showEType t
     LTick s    -> '!' : s

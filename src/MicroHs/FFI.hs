@@ -11,18 +11,18 @@ import MicroHs.Names
 --import Debug.Trace
 
 -- The export table has (internal-name, external-name, external-type)
-makeFFI :: Flags -> [(Ident, Ident, CType)] -> [[LDef]] -> (String, String)
-makeFFI _ forExps dss =
-  let ffiImports = nubBy eq [ (ie, n, t) | ds <- dss, (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
+makeFFI :: Flags -> [(Ident, Ident, CType)] -> [IdentModule ]-> [[LDef]] -> (String, String)
+makeFFI _ forExps exclude dss =
+  let ffiImports = nubBy eq [ (ie, n, t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
-                       eq (_, n, _) (_, n', _) = n == n'
-      wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
-      dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
-      imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
+                       eq (_, n, _, _) (_, n', _, _) = n == n'
+      wrappers = [ t | (ImpWrapper, _, t, _) <- ffiImports]
+      dynamics = [ t | (ImpDynamic, _, t, _) <- ffiImports]
+      imps     = filter ((`notElem` exclude) . impModule) $ filter ((`notElem` runtimeFFI) . impName) ffiImports
+      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _, _) <- imps, inc <- iincs ]
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
-        where isJS (ImpJS _, _, _) = True
+        where isJS (ImpJS _, _, _, _) = True
               isJS _ = False
       mkSig (_, i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
       header = unlines
@@ -88,14 +88,17 @@ mkExportWrapper no (_, n, CType t) = unlines $
           "}"
         ]
 
-impName :: (ImpEnt, String, EType) -> String
-impName (_, s, _) = s
+impName :: (ImpEnt, String, EType, IdentModule) -> String
+impName (_, s, _, _) = s
 
-mkEntry :: (ImpEnt, String, EType) -> String
-mkEntry (ImpStatic _ IFunc  _, f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
-mkEntry (ImpStatic _ IPtr   _, f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
-mkEntry (ImpStatic _ IValue _, f, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
-mkEntry (ImpJS _,              f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+impModule :: (ImpEnt, String, EType, IdentModule) -> IdentModule
+impModule (_, _, _, m) = m
+
+mkEntry :: (ImpEnt, String, EType, IdentModule) -> String
+mkEntry (ImpStatic _ IFunc  _, f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpStatic _ IPtr   _, f, _, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
+mkEntry (ImpStatic _ IValue _, f, _, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
+mkEntry (ImpJS _,              f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -124,8 +127,8 @@ mkArg t i = "mhs_to_" ++ cTypeHsName t ++ "(s, " ++ show i ++ ")"
 mkJSArg :: EType -> Int -> String
 mkJSArg t i = "mhs_to_" ++ jsTypeName t ++ "(s, " ++ show i ++ ")"
 
-mkHdr :: (ImpEnt, String, EType) -> String
-mkHdr (ImpStatic _ IPtr fn, f, iot) =
+mkHdr :: (ImpEnt, String, EType, IdentModule) -> String
+mkHdr (ImpStatic _ IPtr fn, f, iot, _) =
   let r = checkIO iot
       (s, _) =
         case dropApp identPtr r of
@@ -136,7 +139,7 @@ mkHdr (ImpStatic _ IPtr fn, f, iot) =
               Nothing -> errorMessage (getSLoc r) "foreign & must be Ptr/FunPtr"
       body = "return " ++ mkRet r 0 (s ++ "&" ++ fn)
   in  mkMhsFun ("addr_" ++ f) body
-mkHdr (ImpStatic _ IFunc fn, f, t) =
+mkHdr (ImpStatic _ IFunc fn, f, t, _) =
   let (as, ior) = getArrows t
       r = checkIO ior
       len = length as
@@ -147,7 +150,7 @@ mkHdr (ImpStatic _ IFunc fn, f, t) =
         else
           "return " ++ mkRet r len call
   in  mkMhsFun f fcall
-mkHdr (ImpStatic _ IValue val, f, t) =
+mkHdr (ImpStatic _ IValue val, f, t, _) =
   let (as, ior) = getArrows t
       r = checkIO ior
       len = length as
@@ -163,7 +166,7 @@ mkHdr (ImpStatic _ IValue val, f, t) =
         else
           "return " ++ mkRet r len call
   in  mkMhsFun f fcall
-mkHdr (ImpJS s, f, ty) =
+mkHdr (ImpJS s, f, ty, _) =
   let (as, ior) = getArrows ty
       rt = checkIO ior
       jsr = jsTypeNameR rt

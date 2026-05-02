@@ -122,6 +122,7 @@ compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, 
 compile flags nm ach = do
   let comp = do
         mapM_ (loadPkg flags) (preload flags)
+        mapM_ (loadEmbedPkg flags) Embed.packages
         res <- compileModuleCached flags ImpNormal nm
         loadBoots flags
         loadDependencies flags
@@ -526,20 +527,21 @@ loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
-  loadPkg' fn pkg
+  loadPkg' (Just fn) pkg
 
-loadPkg' :: FilePath -> Package -> CM ()
-loadPkg' fn pkg = do
+loadPkg' :: Maybe FilePath -> Package -> CM ()
+loadPkg' mfn pkg = do
   when (pkgCompiler pkg /= mhsVersion) $
-    mhsError $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
-  modify $ addPackage fn pkg
+    mhsError $ "Package compiler version mismatch: file=" ++ fromMaybe (show $ pkgName pkg) mfn ++
+               ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
+  modify $ addPackage mfn pkg
 
 loadEmbedPkg :: Flags -> BS.ByteString -> CM ()
 loadEmbedPkg flags bs = do
   pkg <- liftIO $ readSerializedBS bs
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading embedded package " ++ showIdent (pkgName pkg)
-  loadPkg' "<<ByteString>>" pkg
+  loadPkg' Nothing pkg
 
 -- XXX add function to find&load package from package name
 

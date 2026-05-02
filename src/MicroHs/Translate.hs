@@ -62,7 +62,7 @@ trans r ae =
     Lit (LBStr s) -> unsafeCoerce s
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
-    Lit f@(LForImp _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
+    Lit f@(LForImp _ _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
     _ -> error $ "trans: impossible: " ++ prettyShow ae
 
 -- Use linear search in this table.

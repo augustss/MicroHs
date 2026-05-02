@@ -58,8 +58,9 @@ newmhs:	ghcgen mhs.conf
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g $(RTSINC) $(RTS)/eval.c $(MAINC) generated/mhs.c $(CCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
-	rm generated/mhs.c
+	@rm -f generated/mhs.c
 	$(MAKE) generated/mhs.c
+	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
 
 sanitizemhs:	ghcgen mhs.conf
 	$(CCEVAL) $(CCSANITIZE) generated/mhs.c $(CCLIBS) -o bin/mhssane

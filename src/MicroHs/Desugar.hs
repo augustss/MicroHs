@@ -47,7 +47,7 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp ffiNo cc ie i t)]
+    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -631,9 +631,9 @@ parseImpEnt loc _cc ui s =
 badForImp :: SLoc -> a
 badForImp loc = errorMessage loc "bad foreign import"
 
-mkForImp :: Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
-mkForImp _ Cjavascript Nothing i _ = badForImp (getSLoc i)
-mkForImp no cc ms i ty =
+mkForImp :: IdentModule -> Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
+mkForImp _ _ Cjavascript Nothing i _ = badForImp (getSLoc i)
+mkForImp mn no cc ms i ty =
   let cty = CType ty
       loc = getSLoc i
       ui  = unIdent (unQualIdent i)
@@ -646,4 +646,4 @@ mkForImp no cc ms i ty =
           ImpStatic _ _ n ->
             if isValidC n then n else fno
           _ -> fno
-  in  LForImp impent cid cty
+  in  LForImp mn impent cid cty

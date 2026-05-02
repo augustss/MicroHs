@@ -2,12 +2,15 @@ module MicroHs.Package(
   IdentPackage,
   Package(..),
   forcePackage,
+  packageDefs,
+  packageModules,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
+import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(Ident)
-import MicroHs.TypeCheck(TModule, GlobTables)
+import MicroHs.TypeCheck(TModule, GlobTables, tBindingsOf, tModuleName)
 
 --
 -- Packages are organized as follows:
@@ -44,3 +47,9 @@ instance NFData Package where
 -- Fully evaluate a package
 forcePackage :: Package -> Package
 forcePackage p = force p
+
+packageDefs :: Package -> [LDef]
+packageDefs pkg = concatMap tBindingsOf (pkgExported pkg ++ pkgOther pkg)
+
+packageModules :: Package -> [IdentModule]
+packageModules pkg = map tModuleName (pkgExported pkg ++ pkgOther pkg)

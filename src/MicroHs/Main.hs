@@ -360,8 +360,12 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    embeddedDefs <- mapM (getPackageDefs flags) (embedFFIs flags)
-    let (cFFI, hFFI) = makeFFI flags forExps (outDefs : embeddedDefs)
+    -- embedPkg are the packages we are embedding in the binary.
+    -- embedded are the packages embeddd in this binary.
+    embedPkg <- mapM (getPackage flags) (embedFFIs flags)
+    let embedded = concatMap packageModules (getEmbedPkgs cash)
+    let (cFFI, hFFI) = makeFFI flags forExps embedded
+                               (outDefs : map (packageDefs . snd) embedPkg)
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
     let outFile = output flags
@@ -388,13 +392,15 @@ mainCompile flags mn = do
        let ppkgs = getPathPkgs cash
        hPutStr h cCode
        hClose h
-       mainCompileC flags ppkgs fn
+       mainCompileC flags (embedPkg ++ ppkgs) fn
        removeFile fn
 
 mainCompileC :: Flags -> [(FilePath, Package)] -> FilePath -> IO ()
 mainCompileC flags pkgs infile = do
   let ppkgs  = map fst pkgs
       poptls = filter (not . null . pkgOptl) $ map snd pkgs
+  when (verbosityGT flags 0) $
+    putStrLn $ "used packages: " ++ show ppkgs
   ct1 <- getTimeMilli
   let dir = mhsdir flags
       incDirs = map (convertToInclude "include") ppkgs
@@ -499,11 +505,11 @@ splitColonPath = splitWhen (':' ==)
 
 -- Get all definitions from a package.
 -- Used to produce FFI wrappers for embedded packages.
-getPackageDefs :: Flags -> String -> IO [LDef]
-getPackageDefs flags pkgnm = do
+getPackage :: Flags -> String -> IO (FilePath, Package)
+getPackage flags pkgnm = do
   pkgfn <- findAPackage flags pkgnm
   pkg <- readSerialized pkgfn
-  return $ concatMap tBindingsOf (pkgExported pkg ++ pkgOther pkg)
+  return (pkgfn, pkg)
 
 addEmbedPkgs :: Flags -> [LDef] -> IO [LDef]
 addEmbedPkgs flags ds | null (embedPkgs flags) = return ds

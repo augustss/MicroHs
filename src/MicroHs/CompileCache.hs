@@ -3,7 +3,7 @@ module MicroHs.CompileCache(
   Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, cachedModuleNames, cachedNonPkgModuleNames,
   lookupCache, lookupCacheChksum, getImportDeps,
-  addPackage, getCompMdls, getPathPkgs, getPkgs,
+  addPackage, getCompMdls, getPathPkgs, getPkgs, getEmbedPkgs,
   getCacheTables, setCacheTables,
   saveCache, loadCached,
   ) where
@@ -45,8 +45,8 @@ data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
-  pkgs    :: [(FilePath, Package)],     -- loaded packages
-  tables  :: GlobTables
+  pkgs    :: [(Maybe FilePath, Package)], -- loaded packages, no filename for embedded
+  tables  :: GlobTables                 -- glbals, e.g., instances
   }
 --  deriving (Show)
 
@@ -113,14 +113,17 @@ getCompMdls :: Cache -> [TModule [LDef]]
 getCompMdls cash = [ tm | CompMdl tm _ _ <- M.elems (cache cash) ]
 
 getPathPkgs :: Cache -> [(FilePath, Package)]
-getPathPkgs = pkgs
+getPathPkgs ch = [ (fp, p) | (Just fp, p) <- pkgs ch ]
 
 getPkgs :: Cache -> [Package]
 getPkgs = map snd . pkgs
 
-addPackage :: FilePath -> Package -> Cache -> Cache
-addPackage f p c = c{
-  pkgs = (f, p) : pkgs c,
+getEmbedPkgs :: Cache -> [Package]
+getEmbedPkgs ch = [ p | (Nothing, p) <- pkgs ch ]
+
+addPackage :: Maybe FilePath -> Package -> Cache -> Cache
+addPackage mf p c = c{
+  pkgs = (mf, p) : pkgs c,
   cache = foldr ins (cache c) (pkgExported p ++ pkgOther p),
   tables = mergeGlobTables (pkgTables p) (tables c)
   }
