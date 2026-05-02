@@ -250,3 +250,46 @@ closedir(DIR *d)
 #define WANT_DIR_WIN 1
 
 #define MKDIR(s, m) mkdir(s)
+
+int
+setenv(const char *name, const char *value, int overwrite)
+{
+  // POSIX specifies that if name is NULL, points to an empty string, 
+  // or contains an '=', the function should fail with EINVAL.
+  if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // If overwrite is 0, we must check if the variable already exists.
+  // If it does, we successfully do nothing.
+  if (overwrite == 0 && getenv(name) != NULL) {
+    return 0; 
+  }
+
+  // _putenv_s returns 0 on success, and an error code on failure.
+  if (_putenv_s(name, value) != 0) {
+    // _putenv_s sets its own error codes, but we return -1 to match POSIX
+    return -1; 
+  }
+
+  return 0;
+}
+
+int
+unsetenv(const char *name)
+{
+  // Standard POSIX validation for the name
+  if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // In the Windows C Runtime, setting a variable to an empty string ("") 
+  // effectively deletes it from the environment.
+  if (_putenv_s(name, "") != 0) {
+    return -1;
+  }
+
+  return 0;
+}
