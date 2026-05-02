@@ -75,6 +75,11 @@
 #define WANT_ARGS 0
 
 /*
+ * Environment
+ */
+#define WANT_ENV 0
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 //#define WORD_SIZE 64

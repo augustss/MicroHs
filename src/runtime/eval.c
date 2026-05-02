@@ -83,6 +83,10 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #define WANT_BWT 1
 #endif
 
+#if !defined(WANT_ENV)
+#define WANT_ENV 1
+#endif
+
 #if !defined(WANT_ERRNO)
 #define WANT_ERRNO 0
 #else
@@ -7177,8 +7181,6 @@ from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), 
 from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
-from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
-from_t mhs_environ(int s) { return mhs_from_Ptr(s, 0, environ); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
@@ -7261,6 +7263,12 @@ from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, MKDIR(mhs_to_Ptr(s, 0), mhs_
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+#if WANT_ENV
+from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_environ(int s) { return mhs_from_Ptr(s, 0, environ); }
+from_t mhs_unsetenv(int s) { return mhs_from_Int(s, 1, unsetenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_setenv(int s) { return mhs_from_Int(s, 3, setenv(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+#endif  /* WANT_ENV */
 
 /* Use this to detect if we have (and want) GMP or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
@@ -7514,8 +7522,6 @@ const struct ffi_entry ffi_table[] = {
   { "realloc", 2, mhs_realloc},
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
-  { "getenv", 1, mhs_getenv},
-  { "environ", 0, mhs_environ},
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},
@@ -7714,6 +7720,12 @@ const struct ffi_entry ffi_table[] = {
   { "strerror_r", 3, mhs_strerror_r},
 #endif
   { "get_executable_path", 0, mhs_get_executable_path},
+#if WANT_ENV
+  { "getenv", 1, mhs_getenv},
+  { "environ", 0, mhs_environ},
+  { "unsetenv", 1, mhs_unsetenv},
+  { "setenv", 3, mhs_setenv},
+#endif  /* WANT_ENV */
   { 0,0 }
 };
 

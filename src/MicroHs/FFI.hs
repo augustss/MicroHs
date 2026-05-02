@@ -305,5 +305,38 @@ runtimeFFI = [
   "errno",
   "strerror_r",
   "environ",
-  "get_executable_path"
+  "get_executable_path",
+  "setenv", "unsetenv"
   ]
+
+{-
+-- lib/ modules that use foreign import
+libImports :: [String]
+libImports = [
+  "Data.Integer_Type",
+  "Data.Integer.Internal",
+  "System.Process",
+  "System.Environment",
+  "System.Compress.ByteString",
+  "System.Compress",
+  "System.IO.TimeMilli",
+  "System.IO.Open",
+  "System.IO.Transducers",
+  "System.IO.MD5",
+  "System.IO.Base",
+  "System.IO.StringHandle",
+  "System.IO.Internal",
+  "System.IO.Serialize",
+  "System.CPUTime",
+  "System.Directory",
+  "System.Cmd",
+  "Data.ByteString",
+  "Data.Double",
+  "Data.Float",
+  "Foreign.Marshal.Utils",
+  "Foreign.Marshal.Alloc",
+  "Foreign.Storable",
+  "Foreign.C.Error",
+  "Primitives"
+  ]
+-}
