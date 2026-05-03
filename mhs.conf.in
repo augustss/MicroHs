@@ -35,9 +35,9 @@ ccflags = "-D__TCC__=1"
 cclibs = "-lm"
 conf = "unix"
 
--- Windows flags
+-- Windows flags, with stdout supressed
 [windows]
-cc = "cl"
+cc = "cl > NUL /nologo"
 ccflags = "-O2"
 cclibs = ""
 conf = "windows"
