@@ -51,6 +51,7 @@ main = do
       let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
           (eflags, mdls, rargs) = decodeArgs dflags [] args
       conf <- readConfig eflags
+      putStrLn $ "target=" ++ show (target eflags)
       let flags = eflags{ config = conf }
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
@@ -202,10 +203,8 @@ readConfig flags = do
 findSection :: Flags -> IO [(Key, Value)]
 findSection flags = do
   case lookup (target flags) (config flags) of
-    Nothing -> do
-      when (verbosityGT flags 0) $
-        putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
-      return []
+    Nothing ->
+      error $ "Cannot find config section: " ++ target flags
     Just cs -> do
       when (verbosityGT flags 0) $
         putStrLn $ "Found target: " ++ show (target flags, cs)
