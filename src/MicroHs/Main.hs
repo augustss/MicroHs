@@ -114,7 +114,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \--stdin            Use stdin in interactive system\n\
       \-T                 Generate dynamic function usage statistics\n\
       \-tTARGET           Select target\n\
-      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
+      \                   Distributed targets: unix, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in mhs.conf\n\
       \-v                 Increase verbosity (flag can be repeated)\n\
       \--version          Print the version\n\

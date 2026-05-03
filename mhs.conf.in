@@ -5,31 +5,37 @@
 --  conf      the config directory to use, default "unix"
 --  cout      flag to set the output file to cc, default "-o"
 
--- If no target is set, we use 'default'
-[default]
+-- If no target is set, we use 'unix' on non-Windows and 'windows' on Windows.
+
+-- Typical unixlike flags
+[unix]
 cc = "cc"
 ccflags = "-w -Wall -O3 GMPFLAGS"
 cclibs = "GMPLIBS -lm"
 conf = "unix"
 
+-- Compile with debugging instead of optimization
 [debug]
 cc = "cc"
 ccflags = "-w -Wall -g"
 cclibs = "-lm"
 conf = "unix"
 
+-- Generate JavaScript&Wasm
 [emscripten]
 cc = "emcc"
 ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
 cclibs = "-lm"
 conf = "unix"
 
+-- Use the Tiny C Compiler
 [tcc]
 cc = "tcc"
 ccflags = "-D__TCC__=1"
 cclibs = "-lm"
 conf = "unix"
 
+-- Windows flags
 [windows]
 cc = "cl"
 ccflags = "-O2"
@@ -37,6 +43,7 @@ cclibs = ""
 conf = "windows"
 cout = "-Fe"
 
+-- Take all flags from environment variables
 [environment]
 -- Get all values from the environment
 cc = "$CC"
