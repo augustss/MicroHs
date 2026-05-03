@@ -1,19 +1,43 @@
 #
 # Use with nmake
 #
+HOME=$(USERPROFILE)
+RTS=src/runtime
+CCEVAL=cl -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c
+
+VERSION=0.15.7.0
+HVERSION=0,15,7,0
+MCABAL=$(HOME)/.mcabal
+MCABALMHS=$(MCABAL)/mhs-$(VERSION)
+MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
+MRUNTIME=$(MDATA)/$(RTS)
+MCABALBIN=$(MCABAL)/bin
+BASE=base-$(VERSION)
+
 all:    bin/mhs.exe bin/mhseval.exe
 
 # Compile mhs from distribution, with C compiler
-bin/mhs.exe:	src/runtime/*.c  src/runtime/windows/* #generated/mhs.c
+bin/mhs.exe:	$(RTS)/*.c  $(RTS)/windows/* #generated/mhs.c
 	@-mkdir bin
 	@-mkdir build
-	cl -F"obuild\\" -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c generated/mhs.c -Fe"bin\\mhs.exe"
+        $(CCEVAL) generated/mhs.c -Fe"bin\\mhs.exe"
+
+bin/cpphs.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/cpphs.c
+	@-mkdir bin
+	@-mkdir build
+	$(CCEVAL) generated/cpphs.c $(CCLIBS) -Fe"bin\\cpphs.exe"
+
+# Compile mcabal from distribution, with C compiler
+bin/mcabal.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/mcabal.c
+	@-mkdir bin
+	@-mkdir build
+	$(CCEVAL) generated/mcabal.c $(CCLIBS) -Fe"bin\\mcabal.exe"
 
 # Compile combinator evaluator
-bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/* src/runtime/comb.c
+bin/mhseval.exe:	$(RTS)/*.c $(RTS)/windows/* $(RTS)/comb.c
 	@-mkdir bin
 	@-mkdir build
-	cl -F"obuild\\" -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c src/runtime/comb.c -Fe"bin\\mhseval.exe"
+	cl -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c $(RTS)/comb.c -Fe"bin\\mhseval.exe"
 
 mhs.conf: mhs.conf.in
 	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
@@ -23,4 +47,15 @@ exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs mhs.conf
 	bin\mhs Example && bin\mhseval
 	bin\mhs -itests Nfib && bin\mhseval
 	bin\mhs -r -itests Info
-	bin\mhs -twindows Example -oEx.exe && Ex && rm Ex.exe
+	bin\mhs Example -oEx.exe && Ex && rm Ex.exe
+
+machdep:
+	cl Tools/machdep.c -Femachdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
+
+install:	bin/mhs.exe bin/cpphs.exe bin/mcabal.exe machdep
+	@mkdir $(MCABALBIN)
+        @mkdir $(MRUNTIME)
+	copy bin/mhs.exe bin/cpphs.exe bin/mcabal.exe $(MCABALBIN)
+	copy mhs.conf $(MDATA)
+	robocopy /e $(RTS)/* $(MRUNTIME)
+	bin/mhs -Q generated/base.pkg $(MCABALMHS)
