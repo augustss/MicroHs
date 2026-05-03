@@ -51,7 +51,6 @@ main = do
       let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
           (eflags, mdls, rargs) = decodeArgs dflags [] args
       conf <- readConfig eflags
-      putStrLn $ "target=" ++ show (target eflags)
       let flags = eflags{ config = conf }
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
