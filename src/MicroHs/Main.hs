@@ -17,7 +17,7 @@ import MicroHs.Config
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp(Exp(Var, Lit))
-import MicroHs.Expr(Lit(LInt, LBStr))
+import MicroHs.Expr(Lit(LInt, LForImp, LBStr))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
@@ -38,6 +38,7 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
 main = do
@@ -118,7 +119,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \--stdin            Use stdin in interactive system\n\
       \-T                 Generate dynamic function usage statistics\n\
       \-tTARGET           Select target\n\
-      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
+      \                   Distributed targets: unix, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in mhs.conf\n\
       \-v                 Increase verbosity (flag can be repeated)\n\
       \--version          Print the version\n\
@@ -211,10 +212,8 @@ readConfig flags = do
 findSection :: Flags -> IO [(Key, Value)]
 findSection flags = do
   case lookup (target flags) (config flags) of
-    Nothing -> do
-      when (verbosityGT flags 0) $
-        putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
-      return []
+    Nothing ->
+      error $ "Cannot find config section: " ++ target flags
     Just cs -> do
       when (verbosityGT flags 0) $
         putStrLn $ "Found target: " ++ show (target flags, cs)
@@ -379,11 +378,17 @@ mainCompile flags mn = do
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    if outFile `hasTheExtension` ".comb" then do
+    if outFile `hasTheExtension` ".comb" || outFile `hasTheExtension` ".combffi" then do
       h <- openBinaryFile outFile WriteMode
       h' <- if base64 flags then do addBase64 h else return h
       h'' <- if compress flags then do hPutChar h' 'z'; addLZ77 h' else return h'
       hPutStr h'' outData
+      when (outFile `hasTheExtension` ".combffi") $ do
+        -- add FFI info
+        hPutStrLn h'' "\n#####"
+        let putFFI (_, Lit (LForImp i n t)) = hPutStrLn h'' $ n ++ " = " ++ show i ++ " :: " ++ prettyShow t
+            putFFI _ = return ()
+        mapM_ putFFI outDefs
       hClose h''
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
