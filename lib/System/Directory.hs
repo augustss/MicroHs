@@ -1,27 +1,76 @@
 module System.Directory(
-  removeFile,
-  doesFileExist,
-  doesDirectoryExist,
-  getDirectoryContents,
-  listDirectory,
-  setCurrentDirectory,
-  getCurrentDirectory,
-  withCurrentDirectory,
-  createDirectory,
-  createDirectoryIfMissing,
-  copyFile,
-  getHomeDirectory,
-  getTemporaryDirectory,
-  --
-  Permissions(..),
-  emptyPermissions,
-  setOwnerReadable,
-  setOwnerWritable,
-  setOwnerExecutable,
-  setOwnerSearchable,
-  getPermissions,
-  setPermissions,
-  copyPermissions,
+    createDirectory
+  , createDirectoryIfMissing
+
+
+--  , removeDirectory
+--  , removeDirectoryRecursive
+--  , removePathForcibly
+--  , renameDirectory
+  , listDirectory
+  , getDirectoryContents
+  , getCurrentDirectory
+  , setCurrentDirectory
+  , withCurrentDirectory
+
+  , getHomeDirectory
+--  , XdgDirectory(..)
+--  , getXdgDirectory
+--  , XdgDirectoryList(..)
+--  , getXdgDirectoryList
+--  , getAppUserDataDirectory
+--  , getUserDocumentsDirectory
+  , getTemporaryDirectory
+
+--  , getExecSearchPath
+
+  , removeFile
+--  , renameFile
+--  , renamePath
+  , copyFile
+--  , copyFileWithMetadata
+--  , getFileSize
+
+--  , canonicalizePath
+--  , makeAbsolute
+--  , makeRelativeToCurrentDirectory
+
+--  , doesPathExist
+  , doesFileExist
+  , doesDirectoryExist
+
+--  , findExecutable
+--  , findExecutables
+--  , findExecutablesInDirectories
+--  , findFile
+--  , findFiles
+--  , findFileWith
+--  , findFilesWith
+--  , exeExtension
+
+--  , createFileLink
+--  , createDirectoryLink
+--  , removeDirectoryLink
+--  , pathIsSymbolicLink
+--  , getSymbolicLinkTarget
+
+  , Permissions(..)
+  , emptyPermissions
+  , setOwnerReadable
+  , setOwnerWritable
+  , setOwnerExecutable
+  , setOwnerSearchable
+
+  , getPermissions
+  , setPermissions
+  , copyPermissions
+
+--  , getAccessTime
+--  , getModificationTime
+--  , setAccessTime
+--  , setModificationTime
+
+--  , isSymbolicLink
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception(bracket)
@@ -166,7 +215,6 @@ data Permissions
   , searchable :: Bool
   } deriving (Eq, Ord, Show)
 
-emptyPermissions :: Permissions
 emptyPermissions :: Permissions
 emptyPermissions = Permissions {
                        readable   = False,
