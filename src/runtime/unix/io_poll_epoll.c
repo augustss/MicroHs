@@ -5,23 +5,31 @@
 /*
  * epoll backend for non-blocking IO polling (Linux only).
  * This file is #included into eval.c via io_poll_impl.c.
+ *
+ * A single TCP socket fd can have both a reader and a writer waiting on it
+ * simultaneously — e.g. a receive loop blocked on EPOLLIN while a send path
+ * is blocked on EPOLLOUT.  The original design used one cookie per fd with
+ * EPOLL_CTL_ADD, which fails with EEXIST in that scenario.
+ *
+ * This version tracks separate read/write cookies per fd in a static table
+ * and uses EPOLL_CTL_MOD when the fd is already in the epoll set, so both
+ * directions stay live in a single epoll entry.
  */
 
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include <stdlib.h>
 
-/*
-This is the user data that we register with epoll. When an event fires, we can retrieve it.
+/* Per-fd waiter state. */
+struct fd_state {
+    void *read_cookie;   /* non-NULL while a thread is waiting for EPOLLIN  */
+    void *write_cookie;  /* non-NULL while a thread is waiting for EPOLLOUT */
+};
 
-We need to be able to reference both the void *cookie and the file descriptor it is waiting
-for. We need to void *cookie to call the on_ready callback on, and we need the file descriptor
-so that we can unregister it from epoll.
+#define MAX_FDS 256
+static struct fd_state fd_table[MAX_FDS]; /* zero-initialised by the C runtime */
 
-*/
-struct io_entry { void *cookie; int fd; };
-
-static int epoll_fd  = -1;
+static int epoll_fd   = -1;
 static int io_waiters = 0;
 
 void
@@ -41,30 +49,67 @@ io_poll(int timeout_ms, void (*on_ready)(void *cookie))
   struct epoll_event evs[64];
   int n = epoll_wait(epoll_fd, evs, 64, timeout_ms);
   for (int i = 0; i < n; i++) {
-    struct io_entry *e = evs[i].data.ptr;
-    /* EPOLLONESHOT disables but does not remove the fd; delete it now so
-       that a subsequent io_register on the same fd can use EPOLL_CTL_ADD. */
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, e->fd, NULL);
-    io_waiters--;
-    on_ready(e->cookie);
-    free(e);
+    int fd = evs[i].data.fd;
+    uint32_t got = evs[i].events;
+    void *rc = NULL, *wc = NULL;
+
+    /* Collect whichever cookies fired and clear them from the table. */
+    if ((got & (EPOLLIN | EPOLLERR | EPOLLHUP)) && fd_table[fd].read_cookie) {
+      rc = fd_table[fd].read_cookie;
+      fd_table[fd].read_cookie = NULL;
+      io_waiters--;
+    }
+    if ((got & (EPOLLOUT | EPOLLERR | EPOLLHUP)) && fd_table[fd].write_cookie) {
+      wc = fd_table[fd].write_cookie;
+      fd_table[fd].write_cookie = NULL;
+      io_waiters--;
+    }
+
+    /* EPOLLONESHOT disabled the fd after firing. Re-arm for any remaining
+       interest, or remove the fd from the set entirely. */
+    uint32_t remaining = 0;
+    if (fd_table[fd].read_cookie)  remaining |= EPOLLIN;
+    if (fd_table[fd].write_cookie) remaining |= EPOLLOUT;
+
+    if (remaining) {
+      struct epoll_event ev = { .events = remaining | EPOLLONESHOT, .data.fd = fd };
+      epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev);
+    } else {
+      epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    }
+
+    if (rc) on_ready(rc);
+    if (wc) on_ready(wc);
   }
 }
 
 /* Register fd to call on_ready(cookie) when the requested event is ready.
-   events is IO_POLL_READ or IO_POLL_WRITE. */
+   events is IO_POLL_READ or IO_POLL_WRITE.
+   Uses EPOLL_CTL_MOD when the fd already has an interest registered in the
+   other direction, so both directions coexist in a single epoll entry. */
 void
 io_register(int fd, int events, void *cookie)
 {
-  struct io_entry *e = malloc(sizeof *e);
-  if (!e) ERR("io_register malloc failed");
-  e->cookie = cookie;
-  e->fd     = fd;
-  uint32_t ev_flags = (events == IO_POLL_READ ? EPOLLIN : EPOLLOUT) | EPOLLONESHOT;
-  struct epoll_event ev = { .events = ev_flags, .data.ptr = e };
-  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-    free(e);
-    ERR("epoll_ctl ADD failed");
+  if (fd < 0 || fd >= MAX_FDS) ERR("io_register: fd out of range");
+
+  int already_registered = (fd_table[fd].read_cookie  != NULL ||
+                             fd_table[fd].write_cookie != NULL);
+
+  if (events == IO_POLL_READ) {
+    fd_table[fd].read_cookie  = cookie;
+  } else {
+    fd_table[fd].write_cookie = cookie;
+  }
+
+  uint32_t ev_flags = 0;
+  if (fd_table[fd].read_cookie)  ev_flags |= EPOLLIN;
+  if (fd_table[fd].write_cookie) ev_flags |= EPOLLOUT;
+  ev_flags |= EPOLLONESHOT;
+
+  struct epoll_event ev = { .events = ev_flags, .data.fd = fd };
+  int op = already_registered ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+  if (epoll_ctl(epoll_fd, op, fd, &ev) < 0) {
+    ERR("io_register epoll_ctl failed");
   }
   io_waiters++;
 }

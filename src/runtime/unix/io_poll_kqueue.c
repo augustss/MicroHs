@@ -5,11 +5,26 @@
 /*
  * kqueue backend for non-blocking IO polling (macOS / BSD).
  * This file is #included into eval.c via io_poll_impl.c.
+ *
+ * kqueue tracks EVFILT_READ and EVFILT_WRITE as independent (fd, filter)
+ * entries, so concurrent read and write waiters on the same fd do not
+ * conflict at the kqueue level.  We still maintain a per-fd cookie table
+ * (mirroring the epoll backend) so that io_poll can dispatch to the correct
+ * waiting thread without storing the cookie in udata and casting.
  */
 
 #include <sys/types.h>
 #include <sys/event.h>
 #include <sys/time.h>
+
+/* Per-fd waiter state. */
+struct fd_state {
+    void *read_cookie;   /* non-NULL while a thread is waiting for EVFILT_READ  */
+    void *write_cookie;  /* non-NULL while a thread is waiting for EVFILT_WRITE */
+};
+
+#define MAX_FDS 256
+static struct fd_state fd_table[MAX_FDS]; /* zero-initialised by the C runtime */
 
 static int kqueue_fd  = -1;
 static int io_waiters = 0;
@@ -38,8 +53,17 @@ io_poll(int timeout_ms, void (*on_ready)(void *cookie))
   }
   int n = kevent(kqueue_fd, NULL, 0, evs, 64, tsp);
   for (int i = 0; i < n; i++) {
+    int fd = (int)evs[i].ident;
+    void *cookie = NULL;
+    if (evs[i].filter == EVFILT_READ) {
+      cookie = fd_table[fd].read_cookie;
+      fd_table[fd].read_cookie = NULL;
+    } else {
+      cookie = fd_table[fd].write_cookie;
+      fd_table[fd].write_cookie = NULL;
+    }
     io_waiters--;
-    on_ready((void *)evs[i].udata);
+    if (cookie) on_ready(cookie);
   }
 }
 
@@ -48,9 +72,19 @@ io_poll(int timeout_ms, void (*on_ready)(void *cookie))
 void
 io_register(int fd, int events, void *cookie)
 {
+  if (fd < 0 || fd >= MAX_FDS) ERR("io_register: fd out of range");
+
   struct kevent ev;
-  int16_t filter = (events == IO_POLL_READ) ? EVFILT_READ : EVFILT_WRITE;
-  EV_SET(&ev, fd, filter, EV_ADD | EV_ONESHOT, 0, 0, cookie);
+  int16_t filter;
+  if (events == IO_POLL_READ) {
+    fd_table[fd].read_cookie  = cookie;
+    filter = EVFILT_READ;
+  } else {
+    fd_table[fd].write_cookie = cookie;
+    filter = EVFILT_WRITE;
+  }
+
+  EV_SET(&ev, fd, filter, EV_ADD | EV_ONESHOT, 0, 0, 0);
   if (kevent(kqueue_fd, &ev, 1, NULL, 0, NULL) < 0) {
     ERR("kevent ADD failed");
   }
