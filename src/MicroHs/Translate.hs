@@ -272,6 +272,8 @@ primTable = [
   ("bs2fp", _primitive "bs2fp"),
   ("IO.fork", _primitive "IO.fork"),
   ("IO.thid", _primitive "IO.thid"),
+  ("IO.waitrdfd", _primitive "IO.waitrdfd"),
+  ("IO.waitwrfd", _primitive "IO.waitwrfd"),
   ("thnum", _primitive "thnum"),
   ("IO.throwto", _primitive "IO.throwto"),
   ("IO.yield", _primitive "IO.yield"),

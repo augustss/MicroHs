@@ -85,6 +85,17 @@
 #define WANT_OVERFLOW 1
 
 /*
+ * Enable non-blocking IO polling.
+ * Linux uses epoll; macOS uses kqueue (not yet implemented).
+ * The backend is selected in unix/io_poll_impl.c.
+ */
+#if defined(__linux__) || (defined(__APPLE__) && defined(__MACH__))
+#define MHS_IO_POLL 1
+#else
+#define MHS_IO_POLL 0
+#endif
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU

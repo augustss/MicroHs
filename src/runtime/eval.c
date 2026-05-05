@@ -44,6 +44,9 @@
 #if WANT_SIGINT
 #include <signal.h>
 #endif
+#if MHS_IO_POLL
+#include "io_poll.h"
+#endif
 
 extern char **environ;          /* should probably be behind some WANT_ */
 
@@ -120,6 +123,7 @@ int num_ffi;
 #else
 #define THREAD_DEBUG 0
 #endif
+
 
 #define VERSION "v8.3\n"
 
@@ -537,6 +541,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
+#if MHS_IO_POLL
+                T_IO_WAITRDFD, T_IO_WAITWRFD,
+#endif
                 T_LAST_TAG,
 };
 
@@ -901,7 +908,16 @@ dump_tick_table(FILE *f)
 
 enum th_sched { mt_main, mt_resched, mt_raise };
 /* The two enums below are known by the Haskell code.  Do not change order */
-enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
+enum th_state {
+  ts_runnable,
+  ts_wait_mvar,
+  ts_wait_time,
+  ts_finished,
+  ts_died,
+#if MHS_IO_POLL
+  ts_wait_io,   /* not visible to Haskell; must stay after ts_died */
+#endif
+};
 enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 
 /***************** HANDLER *****************/
@@ -926,6 +942,10 @@ struct mthread {
   NODEPTR         mt_mval;       /* filled after waiting for take/read */
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
+#if MHS_IO_POLL
+  int             mt_fd;         /* The file descriptor that we are waiting on (-1 means none, -2 means we've already been woken) */
+  int             mt_events;     /* IO_POLL_READ or IO_POLL_WRITE */
+#endif
 #if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
 #endif
@@ -1115,6 +1135,20 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
+#if MHS_IO_POLL
+/*
+this is the callback that is sent to the io_poll framework. It is invoked
+when an event a thread is waiting for becomes ready.
+*/
+static void
+io_thread_ready(void *ptr)
+{
+  struct mthread *mt = (struct mthread *)ptr;
+  mt->mt_fd = -2;
+  add_runq_tail(mt);
+}
+#endif
+
 struct mthread*
 remove_q_head(struct mqueue *q)
 {
@@ -1300,7 +1334,16 @@ yield(void)
     check_timeq();
   check_thrown(false);
   check_sigint();
-  // printf("yield %p %d\n", runq, (int)stack_ptr);
+
+#if MHS_IO_POLL
+  if (io_waiter_count() > 0) {
+    /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
+       for the events should not block. */
+    io_poll(0, io_thread_ready);
+  }
+#endif
+
+// printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
 #if THREAD_DEBUG
@@ -1345,6 +1388,10 @@ new_thread(NODEPTR root)
   mt->mt_mark = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
+#if MHS_IO_POLL
+  mt->mt_fd = -1;
+  mt->mt_events = -1;
+#endif
 #if defined(CLOCK_INIT)
   mt->mt_at = 0;                /* delay has not expired */
 #endif
@@ -1597,6 +1644,42 @@ thread_delay(uvalue_t usecs)
 void
 pause_exec(void)
 {
+/* End up here if the run queue is empty. If there is no thread waiting for
+a delay to expire, we will never resume operation and we are deadlocked. However, if
+we compile with MHS_IO_POLL there might be threads waiting for IO events, so in
+that case we check for them as well. If there is no thread waiting for a delay or an
+IO event, we are deadlocked. */
+#if MHS_IO_POLL
+
+  /* Check for deadlock situation */
+  if (io_waiter_count() == 0
+#if defined(CLOCK_INIT)
+     && !timeq.mq_head
+#endif
+    ) ERR("deadlock");
+
+  /* Loop until at least one thread is runnable.*/
+  while (!runq.mq_head) {
+    int timeout_ms = -1; /* block indefinitely if only io_waiters */
+#if defined(CLOCK_INIT)
+    /* If there are threads blocked on delays, recompute the timeout_ms to account
+       for that. */
+    if (timeq.mq_head) {
+      CLOCK_T delta = timeq.mq_head->mt_at - CLOCK_GET();
+      /* +999 emulates a ceiling function, adding at most 0.999 ms. io_poll wants milliseconds,
+         not microseconds as delta represents. When delta is < 1000, without +999, we'll truncate
+         to zero and enter a loop at full CPU speed. */
+      timeout_ms = (delta > 0) ? (int)((delta + 999) / 1000) : 0;
+    }
+#endif
+    io_poll(timeout_ms, io_thread_ready);
+#if defined(CLOCK_INIT)
+    check_timeq();
+#endif
+  }
+
+#else /* !MHS_IO_POLL */
+
 #if defined(CLOCK_INIT)
   if (timeq.mq_head) {
     struct mthread *mt;
@@ -1634,6 +1717,7 @@ pause_exec(void)
 #else  /* CLOCK_INIT */
   ERR("no clock");
 #endif  /* CLOCK_INIT */
+#endif /* MHS_IO_POLL */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
@@ -1821,6 +1905,10 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
+#if MHS_IO_POLL
+#include "io_poll_impl.c"
+#endif
+
 NODEPTR evali(NODEPTR n);
 
 /* If this is non-0 it means that the threading system is active. */
@@ -1834,6 +1922,10 @@ start_exec(NODEPTR root)
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
+
+#if MHS_IO_POLL
+  io_init();
+#endif
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -2171,6 +2263,10 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
+#if MHS_IO_POLL
+  { "IO.waitrdfd", T_IO_WAITRDFD},
+  { "IO.waitwrfd", T_IO_WAITWRFD},
+#endif
 #if WANT_INT64
 #if !NEED_INT64
   { "I+", T_ADD, T_ADD },
@@ -5983,6 +6079,41 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(mkInt(mt->mt_state));
     }
+#if MHS_IO_POLL
+  case T_IO_WAITRDFD:
+  case T_IO_WAITWRFD: {
+    CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
+
+    /* io_thread_ready sets mt_fd=-2 when waking the thread. By seeing if it is -2
+       here we can learn that our registered event has happened and we can return
+       unit. If we did not do this check we would just register again.
+
+       This seems to be how T_IO_THREADDELAY works, with mt_at == -1.
+    */
+    if (runq.mq_head->mt_fd == -2) {
+      runq.mq_head->mt_fd = -1;
+      POP(2);
+      GOPAIRUNIT;
+    }
+
+    POP(2);
+    int fd = evalint(x); // initially I used GETVALUE(x) here, but that did not work.
+                         // I assumed it had to do with lazyness, and the change to evalint
+                         // seems to have fixed it.
+    int events = (tag == T_IO_WAITRDFD) ? IO_POLL_READ : IO_POLL_WRITE;
+
+    /* Set up the waiting thread's state, preparing it to leave the run queue
+       until an event is ready for it */
+    struct mthread *mt = remove_q_head(&runq);
+    mt->mt_fd     = fd;
+    mt->mt_events = events;
+    mt->mt_state  = ts_wait_io;
+
+    io_register(fd, events, mt);
+
+    resched(mt, ts_wait_io);
+  }
+#endif
   case T_IO_GETMASKINGSTATE:
     CHKARG1;                    /* x = ST */
     GOPAIR(mkInt(runq.mq_head->mt_mask));
