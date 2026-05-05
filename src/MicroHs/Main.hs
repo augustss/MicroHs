@@ -386,7 +386,7 @@ mainCompile flags mn = do
       when (outFile `hasTheExtension` ".combffi") $ do
         -- add FFI info
         hPutStrLn h'' "\n#####"
-        let putFFI (_, Lit (LForImp i n t)) = hPutStrLn h'' $ n ++ " = " ++ show i ++ " :: " ++ prettyShow t
+        let putFFI (_, Lit (LForImp _ i n t)) = hPutStrLn h'' $ n ++ " = " ++ show i ++ " :: " ++ prettyShow t
             putFFI _ = return ()
         mapM_ putFFI outDefs
       hClose h''
