@@ -1,22 +1,27 @@
 -- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Mhs.Builtin(
+  module Control.Applicative,
+  module Control.Error,
   module Control.Monad,
   module Control.Monad.Fail,
   module Control.Monad.Fix,
   module Data.Bool,
+  module Data.Bounded,
   module Data.Char,
   module Data.Coerce,
   module Data.Data_Class,
-  module Data.Enum,
+  module Data.Enum_Class,
   module Data.Eq,
 --  module Data.Foldable,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
+  module Data.Ix,
   module Data.Ord,
   module Data.Num,
   module Data.Records,
+  module Data.Traversable,
   module Data.Typeable,
   module Data.Monoid.Internal,
   module Data.Proxy,
@@ -35,22 +40,24 @@ module Mhs.Builtin(
 -- qualified, but under a name that cannot be used accidentally.
 -- If the Prelude is not imported, then neither is this module.
 import qualified Prelude()  -- no Prelude
-import Control.Applicative(Applicative((<*>)))
+import Control.Applicative(Applicative(pure, (<*>)))
 import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))
 import {-# SOURCE #-} Control.Monad.Fix(_mfix)
 import Data.Bool((&&), Bool(..))
+import Data.Bounded(Bounded(..))
 import Data.Char(Char)
 import Data.Coerce(Coercible, coerce)
 import Data.Data_Class(Data(..), Fixity(..), mkDataType, mkConstrTag, constrIndex)
-import Data.Enum(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo))
+import Data.Enum_Class(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo, fromEnum))
 import Data.Eq(Eq(..))
 --import Data.Foldable(Foldable(..))
 import qualified Data.Foldable
 import Data.Fractional(Fractional(fromRational))
 import Data.Function((.), id, flip)
 import Data.Functor(Functor(..), (<$>))
+import Data.Ix(Ix(range, unsafeIndex, inRange, unsafeRangeSize))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
 import Data.Proxy(Proxy(..))

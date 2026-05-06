@@ -326,12 +326,14 @@ derBounded mctx 0 lhs cs@(c0:_) ebnd = do
   let loc = getSLoc ebnd
       mkEqn bnd (Constr _ _ c _ flds) =
         let n = either length length flds
-        in  eEqn [] $ tApps c (replicate n (EVar bnd))
+        in  eEqn [] $ tApps c (replicate n bnd)
 
       iMinBound = mkIdentSLoc loc "minBound"
       iMaxBound = mkIdentSLoc loc "maxBound"
-      minEqn = mkEqn iMinBound c0
-      maxEqn = mkEqn iMaxBound (last cs)
+      eMinBound = EVar (mkBuiltin loc "minBound")
+      eMaxBound = EVar (mkBuiltin loc "maxBound")
+      minEqn = mkEqn eMinBound c0
+      maxEqn = mkEqn eMaxBound (last cs)
       inst = Instance hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]] []
   -- traceM $ showEDefs [inst]
   return [inst]
@@ -348,21 +350,22 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
       eLastCon = case last cs of Constr _ _ c _ _ -> tCon c
 
       iFromEnum = mkIdentSLoc loc "fromEnum"
+      eFromEnum = eAppI (mkBuiltin loc "fromEnum")
       iToEnum = mkIdentSLoc loc "toEnum"
       iEnumFrom = mkIdentSLoc loc "enumFrom"
       iEnumFromThen = mkIdentSLoc loc "enumFromThen"
-      iEnumFromTo = mkBuiltin loc "enumFromTo"
-      iEnumFromThenTo = mkBuiltin loc "enumFromThenTo"
+      eEnumFromTo = eAppI2 (mkBuiltin loc "enumFromTo")
+      eEnumFromThenTo = eAppI3 (mkBuiltin loc "enumFromThenTo")
       enumFromEqn =
         -- enumFrom x = enumFromTo x (last cs)
         let x = EVar (mkIdentSLoc loc "x")
-        in eEqn [x] (eAppI2 iEnumFromTo x eLastCon)
+        in eEqn [x] (eEnumFromTo x eLastCon)
       enumFromThenEqn =
         -- enumFromThen x1 x2 = if fromEnum x2 >= fromEnum x1 then enumFromThenTo x1 x2 (last cs) else enumFromThenTo x1 x2 (head cs)
         let
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
-        in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
+        in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (eFromEnum x2) (eFromEnum x1)) (eEnumFromThenTo x1 x2 eLastCon) (eEnumFromThenTo x1 x2 eFirstCon))
       inst = Instance hdr [Fcn iFromEnum (fromEnumEqns loc cs), Fcn iToEnum (toEnumEqns loc cs), Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]] []
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
@@ -412,16 +415,19 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         eAnd = eAppI2 (mkBuiltin loc "&&")
         eAdd = eAppI2 (mkBuiltin loc "+")
         eMul = eAppI2 (mkBuiltin loc "*")
-        iUnsafeRangeSize = mkIdentSLoc loc "unsafeRangeSize"
+        eRange           = eAppI  (mkBuiltin loc "range")
+        eUnsafeIndex     = eAppI2 (mkBuiltin loc "unsafeIndex")
+        eInRange         = eAppI2 (mkBuiltin loc "inRange")
+        eUnsafeRangeSize = eAppI  (mkBuiltin loc "unsafeRangeSize")
         (xp, xs) = mkPat c0 "x$"
         (yp, ys) = mkPat c0 "y$"
         (zp, zs) = mkPat c0 "z$"
-        rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eAppI iRange (ETuple [x, y]))) xs ys zs))
+        rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eRange (ETuple [x, y]))) xs ys zs))
         unsafeIndexEqn =
-          let mkUnsafeIndex x y z = eAppI2 iUnsafeIndex (ETuple [x, y]) z
-              mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
+          let mkUnsafeIndex x y z = eUnsafeIndex (ETuple [x, y]) z
+              mkUnsafeRangeSize x y = eUnsafeRangeSize (ETuple [x, y])
           in eEqn [ETuple [xp, yp], zp] $ foldl (\ acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
-        inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
+        inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eInRange (ETuple [x, y]) z) xs ys zs
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] []
     return [inst]
   else
@@ -492,6 +498,7 @@ derRead mctx 0 lhs cs eread = do
   let
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
+    eReadPrec = EVar (mkBuiltin loc "readPrec")
     iReadList = mkIdentSLoc loc "readList"
     iReadListPrec = mkIdentSLoc loc "readListPrec"
     eReadListDefault = EVar (mkBuiltin loc "readListDefault")
@@ -503,8 +510,8 @@ derRead mctx 0 lhs cs eread = do
     eExpectIdent s = eAppI iExpectP (eAppI (mkBuiltin loc "Ident") (ELit loc (LStr s)))
     eExpectPunc s = eAppI iExpectP (eAppI (mkBuiltin loc "Punc") (ELit loc (LStr s)))
     eExpectSymbol s = eAppI iExpectP (eAppI (mkBuiltin loc "Symbol") (ELit loc (LStr s)))
-    eReadField = eAppI (mkBuiltin loc "step") (EVar iReadPrec)
-    eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") (EVar iReadPrec))
+    eReadField = eAppI (mkBuiltin loc "step") eReadPrec
+    eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") eReadPrec)
     eReturn = eAppI (mkBuiltin loc "return")
     ePfail = EVar (mkBuiltin loc "pfail")
     readConstr c@(Constr _ _ ident isInfix fields) =

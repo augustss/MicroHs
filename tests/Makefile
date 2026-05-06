@@ -121,6 +121,7 @@ test:
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
 	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
 	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
+	$(TMHS) DerivingBuiltin
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
