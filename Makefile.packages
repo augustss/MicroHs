@@ -33,11 +33,11 @@ all:
 	$(MINST) nanospec
 	$(MINST) parsec
 	$(MINST) --git=http://github.com/haskell/pretty.git pretty
-	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter prettyprinter
-	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
-	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-annotated-wl-pprint prettyprinter-compat-annotated-wl-pprint
-	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-ansi-wl-pprint prettyprinter-compat-ansi-wl-pprint
-	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-wl-pprint prettyprinter-compat-wl-pprint
+	$(MINST) --git=https://github.com/haskell-prettyprinter/prettyprinter.git --dir=prettyprinter prettyprinter
+	$(MINST) --git=https://github.com/haskell-prettyprinter/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
+	$(MINST) --git=https://github.com/haskell-prettyprinter/prettyprinter.git --dir=prettyprinter-compat-annotated-wl-pprint prettyprinter-compat-annotated-wl-pprint
+	$(MINST) --git=https://github.com/haskell-prettyprinter/prettyprinter.git --dir=prettyprinter-compat-ansi-wl-pprint prettyprinter-compat-ansi-wl-pprint
+	$(MINST) --git=https://github.com/haskell-prettyprinter/prettyprinter.git --dir=prettyprinter-compat-wl-pprint prettyprinter-compat-wl-pprint
 	$(MINST) splitmix
 	$(MINST) random
 	$(MINST) --git=https://github.com/nick8325/quickcheck.git QuickCheck
@@ -47,7 +47,7 @@ all:
 	$(MINST) hspec
 	$(MINST) simple-affine-space
 	$(MINST) split
-	$(MINST) --git=http://github.com/augustss/tagged.git tagged
+	$(MINST) --git=http://github.com/ekmett/tagged.git tagged
 	$(MINST) tagsoup
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
@@ -96,3 +96,8 @@ all:
 	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
 	$(MINST) numbers
 	$(MINST) timeit
+	$(MINST) transformers-base
+	$(MINST) tardis
+	$(MINST) --git=https://github.com/haskell/binary.git binary
+	$(MINST) assoc
+	$(MINST) these
