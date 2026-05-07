@@ -1045,6 +1045,11 @@ lookupPrec :: String -> (Int, Int, Int)
 lookupPrec s = fromMaybe (10, 9, 10) $ lookup s   -- put parens both left and right on unknown operators
   [ ("->", (1, 0, 0))
   , ("=>", (1, 0, 0))
+{-
+  , ("||", (2, 2, 3))
+  , ("&&", (3, 3, 4))
+  , ("==", (4, 4, 4))
+-}
   ]
 
 ppField :: PrettyLevel -> EField -> Doc
