@@ -886,7 +886,7 @@ instance Pretty EDef where
     Data lhs cs ds -> text "data" <+> ppLHS l lhs <+> text "=" <+> hsep (punctuate (text " |") (map (ppConstr l) cs)) <+> ppDerivings l ds
     Newtype lhs c ds -> text "newtype" <+> ppLHS l lhs <+> text "=" <+> ppConstr l c <+> ppDerivings l ds
     Type lhs t -> text "type" <+> ppLHS l lhs <+> text "=" <+> pPrint0 l t
-    Fcn i eqns -> ppEqns l (pPrint0 l i) (text "=") eqns
+    Fcn i eqns -> ppEqns l (pPrint0 l (EVar i)) (text "=") eqns
     PatBind p e -> ppEPat l p <+> text "=" <+> pPrint0 l e
     Sign is t -> ppCommaSep (map (pPrint0 l) is) <+> text "::" <+> pPrint0 l t
     KindSign i t -> text "type" <+> pPrint0 l i <+> text "::" <+> pPrint0 l t
@@ -935,7 +935,7 @@ ppFunDeps l fds =
   text "|" <+> ppCommaSep (map (\ (is, os) -> hsep (map (pPrint0 l) is) <+> text "-" <+> hsep (map (pPrint0 l) os)) fds)
 
 ppEqns :: PrettyLevel -> Doc -> Doc -> [Eqn] -> Doc
-ppEqns l name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map (ppEPat l) ps), ppAlts l sepr alts])
+ppEqns l name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map (pPrintPrec l 11) ps), ppAlts l sepr alts])
 
 ppConstr :: PrettyLevel -> Constr -> Doc
 ppConstr l (Constr iks ct c _ cs) = ppForall l QImpl iks <+> ppCtx l ct <+> pPrint0 l c <+> ppCs cs
