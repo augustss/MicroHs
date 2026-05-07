@@ -5,7 +5,7 @@ import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
 import Data.Coerce
-import Data.Word.Word
+import Data.Word(Word32)
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -13,26 +13,30 @@ import Foreign.Ptr
 import System.IO
 import System.IO.Internal
 
-foreign import ccall "md5BFILE"  c_md5BFILE  :: Ptr BFILE -> Ptr Word -> IO ()
-foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()
-foreign import ccall "md5Array"  c_md5Array  :: Ptr Word  -> Ptr Word -> Int -> IO ()
+-- XXX change this to use hex bytestrings instead.
 
-newtype MD5CheckSum = MD5 [Word]  -- either 2*64 bits or 4*32 bits
+foreign import ccall "md5BFILE"  c_md5BFILE  :: Ptr BFILE  -> Ptr Word32 -> IO ()
+foreign import ccall "md5String" c_md5String :: CString    -> Ptr Word32 -> IO ()
+foreign import ccall "md5Array"  c_md5Array  :: Ptr Word32 -> Ptr Word32 -> Int -> IO ()
+
+newtype MD5CheckSum = MD5 [Word32]  -- either 2*64 bits or 4*32 bits
   deriving (Eq, Ord)
 
 instance Show MD5CheckSum where
   show (MD5 ws) = "MD5" ++ show ws
 
 instance NFData MD5CheckSum where
-  rnf (MD5 ws) = rnf ws
+  rnf (MD5 ws) = loop ws
+    where loop [] = ()
+          loop (w:es) = w `seq` loop ws
 
 md5Len :: Int
 md5Len = 16   -- The MD5 checksum is 16 bytes
 
-md5WLen :: Int  -- length in words
-md5WLen = (md5Len * 8) `quot` _wordSize
+md5WLen :: Int  -- length in Word32
+md5WLen = md5Len `quot` 4
 
-chksum :: (Ptr Word -> IO ()) -> IO MD5CheckSum
+chksum :: (Ptr Word32 -> IO ()) -> IO MD5CheckSum
 chksum fn = do
   buf <- mallocArray md5WLen
   fn buf
