@@ -112,7 +112,7 @@ addTransducer trans h@(Handle _ st desc) =
     p' <- trans p                 -- add transducer
     mode <- readIORef st
     killHandle h                  -- old handle should not be finalized,
-    mkHandle desc p' mode         --   because the new handle will do that
+    mkHandle ("trans-" ++ desc) p' mode         --   because the new handle will do that
 
 ----------------------------------------
 
