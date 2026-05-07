@@ -1,4 +1,4 @@
-module System.IO.StringHandle(handleWriteToString, stringToHandle, withByteStringHandle) where
+module System.IO.StringHandle(handleWriteToString, stringToHandle, withByteStringHandle, handleWriteToByteString) where
 import Prelude; import MiniPrelude
 import qualified Data.ByteString.Internal as BS
 import Foreign.C.String
@@ -16,13 +16,12 @@ foreign import ccall "openb_rd_mem"          c_openb_rd_mem          :: CString 
 foreign import ccall "get_mem"               c_get_mem               :: Ptr BFILE -> Ptr CString -> Ptr Int -> IO ()
 
 -- Turn all writes to a Handle into a String.
--- Do not close the Handle in the action
+-- The action should flush, but not close not the handle.
 handleWriteToString :: (Handle -> IO ()) -> IO String
 handleWriteToString act = do
   bf <- c_openb_wr_mem                         -- create a buffer
   h <- mkHandle "handleToString" bf HWrite
   act h
-  hFlush h
   with nullPtr $ \ bufp ->
     with 0 $ \ lenp -> do
       c_get_mem bf bufp lenp                   -- get buffer and length
@@ -30,7 +29,8 @@ handleWriteToString act = do
       len <- peek lenp
       res <- peekCAStringLen (buf, len)        -- encode as a string
       free buf                                 -- free owned memory
-      hClose h                                 -- close
+      -- Things go wrong if we close here and have stacked transducers.
+      -- Let the GC close.
       return res
 
 -- Make a Handle that will read from a String.
@@ -40,6 +40,24 @@ stringToHandle file = do
   (ptr, len) <- newCAStringLen file            -- make memory buffer
   bf <- c_openb_rd_mem ptr len                 -- open it for reading
   mkHandle "stringToHandle" bf HRead           -- and make a handle
+
+-- Turn all writes to a Handle into a ByteString.
+-- The action should flush, but not close not the handle.
+handleWriteToByteString :: (Handle -> IO ()) -> IO BS.ByteString
+handleWriteToByteString act = do
+  bf <- c_openb_wr_mem                         -- create a buffer
+  h <- mkHandle "handleToByteString" bf HWrite
+  act h
+  with nullPtr $ \ bufp ->
+    with 0 $ \ lenp -> do
+      c_get_mem bf bufp lenp                   -- get buffer and length
+      buf <- peek bufp
+      len <- peek lenp
+      res <- BS.primPackCStringLen buf len        -- create the bytestring
+      free buf                                 -- free owned memory
+      -- Things go wrong if we close here and have stacked transducers.
+      -- Let the GC close.
+      return res
 
 withByteStringHandle :: BS.ByteString -> (Handle -> IO a) -> IO a
 withByteStringHandle bs act = do

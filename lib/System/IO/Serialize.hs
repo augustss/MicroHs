@@ -4,13 +4,14 @@ module System.IO.Serialize(
   hSerialize, hDeserialize,
   writeSerialized, writeSerializedCompressed,
   readSerialized, readSerializedH, readSerializedBS,
+  writeSerializedCompressedBS,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
 import Data.ByteString(ByteString)
 import System.IO
 import System.IO.Internal
-import System.IO.StringHandle(withByteStringHandle)
+import System.IO.StringHandle(withByteStringHandle, handleWriteToByteString)
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
 primHSerialize    = _primitive "IO.serialize"
@@ -29,9 +30,9 @@ writeSerialized p s = do
   hSerialize h s
   hClose h
 
-foreign import ccall "add_lz77_compressor" c_add_lz77_compressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lz77_compressor"   c_add_lz77_compressor   :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall "add_lz77_decompressor" c_add_lz77_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
-foreign import ccall "add_lzma_compressor" c_add_lzma_compressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lzma_compressor"   c_add_lzma_compressor   :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall "add_lzma_decompressor" c_add_lzma_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
 
 writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
@@ -40,7 +41,7 @@ writeSerializedCompressed p s = do
   hPutChar h 'q'                               -- indicate compressed
   h' <- addTransducer c_add_lzma_compressor h
   hSerialize h' s
-  hClose h'
+  hFlush h'
 
 -- Read compressed or uncompressed
 readSerialized :: FilePath -> IO a
@@ -60,3 +61,11 @@ readSerializedH h = do
   a <- hDeserialize h'
   hClose h'
   return a
+
+writeSerializedCompressedBS :: a -> IO ByteString
+writeSerializedCompressedBS a =
+  handleWriteToByteString $ \ h -> do
+    hPutChar h 'q'                               -- indicate compressed
+    h' <- addTransducer c_add_lzma_compressor h
+    hSerialize h' a
+    hFlush h'
