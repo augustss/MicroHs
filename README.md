@@ -2,6 +2,8 @@
 This repository contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
+[Try it in your browser](https://augustss.github.io/MicroHs/web-mhs/)
+
 The runtime system has minimal dependencies, and can be compiled even for micro-controllers.
 The `boards/` directory contains some samples, e.g., some sample code for an STM32F407G-DISC1 board.
 
