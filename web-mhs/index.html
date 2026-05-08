@@ -59,6 +59,7 @@
         window.onload = function() {
             const term = new Terminal({
                 cursorBlink: true,
+                ightClickSelectsWord: true,
                 fontFamily: 'monospace',
                 fontSize: 16,
                 theme: { 
@@ -100,10 +101,12 @@
             };
 
             term.onData(data => {
-                const code = data.charCodeAt(0);
-                const finalCode = (data === '\r') ? 13 : code;
-                if (window.Module && window.Module._set_input_char) {
-                    window.Module._set_input_char(finalCode);
+                for (let i = 0; i < data.length; i++) {
+                    const code = data.charCodeAt(i);
+                    const finalCode = (data === '\r') ? 13 : code;
+                    if (window.Module && window.Module._set_input_char) {
+                        window.Module._set_input_char(finalCode);
+                    }
                 }
             });
 

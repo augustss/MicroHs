@@ -33,25 +33,34 @@
  * When using mhs interactively on the web, we need a special input routine.
  */
 
-volatile int last_char = -1;
+/* A circular buffer.  The characters can arrive quicker than getraw consumes them.
+ * This happens both for cursore keys and pasting.
+ * We don't check for buffer overflow.
+ */
+#define IN_BUF_SIZE 16384
+volatile int last_chars[IN_BUF_SIZE];
+volatile int last_char_in = 0;
+volatile int last_char_out = 0;
 
 /* JavaScript pushes the input character by calling this function */
 EMSCRIPTEN_KEEPALIVE
 void set_input_char(int c) {
-    last_char = c;
+  last_chars[last_char_in] = c;
+  last_char_in = (last_char_in + 1) % IN_BUF_SIZE;
 }
 
 static int
 getraw(void)
 {
   for(;;) {
-    emscripten_sleep(10);
     /* Busy-wait for a character to appear */
-    if (last_char != -1) {
-      int ch = last_char;
-      last_char = -1;
+    if (last_char_in != last_char_out) {
+      int ch = last_chars[last_char_out];
+      last_char_out = (last_char_out + 1) % IN_BUF_SIZE;
+      
       return ch;
     }
+    emscripten_sleep(10);
   }
 }
 
