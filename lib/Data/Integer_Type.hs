@@ -25,7 +25,7 @@ maxD :: Digit
 maxD = 1 `primWordShl` shiftD
 
 shiftD :: Int
-shiftD = _wordSize `primIntShr` 1 -- this is used so multiplication of two digits doesn't overflow a Word
+shiftD = {-_wordSize-} 32 `primIntShr` 1 -- this is used so multiplication of two digits doesn't overflow a Word
 
 quotMaxD :: Digit -> Digit
 quotMaxD d = d `primWordShr` shiftD
