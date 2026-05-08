@@ -119,10 +119,14 @@ type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- This is the dictionary expression, instance context, and types.
 -- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
 -- The types and constraint can be instantiated by providing a starting TRef
-type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
+data InstDict   = InstDict Expr (TRef -> ([EConstraint], [EType]))
 
-instance Show (TRef -> ([EConstraint], [EType])) where
-  show _ = "<<fcn>>"
+instance NFData InstDict where
+  rnf (InstDict e f) = rnf e `seq` rnf (f 0)
+
+instance Show InstDict where
+  showsPrec p (InstDict e f) =
+    showParen (p > 10) $ showsPrec 11 e . showChar ' ' . showParen True (showString "\\999->" . showsPrec 0 (f 999))
 
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]

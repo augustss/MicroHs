@@ -356,7 +356,7 @@ mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
-eqInstDict (e, _) (e', _) = eqExpr e e'
+eqInstDict (InstDict e _) (InstDict e' _) = eqExpr e e'
 
 -- Identifier should only be seen with it's qualified name.
 isInstId :: Ident -> Bool
@@ -407,7 +407,7 @@ addInstTable ics = do
     mkInstInfo (e, iks, ctx, ct, fds) = do
       case (iks, ctx, getApp ct) of
         ([], [], (c, [EVar i])) -> return (c, InstInfo (M.singleton i e) [] fds)
-        (_,  _,  (c, ts      )) -> return (c, InstInfo M.empty [(e, ii)] fds)
+        (_,  _,  (c, ts      )) -> return (c, InstInfo M.empty [InstDict e ii] fds)
           where ii u =
                   let ctx' = map (subst s) ctx
                       ts'  = map (subst s) ts
@@ -3523,21 +3523,20 @@ getSuperClasses ais = do
               Just _ -> concatMap flatten ts
   return $ loop [] ais
 
-
-
 {-
 showInstInfo :: InstInfo -> String
 showInstInfo (InstInfo m ds fds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds ++ show fds
 
 showInstDict :: InstDict -> String
-showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints (ctx 10000) (tApps (mkIdent "_") ts))
+showInstDict (InstDict e ctxts) = showExpr e ++ " :: " ++ prettyShow (addConstraints ctx (tApps (mkIdent "_") ts))
+  where (ctx, ts) = ctxts 10000
 
-showInstDef :: InstDef -> String
+showInstDef :: (Ident, InstInfo) -> String
 showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
             ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
 
-showMatch :: (Expr, [EConstraint]) -> String
-showMatch (e, ts) = show e ++ " " ++ show ts
+showMatch :: (Expr, [EConstraint], [Improve]) -> String
+showMatch (e, ts, _) = show e ++ " " ++ show ts
 
 showConstraint :: (Ident, EConstraint) -> String
 showConstraint (i, t) = show i ++ " :: " ++ show t
@@ -3597,7 +3596,7 @@ solveMany ((di, ct) : cnss) uns sol imp | Just (_, (dd, _)) <- find (eqEType ct 
   solveMany cnss uns ((ct, (di, EVar dd)) : sol) imp
 -- Need to handle ct of the form C => T, and forall a . T
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
-  -- tcTrace ("solveMany: trying " ++ showEType ct)
+--  tcTrace ("solveMany: trying " ++ showEType ct)
   let loc = getSLoc di
       (iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
@@ -3606,17 +3605,18 @@ solveMany (cns@(di, ct) : cnss) uns sol imp = do
   -- This is important to find tupled dictionaries in recursive calls.
   case [ ai | (ai, act) <- ads, ct `eqEType` act ] of
     ai : _ -> do
-      --tcTrace $ "solve with arg " ++ show ct
+--      tcTrace $ "solve with arg " ++ show ct
       solveMany cnss uns ((ct, (di, EVar ai)) : sol) imp
     [] -> do
       msol <- solver loc iCls cts
-      --tcTrace ("solveMany msol=" ++ show msol)
+--      tcTrace ("solveMany msol=" ++ show msol)
       case msol of
         Nothing           -> solveMany        cnss  (cns : uns)                  sol         imp
         Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((ct, (di, de)) : sol) (is ++ imp)
 
 solveInst :: SolveOne
 solveInst loc iCls cts = do
+--  traceM $ "solveInst " ++ prettyShow cts
   it <- gets instTable
 --  tcTrace ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
   -- XXX The solveGen&co functions are not in the T monad.
@@ -3627,7 +3627,7 @@ solveInst loc iCls cts = do
   case M.lookup iCls it of
     Nothing -> return Nothing   -- no instances, so no chance
     Just (InstInfo atomMap insts fds) -> do
-      -- tcTrace $ "solveInst: " ++ showIdent iCls ++ " atomMap size=" ++ show (M.size atomMap)
+--      tcTrace $ "solveInst: " ++ showIdent iCls ++ " atomMap size=" ++ show (M.size atomMap)
       case cts of
         [EVar i] -> do
           case M.lookup i atomMap of
@@ -3666,6 +3666,7 @@ solveGen uniq noAtoms fds insts loc iCls cts = do
 -- XXX should look for a direct (tupled) dictionary
 solveTuple :: SolveOne
 solveTuple loc _iCls cts = do
+--  traceM $ "solveTuple " ++ prettyShow cts
   goals <- mapM (\ c -> do { d <- newDictIdent loc; return (d, c) }) cts
   return $ Just (ETuple (map (EVar . fst) goals), goals, [])
 
@@ -3673,6 +3674,7 @@ solveTypeEq :: SolveOne
 -- If either type is a unification variable, just do the unification.
 solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
                                | otherwise = do
+--  traceM $ "solveTypeEq " ++ prettyShow [t1, t2]
   eqs <- gets typeEqTable
   --tcTrace ("solveTypeEq eqs=" ++ show eqs)
   case solveEq eqs t1 t2 of
@@ -3687,6 +3689,7 @@ solveTypeEq _ _ _ = impossible
 
 solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc iCls [t1, t2] = do
+--  traceM $ "solveCoercible " ++ prettyShow [t1, t2]
   -- pretend newtypes are type synonyms
   (t1', t2') <- withNewtypeAsSyns $
     (,) <$> expandSynNoChk t1 <*> expandSynNoChk t2
@@ -3758,10 +3761,12 @@ isEUVar (EUVar _) = True
 isEUVar _ = False
 
 solveKnownNat :: SolveOne
+--solveKnownNat _ _ x | trace ("solveKnownNat: " ++ prettyShow x) False = undefined
 solveKnownNat loc iCls [e@(ELit _ (LInteger _))] = mkConstDict loc iCls e
 solveKnownNat loc iCls ts = solveInst loc iCls ts  -- look for a dict argument
 
 solveKnownSymbol :: SolveOne
+--solveKnownSymbol _ _ x | trace ("solveKnownSymbol: " ++ prettyShow x) False = undefined
 solveKnownSymbol loc iCls [e@(ELit _ (LStr _))] = mkConstDict loc iCls e
 solveKnownSymbol loc iCls ts = solveInst loc iCls ts  -- look for a dict argument
 
@@ -3782,7 +3787,7 @@ findMatches _ False _ _ _ [EUVar _] = []
 findMatches uniq _ loc fds ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s) ctx, imp))
-       | (de, ctxts) <- ds
+       | (InstDict de ctxts) <- ds
        , let (ctx, ts) = ctxts uniq
        , Just (s, imp) <- [matchTypes loc ts its fds]
        ]
@@ -3805,9 +3810,11 @@ substEUVar _ _ = impossible
 matchTypes :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
 matchTypes _ ats ats' [] = do
   -- Simple special case when there are no fundeps.
+--  traceM $ "\nmatchTypes " ++ prettyShow (ats, ats') ++ show ats
   let loop r (t:ts) (t':ts') = matchType r t t' >>= \ r' -> loop r' ts ts'
       loop r _ _ = pure r
   s <- loop [] ats ats'
+--  traceM $ "\nmatchTypes " ++ prettyShow (ats, ats', s)
   pure (s, [])
 matchTypes loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
@@ -3877,8 +3884,16 @@ checkConstraints = do
     [] -> return ()
     (i, t) : _ -> do
       t' <- derefUVar t
---      is <- gets instTable
---      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
+{-
+      is <- gets instTable
+      traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (xi, ii) -> show xi ++ ":\n  " ++ showInstInfo ii) (M.toList is))
+      let EApp (EVar xi) _ = t'
+          Just ii = M.lookup xi is
+      traceM ("lookup " ++ showInstInfo ii)
+      solveConstraints
+      cs' <- gets constraints
+      traceM (show (length cs, length cs'))
+-}
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
                             ++ "\n     fully qualified: " ++ showExprRaw t'
 
