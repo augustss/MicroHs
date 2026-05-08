@@ -27,6 +27,36 @@
 #endif  /* if defined(...) */
 #endif  /* INTPTR_MAX == 0x7fffffff */
 
+#if defined(USE_WEB_INPUT)
+#include <emscripten.h>
+/*
+ * When using mhs interactively on the web, we need a special input routine.
+ */
+
+volatile int last_char = -1;
+
+/* JavaScript pushes the input character by calling this function */
+EMSCRIPTEN_KEEPALIVE
+void set_input_char(int c) {
+    last_char = c;
+}
+
+static int
+getraw(void)
+{
+  for(;;) {
+    emscripten_sleep(10);
+    /* Busy-wait for a character to appear */
+    if (last_char != -1) {
+      int ch = last_char;
+      last_char = -1;
+      return ch;
+    }
+  }
+}
+
+#else  /* USE_WEB_INPUT */
+
 /*
  * Set the terminal in raw mode and read a single character.
  * Return this character, or -1 on any kind of failure.
@@ -85,6 +115,8 @@ getraw(void)
     return -1;
   }
 }
+#endif  /* USE_WEB_INPUT */
+
 /*
  * Get a raw input character.
  * If undefined, the default always returns -1

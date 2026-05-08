@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MicroHs Web</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        #header {
+            text-align: center;
+            font-family: sans-serif;
+            font-size: 2.5rem;
+            padding: 20px 0 10px 0; /* More padding on top */
+            flex-shrink: 0;
+        }
+
+        #terminal-container {
+            flex-grow: 1;
+            /* Added 30px to the bottom margin for that extra space */
+            margin: 0 20px 30px 20px; 
+            background-color: black;
+            position: relative;
+            border-radius: 8px; /* Optional: adds a slight curve to the corners */
+            overflow: hidden;
+        }
+
+        #terminal {
+            position: absolute;
+            top: 10px;    /* Internal padding so text isn't touching the edge */
+            bottom: 10px; 
+            left: 10px; 
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">Welcome to MicroHs in the browser</div>
+    
+    <div id="terminal-container">
+        <div id="terminal"></div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const term = new Terminal({
+                cursorBlink: true,
+                fontFamily: 'monospace',
+                fontSize: 16,
+                theme: { 
+                    background: '#000000',
+                    red: '#ff5555',
+                    green: '#50fa7b',
+                    yellow: '#f1fa8c',
+                    blue: '#bd93f9',
+                    cyan: '#8be9fd',
+                    foreground: '#ffffff'
+                }
+            });
+
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(document.getElementById('terminal'));
+            fitAddon.fit();
+
+            window.Module = {
+                preRun: [function() {
+                    Module.FS.init(
+                        () => null, 
+                        (asciiCode) => {
+                            if (asciiCode !== null) {
+                                if (asciiCode === 10) {
+                                    term.write('\r\n');
+                                } else {
+                                    term.write(String.fromCharCode(asciiCode));
+                                }
+                            }
+                        },
+                        (asciiCode) => {
+                            if (asciiCode !== null) term.write(String.fromCharCode(asciiCode));
+                        }
+                    );
+                }],
+                print: () => {}, 
+                printErr: (text) => term.writeln("ERR: " + text)
+            };
+
+            term.onData(data => {
+                const code = data.charCodeAt(0);
+                const finalCode = (data === '\r') ? 13 : code;
+                if (window.Module && window.Module._set_input_char) {
+                    window.Module._set_input_char(finalCode);
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                fitAddon.fit();
+            });
+
+            const script = document.createElement('script');
+            script.src = 'mhs-embed.js';
+            document.body.appendChild(script);
+        };
+    </script>
+</body>
+</html>
+
