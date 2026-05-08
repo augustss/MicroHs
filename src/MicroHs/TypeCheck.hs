@@ -403,7 +403,7 @@ addInstTable ics = do
       -- [u ..] is not portable between 64 and 32 bit since it uses
       -- maxBound::Int which will differ between them.
       -- XXX Using a function in InstInfo is not ideal.
-      zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [u .. 100_000_000::Int]
+      zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [u .. 100000000::Int]
 
     mkInstInfo :: InstDictC -> T (Ident, InstInfo)
     mkInstInfo (e, iks, ctx, ct, fds) = do
