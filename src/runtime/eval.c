@@ -1056,6 +1056,8 @@ NODEPTR combPairUnit;
 NODEPTR combWorld;
 NODEPTR combCATCHR;
 NODEPTR combFst, combSnd;
+NODEPTR combFP2P;
+NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
 #define combFalse combK
 #define combTrue combA
 #define combNothing combK
@@ -2338,6 +2340,7 @@ init_nodes(void)
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
     case T_CATCHR: combCATCHR = n; break;
+    case T_FP2P: combFP2P = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -2390,6 +2393,7 @@ init_nodes(void)
     SETVALUE(n, i);
   }
 #endif
+  spare_node = HEAPREF(heap_start++);
 
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
   heap_start = (heap_start + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
@@ -4007,7 +4011,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 #if WANT_FLOAT64
 case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #endif
+#if WANT_FLOAT32
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
+#endif
   case T_WEAK: ERR("serialize WEAK unimplemented");
   case T_ARR:
     if (prefix) {
@@ -4030,6 +4036,25 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_PTR:
+#if WANT_STDIO
+    /* The pointer can be a forptr comb_std* that has been dereferenced */
+    if (PTR(n) == FORPTR(comb_stdin)->payload.string) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stdin;
+      printrec(f, pb, spare_node, prefix);
+    } else if (PTR(n) == FORPTR(comb_stdout)->payload.string) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stdout;
+      printrec(f, pb, spare_node, prefix);
+    } else if (PTR(n) == FORPTR(comb_stderr)->payload.string) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stderr;
+      printrec(f, pb, spare_node, prefix);
+    } else
+#endif  /* WANT_STDIO */
     if (prefix) {
       snprintf(prbuf, sizeof prbuf, "PTR<%p>",PTR(n));
       putsb(prbuf, f);
@@ -4061,14 +4086,17 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_FORPTR:
+#if WANT_STDIO
     if (n == comb_stdin)
       putsb("IO.stdin", f);
     else if (n == comb_stdout)
       putsb("IO.stdout", f);
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
+    else
+#endif  /* WANT_STDIO */
 #if WANT_GMP
-    else if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
+    if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
       mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
@@ -4078,9 +4106,9 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putsb(s, f);
       putsb("\"", f);                         /* so we can use parse_string */
       free(s);
-    }
+    } else
 #endif  /* WANT_GMP */
-    else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
+    if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
       print_string(f, FORPTR(n)->payload);
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
