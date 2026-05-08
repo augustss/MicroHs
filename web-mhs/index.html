@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MicroHs Web</title>
+    <title>Web MicroHs</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
@@ -107,6 +107,13 @@
                     if (window.Module && window.Module._set_input_char) {
                         window.Module._set_input_char(finalCode);
                     }
+                }
+            });
+
+            term.onSelectionChange(() => {
+                if (term.hasSelection()) {
+                    const selectedText = term.getSelection();
+                    navigator.clipboard.writeText(selectedText);
                 }
             });
 
