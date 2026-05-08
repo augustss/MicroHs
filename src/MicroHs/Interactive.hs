@@ -203,8 +203,8 @@ commands =
       _ <- liftIO $ system line
       return True
     )
-  , ("set [FLAG]  (un)set flag", \ line -> do
-      setFlags line
+  , ("set [OPT]   (un)set option", \ line -> do
+      setOptions line
       return True
     )
   ]
@@ -214,16 +214,20 @@ help = const $ do
   putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
   return True
 
-setFlags :: String -> I ()
-setFlags "" = do
+setOptions :: String -> I ()
+setOptions "" = do
   stats <- gets isStats
+  flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
   putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
-setFlags "+s" = do
+  putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
+setOptions "+s" = do
   modify $ \ is -> is{ isStats = True }
-setFlags "-s" = do
+setOptions "-s" = do
   modify $ \ is -> is{ isStats = False }
-setFlags _ =
+setOptions s | Just p <- stripPrefix "path=" s =
+  modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
+setOptions _ =
   putStrLnI "Unknown flag.  Known flags: +s, -s"
 
 reload :: I ()

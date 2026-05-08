@@ -106,3 +106,6 @@ splitWhen p as = loop as
           case break p xs of
             (ys, []) -> [ys]
             (ys, _:zs) -> ys : loop zs
+
+splitColonPath :: String -> [String]
+splitColonPath = splitWhen (':' ==)

@@ -505,9 +505,6 @@ convertToInclude inc pkg = dropExtension pkg </> inc
 hasTheExtension :: FilePath -> String -> Bool
 hasTheExtension f e = e `isSuffixOf` f
 
-splitColonPath :: String -> [String]
-splitColonPath = splitWhen (':' ==)
-
 -- Get all definitions from a package.
 -- Used to produce FFI wrappers for embedded packages.
 getPackage :: Flags -> String -> IO (FilePath, Package)
