@@ -126,7 +126,7 @@ instance NFData InstDict where
 
 instance Show InstDict where
   showsPrec p (InstDict e f) =
-    showParen (p > 10) $ showsPrec 11 e . showChar ' ' . showParen True (showString "\\999->" . showsPrec 0 (f 999))
+    showParen (p > 10) $ showsPrec 11 e . showChar ' ' . showParen True (showString "\\999->" . shows (f 999))
 
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
