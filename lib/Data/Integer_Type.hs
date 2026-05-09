@@ -65,11 +65,16 @@ _integerToWord (I sign ds) =
     Plus  -> i
     Minus -> 0 `primWordSub` i
   where
+    xadd = primWordAdd
+    xmul x = primWordShl x shiftD
     i =
       case ds of
-        []          -> 0 :: Word
-        [d1]        -> d1
-        d1 : d2 : _ -> d1 `primWordAdd` (d2 `primWordShl` shiftD)
+        []            -> 0 :: Word
+        [d1]          -> d1
+        -- XXX should really depend of the width of a digit
+        [d1, d2]      -> xmul                                  d2  `xadd` d1
+        [d1, d2, d3]  -> xmul (xmul                 d3  `xadd` d2) `xadd` d1
+        d1:d2:d3:d4:_ -> xmul (xmul (xmul d4 `xadd` d3) `xadd` d2) `xadd` d1
 
 _integerToWord64 :: Integer -> Word64
 _integerToWord64 (I sign ds) =
