@@ -2,7 +2,7 @@ all: mhs-embed.js
 
 # Generate JavaScript and Wasm for mhs
 mhs-embed.js:
-	mhs +RTS -H500M -RTS -temscripten_web -z -i  -i../mhs -i../src MicroHs.Main -omhs-embed.js --embed-packages base
+	mhs -temscripten_web -z -i  -i../mhs -i../src MicroHs.Main -omhs-embed.js --embed-packages base-32-0.15.9.0.pkg
 
 # Run a simple we server for the mhs page
 serve:

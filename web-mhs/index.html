@@ -24,23 +24,22 @@
             text-align: center;
             font-family: sans-serif;
             font-size: 2.5rem;
-            padding: 20px 0 10px 0; /* More padding on top */
+            padding: 20px 0 10px 0;
             flex-shrink: 0;
         }
 
         #terminal-container {
             flex-grow: 1;
-            /* Added 30px to the bottom margin for that extra space */
             margin: 0 20px 30px 20px; 
             background-color: black;
             position: relative;
-            border-radius: 8px; /* Optional: adds a slight curve to the corners */
+            border-radius: 8px;
             overflow: hidden;
         }
 
         #terminal {
             position: absolute;
-            top: 10px;    /* Internal padding so text isn't touching the edge */
+            top: 10px;
             bottom: 10px; 
             left: 10px; 
             right: 10px;
@@ -49,17 +48,23 @@
 </head>
 <body>
 
-    <div id="header">Welcome to MicroHs in the browser</div>
+    <div id="header">
+        Welcome to MicroHs in the browser <br>
+        <button id="mount-btn" style="padding: 10px; font-size: 16px; margin-top: 10px; cursor: pointer;">
+          📂 Select Local Directory to Sync
+        </button>
+    </div>
     
     <div id="terminal-container">
         <div id="terminal"></div>
     </div>
 
     <script>
+
         window.onload = function() {
             const term = new Terminal({
                 cursorBlink: true,
-                ightClickSelectsWord: true,
+                rightClickSelectsWord: true,
                 fontFamily: 'monospace',
                 fontSize: 16,
                 theme: { 
@@ -80,6 +85,7 @@
 
             window.Module = {
                 preRun: [function() {
+                    // Initialize Standard I/O
                     Module.FS.init(
                         () => null, 
                         (asciiCode) => {
@@ -95,15 +101,100 @@
                             if (asciiCode !== null) term.write(String.fromCharCode(asciiCode));
                         }
                     );
+
+                    Module.FS.mkdir('/upload');
+                    Module.FS.chdir('/upload');
+
                 }],
                 print: () => {}, 
                 printErr: (text) => term.writeln("ERR: " + text)
             };
 
+
+            // Track our linked files for the auto-sync loop
+            const fileRegistry = {};
+
+            // Helper to safely create directories in Wasm without crashing if they exist
+            function safeMkdir(path) {
+                try {
+                    Module.FS.mkdirTree(path); // mkdirTree creates parent folders automatically
+                } catch (e) {
+                    // Ignore errors (usually means the directory already exists)
+                }
+            }
+
+            // Recursive function to walk the local folder and mirror it into Wasm
+            async function mountDirectory(dirHandle, currentWasmPath) {
+                safeMkdir(currentWasmPath);
+
+                // Loop through every file and folder inside this directory handle
+                for await (const entry of dirHandle.values()) {
+                    const fullWasmPath = `${currentWasmPath}/${entry.name}`;
+
+                    if (entry.kind === 'file') {
+                        // It's a file: read it and write to Wasm memory
+                        const fileHandle = await dirHandle.getFileHandle(entry.name);
+                        const file = await fileHandle.getFile();
+                        const data = new Uint8Array(await file.arrayBuffer());
+            
+                        Module.FS.writeFile(fullWasmPath, data);
+            
+                        // Add to registry so the background loop keeps it updated
+                        fileRegistry[fullWasmPath] = { handle: fileHandle, lastModified: file.lastModified };
+                        console.log(`Mounted: ${fullWasmPath}`);
+            
+                    } else if (entry.kind === 'directory') {
+                        // It's a folder: recursively process it
+                        const subDirHandle = await dirHandle.getDirectoryHandle(entry.name);
+                        await mountDirectory(subDirHandle, fullWasmPath);
+                    }
+                }
+            }
+
+            // The Button Click Event
+            document.getElementById('mount-btn').addEventListener('click', async () => {
+                try {
+                    // 1. Ask the user to pick a folder
+                    const rootDirHandle = await window.showDirectoryPicker();
+                    
+                    term.writeln(`\r\n\x1b[33m[System]\x1b[0m Indexing workspace... This may take a moment.`);
+                    
+                    // 2. Recursively mount everything under /upload
+                    await mountDirectory(rootDirHandle, '/upload');
+                    
+                    term.writeln(`\r\n\x1b[32m[System]\x1b[0m Workspace mounted successfully at .`);
+                    
+                    // 3. Start the background sync loop for edits
+                    if (!window.syncInterval) {
+                        window.syncInterval = setInterval(pollFiles, 500); 
+                    }
+                } catch (err) {
+                    console.error("Directory picker cancelled or failed", err);
+                    term.writeln(`\r\n\x1b[31m[System]\x1b[0m Failed to mount workspace.`);
+                }
+            });
+
+            // The polling function remains exactly the same!
+            async function pollFiles() {
+                for (const [path, entry] of Object.entries(fileRegistry)) {
+                    try {
+                        const file = await entry.handle.getFile();
+                        if (file.lastModified > entry.lastModified) {
+                            const data = new Uint8Array(await file.arrayBuffer());
+                            Module.FS.writeFile(path, data);
+                            entry.lastModified = file.lastModified;
+                            console.log(`Auto-synced updated file: ${path}`);
+                        }
+                    } catch (e) {
+                        // Ignore (file might be locked by OS momentarily)
+                    }
+                }
+            }
+
             term.onData(data => {
                 for (let i = 0; i < data.length; i++) {
                     const code = data.charCodeAt(i);
-                    const finalCode = (data === '\r') ? 13 : code;
+                    const finalCode = (data === '\r' && data.length === 1) ? 13 : code;
                     if (window.Module && window.Module._set_input_char) {
                         window.Module._set_input_char(finalCode);
                     }
@@ -128,4 +219,3 @@
     </script>
 </body>
 </html>
-
