@@ -2178,49 +2178,6 @@ struct {
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
 #if WANT_INT64
-#if !NEED_INT64
-  { "I+", T_ADD, T_ADD },
-  { "I-", T_SUB, T_SUBR },
-  { "I*", T_MUL, T_MUL },
-  { "Iquot", T_QUOT },
-  { "Irem", T_REM },
-  { "Iu+", T_UADD, T_UADD },
-  { "Iu-", T_USUB, T_USUBR },
-  { "Iu*", T_UMUL, T_UMUL },
-  { "Iuquot", T_UQUOT },
-  { "Iurem", T_UREM },
-  { "Isubtract", T_SUBR, T_SUB },
-  { "Iusubtract", T_USUBR, T_USUB },
-  { "Ineg", T_NEG },
-  { "Iuneg", T_UNEG },
-  { "Iand", T_AND, T_AND },
-  { "Ior", T_OR, T_OR },
-  { "Ixor", T_XOR, T_XOR },
-  { "Iinv", T_INV },
-  { "Ishl", T_SHL },
-  { "Ishr", T_SHR },
-  { "Iashr", T_ASHR },
-  { "Ipopcount", T_POPCOUNT },
-  { "Iclz", T_CLZ },
-  { "Ictz", T_CTZ },
-  { "I==", T_EQ, T_EQ },
-  { "I/=", T_NE, T_NE },
-  { "I<", T_LT, T_GT },
-  { "Iu<", T_ULT, T_UGT },
-  { "Iu<=", T_ULE, T_UGE },
-  { "Iu>", T_UGT, T_ULT },
-  { "Iu>=", T_UGE, T_ULE },
-  { "I<=", T_LE, T_GE },
-  { "I>", T_GT, T_LT },
-  { "I>=", T_GE, T_LE },
-  { "Iicmp", T_ICMP },
-  { "Iucmp", T_UCMP },
-  { "Itoi", T_I },
-  { "itoI", T_I },
-  { "Utou", T_I },
-  { "utoU", T_I },
-#else  /* WORD_SIZE == 64 */
-  /* WORD_SIZE == 32 */
   { "I+", T_ADD64, T_ADD64 },
   { "I-", T_SUB64, T_SUBR64 },
   { "I*", T_MUL64, T_MUL64 },
@@ -2261,7 +2218,6 @@ struct {
   { "Itoi", T_I64TOI },
   { "utoU", T_UTOU64 },
   { "Utou", T_U64TOU },
-#endif /* WORD_SIZE == 64 */
 #endif  /* WANT_INT64 */
 };
 
@@ -5108,6 +5064,38 @@ evali(NODEPTR an)
      *  ----
      *  n -------> INT(x+y)
      */
+#if !NEED_INT64
+  case T_ADD64:
+  case T_SUB64:
+  case T_MUL64:
+  case T_QUOT64:
+  case T_REM64:
+  case T_SUBR64:
+  case T_UADD64:
+  case T_USUB64:
+  case T_UMUL64:
+  case T_UQUOT64:
+  case T_UREM64:
+  case T_USUBR64:
+  case T_AND64:
+  case T_OR64:
+  case T_XOR64:
+  case T_SHL64:
+  case T_SHR64:
+  case T_ASHR64:
+  case T_EQ64:
+  case T_NE64:
+  case T_LT64:
+  case T_LE64:
+  case T_GT64:
+  case T_GE64:
+  case T_ICMP64:
+  case T_ULT64:
+  case T_ULE64:
+  case T_UGT64:
+  case T_UGE64:
+  case T_UCMP64:
+#endif /* !NEED_INT64 */
   case T_ADD:
   case T_SUB:
   case T_MUL:
@@ -5149,6 +5137,15 @@ evali(NODEPTR an)
       PUSH(combBININT2);
     }
     goto top;
+#if !NEED_INT64
+  case T_NEG64:
+  case T_UNEG64:
+  case T_INV64:
+  case T_POPCOUNT64:
+  case T_CLZ64:
+  case T_CTZ64:
+#endif /* !NEED_INT64 */
+
   case T_NEG:
   case T_UNEG:
   case T_INV:
@@ -6146,57 +6143,63 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binint:
+/* if we don't need Int64 implementation, just make Int and Int64 the same */
+#if NEED_INT64
+#define CASE64(l) case l
+#else
+#define CASE64(l) case l##64: case l
+#endif
       switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto binint;
-      case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
-      case T_SUB:   SUB_OVERFLOW(value_t, ru, xu, yu); break;
-      case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
-      case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
-      case T_QUOT:  if (yu == 0)
-                      raise_rts(exn_dividebyzero);
-                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
-                      raise_rts(exn_overflow);
-                    else
-                      ru = (uvalue_t)((value_t)xu / (value_t)yu);
-                    break;
-      case T_REM:   if (yu == 0)
-                      raise_rts(exn_dividebyzero);
-                    else        /* this should not overflow under any circumstances */
-                      ru = (uvalue_t)((value_t)xu % (value_t)yu);
-                    break;
-      case T_UADD:  ru = xu + yu; break;
-      case T_USUB:  ru = xu - yu; break;
-      case T_UMUL:  ru = xu * yu; break;
-      case T_USUBR: ru = yu - xu; break;
-      case T_UQUOT: if (yu == 0)
-                      raise_rts(exn_dividebyzero);
-                    else
-                      ru = xu / yu;
-                    break;
-      case T_UREM:  if (yu == 0)
-                      raise_rts(exn_dividebyzero);
-                    else
-                      ru = xu % yu;
-                    break;
-      case T_AND:   ru = xu & yu; break;
-      case T_OR:    ru = xu | yu; break;
-      case T_XOR:   ru = xu ^ yu; break;
-      case T_SHL:   ru = xu << yu; break;
-      case T_SHR:   ru = xu >> yu; break;
-      case T_ASHR:  ru = (uvalue_t)((value_t)xu >> yu); break;
+      case T_IND:      p = GETINDIR(p); goto binint;
+      CASE64(T_ADD):   ADD_OVERFLOW(value_t, ru, xu, yu); break;
+      CASE64(T_SUB):   SUB_OVERFLOW(value_t, ru, xu, yu); break;
+      CASE64(T_MUL):   MUL_OVERFLOW(value_t, ru, xu, yu); break;
+      CASE64(T_SUBR):  SUB_OVERFLOW(value_t, ru, yu, xu); break;
+      CASE64(T_QUOT):  if (yu == 0)
+                         raise_rts(exn_dividebyzero);
+                       else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+                         raise_rts(exn_overflow);
+                       else
+                         ru = (uvalue_t)((value_t)xu / (value_t)yu);
+                       break;
+      CASE64(T_REM):   if (yu == 0)
+                         raise_rts(exn_dividebyzero);
+                       else        /* this should not overflow under any circumstances */
+                         ru = (uvalue_t)((value_t)xu % (value_t)yu);
+                       break;
+      CASE64(T_UADD):  ru = xu + yu; break;
+      CASE64(T_USUB):  ru = xu - yu; break;
+      CASE64(T_UMUL):  ru = xu * yu; break;
+      CASE64(T_USUBR): ru = yu - xu; break;
+      CASE64(T_UQUOT): if (yu == 0)
+                         raise_rts(exn_dividebyzero);
+                       else
+                         ru = xu / yu;
+                       break;
+      CASE64(T_UREM):  if (yu == 0)
+                         raise_rts(exn_dividebyzero);
+                       else
+                         ru = xu % yu;
+                       break;
+      CASE64(T_AND):   ru = xu & yu; break;
+      CASE64(T_OR):    ru = xu | yu; break;
+      CASE64(T_XOR):   ru = xu ^ yu; break;
+      CASE64(T_SHL):   ru = xu << yu; break;
+      CASE64(T_SHR):   ru = xu >> yu; break;
+      CASE64(T_ASHR):  ru = (uvalue_t)((value_t)xu >> yu); break;
 
-      case T_EQ:    GOBOOL(xu == yu);
-      case T_NE:    GOBOOL(xu != yu);
-      case T_ULT:   GOBOOL(xu <  yu);
-      case T_ULE:   GOBOOL(xu <= yu);
-      case T_UGT:   GOBOOL(xu >  yu);
-      case T_UGE:   GOBOOL(xu >= yu);
-      case T_UCMP:  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
-      case T_LT:    GOBOOL((value_t)xu <  (value_t)yu);
-      case T_LE:    GOBOOL((value_t)xu <= (value_t)yu);
-      case T_GT:    GOBOOL((value_t)xu >  (value_t)yu);
-      case T_GE:    GOBOOL((value_t)xu >= (value_t)yu);
-      case T_ICMP:  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
+      CASE64(T_EQ):    GOBOOL(xu == yu);
+      CASE64(T_NE):    GOBOOL(xu != yu);
+      CASE64(T_ULT):   GOBOOL(xu <  yu);
+      CASE64(T_ULE):   GOBOOL(xu <= yu);
+      CASE64(T_UGT):   GOBOOL(xu >  yu);
+      CASE64(T_UGE):   GOBOOL(xu >= yu);
+      CASE64(T_UCMP):  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
+      CASE64(T_LT):    GOBOOL((value_t)xu <  (value_t)yu);
+      CASE64(T_LE):    GOBOOL((value_t)xu <= (value_t)yu);
+      CASE64(T_GT):    GOBOOL((value_t)xu >  (value_t)yu);
+      CASE64(T_GE):    GOBOOL((value_t)xu >= (value_t)yu);
+      CASE64(T_ICMP):  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -6217,13 +6220,13 @@ evali(NODEPTR an)
       n = TOP(-1);
     unint:
       switch (GETTAG(p)) {
-      case T_IND:      p = GETINDIR(p); goto unint;
-      case T_NEG:      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
-      case T_UNEG:     ru = -xu; break;
-      case T_INV:      ru = ~xu; break;
-      case T_POPCOUNT: ru = POPCOUNT(xu); break;
-      case T_CLZ:      ru = CLZ(xu); break;
-      case T_CTZ:      ru = CTZ(xu); break;
+      case T_IND:         p = GETINDIR(p); goto unint;
+      CASE64(T_NEG):      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
+      CASE64(T_UNEG):     ru = -xu; break;
+      CASE64(T_INV):      ru = ~xu; break;
+      CASE64(T_POPCOUNT): ru = POPCOUNT(xu); break;
+      CASE64(T_CLZ):      ru = CLZ(xu); break;
+      CASE64(T_CTZ):      ru = CTZ(xu); break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("UNINT");
