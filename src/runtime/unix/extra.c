@@ -38,31 +38,42 @@
  * We don't check for buffer overflow.
  */
 #define IN_BUF_SIZE 16384
-volatile int last_chars[IN_BUF_SIZE];
-volatile int last_char_in = 0;
-volatile int last_char_out = 0;
+volatile int getraw_last_chars[IN_BUF_SIZE];
+volatile int getraw_last_char_in = 0;
+volatile int getraw_last_char_out = 0;
+volatile int getraw_waiting = 0;
+
+void handle_sigint(int);
 
 /* JavaScript pushes the input character by calling this function */
 EMSCRIPTEN_KEEPALIVE
 void set_input_char(int c) {
-  last_chars[last_char_in] = c;
-  last_char_in = (last_char_in + 1) % IN_BUF_SIZE;
+  if (!getraw_waiting && c == 3) { /* CTRL-C */
+    handle_sigint(0);
+  }
+  getraw_last_chars[getraw_last_char_in] = c;
+  getraw_last_char_in = (getraw_last_char_in + 1) % IN_BUF_SIZE;
 }
 
 static int
 getraw(void)
 {
+  getraw_waiting = 1;
   for(;;) {
     /* Busy-wait for a character to appear */
-    if (last_char_in != last_char_out) {
-      int ch = last_chars[last_char_out];
-      last_char_out = (last_char_out + 1) % IN_BUF_SIZE;
+    if (getraw_last_char_in != getraw_last_char_out) {
+      int ch = getraw_last_chars[getraw_last_char_out];
+      getraw_last_char_out = (getraw_last_char_out + 1) % IN_BUF_SIZE;
       
+      getraw_waiting = 0;
       return ch;
     }
     emscripten_sleep(10);
   }
 }
+
+/* Allow a thread switch in yield() */
+#define YIELD_EXTRA do { emscripten_sleep(0); } while(0)
 
 #else  /* USE_WEB_INPUT */
 

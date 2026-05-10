@@ -100,6 +100,11 @@ startInteractive = do
   reload
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
+  let line "" = return ()
+      line ('r':r) = do _ <- command r; return ()
+      line s = oneline s
+  rc <- liftIO (catch (lines <$> readFile ".mhsi_rc") (\ (_ :: SomeException) -> return []))
+  mapM_ line rc
   putStrLnI "Type ':quit' to quit, ':help' for help"
   repl
 

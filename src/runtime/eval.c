@@ -97,6 +97,10 @@ extern char **environ;          /* should probably be behind some WANT_ */
 char *get_executable_path(void) { return NULL; }
 #endif
 
+#if !defined(YIELD_EXTRA)
+#define YIELD_EXTRA do {} while(0)
+#endif
+
 #define NEED_INT64 (WANT_INT64 && WORD_SIZE < 64)
 
 #if !defined(MKDIR)
@@ -1301,6 +1305,8 @@ yield(void)
   COUNT(num_yield);
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
+
+  YIELD_EXTRA;                  /* platform specific extra stuff */
 
   if (timeq.mq_head)
     check_timeq();
@@ -2571,7 +2577,7 @@ mark(NODEPTR *np)
     while ((tag = GETTAG(n)) == T_IND) {
       //      PRINT("*"); fflush(stdout);
       n = GETINDIR(n);
-      if (loop++ > 10000000) {
+      if (loop++ > 1000000000) {
         //PRINT("%p %p %p\n", n, GETINDIR(n), GETINDIR(GETINDIR(n)));
         ERR("IND loop");
       }

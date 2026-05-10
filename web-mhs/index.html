@@ -6,60 +6,139 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-    
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            background-color: #1a1a1a;
-            color: white;
-            display: flex;
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+<style>
+    body, html {
+        margin: 0; padding: 0; height: 100%; width: 100%;
+        background-color: #1a1a1a; color: white;
+        display: flex; flex-direction: column; overflow: hidden; 
+    }
+
+    #header {
+        text-align: center; font-family: sans-serif; font-size: 2.5rem;
+        padding: 20px 0 10px 0; flex-shrink: 0;
+    }
+
+    /* The new Flex container for side-by-side layout */
+    #main-content {
+        display: flex;
+        flex-grow: 1;
+        margin: 0 20px 30px 20px;
+        gap: 20px; /* Space between terminal and canvas */
+    }
+
+    #terminal-container {
+        flex: 1; /* Takes up 50% of the space */
+        background-color: black;
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    #terminal {
+        position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px;
+    }
+
+    #canvas-container {
+        display: none;
+        flex: 1;
+        background-color: #e0e0e0;
+        border-radius: 8px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Canvas must absolutely fill its container */
+    #drawing-canvas {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    }
+
+    /* Responsive layout for vertical/narrow screens */
+    @media (max-width: 800px), (orientation: portrait) {
+        #main-content {
             flex-direction: column;
-            overflow: hidden; 
         }
+        
+        #terminal-container, #canvas-container {
+            /* Ensures they each get 50% of the vertical space */
+            min-height: 300px; 
+        }
+    }
 
-        #header {
-            text-align: center;
-            font-family: sans-serif;
-            font-size: 2.5rem;
-            padding: 20px 0 10px 0;
-            flex-shrink: 0;
-        }
+    #close-canvas-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10; /* Ensures it sits on top of the drawing */
+        background-color: rgba(0, 0, 0, 0.2);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
 
-        #terminal-container {
-            flex-grow: 1;
-            margin: 0 20px 30px 20px; 
-            background-color: black;
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-        }
+    #close-canvas-btn:hover {
+        background-color: rgba(0, 0, 0, 0.6);
+    }
 
-        #terminal {
-            position: absolute;
-            top: 10px;
-            bottom: 10px; 
-            left: 10px; 
-            right: 10px;
-        }
-    </style>
+</style>
+
 </head>
 <body>
 
     <div id="header">
-        Welcome to MicroHs in the browser <br>
+        Welcome to MicroHs in the Browser <br>
         <button id="mount-btn" style="padding: 10px; font-size: 16px; margin-top: 10px; cursor: pointer;">
           📂 Select Local Directory to Sync
         </button>
     </div>
     
-    <div id="terminal-container">
+    <div id="main-content">
+      <div id="terminal-container">
         <div id="terminal"></div>
-    </div>
+      </div>
+        
+      <div id="canvas-container">
+        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button> 
+    
+        <canvas id="drawing-canvas"></canvas>
+      </div>
 
     <script>
+
+      const mhsi_rc_text = `
+import System.Directory
+cat :: FilePath -> IO ()
+cat f = readFile f >>= putStrLn
+ls :: FilePath -> IO ()
+ls d = listDirectory d >>= putStrLn . unlines
+putStrLn ""
+putStrLn "Welcome to the MicroHs Web playground!"
+putStrLn "Use ':defs' to see definitions."
+putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
+putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1 or demo2."
+putStrLn "To access local files, use the button above to select a directory."
+putStrLn ""`
+      const line_edit_text = `
+Line editing keys (Emacs inspired):
+CTL-B         move backards
+CTL-F         move forwards
+CTL-A         move to beginning of line
+CTL-E         move to end of line
+CTL-H         backspace
+DEL           backspace
+ENTER         send line
+CTL-N         next in history
+CTL-P         previous in history
+CTL-U         erase line
+CTL-K         kill to end of line
+TAB           complete word
+Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
+`
 
         window.onload = function() {
             const term = new Terminal({
@@ -104,6 +183,9 @@
 
                     Module.FS.mkdir('/upload');
                     Module.FS.chdir('/upload');
+
+                    Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
+                    Module.FS.writeFile("line_edit", line_edit_text);
 
                 }],
                 print: () => {}, 
@@ -157,7 +239,7 @@
                     // 1. Ask the user to pick a folder
                     const rootDirHandle = await window.showDirectoryPicker();
                     
-                    term.writeln(`\r\n\x1b[33m[System]\x1b[0m Indexing workspace... This may take a moment.`);
+                    term.writeln(`\r\n\x1b[32m[System]\x1b[0m Indexing directory... This may take a moment.`);
                     
                     // 2. Recursively mount everything under /upload
                     await mountDirectory(rootDirHandle, '/upload');
@@ -194,9 +276,8 @@
             term.onData(data => {
                 for (let i = 0; i < data.length; i++) {
                     const code = data.charCodeAt(i);
-                    const finalCode = (data === '\r' && data.length === 1) ? 13 : code;
                     if (window.Module && window.Module._set_input_char) {
-                        window.Module._set_input_char(finalCode);
+                        window.Module._set_input_char(code);
                     }
                 }
             });
@@ -215,7 +296,53 @@
             const script = document.createElement('script');
             script.src = 'mhs-embed.js';
             document.body.appendChild(script);
+
+
+            // Function to make sure the canvas internal resolution matches the screen size
+            function resizeCanvas() {
+                const canvas = document.getElementById('drawing-canvas');
+                const container = document.getElementById('canvas-container');
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+            }
+
+            // Call it once on startup
+            resizeCanvas();
+
+            // Update both the terminal and the canvas when the window resizes
+            window.addEventListener('resize', () => {
+                fitAddon.fit();
+                resizeCanvas();
+            });
+
+            // Function to unhide the canvas and fix the layout
+            window.showCanvas = function() {
+                const container = document.getElementById('canvas-container');
+                if (container.style.display !== 'block') {
+                    container.style.display = 'block'; // Unhide it
+              
+                    // Force the canvas to figure out its new pixel dimensions
+                    resizeCanvas(); 
+
+                    // Tell the terminal to recalculate its rows/cols so text doesn't overflow
+                    if (typeof fitAddon !== 'undefined') {
+                        fitAddon.fit(); 
+                    }
+                }
+            };
+
+            window.hideCanvas = function() {
+                const container = document.getElementById('canvas-container');
+                container.style.display = 'none';
+    
+                // Tell the terminal to expand and fill the newly freed space
+                if (typeof fitAddon !== 'undefined') {
+                    fitAddon.fit(); 
+                }
+            };
+
         };
+
     </script>
 </body>
 </html>
