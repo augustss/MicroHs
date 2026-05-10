@@ -1,6 +1,6 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Double(Double) where
+module Data.Double(Double, doubleToInt) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -202,3 +202,6 @@ scaleFloat64 n x = cscalbn x n
 
 encodeFloat64 :: Integer -> Int -> Double
 encodeFloat64 mant expn = scaleFloat64 expn (fromInteger mant)
+
+doubleToInt :: Double -> Int
+doubleToInt = primDoubleToInt

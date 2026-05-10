@@ -12,7 +12,7 @@
     body, html {
         margin: 0; padding: 0; height: 100%; width: 100%;
         background-color: #1a1a1a; color: white;
-        display: flex; flex-direction: column; overflow: hidden; 
+        display: flex; flex-direction: column; overflow: hidden;
     }
 
     #header {
@@ -59,10 +59,10 @@
         #main-content {
             flex-direction: column;
         }
-        
+
         #terminal-container, #canvas-container {
             /* Ensures they each get 50% of the vertical space */
-            min-height: 300px; 
+            min-height: 300px;
         }
     }
 
@@ -91,20 +91,22 @@
 <body>
 
     <div id="header">
-        Welcome to MicroHs in the Browser <br>
-        <button id="mount-btn" style="padding: 10px; font-size: 16px; margin-top: 10px; cursor: pointer;">
-          📂 Select Local Directory to Sync
-        </button>
+      Welcome to MicroHs in the Browser
+      <div class="button-row">
+        <button id="mount-btn">📁 Select Local Workspace</button>
+        <button id="download-url-btn">🌐 Download from GitHub</button>
+      </div>
     </div>
-    
+
     <div id="main-content">
       <div id="terminal-container">
         <div id="terminal"></div>
       </div>
-        
+
       <div id="canvas-container">
-        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button> 
-    
+        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
+
+        <div style="font-family: monospace; position: absolute; visibility: hidden;">Preload</div>
         <canvas id="drawing-canvas"></canvas>
       </div>
 
@@ -116,8 +118,10 @@ cat :: FilePath -> IO ()
 cat f = readFile f >>= putStrLn
 ls :: FilePath -> IO ()
 ls d = listDirectory d >>= putStrLn . unlines
+cd :: FilePath -> IO ()
+cd d = setCurrentDirectory d
 putStrLn ""
-putStrLn "Welcome to the MicroHs Web playground!"
+putStrLn "*** MicroHs Web Playground ***"
 putStrLn "Use ':defs' to see definitions."
 putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
 putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1 or demo2."
@@ -140,13 +144,19 @@ TAB           complete word
 Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
 `
 
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        window.ctx = ctx;
+        window.mouseState = { x: 0.0, y: 0.0, down: false };
+
         window.onload = function() {
             const term = new Terminal({
                 cursorBlink: true,
                 rightClickSelectsWord: true,
                 fontFamily: 'monospace',
                 fontSize: 16,
-                theme: { 
+                theme: {
                     background: '#000000',
                     red: '#ff5555',
                     green: '#50fa7b',
@@ -166,7 +176,7 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                 preRun: [function() {
                     // Initialize Standard I/O
                     Module.FS.init(
-                        () => null, 
+                        () => null,
                         (asciiCode) => {
                             if (asciiCode !== null) {
                                 if (asciiCode === 10) {
@@ -188,7 +198,7 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                     Module.FS.writeFile("line_edit", line_edit_text);
 
                 }],
-                print: () => {}, 
+                print: () => {},
                 printErr: (text) => term.writeln("ERR: " + text)
             };
 
@@ -218,13 +228,13 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         const fileHandle = await dirHandle.getFileHandle(entry.name);
                         const file = await fileHandle.getFile();
                         const data = new Uint8Array(await file.arrayBuffer());
-            
+
                         Module.FS.writeFile(fullWasmPath, data);
-            
+
                         // Add to registry so the background loop keeps it updated
                         fileRegistry[fullWasmPath] = { handle: fileHandle, lastModified: file.lastModified };
                         console.log(`Mounted: ${fullWasmPath}`);
-            
+
                     } else if (entry.kind === 'directory') {
                         // It's a folder: recursively process it
                         const subDirHandle = await dirHandle.getDirectoryHandle(entry.name);
@@ -238,23 +248,86 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                 try {
                     // 1. Ask the user to pick a folder
                     const rootDirHandle = await window.showDirectoryPicker();
-                    
+
                     term.writeln(`\r\n\x1b[32m[System]\x1b[0m Indexing directory... This may take a moment.`);
-                    
+
                     // 2. Recursively mount everything under /upload
                     await mountDirectory(rootDirHandle, '/upload');
-                    
+
                     term.writeln(`\r\n\x1b[32m[System]\x1b[0m Workspace mounted successfully at .`);
-                    
+
                     // 3. Start the background sync loop for edits
                     if (!window.syncInterval) {
-                        window.syncInterval = setInterval(pollFiles, 500); 
+                        window.syncInterval = setInterval(pollFiles, 500);
                     }
                 } catch (err) {
                     console.error("Directory picker cancelled or failed", err);
                     term.writeln(`\r\n\x1b[31m[System]\x1b[0m Failed to mount workspace.`);
                 }
             });
+
+            document.getElementById('download-url-btn').addEventListener('click', async () => {
+                // Prefill with your repo URL
+                const defaultUrl = "https://github.com/augustss/canvhs/tree/main/";
+                const rawUrl = prompt("Enter GitHub Folder URL:", defaultUrl);
+                if (!rawUrl) return;
+
+                try {
+                    // Regex to extract user, repo, branch, and path
+                    const urlMatch = rawUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/?(.*)/);
+                    if (!urlMatch) throw new Error("Invalid format. Use: github.com/user/repo/tree/branch/path");
+
+                    const [_, user, repo, branch, targetPath] = urlMatch;
+
+                    // Use the Recursive Trees API
+                    const apiUrl = `https://api.github.com/repos/${user}/${repo}/git/trees/${branch}?recursive=1`;
+
+                    term.writeln(`\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
+                    const response = await fetch(apiUrl);
+                    const data = await response.json();
+
+                    if (!data.tree) throw new Error("Could not find repository tree. Check branch name.");
+
+                    // Filter: if targetPath is empty, get everything. Otherwise, filter by path.
+                    const itemsToDownload = data.tree.filter(item =>
+                        targetPath === "" || item.path.startsWith(targetPath)
+                    );
+
+                    for (const item of itemsToDownload) {
+                        // Clean up the path so it saves correctly in /upload
+                        let relativePath = item.path;
+                        if (targetPath !== "") {
+                            relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
+                        }
+                        if (!relativePath) continue;
+
+                        if (item.type === 'tree') {
+                            try {
+                                Module.FS.mkdirTree(relativePath); // mkdirTree handles nested parents!
+                                term.writeln(`  Created dir: ${relativePath}`);
+                            } catch(e) {}
+                        } else if (item.type === 'blob') {
+                            term.writeln(`  Fetching: ${relativePath}`);
+                            const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
+                            const fileRes = await fetch(downloadUrl);
+
+                            if (fileRes.ok) {
+                                const blob = await fileRes.arrayBuffer();
+                                // Ensure the parent directory exists before writing
+                                const dirPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                                if (dirPath) try { Module.FS.mkdirTree(dirPath); } catch(e) {}
+
+                                Module.FS.writeFile(relativePath, new Uint8Array(blob));
+                            }
+                        }
+                    }
+                    term.writeln(`\x1b[32mDownload Complete!\x1b[0m`);
+
+                } catch (error) {
+                    term.writeln(`\x1b[31mError: ${error.message}\x1b[0m`);
+                }
+            });
+
 
             // The polling function remains exactly the same!
             async function pollFiles() {
@@ -320,13 +393,13 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                 const container = document.getElementById('canvas-container');
                 if (container.style.display !== 'block') {
                     container.style.display = 'block'; // Unhide it
-              
+
                     // Force the canvas to figure out its new pixel dimensions
-                    resizeCanvas(); 
+                    resizeCanvas();
 
                     // Tell the terminal to recalculate its rows/cols so text doesn't overflow
                     if (typeof fitAddon !== 'undefined') {
-                        fitAddon.fit(); 
+                        fitAddon.fit();
                     }
                 }
             };
@@ -334,12 +407,64 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
             window.hideCanvas = function() {
                 const container = document.getElementById('canvas-container');
                 container.style.display = 'none';
-    
+
                 // Tell the terminal to expand and fill the newly freed space
                 if (typeof fitAddon !== 'undefined') {
-                    fitAddon.fit(); 
+                    fitAddon.fit();
                 }
             };
+
+function updateMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    
+    // Translate to center-origin and flip Y axis
+    window.mouseState.x = rawX - (rect.width / 2);
+    window.mouseState.y = (rect.height / 2) - rawY; 
+}
+
+canvas.addEventListener('mousemove', updateMousePos);
+
+canvas.addEventListener('mousedown', (e) => {
+    updateMousePos(e);
+    window.mouseState.down = true;
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    updateMousePos(e);
+    window.mouseState.down = false;
+});
+
+
+window.drawHaskellText = function(textPtr) {
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d');
+    const str = UTF8ToString(textPtr);
+    
+    // 1. Read the absolute screen coordinates calculated by Haskell's 'Translate'
+    const matrix = ctx.getTransform();
+    
+    ctx.save();
+    
+    // 2. Erase all scaling, flipping, and rotating to jump back to perfect Screen Space
+    ctx.resetTransform(); 
+    
+    // 3. Only set the font if it's different (Prevents Glyph Cache Trashing)
+    if (ctx.font !== '24px monospace') {
+        ctx.font = '24px monospace';
+    }
+    ctx.textBaseline = 'middle';
+    
+    // 4. Snap the absolute screen coordinates to exact integers
+    const screenX = Math.round(matrix.e);
+    const screenY = Math.round(matrix.f);
+    
+    // 5. Draw the text right-side up, perfectly pixel-aligned
+    ctx.fillText(str, screenX, screenY);
+    
+    ctx.restore();
+};
 
         };
 
