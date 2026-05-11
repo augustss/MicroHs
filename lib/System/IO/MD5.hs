@@ -19,7 +19,7 @@ foreign import ccall "md5BFILE"  c_md5BFILE  :: Ptr BFILE  -> Ptr Word32 -> IO (
 foreign import ccall "md5String" c_md5String :: CString    -> Ptr Word32 -> IO ()
 foreign import ccall "md5Array"  c_md5Array  :: Ptr Word32 -> Ptr Word32 -> Int -> IO ()
 
-newtype MD5CheckSum = MD5 [Word32]  -- either 2*64 bits or 4*32 bits
+newtype MD5CheckSum = MD5 [Word32]  -- 4*32 bits
   deriving (Eq, Ord)
 
 instance Show MD5CheckSum where
@@ -28,7 +28,7 @@ instance Show MD5CheckSum where
 instance NFData MD5CheckSum where
   rnf (MD5 ws) = loop ws
     where loop [] = ()
-          loop (w:es) = w `seq` loop ws
+          loop (a:as) = a `seq` loop as
 
 md5Len :: Int
 md5Len = 16   -- The MD5 checksum is 16 bytes
