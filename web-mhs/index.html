@@ -6,114 +6,199 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 
 <style>
-    body, html {
-        margin: 0; padding: 0; height: 100%; width: 100%;
-        background-color: #1a1a1a; color: white;
-        display: flex; flex-direction: column; overflow: hidden;
-    }
 
-    #header {
-        text-align: center; font-family: sans-serif; font-size: 2.5rem;
-        padding: 20px 0 10px 0; flex-shrink: 0;
-    }
-
-    /* The new Flex container for side-by-side layout */
-    #main-content {
-        display: flex;
-        flex-grow: 1;
-        margin: 0 20px 30px 20px;
-        gap: 20px; /* Space between terminal and canvas */
-    }
-
-    #terminal-container {
-        flex: 1; /* Takes up 50% of the space */
-        background-color: black;
-        position: relative;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    #terminal {
-        position: absolute; top: 10px; bottom: 10px; left: 10px; right: 10px;
-    }
-
-    #canvas-container {
-        display: none;
-        flex: 1;
-        background-color: #e0e0e0;
-        border-radius: 8px;
-        position: relative;
-        overflow: hidden;
-    }
-
-    /* Canvas must absolutely fill its container */
-    #drawing-canvas {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    }
-
-    /* Responsive layout for vertical/narrow screens */
-    @media (max-width: 800px), (orientation: portrait) {
-        #main-content {
-            flex-direction: column;
-        }
-
-        #terminal-container, #canvas-container {
-            /* Ensures they each get 50% of the vertical space */
-            min-height: 300px;
-        }
-    }
-
-    #close-canvas-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 10; /* Ensures it sits on top of the drawing */
-        background-color: rgba(0, 0, 0, 0.2);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 6px 10px;
-        font-size: 14px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    #close-canvas-btn:hover {
-        background-color: rgba(0, 0, 0, 0.6);
-    }
+  body, html {
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      width: 100%;
+      background-color: #1a1a1a; 
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex; 
+      flex-direction: column; 
+      overflow: hidden;
+  }
+  
+  /* Slimmed down header for desktop */
+  #header {
+      background: #252526;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+  }
+  
+  #header h1 {
+      margin: 0; 
+      font-size: 1.2rem; 
+      color: #ccc;
+  }
+  
+  .button-row {
+      display: flex; 
+      gap: 10px;
+  }
+  
+  .button-row button {
+      cursor: pointer;
+      padding: 4px 10px;
+  }
+  
+  /* The Workspace: Splits the screen horizontally */
+  #workspace {
+      display: flex;
+      flex-grow: 1;
+      width: 100vw;
+      overflow: hidden;
+  }
+  
+  /* Left side: Ace Editor */
+  #left-panel {
+      flex: 0 0 50%; 
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #000;
+      background: #1e1e1e;
+  }
+  
+  #editor-toolbar {
+      background: #333;
+      padding: 5px 10px;
+      display: flex;
+      gap: 10px;
+  }
+  
+  #file-picker {
+      background: #3c3c3c;
+      color: white;
+      border: 1px solid #555;
+      padding: 2px 5px;
+      flex-grow: 1;
+      cursor: pointer;
+  }
+  
+  #save-run-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
+  }
+  
+  #editor-container {
+      flex-grow: 1;
+      width: 100%;
+  }
+  
+  /* Right side: Output (Canvas top, Terminal bottom) */
+  #right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+  }
+  
+  #canvas-container {
+      flex: 1.5; /* Canvas gets slightly more space than the terminal */
+      position: relative;
+      border-bottom: 2px solid #333;
+      overflow: hidden;
+  }
+  
+  #terminal-container {
+      flex: 1; 
+      position: relative;
+      background: #000;
+  }
+  
+  #terminal {
+      position: absolute; 
+      top: 5px; 
+      bottom: 5px; 
+      left: 5px; 
+      right: 5px;
+  }
+  
+  /* Canvas must fill container */
+  #drawing-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+  }
+  
+  /* The "Close" button for the drawing overlay */
+  #close-canvas-btn {
+      position: absolute; 
+      top: 10px; 
+      right: 10px; 
+      z-index: 10;
+      background-color: rgba(60, 60, 60, 0.8);
+      color: white; 
+      border: 1px solid #555;
+      border-radius: 4px; 
+      padding: 4px 8px; 
+      cursor: pointer;
+  }
+  
+  #close-canvas-btn:hover {
+      background-color: rgba(90, 90, 90, 0.9);
+  }
+  
+  /* Responsive fallback for when you resize the window or use a tablet/phone */
+  @media (max-width: 800px) {
+      #workspace { flex-direction: column; }
+      #left-panel { flex: 0 0 40%; border-right: none; border-bottom: 2px solid #000; }
+  }
 
 </style>
 
 </head>
 <body>
 
-    <div id="header">
-      Welcome to MicroHs in the Browser
-      <div class="button-row">
-        <input type="file" id="fallback-picker" webkitdirectory directory multiple style="display:none;">
-        <button id="mount-btn">📁 Select Local Workspace</button>
-        <button id="download-url-btn">🌐 Download from GitHub</button>
-      </div>
+  <div id="header">
+    <h1>MicroHs Web IDE</h1>
+    <div class="button-row">
+      <input type="file" id="fallback-picker" webkitdirectory directory multiple style="display:none;">
+      <button id="mount-btn">📁 Mount Folder</button>
+      <button id="download-url-btn">🌐 GitHub</button>
     </div>
+  </div>
 
-    <div id="main-content">
+  <div id="workspace">
+    <div id="left-panel">
+      <div id="editor-toolbar">
+        <select id="file-picker">
+          <option value="">-- Select File --</option>
+        </select>
+        <button id="new-file-btn">➕ New</button>
+        <button id="save-btn">▶ Save</button>
+        <button id="save-run-btn">▶ Run</button>
+      </div>
+      <div id="editor-container"></div>
+    </div>
+    
+    <div id="right-panel">
+      <div id="canvas-container">
+        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
+        <canvas id="drawing-canvas"></canvas>
+      </div>
       <div id="terminal-container">
         <div id="terminal"></div>
       </div>
+    </div>
+  </div>
+  
+  <script>
 
-      <div id="canvas-container">
-        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
-
-        <div style="font-family: monospace; position: absolute; visibility: hidden;">Preload</div>
-        <canvas id="drawing-canvas"></canvas>
-      </div>
-
-    <script>
-
-      const mhsi_rc_text = `
+    const mhsi_rc_text = `
 import System.Directory
 cat :: FilePath -> IO ()
 cat f = readFile f >>= putStrLn
@@ -125,10 +210,11 @@ putStrLn ""
 putStrLn "*** MicroHs Web Playground ***"
 putStrLn "Use ':defs' to see definitions."
 putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
-putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo5."
+putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo6."
 putStrLn "To access local files, use the button above to select a directory."
-putStrLn ""`
-      const line_edit_text = `
+putStrLn ""
+`;
+    const line_edit_text = `
 Line editing keys (Emacs inspired):
 CTL-B         move backards
 CTL-F         move forwards
@@ -143,18 +229,25 @@ CTL-U         erase line
 CTL-K         kill to end of line
 TAB           complete word
 Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
-`
+`;
+    const demo_code = `
+module Demo where
+import Graphics.CanvHs
 
-        const home = `/home/web_user`;
+main :: IO ()
+main = display $ Color red $ SolidCircle 50
+`;
 
-      const system_prefix = `\r\n\x1b[32m[System]\x1b[0m `;
+    const home = `/home/web_user`;
 
-        const canvas = document.getElementById('drawing-canvas');
-        const ctx = canvas.getContext('2d', { alpha: false });
+    const system_prefix = `\r\n\x1b[32m[System]\x1b[0m `;
 
-        window.cvs = canvas;
-        window.ctx = ctx;
-        window.mouseState = { x: 0.0, y: 0.0, down: false };
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    window.cvs = canvas;
+    window.ctx = ctx;
+    window.mouseState = { x: 0.0, y: 0.0, down: false };
 
         window.onload = function() {
             const term = new Terminal({
@@ -177,6 +270,23 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
             term.loadAddon(fitAddon);
             term.open(document.getElementById('terminal'));
             fitAddon.fit();
+
+// 1. Initialize the Editor
+const editor = ace.edit("editor-container");
+
+// 2. Configure Theme and Language
+editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
+editor.session.setMode("ace/mode/haskell");
+
+// 3. Desktop/Mac Optimizations
+editor.setOptions({
+    fontSize: "14px",
+    fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+    wrap: true,               // Wraps long lines
+    showPrintMargin: false,   // Hides the annoying vertical line in the middle
+    behavioursEnabled: true   // Auto-closes brackets and quotes
+});
+
 
             function startHistorySync() {
                 setInterval(() => {
@@ -212,11 +322,12 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         }
                     );
 
-                    // Module.FS.mkdir('/upload');
                     Module.FS.chdir(home);
 
                     Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
                     Module.FS.writeFile("line_edit", line_edit_text);
+                    const demo_path = home + '/Demo.hs';
+                    Module.FS.writeFile(demo_path, demo_code);
 
                     // Get a possibly saved command history
                     const saved = localStorage.getItem('mhs_history');
@@ -224,6 +335,13 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         try { Module.FS.writeFile('.mhsi', saved); } catch(e){}
                     }
                     startHistorySync();
+
+                    editor.setValue(demo_code, -1);
+
+                    if (window.refreshFileList) {
+                        window.refreshFileList();
+                        document.getElementById('file-picker').value = demo_path;
+                    }
 
                 }],
                 print: () => {},
@@ -270,6 +388,21 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                     }
                 }
             }
+
+document.getElementById('file-picker').addEventListener('change', (e) => {
+    const fileName = e.target.value;
+    if (!fileName) return;
+    
+    try {
+        // Read file from RAM disk
+        const content = Module.FS.readFile(fileName, { encoding: 'utf8' });
+        
+        // Push it into Ace and move cursor to the top (-1)
+        editor.setValue(content, -1);
+    } catch (err) {
+        term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
+    }
+});
 
             // The Button Click Event
             document.getElementById('mount-btn').addEventListener('click', async () => {
@@ -318,7 +451,6 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         try { Module.FS.mkdir(currentPath); } catch (e) {}
                     }
 
-                    // Write the file to /upload/whatever/file.hs
                     Module.FS.writeFile(home + '/' + path, data);
                 }
 
@@ -354,7 +486,7 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                     );
 
                     for (const item of itemsToDownload) {
-                        // Clean up the path so it saves correctly in /upload
+                        // Clean up the path so it saves correctly in home
                         let relativePath = item.path;
                         if (targetPath !== "") {
                             relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
@@ -389,7 +521,7 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
             });
 
 
-async function pollFiles() {
+      async function pollFiles() {
     for (const [path, entry] of Object.entries(fileRegistry)) {
         try {
             // 1. Get stats from the Emscripten virtual filesystem
@@ -412,7 +544,7 @@ async function pollFiles() {
             }
 
             // 3. CHECK: Did the file change on the external disk? (Your existing code)
-            const file = await entry.handle.getFile();
+        const file = await entry.handle.getFile();
             if (file.lastModified > entry.lastModified) {
                 const data = new Uint8Array(await file.arrayBuffer());
                 Module.FS.writeFile(path, data);
@@ -428,13 +560,17 @@ async function pollFiles() {
     }
 }
 
-            term.onData(data => {
+            function sendToMicroHs(data) {
                 for (let i = 0; i < data.length; i++) {
                     const code = data.charCodeAt(i);
                     if (window.Module && window.Module._set_input_char) {
                         window.Module._set_input_char(code);
                     }
                 }
+            }
+
+            term.onData(data => {
+                sendToMicroHs(data)
             });
 
             term.onSelectionChange(() => {
@@ -495,6 +631,146 @@ async function pollFiles() {
                     fitAddon.fit();
                 }
             };
+
+// 1. The Refresh Function
+window.refreshFileList = function() {
+    const filePicker = document.getElementById('file-picker');
+    const currentSelection = filePicker.value;
+    
+    // Reset the dropdown
+    filePicker.innerHTML = '<option value="">-- Select File --</option>';
+    
+    try {
+        function gatherFiles(dir) {
+            Module.FS.readdir(dir).forEach(name => {
+                // Skip current/parent directory pointers
+                if (name === '.' || name === '..') return;
+                
+                const fullPath = dir + '/' + name;
+                if (Module.FS.isDir(Module.FS.stat(fullPath).mode)) {
+                    gatherFiles(fullPath); // Recursively search folders
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = fullPath;
+                    // Clean up the display name
+                    opt.textContent = fullPath.replace(home + '/', ''); 
+                    filePicker.appendChild(opt);
+                }
+            });
+        }
+
+        // Only scan if the home directory exists
+        try { 
+            Module.FS.stat(home); 
+            gatherFiles(home); 
+        } catch(e) {}
+
+        // Safely restore previous selection if it exists in the new list
+        const optionExists = Array.from(filePicker.options).some(opt => opt.value === currentSelection);
+        if (optionExists) {
+            filePicker.value = currentSelection;
+        }
+
+    } catch (e) {
+        console.error("File list refresh failed:", e);
+    }
+};
+
+// 2. The New File Button
+document.getElementById('new-file-btn').addEventListener('click', () => {
+    let fileName = prompt("Enter new file name (e.g., Main.hs):");
+    if (!fileName) return;
+    
+    // Clean up any accidental spaces
+    fileName = fileName.trim(); 
+
+    // Ensure the root workspace directory exists
+    try { Module.FS.mkdir(home); } catch(e) {}
+    
+    const fullPath = home + '/' + fileName;
+    const filePicker = document.getElementById('file-picker');
+    
+    try {
+        // Create an empty file in Wasm RAM
+        Module.FS.writeFile(fullPath, ""); 
+        
+        // Refresh the dropdown
+        window.refreshFileList();
+        
+        // FORCED FALLBACK: If refresh failed to add it, manually inject the option
+        const exists = Array.from(filePicker.options).some(opt => opt.value === fullPath);
+        if (!exists) {
+            const opt = document.createElement('option');
+            opt.value = fullPath;
+            opt.textContent = fileName;
+            filePicker.appendChild(opt);
+        }
+
+        // Force the dropdown to select the new file
+        filePicker.value = fullPath;
+        
+        // Clear the editor, ready for typing
+        if (window.editor) {
+            window.editor.setValue("", -1);
+        }
+    } catch(err) {
+        console.error("Failed to create file:", err);
+        alert("Failed to create the file. Check the browser console.");
+    }
+});
+
+document.getElementById('save-btn').addEventListener('click', () => {
+    const filePicker = document.getElementById('file-picker');
+    const currentFile = filePicker.value;
+    
+    // Strict check to ensure a valid file is selected
+    if (!currentFile || currentFile === "") {
+        alert("Please select a file from the dropdown first!");
+        return;
+    }
+    
+    try {
+        // Grab code and save to Emscripten FS
+        const code = window.editor ? window.editor.getValue() : editor.getValue();
+        Module.FS.writeFile(currentFile, code);
+        
+    } catch(err) {
+        term.writeln(`\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
+    }
+});
+
+document.getElementById('save-run-btn').addEventListener('click', () => {
+    const filePicker = document.getElementById('file-picker');
+    const currentFile = filePicker.value;
+    
+    // Strict check to ensure a valid file is selected
+    if (!currentFile || currentFile === "") {
+        alert("Please select a file from the dropdown first!");
+        return;
+    }
+    
+    try {
+        // Grab code and save to Emscripten FS
+        const code = window.editor ? window.editor.getValue() : editor.getValue();
+        Module.FS.writeFile(currentFile, code);
+        
+        let moduleName = currentFile;
+
+        if (moduleName.startsWith(home)) {
+            moduleName = moduleName.slice(home.length+1);
+        }
+        moduleName = moduleName.replace(/\.hs$/, '');
+        moduleName = moduleName.replace(/\//g, '.');
+
+        sendToMicroHs("import " + moduleName + '\n');
+        sendToMicroHs(":main" + '\n')
+
+    } catch(err) {
+        term.writeln(`\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
+    }
+});
+
+
 
 function updateMousePos(e) {
     const rect = canvas.getBoundingClientRect();
