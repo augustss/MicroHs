@@ -93,6 +93,7 @@
     <div id="header">
       Welcome to MicroHs in the Browser
       <div class="button-row">
+        <input type="file" id="fallback-picker" webkitdirectory directory multiple style="display:none;">
         <button id="mount-btn">📁 Select Local Workspace</button>
         <button id="download-url-btn">🌐 Download from GitHub</button>
       </div>
@@ -144,9 +145,14 @@ TAB           complete word
 Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
 `
 
+        const home = `/home/web_user`;
+
+      const system_prefix = `\r\n\x1b[32m[System]\x1b[0m `;
+
         const canvas = document.getElementById('drawing-canvas');
         const ctx = canvas.getContext('2d', { alpha: false });
 
+        window.cvs = canvas;
         window.ctx = ctx;
         window.mouseState = { x: 0.0, y: 0.0, down: false };
 
@@ -172,6 +178,21 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
             term.open(document.getElementById('terminal'));
             fitAddon.fit();
 
+            function startHistorySync() {
+                setInterval(() => {
+                    try {
+                        const historyData = Module.FS.readFile(home + '/.mhsi', { encoding: 'utf8' });
+                        if (historyData) {
+                            const lines = historyData.split('\n');
+                            const last100 = lines.slice(-100).join('\n');
+                            localStorage.setItem('mhs_history', last100);
+                        }
+                    } catch (e) {
+                        // silently ignore if the file doesn't exists
+                    }
+                }, 5000);
+            }
+
             window.Module = {
                 preRun: [function() {
                     // Initialize Standard I/O
@@ -191,15 +212,22 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         }
                     );
 
-                    Module.FS.mkdir('/upload');
-                    Module.FS.chdir('/upload');
+                    // Module.FS.mkdir('/upload');
+                    Module.FS.chdir(home);
 
                     Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
                     Module.FS.writeFile("line_edit", line_edit_text);
 
+                    // Get a possibly saved command history
+                    const saved = localStorage.getItem('mhs_history');
+                    if (saved) {
+                        try { Module.FS.writeFile('.mhsi', saved); } catch(e){}
+                    }
+                    startHistorySync();
+
                 }],
                 print: () => {},
-                printErr: (text) => term.writeln("ERR: " + text)
+                printErr: (text) => term.writeln("Fatal error: " + text)
             };
 
 
@@ -245,25 +273,57 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
 
             // The Button Click Event
             document.getElementById('mount-btn').addEventListener('click', async () => {
-                try {
-                    // 1. Ask the user to pick a folder
-                    const rootDirHandle = await window.showDirectoryPicker();
+                if (window.showDirectoryPicker) {
+                    try {
+                        const rootDirHandle = await window.showDirectoryPicker();
 
-                    term.writeln(`\r\n\x1b[32m[System]\x1b[0m Indexing directory... This may take a moment.`);
+                        const targetPath = home + `/${rootDirHandle.name}`;
 
-                    // 2. Recursively mount everything under /upload
-                    await mountDirectory(rootDirHandle, '/upload');
+                        term.writeln(system_prefix + `Mounting directory into ${targetPath}...`);
 
-                    term.writeln(`\r\n\x1b[32m[System]\x1b[0m Workspace mounted successfully at .`);
+                        await mountDirectory(rootDirHandle, targetPath);
 
-                    // 3. Start the background sync loop for edits
-                    if (!window.syncInterval) {
-                        window.syncInterval = setInterval(pollFiles, 500);
+                        term.writeln(system_prefix + `Workspace mounted successfully.`);
+
+                        // Sync logic and UI refresh
+                        if (!window.syncInterval) window.syncInterval = setInterval(pollFiles, 500);
+                        if (window.refreshFileList) window.refreshFileList();
+
+                    } catch (err) {
+                        term.writeln(system_prefix + `Mount failed or cancelled.`);
                     }
-                } catch (err) {
-                    console.error("Directory picker cancelled or failed", err);
-                    term.writeln(`\r\n\x1b[31m[System]\x1b[0m Failed to mount workspace.`);
+                } else {
+                    document.getElementById('fallback-picker').click();
                 }
+            });
+
+            // Listener for the Fallback Input
+            document.getElementById('fallback-picker').addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (files.length === 0) return;
+
+                term.writeln(system_prefix + `Uploading ${files.length} files to virtual RAM disk...`);
+
+                for (const file of files) {
+                    // webkitRelativePath gives us "folder/sub/file.hs"
+                    const path = file.webkitRelativePath;
+                    const buffer = await file.arrayBuffer();
+                    const data = new Uint8Array(buffer);
+
+                    // Ensure subdirectories exist in Emscripten FS
+                    const parts = path.split('/');
+                    let currentPath = home;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        currentPath += '/' + parts[i];
+                        try { Module.FS.mkdir(currentPath); } catch (e) {}
+                    }
+
+                    // Write the file to /upload/whatever/file.hs
+                    Module.FS.writeFile(home + '/' + path, data);
+                }
+
+                term.writeln(system_prefix + `Workspace loaded (RAM only, no Live Sync).`);
+                if (window.refreshFileList) window.refreshFileList();
             });
 
             document.getElementById('download-url-btn').addEventListener('click', async () => {
@@ -282,7 +342,7 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                     // Use the Recursive Trees API
                     const apiUrl = `https://api.github.com/repos/${user}/${repo}/git/trees/${branch}?recursive=1`;
 
-                    term.writeln(`\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
+                    term.writeln(system_prefix + `\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
                     const response = await fetch(apiUrl);
                     const data = await response.json();
 
@@ -304,10 +364,10 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                         if (item.type === 'tree') {
                             try {
                                 Module.FS.mkdirTree(relativePath); // mkdirTree handles nested parents!
-                                term.writeln(`  Created dir: ${relativePath}`);
+                                term.writeln(system_prefix + `  Created dir: ${relativePath}`);
                             } catch(e) {}
                         } else if (item.type === 'blob') {
-                            term.writeln(`  Fetching: ${relativePath}`);
+                            term.writeln(system_prefix + `  Fetching: ${relativePath}`);
                             const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
                             const fileRes = await fetch(downloadUrl);
 
@@ -321,30 +381,52 @@ Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
                             }
                         }
                     }
-                    term.writeln(`\x1b[32mDownload Complete!\x1b[0m`);
+                    term.writeln(system_prefix + `\x1b[32mDownload Complete!\x1b[0m`);
 
                 } catch (error) {
-                    term.writeln(`\x1b[31mError: ${error.message}\x1b[0m`);
+                    term.writeln(system_prefix + `\x1b[31mError: ${error.message}\x1b[0m`);
                 }
             });
 
 
-            // The polling function remains exactly the same!
-            async function pollFiles() {
-                for (const [path, entry] of Object.entries(fileRegistry)) {
-                    try {
-                        const file = await entry.handle.getFile();
-                        if (file.lastModified > entry.lastModified) {
-                            const data = new Uint8Array(await file.arrayBuffer());
-                            Module.FS.writeFile(path, data);
-                            entry.lastModified = file.lastModified;
-                            console.log(`Auto-synced updated file: ${path}`);
-                        }
-                    } catch (e) {
-                        // Ignore (file might be locked by OS momentarily)
-                    }
-                }
+async function pollFiles() {
+    for (const [path, entry] of Object.entries(fileRegistry)) {
+        try {
+            // 1. Get stats from the Emscripten virtual filesystem
+            const stats = Module.FS.stat(path);
+            const vfsModified = stats.mtime.getTime();
+
+            // 2. CHECK: Did the user change the file inside the IDE?
+            if (vfsModified > entry.lastModified) {
+                const data = Module.FS.readFile(path); // Grab data from MEMFS
+
+                // Write back to the real local disk
+                const writable = await entry.handle.createWritable();
+                await writable.write(data);
+                await writable.close();
+
+                // Update registry so we don't loop forever
+                entry.lastModified = vfsModified;
+                console.log(`Saved to local disk: ${path}`);
+                continue; // Skip the rest of this iteration
             }
+
+            // 3. CHECK: Did the file change on the external disk? (Your existing code)
+            const file = await entry.handle.getFile();
+            if (file.lastModified > entry.lastModified) {
+                const data = new Uint8Array(await file.arrayBuffer());
+                Module.FS.writeFile(path, data);
+
+                // Important: sync the MEMFS mtime with the real file mtime
+                entry.lastModified = file.lastModified;
+                console.log(`Auto-synced from local disk: ${path}`);
+            }
+        } catch (e) {
+            // Likely a "read-only" or "permission" error
+            // console.warn(`Sync failed for ${path}:`, e);
+        }
+    }
+}
 
             term.onData(data => {
                 for (let i = 0; i < data.length; i++) {
@@ -418,10 +500,10 @@ function updateMousePos(e) {
     const rect = canvas.getBoundingClientRect();
     const rawX = e.clientX - rect.left;
     const rawY = e.clientY - rect.top;
-    
+
     // Translate to center-origin and flip Y axis
     window.mouseState.x = rawX - (rect.width / 2);
-    window.mouseState.y = (rect.height / 2) - rawY; 
+    window.mouseState.y = (rect.height / 2) - rawY;
 }
 
 canvas.addEventListener('mousemove', updateMousePos);
@@ -441,28 +523,28 @@ window.drawHaskellText = function(textPtr) {
     const canvas = document.getElementById('drawing-canvas');
     const ctx = canvas.getContext('2d');
     const str = UTF8ToString(textPtr);
-    
+
     // 1. Read the absolute screen coordinates calculated by Haskell's 'Translate'
     const matrix = ctx.getTransform();
-    
+
     ctx.save();
-    
+
     // 2. Erase all scaling, flipping, and rotating to jump back to perfect Screen Space
-    ctx.resetTransform(); 
-    
+    ctx.resetTransform();
+
     // 3. Only set the font if it's different (Prevents Glyph Cache Trashing)
     if (ctx.font !== '24px monospace') {
         ctx.font = '24px monospace';
     }
     ctx.textBaseline = 'middle';
-    
+
     // 4. Snap the absolute screen coordinates to exact integers
     const screenX = Math.round(matrix.e);
     const screenY = Math.round(matrix.f);
-    
+
     // 5. Draw the text right-side up, perfectly pixel-aligned
     ctx.fillText(str, screenX, screenY);
-    
+
     ctx.restore();
 };
 
