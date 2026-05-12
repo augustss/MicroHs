@@ -205,7 +205,7 @@
     </div>
 
     <div id="right-panel">
-      <div id="canvas-container">
+      <div id="canvas-container" style="display: none;">
         <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
         <canvas id="drawing-canvas"></canvas>
       </div>
@@ -228,7 +228,7 @@ putStrLn ""
 putStrLn "*** MicroHs Web Playground ***"
 putStrLn "Use ':defs' to see definitions."
 putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
-putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo6."
+putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo7."
 putStrLn "To access local files, use the button above to select a directory."
 putStrLn ""
 `;
@@ -562,44 +562,87 @@ main = display $ Color red $ SolidCircle 50
         }
       });
 
-      async function pollFiles() {
-        for (const [path, entry] of Object.entries(fileRegistry)) {
-          try {
-            // 1. Get stats from the Emscripten virtual filesystem
-            const stats = Module.FS.stat(path);
-            const vfsModified = stats.mtime.getTime();
+// Quick helper to compare two Uint8Arrays
+function arrayEqual(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
-            // 2. CHECK: Did the user change the file inside the IDE?
-            if (vfsModified > entry.lastModified) {
-              const data = Module.FS.readFile(path); // Grab data from MEMFS
+async function pollFiles() {
+  for (const [path, entry] of Object.entries(fileRegistry)) {
+    try {
+      // 1. Get stats from the Emscripten virtual filesystem
+      const stats = Module.FS.stat(path);
+      const vfsModified = stats.mtime.getTime();
 
-              // Write back to the real local disk
-              const writable = await entry.handle.createWritable();
-              await writable.write(data);
-              await writable.close();
+      // We'll need the local file handle for both checks now
+      const file = await entry.handle.getFile();
 
-              // Update registry so we don't loop forever
-              entry.lastModified = vfsModified;
-              console.log(`Saved to local disk: ${path}`);
-              continue; // Skip the rest of this iteration
-            }
+      // 2. CHECK: Did the user change the file inside the IDE?
+      if (vfsModified > entry.lastModified) {
+        const memData = Module.FS.readFile(path); // Grab data from MEMFS
+        const localData = new Uint8Array(await file.arrayBuffer()); // Grab local data
 
-            // 3. CHECK: Did the file change on the external disk? (Your existing code)
-            const file = await entry.handle.getFile();
-            if (file.lastModified > entry.lastModified) {
-              const data = new Uint8Array(await file.arrayBuffer());
-              Module.FS.writeFile(path, data);
-
-              // Important: sync the MEMFS mtime with the real file mtime
-              entry.lastModified = file.lastModified;
-              console.log(`Auto-synced from local disk: ${path}`);
-            }
-          } catch (e) {
-            // Likely a "read-only" or "permission" error
-            // console.warn(`Sync failed for ${path}:`, e);
-          }
+        // Only write if the contents are actually different
+        if (!arrayEqual(memData, localData)) {
+          const writable = await entry.handle.createWritable();
+          await writable.write(memData);
+          await writable.close();
+          console.log(`Saved to local disk: ${path}`);
         }
+
+        // Update registry so we don't loop forever
+        entry.lastModified = vfsModified;
+        continue; // Skip the rest of this iteration
       }
+
+      // 3. CHECK: Did the file change on the external disk?
+      if (file.lastModified > entry.lastModified) {
+        const localData = new Uint8Array(await file.arrayBuffer());
+        const memData = Module.FS.readFile(path); // Re-read MEMFS to compare
+
+        // Only write if the contents are actually different
+        if (!arrayEqual(localData, memData)) {
+            Module.FS.writeFile(path, localData);
+            console.log(`Auto-synced from local disk: ${path}`);
+
+            const currentFilePath = document.getElementById('file-picker').value; 
+          
+            if (path === currentFilePath) {
+                const newText = new TextDecoder().decode(localData);
+                const currentEditorText = editor.getValue();
+                const oldMemfsText = new TextDecoder().decode(memData);
+
+                // Check if the user has unsaved changes in the editor
+                if (currentEditorText === oldMemfsText) {
+                    // SAFE: No unsaved changes. Swap the text out smoothly.
+                    const cursorPos = editor.getCursorPosition(); 
+                    editor.session.setValue(newText);
+                    editor.moveCursorToPosition(cursorPos); 
+                } else {
+                    // BRUTAL AVOIDED: The user is currently typing!
+                    // We do NOT overwrite the editor. 
+                    term.writeFile(system_prefix + `Conflict on ${path}: File changed on disk, but you have unsaved changes in the editor!`);
+              
+                    // Optional: You could turn the Save button red here to warn them
+                    // document.getElementById('save-btn').style.backgroundColor = '#d32f2f';
+                }
+            }
+        }
+
+        // Important: sync the tracked mtime with the real file mtime
+        entry.lastModified = file.lastModified;
+      }
+    } catch (e) {
+      // Likely a "read-only" or "permission" error
+      // console.warn(`Sync failed for ${path}:`, e);
+    }
+  }
+}
+
 
       function sendToMicroHs(data) {
         for (let i = 0; i < data.length; i++) {
@@ -776,7 +819,7 @@ main = display $ Color red $ SolidCircle 50
           Module.FS.writeFile(currentFile, code);
 
         } catch (err) {
-          term.writeln(`\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
+          term.writeln(system_prefix + `\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
         }
       });
 
@@ -807,7 +850,7 @@ main = display $ Color red $ SolidCircle 50
           sendToMicroHs(":main" + '\n')
 
         } catch (err) {
-          term.writeln(`\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
+          term.writeln(system_prefix + `\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
         }
       });
 
