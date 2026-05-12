@@ -72,8 +72,32 @@ getraw(void)
   }
 }
 
+/* While we are drawing we don't want to emscripten_sleep(),
+ * because that may yield inside the renering loop and can
+ * cause a premature transfer of the drawing buffer and flickering.
+ */
+int is_drawing = 0;
+
+void c_begin_draw(void) {
+    is_drawing = 1;
+}
+
+void c_end_draw(void) {
+    is_drawing = 0;
+}
+
 /* Allow a thread switch in yield() */
-#define YIELD_EXTRA do { emscripten_sleep(0); } while(0)
+#define YIELD_EXTRA do { if (!is_drawing) emscripten_sleep(0); } while(0)
+
+// Create a C function called c_waitForFrame
+// that executes the JavaScript inside the block.
+EM_ASYNC_JS(void, c_waitForFrame, (), {
+    return new Promise(function(resolve) {
+        requestAnimationFrame(function() {
+            resolve(); 
+        });
+    });
+});
 
 #else  /* USE_WEB_INPUT */
 
