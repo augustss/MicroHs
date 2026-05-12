@@ -868,6 +868,66 @@ main = display $ Color red $ SolidCircle 50
       };
 
     };
+
+    // Initialize the global registry
+    window.audioCtx = null;
+    window.audioNodes = [];
+
+    window.js_initAudio = function() {
+        if (!window.audioCtx) {
+            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // Index 0 is always the master speakers
+            window.audioNodes = [window.audioCtx.destination];
+        }
+        if (window.audioCtx.state === 'suspended') {
+            window.audioCtx.resume();
+        }
+    };
+
+    window.js_currentTime = function() {
+        return window.audioCtx.currentTime;
+    };
+
+    window.js_createOscillator = function(waveType) {
+        let osc = window.audioCtx.createOscillator();
+        osc.type = ["sine", "square", "sawtooth", "triangle"][waveType];
+        let id = window.audioNodes.length;
+        window.audioNodes.push(osc);
+        return id;
+    };
+
+    window.js_createGain = function() {
+        let gain = window.audioCtx.createGain();
+        let id = window.audioNodes.length;
+        window.audioNodes.push(gain);
+        return id;
+    };
+
+    window.js_connect = function(sourceId, targetId) {
+        window.audioNodes[sourceId].connect(window.audioNodes[targetId]);
+    };
+
+    window.js_setFrequency = function(id, freq, time) {
+        window.audioNodes[id].frequency.setValueAtTime(freq, time);
+    };
+
+    window.js_setGain = function(id, vol, time) {
+        window.audioNodes[id].gain.setValueAtTime(vol, time);
+    };
+
+    window.js_rampGain = function(id, vol, time) {
+        window.audioNodes[id].gain.exponentialRampToValueAtTime(vol, time);
+    };
+
+    window.js_startNode = function(id, time) {
+        window.audioNodes[id].start(time);
+    };
+
+    window.js_stopNode = function(id, time) {
+        window.audioNodes[id].stop(time);
+    };
+
+
   </script>
 </body>
 
