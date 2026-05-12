@@ -1,164 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Web MicroHs</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta charset="UTF-8">
+  <title>Web MicroHs</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
 
-<style>
+  <style>
 
-  body, html {
-      margin: 0; 
-      padding: 0; 
-      height: 100%; 
-      width: 100%;
-      background-color: #1a1a1a; 
-      color: white;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex; 
-      flex-direction: column; 
-      overflow: hidden;
-  }
+    body, html {
+        margin: 0; 
+        padding: 0; 
+        height: 100%; 
+        width: 100%;
+        background-color: #1a1a1a; 
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden;
+    }
   
-  /* Slimmed down header for desktop */
-  #header {
-      background: #252526;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #333;
-      flex-shrink: 0;
-  }
+    /* Slimmed down header for desktop */
+    #header {
+        background: #252526;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #333;
+        flex-shrink: 0;
+    }
   
-  #header h1 {
-      margin: 0; 
-      font-size: 1.2rem; 
-      color: #ccc;
-  }
+    #header h1 {
+        margin: 0; 
+        font-size: 1.2rem; 
+        color: #ccc;
+    }
   
-  .button-row {
-      display: flex; 
-      gap: 10px;
-  }
+    .button-row {
+        display: flex; 
+        gap: 10px;
+    }
   
-  .button-row button {
-      cursor: pointer;
-      padding: 4px 10px;
-  }
+    .button-row button {
+        cursor: pointer;
+        padding: 4px 10px;
+    }
   
-  /* The Workspace: Splits the screen horizontally */
-  #workspace {
-      display: flex;
-      flex-grow: 1;
-      width: 100vw;
-      overflow: hidden;
-  }
+    /* The Workspace: Splits the screen horizontally */
+    #workspace {
+        display: flex;
+        flex-grow: 1;
+        width: 100vw;
+        overflow: hidden;
+    }
   
-  /* Left side: Ace Editor */
-  #left-panel {
-      flex: 0 0 50%; 
-      display: flex;
-      flex-direction: column;
-      border-right: 2px solid #000;
-      background: #1e1e1e;
-  }
+    /* Left side: Ace Editor */
+    #left-panel {
+        flex: 0 0 50%; 
+        display: flex;
+        flex-direction: column;
+        border-right: 2px solid #000;
+        background: #1e1e1e;
+    }
   
-  #editor-toolbar {
-      background: #333;
-      padding: 5px 10px;
-      display: flex;
-      gap: 10px;
-  }
+    #editor-toolbar {
+        background: #333;
+        padding: 5px 10px;
+        display: flex;
+        gap: 10px;
+    }
   
-  #file-picker {
-      background: #3c3c3c;
-      color: white;
-      border: 1px solid #555;
-      padding: 2px 5px;
-      flex-grow: 1;
-      cursor: pointer;
-  }
+    #file-picker {
+        background: #3c3c3c;
+        color: white;
+        border: 1px solid #555;
+        padding: 2px 5px;
+        flex-grow: 1;
+        cursor: pointer;
+    }
+    
+    #save-run-btn {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 4px 12px;
+        cursor: pointer;
+    }
+    
+    #stop-btn {
+        background-color: #d32f2f;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 4px 12px;
+        cursor: pointer;
+    }
+    
+    #editor-container {
+        flex-grow: 1;
+        width: 100%;
+    }
+    
+    /* Right side: Output (Canvas top, Terminal bottom) */
+    #right-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #000;
+    }
+    
+    #canvas-container {
+        flex: 1.5; /* Canvas gets slightly more space than the terminal */
+        position: relative;
+        border-bottom: 2px solid #333;
+        overflow: hidden;
+    }
+    
+    #terminal-container {
+        flex: 1; 
+        position: relative;
+        background: #000;
+    }
+    
+    #terminal {
+        position: absolute; 
+        top: 5px; 
+        bottom: 5px; 
+        left: 5px; 
+        right: 5px;
+    }
+    
+    /* Canvas must fill container */
+    #drawing-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
   
-  #save-run-btn {
-      background-color: #28a745;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      padding: 4px 12px;
-      cursor: pointer;
-  }
+    /* The "Close" button for the drawing overlay */
+    #close-canvas-btn {
+        position: absolute; 
+        top: 10px; 
+        right: 10px; 
+        z-index: 10;
+        background-color: rgba(60, 60, 60, 0.8);
+        color: white; 
+        border: 1px solid #555;
+        border-radius: 4px; 
+        padding: 4px 8px; 
+        cursor: pointer;
+    }
   
-  #editor-container {
-      flex-grow: 1;
-      width: 100%;
-  }
+    #close-canvas-btn:hover {
+        background-color: rgba(90, 90, 90, 0.9);
+    }
   
-  /* Right side: Output (Canvas top, Terminal bottom) */
-  #right-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #000;
-  }
-  
-  #canvas-container {
-      flex: 1.5; /* Canvas gets slightly more space than the terminal */
-      position: relative;
-      border-bottom: 2px solid #333;
-      overflow: hidden;
-  }
-  
-  #terminal-container {
-      flex: 1; 
-      position: relative;
-      background: #000;
-  }
-  
-  #terminal {
-      position: absolute; 
-      top: 5px; 
-      bottom: 5px; 
-      left: 5px; 
-      right: 5px;
-  }
-  
-  /* Canvas must fill container */
-  #drawing-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-  }
-  
-  /* The "Close" button for the drawing overlay */
-  #close-canvas-btn {
-      position: absolute; 
-      top: 10px; 
-      right: 10px; 
-      z-index: 10;
-      background-color: rgba(60, 60, 60, 0.8);
-      color: white; 
-      border: 1px solid #555;
-      border-radius: 4px; 
-      padding: 4px 8px; 
-      cursor: pointer;
-  }
-  
-  #close-canvas-btn:hover {
-      background-color: rgba(90, 90, 90, 0.9);
-  }
-  
-  /* Responsive fallback for when you resize the window or use a tablet/phone */
-  @media (max-width: 800px) {
-      #workspace { flex-direction: column; }
-      #left-panel { flex: 0 0 40%; border-right: none; border-bottom: 2px solid #000; }
-  }
-
-</style>
+    /* Responsive fallback for when you resize the window or use a tablet/phone */
+    @media (max-width: 800px) {
+        #workspace { flex-direction: column; }
+        #left-panel { flex: 0 0 40%; border-right: none; border-bottom: 2px solid #000; }
+    }
+    
+  </style>
 
 </head>
 <body>
@@ -179,8 +188,9 @@
           <option value="">-- Select File --</option>
         </select>
         <button id="new-file-btn">➕ New</button>
-        <button id="save-btn">▶ Save</button>
+        <button id="save-btn">▼ Save</button>
         <button id="save-run-btn">▶ Run</button>
+        <button id="stop-btn">⏹ Stop</button>
       </div>
       <div id="editor-container"></div>
     </div>
@@ -249,61 +259,68 @@ main = display $ Color red $ SolidCircle 50
     window.ctx = ctx;
     window.mouseState = { x: 0.0, y: 0.0, down: false };
 
-        window.onload = function() {
-            const term = new Terminal({
-                cursorBlink: true,
-                rightClickSelectsWord: true,
-                fontFamily: 'monospace',
-                fontSize: 16,
-                theme: {
-                    background: '#000000',
-                    red: '#ff5555',
-                    green: '#50fa7b',
-                    yellow: '#f1fa8c',
-                    blue: '#bd93f9',
-                    cyan: '#8be9fd',
-                    foreground: '#ffffff'
-                }
-            });
-
-            const fitAddon = new FitAddon.FitAddon();
-            term.loadAddon(fitAddon);
-            term.open(document.getElementById('terminal'));
-            fitAddon.fit();
-
-// 1. Initialize the Editor
-const editor = ace.edit("editor-container");
-
-// 2. Configure Theme and Language
-editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
-editor.session.setMode("ace/mode/haskell");
-
-// 3. Desktop/Mac Optimizations
-editor.setOptions({
-    fontSize: "14px",
-    fontFamily: "Menlo, Monaco, 'Courier New', monospace",
-    wrap: true,               // Wraps long lines
-    showPrintMargin: false,   // Hides the annoying vertical line in the middle
-    behavioursEnabled: true   // Auto-closes brackets and quotes
-});
-
-
-            function startHistorySync() {
-                setInterval(() => {
-                    try {
-                        const historyData = Module.FS.readFile(home + '/.mhsi', { encoding: 'utf8' });
-                        if (historyData) {
-                            const lines = historyData.split('\n');
-                            const last100 = lines.slice(-100).join('\n');
-                            localStorage.setItem('mhs_history', last100);
-                        }
-                    } catch (e) {
-                        // silently ignore if the file doesn't exists
-                    }
-                }, 5000);
+    window.onload = function() {
+        const term = new Terminal({
+            cursorBlink: true,
+            rightClickSelectsWord: true,
+            fontFamily: 'monospace',
+            fontSize: 16,
+            theme: {
+                background: '#000000',
+                red: '#ff5555',
+                green: '#50fa7b',
+                yellow: '#f1fa8c',
+                blue: '#bd93f9',
+                cyan: '#8be9fd',
+                foreground: '#ffffff'
             }
+        });
+        
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
 
-            window.Module = {
+        const editor = ace.edit("editor-container");
+
+        editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
+        editor.session.setMode("ace/mode/haskell");
+
+        editor.setOptions({
+            fontSize: "14px",
+            fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+            wrap: true,               // Wraps long lines
+            showPrintMargin: false,   // Hides the annoying vertical line in the middle
+            behavioursEnabled: true   // Auto-closes brackets and quotes
+        });
+
+
+        function getUrlArgs() {
+            const params = new URLSearchParams(window.location.search);
+            const argsString = params.get('args');
+            
+            if (!argsString) return [];
+            
+            return argsString.trim().split(/\s+/);
+        }
+
+        function startHistorySync() {
+            setInterval(() => {
+                try {
+                    const historyData = Module.FS.readFile(home + '/.mhsi', { encoding: 'utf8' });
+                    if (historyData) {
+                        const lines = historyData.split('\n');
+                        const last100 = lines.slice(-100).join('\n');
+                        localStorage.setItem('mhs_history', last100);
+                    }
+                } catch (e) {
+                    // silently ignore if the file doesn't exists
+                }
+            }, 5000);
+        }
+
+        window.Module = {
+                arguments: getUrlArgs(),
                 preRun: [function() {
                     // Initialize Standard I/O
                     Module.FS.init(
@@ -389,20 +406,20 @@ editor.setOptions({
                 }
             }
 
-document.getElementById('file-picker').addEventListener('change', (e) => {
-    const fileName = e.target.value;
-    if (!fileName) return;
+        document.getElementById('file-picker').addEventListener('change', (e) => {
+            const fileName = e.target.value;
+            if (!fileName) return;
     
-    try {
-        // Read file from RAM disk
-        const content = Module.FS.readFile(fileName, { encoding: 'utf8' });
-        
-        // Push it into Ace and move cursor to the top (-1)
-        editor.setValue(content, -1);
-    } catch (err) {
-        term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
-    }
-});
+            try {
+                // Read file from RAM disk
+                const content = Module.FS.readFile(fileName, { encoding: 'utf8' });
+                
+                // Push it into Ace and move cursor to the top (-1)
+                editor.setValue(content, -1);
+            } catch (err) {
+                term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
+            }
+        });
 
             // The Button Click Event
             document.getElementById('mount-btn').addEventListener('click', async () => {
@@ -632,15 +649,14 @@ document.getElementById('file-picker').addEventListener('change', (e) => {
                 }
             };
 
-// 1. The Refresh Function
-window.refreshFileList = function() {
-    const filePicker = document.getElementById('file-picker');
-    const currentSelection = filePicker.value;
+        window.refreshFileList = function() {
+            const filePicker = document.getElementById('file-picker');
+            const currentSelection = filePicker.value;
     
-    // Reset the dropdown
-    filePicker.innerHTML = '<option value="">-- Select File --</option>';
+            // Reset the dropdown
+            filePicker.innerHTML = '<option value="">-- Select File --</option>';
     
-    try {
+            try {
         function gatherFiles(dir) {
             Module.FS.readdir(dir).forEach(name => {
                 // Skip current/parent directory pointers
@@ -770,6 +786,11 @@ document.getElementById('save-run-btn').addEventListener('click', () => {
     }
 });
 
+document.getElementById('stop-btn').addEventListener('click', () => {
+    sendToMicroHs("\x03");
+
+});
+            
 
 
 function updateMousePos(e) {
