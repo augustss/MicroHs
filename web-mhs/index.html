@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Web MicroHs</title>
@@ -10,166 +11,174 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
   <style>
-
-    body, html {
-        margin: 0; 
-        padding: 0; 
-        height: 100%; 
-        width: 100%;
-        background-color: #1a1a1a; 
-        color: white;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        display: flex; 
-        flex-direction: column; 
-        overflow: hidden;
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background-color: #1a1a1a;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
-  
+
     /* Slimmed down header for desktop */
     #header {
-        background: #252526;
-        padding: 10px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #333;
-        flex-shrink: 0;
+      background: #252526;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
     }
-  
+
     #header h1 {
-        margin: 0; 
-        font-size: 1.2rem; 
-        color: #ccc;
+      margin: 0;
+      font-size: 1.2rem;
+      color: #ccc;
     }
-  
+
     .button-row {
-        display: flex; 
-        gap: 10px;
+      display: flex;
+      gap: 10px;
     }
-  
+
     .button-row button {
-        cursor: pointer;
-        padding: 4px 10px;
+      cursor: pointer;
+      padding: 4px 10px;
     }
-  
+
     /* The Workspace: Splits the screen horizontally */
     #workspace {
-        display: flex;
-        flex-grow: 1;
-        width: 100vw;
-        overflow: hidden;
+      display: flex;
+      flex-grow: 1;
+      width: 100vw;
+      overflow: hidden;
     }
-  
+
     /* Left side: Ace Editor */
     #left-panel {
-        flex: 0 0 50%; 
-        display: flex;
-        flex-direction: column;
-        border-right: 2px solid #000;
-        background: #1e1e1e;
+      flex: 0 0 50%;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #000;
+      background: #1e1e1e;
     }
-  
+
     #editor-toolbar {
-        background: #333;
-        padding: 5px 10px;
-        display: flex;
-        gap: 10px;
+      background: #333;
+      padding: 5px 10px;
+      display: flex;
+      gap: 10px;
     }
-  
+
     #file-picker {
-        background: #3c3c3c;
-        color: white;
-        border: 1px solid #555;
-        padding: 2px 5px;
-        flex-grow: 1;
-        cursor: pointer;
+      background: #3c3c3c;
+      color: white;
+      border: 1px solid #555;
+      padding: 2px 5px;
+      flex-grow: 1;
+      cursor: pointer;
     }
-    
+
     #save-run-btn {
-        background-color: #28a745;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 4px 12px;
-        cursor: pointer;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
     }
-    
+
     #stop-btn {
-        background-color: #d32f2f;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 4px 12px;
-        cursor: pointer;
+      background-color: #d32f2f;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
     }
-    
+
     #editor-container {
-        flex-grow: 1;
-        width: 100%;
+      flex-grow: 1;
+      width: 100%;
     }
-    
+
     /* Right side: Output (Canvas top, Terminal bottom) */
     #right-panel {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        background: #000;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #000;
     }
-    
+
     #canvas-container {
-        flex: 1.5; /* Canvas gets slightly more space than the terminal */
-        position: relative;
-        border-bottom: 2px solid #333;
-        overflow: hidden;
+      flex: 1.5;
+      /* Canvas gets slightly more space than the terminal */
+      position: relative;
+      border-bottom: 2px solid #333;
+      overflow: hidden;
     }
-    
+
     #terminal-container {
-        flex: 1; 
-        position: relative;
-        background: #000;
+      flex: 1;
+      position: relative;
+      background: #000;
     }
-    
+
     #terminal {
-        position: absolute; 
-        top: 5px; 
-        bottom: 5px; 
-        left: 5px; 
-        right: 5px;
+      position: absolute;
+      top: 5px;
+      bottom: 5px;
+      left: 5px;
+      right: 5px;
     }
-    
+
     /* Canvas must fill container */
     #drawing-canvas {
-        display: block;
-        width: 100%;
-        height: 100%;
+      display: block;
+      width: 100%;
+      height: 100%;
     }
-  
+
     /* The "Close" button for the drawing overlay */
     #close-canvas-btn {
-        position: absolute; 
-        top: 10px; 
-        right: 10px; 
-        z-index: 10;
-        background-color: rgba(60, 60, 60, 0.8);
-        color: white; 
-        border: 1px solid #555;
-        border-radius: 4px; 
-        padding: 4px 8px; 
-        cursor: pointer;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      background-color: rgba(60, 60, 60, 0.8);
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
     }
-  
+
     #close-canvas-btn:hover {
-        background-color: rgba(90, 90, 90, 0.9);
+      background-color: rgba(90, 90, 90, 0.9);
     }
-  
+
     /* Responsive fallback for when you resize the window or use a tablet/phone */
     @media (max-width: 800px) {
-        #workspace { flex-direction: column; }
-        #left-panel { flex: 0 0 40%; border-right: none; border-bottom: 2px solid #000; }
+      #workspace {
+        flex-direction: column;
+      }
+
+      #left-panel {
+        flex: 0 0 40%;
+        border-right: none;
+        border-bottom: 2px solid #000;
+      }
     }
-    
   </style>
 
 </head>
+
 <body>
 
   <div id="header">
@@ -194,7 +203,7 @@
       </div>
       <div id="editor-container"></div>
     </div>
-    
+
     <div id="right-panel">
       <div id="canvas-container">
         <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
@@ -205,9 +214,8 @@
       </div>
     </div>
   </div>
-  
-  <script>
 
+  <script>
     const mhsi_rc_text = `
 import System.Directory
 cat :: FilePath -> IO ()
@@ -253,600 +261,614 @@ main = display $ Color red $ SolidCircle 50
     const system_prefix = `\r\n\x1b[32m[System]\x1b[0m `;
 
     const canvas = document.getElementById('drawing-canvas');
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', {
+      alpha: false
+    });
 
     window.cvs = canvas;
     window.ctx = ctx;
-    window.mouseState = { x: 0.0, y: 0.0, down: false };
+    window.mouseState = {
+      x: 0.0,
+      y: 0.0,
+      down: false
+    };
 
     window.onload = function() {
-        const term = new Terminal({
-            cursorBlink: true,
-            rightClickSelectsWord: true,
-            fontFamily: 'monospace',
-            fontSize: 16,
-            theme: {
-                background: '#000000',
-                red: '#ff5555',
-                green: '#50fa7b',
-                yellow: '#f1fa8c',
-                blue: '#bd93f9',
-                cyan: '#8be9fd',
-                foreground: '#ffffff'
-            }
-        });
-        
-        const fitAddon = new FitAddon.FitAddon();
-        term.loadAddon(fitAddon);
-        term.open(document.getElementById('terminal'));
-        fitAddon.fit();
-
-        const editor = ace.edit("editor-container");
-
-        editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
-        editor.session.setMode("ace/mode/haskell");
-
-        editor.setOptions({
-            fontSize: "14px",
-            fontFamily: "Menlo, Monaco, 'Courier New', monospace",
-            wrap: true,               // Wraps long lines
-            showPrintMargin: false,   // Hides the annoying vertical line in the middle
-            behavioursEnabled: true   // Auto-closes brackets and quotes
-        });
-
-
-        function getUrlArgs() {
-            const params = new URLSearchParams(window.location.search);
-            const argsString = params.get('args');
-            
-            if (!argsString) return [];
-            
-            return argsString.trim().split(/\s+/);
+      const term = new Terminal({
+        cursorBlink: true,
+        rightClickSelectsWord: true,
+        fontFamily: 'monospace',
+        fontSize: 16,
+        theme: {
+          background: '#000000',
+          red: '#ff5555',
+          green: '#50fa7b',
+          yellow: '#f1fa8c',
+          blue: '#bd93f9',
+          cyan: '#8be9fd',
+          foreground: '#ffffff'
         }
+      });
 
-        function startHistorySync() {
-            setInterval(() => {
-                try {
-                    const historyData = Module.FS.readFile(home + '/.mhsi', { encoding: 'utf8' });
-                    if (historyData) {
-                        const lines = historyData.split('\n');
-                        const last100 = lines.slice(-100).join('\n');
-                        localStorage.setItem('mhs_history', last100);
-                    }
-                } catch (e) {
-                    // silently ignore if the file doesn't exists
-                }
-            }, 5000);
-        }
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('terminal'));
+      fitAddon.fit();
 
-        window.Module = {
-                arguments: getUrlArgs(),
-                preRun: [function() {
-                    // Initialize Standard I/O
-                    Module.FS.init(
-                        () => null,
-                        (asciiCode) => {
-                            if (asciiCode !== null) {
-                                if (asciiCode === 10) {
-                                    term.write('\r\n');
-                                } else {
-                                    term.write(String.fromCharCode(asciiCode));
-                                }
-                            }
-                        },
-                        (asciiCode) => {
-                            if (asciiCode !== null) term.write(String.fromCharCode(asciiCode));
-                        }
-                    );
+      const editor = ace.edit("editor-container");
 
-                    Module.FS.chdir(home);
+      editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
+      editor.session.setMode("ace/mode/haskell");
 
-                    Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
-                    Module.FS.writeFile("line_edit", line_edit_text);
-                    const demo_path = home + '/Demo.hs';
-                    Module.FS.writeFile(demo_path, demo_code);
+      editor.setOptions({
+        fontSize: "14px",
+        fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+        wrap: true, // Wraps long lines
+        showPrintMargin: false, // Hides the annoying vertical line in the middle
+        behavioursEnabled: true // Auto-closes brackets and quotes
+      });
 
-                    // Get a possibly saved command history
-                    const saved = localStorage.getItem('mhs_history');
-                    if (saved) {
-                        try { Module.FS.writeFile('.mhsi', saved); } catch(e){}
-                    }
-                    startHistorySync();
+      function getUrlArgs() {
+        const params = new URLSearchParams(window.location.search);
+        const argsString = params.get('args');
 
-                    editor.setValue(demo_code, -1);
+        if (!argsString) return [];
 
-                    if (window.refreshFileList) {
-                        window.refreshFileList();
-                        document.getElementById('file-picker').value = demo_path;
-                    }
+        return argsString.trim().split(/\s+/);
+      }
 
-                }],
-                print: () => {},
-                printErr: (text) => term.writeln("Fatal error: " + text)
-            };
-
-
-            // Track our linked files for the auto-sync loop
-            const fileRegistry = {};
-
-            // Helper to safely create directories in Wasm without crashing if they exist
-            function safeMkdir(path) {
-                try {
-                    Module.FS.mkdirTree(path); // mkdirTree creates parent folders automatically
-                } catch (e) {
-                    // Ignore errors (usually means the directory already exists)
-                }
+      function startHistorySync() {
+        setInterval(() => {
+          try {
+            const historyData = Module.FS.readFile(home + '/.mhsi', {
+              encoding: 'utf8'
+            });
+            if (historyData) {
+              const lines = historyData.split('\n');
+              const last100 = lines.slice(-100).join('\n');
+              localStorage.setItem('mhs_history', last100);
             }
+          } catch (e) {
+            // silently ignore if the file doesn't exists
+          }
+        }, 5000);
+      }
 
-            // Recursive function to walk the local folder and mirror it into Wasm
-            async function mountDirectory(dirHandle, currentWasmPath) {
-                safeMkdir(currentWasmPath);
-
-                // Loop through every file and folder inside this directory handle
-                for await (const entry of dirHandle.values()) {
-                    const fullWasmPath = `${currentWasmPath}/${entry.name}`;
-
-                    if (entry.kind === 'file') {
-                        // It's a file: read it and write to Wasm memory
-                        const fileHandle = await dirHandle.getFileHandle(entry.name);
-                        const file = await fileHandle.getFile();
-                        const data = new Uint8Array(await file.arrayBuffer());
-
-                        Module.FS.writeFile(fullWasmPath, data);
-
-                        // Add to registry so the background loop keeps it updated
-                        fileRegistry[fullWasmPath] = { handle: fileHandle, lastModified: file.lastModified };
-                        console.log(`Mounted: ${fullWasmPath}`);
-
-                    } else if (entry.kind === 'directory') {
-                        // It's a folder: recursively process it
-                        const subDirHandle = await dirHandle.getDirectoryHandle(entry.name);
-                        await mountDirectory(subDirHandle, fullWasmPath);
-                    }
-                }
-            }
-
-        document.getElementById('file-picker').addEventListener('change', (e) => {
-            const fileName = e.target.value;
-            if (!fileName) return;
-    
-            try {
-                // Read file from RAM disk
-                const content = Module.FS.readFile(fileName, { encoding: 'utf8' });
-                
-                // Push it into Ace and move cursor to the top (-1)
-                editor.setValue(content, -1);
-            } catch (err) {
-                term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
-            }
-        });
-
-            // The Button Click Event
-            document.getElementById('mount-btn').addEventListener('click', async () => {
-                if (window.showDirectoryPicker) {
-                    try {
-                        const rootDirHandle = await window.showDirectoryPicker();
-
-                        const targetPath = home + `/${rootDirHandle.name}`;
-
-                        term.writeln(system_prefix + `Mounting directory into ${targetPath}...`);
-
-                        await mountDirectory(rootDirHandle, targetPath);
-
-                        term.writeln(system_prefix + `Workspace mounted successfully.`);
-
-                        // Sync logic and UI refresh
-                        if (!window.syncInterval) window.syncInterval = setInterval(pollFiles, 500);
-                        if (window.refreshFileList) window.refreshFileList();
-
-                    } catch (err) {
-                        term.writeln(system_prefix + `Mount failed or cancelled.`);
-                    }
+      window.Module = {
+        arguments: getUrlArgs(),
+        preRun: [function() {
+          // Initialize Standard I/O
+          Module.FS.init(
+            () => null,
+            (asciiCode) => {
+              if (asciiCode !== null) {
+                if (asciiCode === 10) {
+                  term.write('\r\n');
                 } else {
-                    document.getElementById('fallback-picker').click();
+                  term.write(String.fromCharCode(asciiCode));
                 }
-            });
+              }
+            },
+            (asciiCode) => {
+              if (asciiCode !== null) term.write(String.fromCharCode(asciiCode));
+            }
+          );
 
-            // Listener for the Fallback Input
-            document.getElementById('fallback-picker').addEventListener('change', async (e) => {
-                const files = e.target.files;
-                if (files.length === 0) return;
+          Module.FS.chdir(home);
 
-                term.writeln(system_prefix + `Uploading ${files.length} files to virtual RAM disk...`);
+          Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
+          Module.FS.writeFile("line_edit", line_edit_text);
+          const demo_path = home + '/Demo.hs';
+          Module.FS.writeFile(demo_path, demo_code);
 
-                for (const file of files) {
-                    // webkitRelativePath gives us "folder/sub/file.hs"
-                    const path = file.webkitRelativePath;
-                    const buffer = await file.arrayBuffer();
-                    const data = new Uint8Array(buffer);
+          // Get a possibly saved command history
+          const saved = localStorage.getItem('mhs_history');
+          if (saved) {
+            try {
+              Module.FS.writeFile('.mhsi', saved);
+            } catch (e) {}
+          }
+          startHistorySync();
 
-                    // Ensure subdirectories exist in Emscripten FS
-                    const parts = path.split('/');
-                    let currentPath = home;
-                    for (let i = 0; i < parts.length - 1; i++) {
-                        currentPath += '/' + parts[i];
-                        try { Module.FS.mkdir(currentPath); } catch (e) {}
-                    }
+          editor.setValue(demo_code, -1);
 
-                    Module.FS.writeFile(home + '/' + path, data);
-                }
+          if (window.refreshFileList) {
+            window.refreshFileList();
+            document.getElementById('file-picker').value = demo_path;
+          }
 
-                term.writeln(system_prefix + `Workspace loaded (RAM only, no Live Sync).`);
-                if (window.refreshFileList) window.refreshFileList();
-            });
+        }],
+        print: () => {},
+        printErr: (text) => term.writeln("Fatal error: " + text)
+      };
 
-            document.getElementById('download-url-btn').addEventListener('click', async () => {
-                // Prefill with your repo URL
-                const defaultUrl = "https://github.com/augustss/canvhs/tree/main/";
-                const rawUrl = prompt("Enter GitHub Folder URL:", defaultUrl);
-                if (!rawUrl) return;
+      // Track our linked files for the auto-sync loop
+      const fileRegistry = {};
 
-                try {
-                    // Regex to extract user, repo, branch, and path
-                    const urlMatch = rawUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/?(.*)/);
-                    if (!urlMatch) throw new Error("Invalid format. Use: github.com/user/repo/tree/branch/path");
+      // Helper to safely create directories in Wasm without crashing if they exist
+      function safeMkdir(path) {
+        try {
+          Module.FS.mkdirTree(path); // mkdirTree creates parent folders automatically
+        } catch (e) {
+          // Ignore errors (usually means the directory already exists)
+        }
+      }
 
-                    const [_, user, repo, branch, targetPath] = urlMatch;
+      // Recursive function to walk the local folder and mirror it into Wasm
+      async function mountDirectory(dirHandle, currentWasmPath) {
+        safeMkdir(currentWasmPath);
 
-                    // Use the Recursive Trees API
-                    const apiUrl = `https://api.github.com/repos/${user}/${repo}/git/trees/${branch}?recursive=1`;
+        // Loop through every file and folder inside this directory handle
+        for await (const entry of dirHandle.values()) {
+          const fullWasmPath = `${currentWasmPath}/${entry.name}`;
 
-                    term.writeln(system_prefix + `\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
-                    const response = await fetch(apiUrl);
-                    const data = await response.json();
+          if (entry.kind === 'file') {
+            // It's a file: read it and write to Wasm memory
+            const fileHandle = await dirHandle.getFileHandle(entry.name);
+            const file = await fileHandle.getFile();
+            const data = new Uint8Array(await file.arrayBuffer());
 
-                    if (!data.tree) throw new Error("Could not find repository tree. Check branch name.");
+            Module.FS.writeFile(fullWasmPath, data);
 
-                    // Filter: if targetPath is empty, get everything. Otherwise, filter by path.
-                    const itemsToDownload = data.tree.filter(item =>
-                        targetPath === "" || item.path.startsWith(targetPath)
-                    );
+            // Add to registry so the background loop keeps it updated
+            fileRegistry[fullWasmPath] = {
+              handle: fileHandle,
+              lastModified: file.lastModified
+            };
+            console.log(`Mounted: ${fullWasmPath}`);
 
-                    for (const item of itemsToDownload) {
-                        // Clean up the path so it saves correctly in home
-                        let relativePath = item.path;
-                        if (targetPath !== "") {
-                            relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
-                        }
-                        if (!relativePath) continue;
+          } else if (entry.kind === 'directory') {
+            // It's a folder: recursively process it
+            const subDirHandle = await dirHandle.getDirectoryHandle(entry.name);
+            await mountDirectory(subDirHandle, fullWasmPath);
+          }
+        }
+      }
 
-                        if (item.type === 'tree') {
-                            try {
-                                Module.FS.mkdirTree(relativePath); // mkdirTree handles nested parents!
-                                term.writeln(system_prefix + `  Created dir: ${relativePath}`);
-                            } catch(e) {}
-                        } else if (item.type === 'blob') {
-                            term.writeln(system_prefix + `  Fetching: ${relativePath}`);
-                            const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
-                            const fileRes = await fetch(downloadUrl);
+      document.getElementById('file-picker').addEventListener('change', (e) => {
+        const fileName = e.target.value;
+        if (!fileName) return;
 
-                            if (fileRes.ok) {
-                                const blob = await fileRes.arrayBuffer();
-                                // Ensure the parent directory exists before writing
-                                const dirPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
-                                if (dirPath) try { Module.FS.mkdirTree(dirPath); } catch(e) {}
+        try {
+          // Read file from RAM disk
+          const content = Module.FS.readFile(fileName, {
+            encoding: 'utf8'
+          });
 
-                                Module.FS.writeFile(relativePath, new Uint8Array(blob));
-                            }
-                        }
-                    }
-                    term.writeln(system_prefix + `\x1b[32mDownload Complete!\x1b[0m`);
+          // Push it into Ace and move cursor to the top (-1)
+          editor.setValue(content, -1);
+        } catch (err) {
+          term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
+        }
+      });
 
-                } catch (error) {
-                    term.writeln(system_prefix + `\x1b[31mError: ${error.message}\x1b[0m`);
-                }
-            });
+      // The Button Click Event
+      document.getElementById('mount-btn').addEventListener('click', async () => {
+        if (window.showDirectoryPicker) {
+          try {
+            const rootDirHandle = await window.showDirectoryPicker();
 
+            const targetPath = home + `/${rootDirHandle.name}`;
+
+            term.writeln(system_prefix + `Mounting directory into ${targetPath}...`);
+
+            await mountDirectory(rootDirHandle, targetPath);
+
+            term.writeln(system_prefix + `Workspace mounted successfully.`);
+
+            // Sync logic and UI refresh
+            if (!window.syncInterval) window.syncInterval = setInterval(pollFiles, 500);
+            if (window.refreshFileList) window.refreshFileList();
+
+          } catch (err) {
+            term.writeln(system_prefix + `Mount failed or cancelled.`);
+          }
+        } else {
+          document.getElementById('fallback-picker').click();
+        }
+      });
+
+      // Listener for the Fallback Input
+      document.getElementById('fallback-picker').addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (files.length === 0) return;
+
+        term.writeln(system_prefix + `Uploading ${files.length} files to virtual RAM disk...`);
+
+        for (const file of files) {
+          // webkitRelativePath gives us "folder/sub/file.hs"
+          const path = file.webkitRelativePath;
+          const buffer = await file.arrayBuffer();
+          const data = new Uint8Array(buffer);
+
+          // Ensure subdirectories exist in Emscripten FS
+          const parts = path.split('/');
+          let currentPath = home;
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentPath += '/' + parts[i];
+            try {
+              Module.FS.mkdir(currentPath);
+            } catch (e) {}
+          }
+
+          Module.FS.writeFile(home + '/' + path, data);
+        }
+
+        term.writeln(system_prefix + `Workspace loaded (RAM only, no Live Sync).`);
+        if (window.refreshFileList) window.refreshFileList();
+      });
+
+      document.getElementById('download-url-btn').addEventListener('click', async () => {
+        // Prefill with your repo URL
+        const defaultUrl = "https://github.com/augustss/canvhs/tree/main/";
+        const rawUrl = prompt("Enter GitHub Folder URL:", defaultUrl);
+        if (!rawUrl) return;
+
+        try {
+          // Regex to extract user, repo, branch, and path
+          const urlMatch = rawUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/?(.*)/);
+          if (!urlMatch) throw new Error("Invalid format. Use: github.com/user/repo/tree/branch/path");
+
+          const [_, user, repo, branch, targetPath] = urlMatch;
+
+          // Use the Recursive Trees API
+          const apiUrl = `https://api.github.com/repos/${user}/${repo}/git/trees/${branch}?recursive=1`;
+
+          term.writeln(system_prefix + `\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
+          const response = await fetch(apiUrl);
+          const data = await response.json();
+
+          if (!data.tree) throw new Error("Could not find repository tree. Check branch name.");
+
+          // Filter: if targetPath is empty, get everything. Otherwise, filter by path.
+          const itemsToDownload = data.tree.filter(item =>
+            targetPath === "" || item.path.startsWith(targetPath)
+          );
+
+          for (const item of itemsToDownload) {
+            // Clean up the path so it saves correctly in home
+            let relativePath = item.path;
+            if (targetPath !== "") {
+              relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
+            }
+            if (!relativePath) continue;
+
+            if (item.type === 'tree') {
+              try {
+                Module.FS.mkdirTree(relativePath); // mkdirTree handles nested parents!
+                term.writeln(system_prefix + `  Created dir: ${relativePath}`);
+              } catch (e) {}
+            } else if (item.type === 'blob') {
+              term.writeln(system_prefix + `  Fetching: ${relativePath}`);
+              const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
+              const fileRes = await fetch(downloadUrl);
+
+              if (fileRes.ok) {
+                const blob = await fileRes.arrayBuffer();
+                // Ensure the parent directory exists before writing
+                const dirPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                if (dirPath) try {
+                  Module.FS.mkdirTree(dirPath);
+                } catch (e) {}
+
+                Module.FS.writeFile(relativePath, new Uint8Array(blob));
+              }
+            }
+          }
+          term.writeln(system_prefix + `\x1b[32mDownload Complete!\x1b[0m`);
+
+        } catch (error) {
+          term.writeln(system_prefix + `\x1b[31mError: ${error.message}\x1b[0m`);
+        }
+      });
 
       async function pollFiles() {
-    for (const [path, entry] of Object.entries(fileRegistry)) {
-        try {
+        for (const [path, entry] of Object.entries(fileRegistry)) {
+          try {
             // 1. Get stats from the Emscripten virtual filesystem
             const stats = Module.FS.stat(path);
             const vfsModified = stats.mtime.getTime();
 
             // 2. CHECK: Did the user change the file inside the IDE?
             if (vfsModified > entry.lastModified) {
-                const data = Module.FS.readFile(path); // Grab data from MEMFS
+              const data = Module.FS.readFile(path); // Grab data from MEMFS
 
-                // Write back to the real local disk
-                const writable = await entry.handle.createWritable();
-                await writable.write(data);
-                await writable.close();
+              // Write back to the real local disk
+              const writable = await entry.handle.createWritable();
+              await writable.write(data);
+              await writable.close();
 
-                // Update registry so we don't loop forever
-                entry.lastModified = vfsModified;
-                console.log(`Saved to local disk: ${path}`);
-                continue; // Skip the rest of this iteration
+              // Update registry so we don't loop forever
+              entry.lastModified = vfsModified;
+              console.log(`Saved to local disk: ${path}`);
+              continue; // Skip the rest of this iteration
             }
 
             // 3. CHECK: Did the file change on the external disk? (Your existing code)
-        const file = await entry.handle.getFile();
+            const file = await entry.handle.getFile();
             if (file.lastModified > entry.lastModified) {
-                const data = new Uint8Array(await file.arrayBuffer());
-                Module.FS.writeFile(path, data);
+              const data = new Uint8Array(await file.arrayBuffer());
+              Module.FS.writeFile(path, data);
 
-                // Important: sync the MEMFS mtime with the real file mtime
-                entry.lastModified = file.lastModified;
-                console.log(`Auto-synced from local disk: ${path}`);
+              // Important: sync the MEMFS mtime with the real file mtime
+              entry.lastModified = file.lastModified;
+              console.log(`Auto-synced from local disk: ${path}`);
             }
-        } catch (e) {
+          } catch (e) {
             // Likely a "read-only" or "permission" error
             // console.warn(`Sync failed for ${path}:`, e);
+          }
         }
-    }
-}
+      }
 
-            function sendToMicroHs(data) {
-                for (let i = 0; i < data.length; i++) {
-                    const code = data.charCodeAt(i);
-                    if (window.Module && window.Module._set_input_char) {
-                        window.Module._set_input_char(code);
-                    }
-                }
-            }
+      function sendToMicroHs(data) {
+        for (let i = 0; i < data.length; i++) {
+          const code = data.charCodeAt(i);
+          if (window.Module && window.Module._set_input_char) {
+            window.Module._set_input_char(code);
+          }
+        }
+      }
 
-            term.onData(data => {
-                sendToMicroHs(data)
-            });
+      term.onData(data => {
+        sendToMicroHs(data)
+      });
 
-            term.onSelectionChange(() => {
-                if (term.hasSelection()) {
-                    const selectedText = term.getSelection();
-                    navigator.clipboard.writeText(selectedText);
-                }
-            });
+      term.onSelectionChange(() => {
+        if (term.hasSelection()) {
+          const selectedText = term.getSelection();
+          navigator.clipboard.writeText(selectedText);
+        }
+      });
 
-            window.addEventListener('resize', () => {
-                fitAddon.fit();
-            });
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+      });
 
-            const script = document.createElement('script');
-            script.src = 'mhs-embed.js';
-            document.body.appendChild(script);
+      const script = document.createElement('script');
+      script.src = 'mhs-embed.js';
+      document.body.appendChild(script);
 
+      // Function to make sure the canvas internal resolution matches the screen size
+      function resizeCanvas() {
+        const canvas = document.getElementById('drawing-canvas');
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+      }
 
-            // Function to make sure the canvas internal resolution matches the screen size
-            function resizeCanvas() {
-                const canvas = document.getElementById('drawing-canvas');
-                const container = document.getElementById('canvas-container');
-                canvas.width = container.clientWidth;
-                canvas.height = container.clientHeight;
-            }
+      // Call it once on startup
+      resizeCanvas();
 
-            // Call it once on startup
-            resizeCanvas();
+      // Update both the terminal and the canvas when the window resizes
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+        resizeCanvas();
+      });
 
-            // Update both the terminal and the canvas when the window resizes
-            window.addEventListener('resize', () => {
-                fitAddon.fit();
-                resizeCanvas();
-            });
+      // Function to unhide the canvas and fix the layout
+      window.showCanvas = function() {
+        const container = document.getElementById('canvas-container');
+        if (container.style.display !== 'block') {
+          container.style.display = 'block'; // Unhide it
 
-            // Function to unhide the canvas and fix the layout
-            window.showCanvas = function() {
-                const container = document.getElementById('canvas-container');
-                if (container.style.display !== 'block') {
-                    container.style.display = 'block'; // Unhide it
+          // Force the canvas to figure out its new pixel dimensions
+          resizeCanvas();
 
-                    // Force the canvas to figure out its new pixel dimensions
-                    resizeCanvas();
+          // Tell the terminal to recalculate its rows/cols so text doesn't overflow
+          if (typeof fitAddon !== 'undefined') {
+            fitAddon.fit();
+          }
+        }
+      };
 
-                    // Tell the terminal to recalculate its rows/cols so text doesn't overflow
-                    if (typeof fitAddon !== 'undefined') {
-                        fitAddon.fit();
-                    }
-                }
-            };
+      window.hideCanvas = function() {
+        const container = document.getElementById('canvas-container');
+        container.style.display = 'none';
 
-            window.hideCanvas = function() {
-                const container = document.getElementById('canvas-container');
-                container.style.display = 'none';
+        // Tell the terminal to expand and fill the newly freed space
+        if (typeof fitAddon !== 'undefined') {
+          fitAddon.fit();
+        }
+      };
 
-                // Tell the terminal to expand and fill the newly freed space
-                if (typeof fitAddon !== 'undefined') {
-                    fitAddon.fit();
-                }
-            };
+      window.refreshFileList = function() {
+        const filePicker = document.getElementById('file-picker');
+        const currentSelection = filePicker.value;
 
-        window.refreshFileList = function() {
-            const filePicker = document.getElementById('file-picker');
-            const currentSelection = filePicker.value;
-    
-            // Reset the dropdown
-            filePicker.innerHTML = '<option value="">-- Select File --</option>';
-    
-            try {
-        function gatherFiles(dir) {
+        // Reset the dropdown
+        filePicker.innerHTML = '<option value="">-- Select File --</option>';
+
+        try {
+          function gatherFiles(dir) {
             Module.FS.readdir(dir).forEach(name => {
-                // Skip current/parent directory pointers
-                if (name === '.' || name === '..') return;
-                
-                const fullPath = dir + '/' + name;
-                if (Module.FS.isDir(Module.FS.stat(fullPath).mode)) {
-                    gatherFiles(fullPath); // Recursively search folders
-                } else {
-                    const opt = document.createElement('option');
-                    opt.value = fullPath;
-                    // Clean up the display name
-                    opt.textContent = fullPath.replace(home + '/', ''); 
-                    filePicker.appendChild(opt);
-                }
+              // Skip current/parent directory pointers
+              if (name === '.' || name === '..') return;
+
+              const fullPath = dir + '/' + name;
+              if (Module.FS.isDir(Module.FS.stat(fullPath).mode)) {
+                gatherFiles(fullPath); // Recursively search folders
+              } else {
+                const opt = document.createElement('option');
+                opt.value = fullPath;
+                // Clean up the display name
+                opt.textContent = fullPath.replace(home + '/', '');
+                filePicker.appendChild(opt);
+              }
             });
-        }
+          }
 
-        // Only scan if the home directory exists
-        try { 
-            Module.FS.stat(home); 
-            gatherFiles(home); 
-        } catch(e) {}
+          // Only scan if the home directory exists
+          try {
+            Module.FS.stat(home);
+            gatherFiles(home);
+          } catch (e) {}
 
-        // Safely restore previous selection if it exists in the new list
-        const optionExists = Array.from(filePicker.options).some(opt => opt.value === currentSelection);
-        if (optionExists) {
+          // Safely restore previous selection if it exists in the new list
+          const optionExists = Array.from(filePicker.options).some(opt => opt.value === currentSelection);
+          if (optionExists) {
             filePicker.value = currentSelection;
+          }
+
+        } catch (e) {
+          console.error("File list refresh failed:", e);
         }
+      };
 
-    } catch (e) {
-        console.error("File list refresh failed:", e);
-    }
-};
+      // 2. The New File Button
+      document.getElementById('new-file-btn').addEventListener('click', () => {
+        let fileName = prompt("Enter new file name (e.g., Main.hs):");
+        if (!fileName) return;
 
-// 2. The New File Button
-document.getElementById('new-file-btn').addEventListener('click', () => {
-    let fileName = prompt("Enter new file name (e.g., Main.hs):");
-    if (!fileName) return;
-    
-    // Clean up any accidental spaces
-    fileName = fileName.trim(); 
+        // Clean up any accidental spaces
+        fileName = fileName.trim();
 
-    // Ensure the root workspace directory exists
-    try { Module.FS.mkdir(home); } catch(e) {}
-    
-    const fullPath = home + '/' + fileName;
-    const filePicker = document.getElementById('file-picker');
-    
-    try {
-        // Create an empty file in Wasm RAM
-        Module.FS.writeFile(fullPath, ""); 
-        
-        // Refresh the dropdown
-        window.refreshFileList();
-        
-        // FORCED FALLBACK: If refresh failed to add it, manually inject the option
-        const exists = Array.from(filePicker.options).some(opt => opt.value === fullPath);
-        if (!exists) {
+        // Ensure the root workspace directory exists
+        try {
+          Module.FS.mkdir(home);
+        } catch (e) {}
+
+        const fullPath = home + '/' + fileName;
+        const filePicker = document.getElementById('file-picker');
+
+        try {
+          // Create an empty file in Wasm RAM
+          Module.FS.writeFile(fullPath, "");
+
+          // Refresh the dropdown
+          window.refreshFileList();
+
+          // FORCED FALLBACK: If refresh failed to add it, manually inject the option
+          const exists = Array.from(filePicker.options).some(opt => opt.value === fullPath);
+          if (!exists) {
             const opt = document.createElement('option');
             opt.value = fullPath;
             opt.textContent = fileName;
             filePicker.appendChild(opt);
-        }
+          }
 
-        // Force the dropdown to select the new file
-        filePicker.value = fullPath;
-        
-        // Clear the editor, ready for typing
-        if (window.editor) {
+          // Force the dropdown to select the new file
+          filePicker.value = fullPath;
+
+          // Clear the editor, ready for typing
+          if (window.editor) {
             window.editor.setValue("", -1);
+          }
+        } catch (err) {
+          console.error("Failed to create file:", err);
+          alert("Failed to create the file. Check the browser console.");
         }
-    } catch(err) {
-        console.error("Failed to create file:", err);
-        alert("Failed to create the file. Check the browser console.");
-    }
-});
+      });
 
-document.getElementById('save-btn').addEventListener('click', () => {
-    const filePicker = document.getElementById('file-picker');
-    const currentFile = filePicker.value;
-    
-    // Strict check to ensure a valid file is selected
-    if (!currentFile || currentFile === "") {
-        alert("Please select a file from the dropdown first!");
-        return;
-    }
-    
-    try {
-        // Grab code and save to Emscripten FS
-        const code = window.editor ? window.editor.getValue() : editor.getValue();
-        Module.FS.writeFile(currentFile, code);
-        
-    } catch(err) {
-        term.writeln(`\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
-    }
-});
+      document.getElementById('save-btn').addEventListener('click', () => {
+        const filePicker = document.getElementById('file-picker');
+        const currentFile = filePicker.value;
 
-document.getElementById('save-run-btn').addEventListener('click', () => {
-    const filePicker = document.getElementById('file-picker');
-    const currentFile = filePicker.value;
-    
-    // Strict check to ensure a valid file is selected
-    if (!currentFile || currentFile === "") {
-        alert("Please select a file from the dropdown first!");
-        return;
-    }
-    
-    try {
-        // Grab code and save to Emscripten FS
-        const code = window.editor ? window.editor.getValue() : editor.getValue();
-        Module.FS.writeFile(currentFile, code);
-        
-        let moduleName = currentFile;
-
-        if (moduleName.startsWith(home)) {
-            moduleName = moduleName.slice(home.length+1);
+        // Strict check to ensure a valid file is selected
+        if (!currentFile || currentFile === "") {
+          alert("Please select a file from the dropdown first!");
+          return;
         }
-        moduleName = moduleName.replace(/\.hs$/, '');
-        moduleName = moduleName.replace(/\//g, '.');
 
-        sendToMicroHs("import " + moduleName + '\n');
-        sendToMicroHs(":main" + '\n')
+        try {
+          // Grab code and save to Emscripten FS
+          const code = window.editor ? window.editor.getValue() : editor.getValue();
+          Module.FS.writeFile(currentFile, code);
 
-    } catch(err) {
-        term.writeln(`\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
-    }
-});
+        } catch (err) {
+          term.writeln(`\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
+        }
+      });
 
-document.getElementById('stop-btn').addEventListener('click', () => {
-    sendToMicroHs("\x03");
+      document.getElementById('save-run-btn').addEventListener('click', () => {
+        const filePicker = document.getElementById('file-picker');
+        const currentFile = filePicker.value;
 
-});
-            
+        // Strict check to ensure a valid file is selected
+        if (!currentFile || currentFile === "") {
+          alert("Please select a file from the dropdown first!");
+          return;
+        }
 
+        try {
+          // Grab code and save to Emscripten FS
+          const code = window.editor ? window.editor.getValue() : editor.getValue();
+          Module.FS.writeFile(currentFile, code);
 
-function updateMousePos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
+          let moduleName = currentFile;
 
-    // Translate to center-origin and flip Y axis
-    window.mouseState.x = rawX - (rect.width / 2);
-    window.mouseState.y = (rect.height / 2) - rawY;
-}
+          if (moduleName.startsWith(home)) {
+            moduleName = moduleName.slice(home.length + 1);
+          }
+          moduleName = moduleName.replace(/\.hs$/, '');
+          moduleName = moduleName.replace(/\//g, '.');
 
-canvas.addEventListener('mousemove', updateMousePos);
+          sendToMicroHs("import " + moduleName + '\n');
+          sendToMicroHs(":main" + '\n')
 
-canvas.addEventListener('mousedown', (e) => {
-    updateMousePos(e);
-    window.mouseState.down = true;
-});
+        } catch (err) {
+          term.writeln(`\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
+        }
+      });
 
-canvas.addEventListener('mouseup', (e) => {
-    updateMousePos(e);
-    window.mouseState.down = false;
-});
+      document.getElementById('stop-btn').addEventListener('click', () => {
+        sendToMicroHs("\x03");
 
+      });
 
-window.drawHaskellText = function(textPtr) {
-    const canvas = document.getElementById('drawing-canvas');
-    const ctx = canvas.getContext('2d');
-    const str = UTF8ToString(textPtr);
+      function updateMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const rawX = e.clientX - rect.left;
+        const rawY = e.clientY - rect.top;
 
-    // 1. Read the absolute screen coordinates calculated by Haskell's 'Translate'
-    const matrix = ctx.getTransform();
+        // Translate to center-origin and flip Y axis
+        window.mouseState.x = rawX - (rect.width / 2);
+        window.mouseState.y = (rect.height / 2) - rawY;
+      }
 
-    ctx.save();
+      canvas.addEventListener('mousemove', updateMousePos);
 
-    // 2. Erase all scaling, flipping, and rotating to jump back to perfect Screen Space
-    ctx.resetTransform();
+      canvas.addEventListener('mousedown', (e) => {
+        updateMousePos(e);
+        window.mouseState.down = true;
+      });
 
-    // 3. Only set the font if it's different (Prevents Glyph Cache Trashing)
-    if (ctx.font !== '24px monospace') {
-        ctx.font = '24px monospace';
-    }
-    ctx.textBaseline = 'middle';
+      canvas.addEventListener('mouseup', (e) => {
+        updateMousePos(e);
+        window.mouseState.down = false;
+      });
 
-    // 4. Snap the absolute screen coordinates to exact integers
-    const screenX = Math.round(matrix.e);
-    const screenY = Math.round(matrix.f);
+      window.drawHaskellText = function(textPtr) {
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        const str = UTF8ToString(textPtr);
 
-    // 5. Draw the text right-side up, perfectly pixel-aligned
-    ctx.fillText(str, screenX, screenY);
+        // 1. Read the absolute screen coordinates calculated by Haskell's 'Translate'
+        const matrix = ctx.getTransform();
 
-    ctx.restore();
-};
+        ctx.save();
 
-        };
+        // 2. Erase all scaling, flipping, and rotating to jump back to perfect Screen Space
+        ctx.resetTransform();
 
-    </script>
+        // 3. Only set the font if it's different (Prevents Glyph Cache Trashing)
+        if (ctx.font !== '24px monospace') {
+          ctx.font = '24px monospace';
+        }
+        ctx.textBaseline = 'middle';
+
+        // 4. Snap the absolute screen coordinates to exact integers
+        const screenX = Math.round(matrix.e);
+        const screenY = Math.round(matrix.f);
+
+        // 5. Draw the text right-side up, perfectly pixel-aligned
+        ctx.fillText(str, screenX, screenY);
+
+        ctx.restore();
+      };
+
+    };
+  </script>
 </body>
+
 </html>
