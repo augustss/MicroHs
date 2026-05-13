@@ -525,37 +525,48 @@ main = display $ Color red $ SolidCircle 50
             targetPath === "" || item.path.startsWith(targetPath)
           );
 
+          const baseDir = repo; 
+          try {
+              Module.FS.mkdirTree(baseDir);
+          } catch (e) {}
+
           for (const item of itemsToDownload) {
-            // Clean up the path so it saves correctly in home
+            // Clean up the path so it saves correctly
             let relativePath = item.path;
             if (targetPath !== "") {
               relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
             }
             if (!relativePath) continue;
 
+            // Prepend the base directory to the path
+            const fullWasmPath = `${baseDir}/${relativePath}`;
+
             if (item.type === 'tree') {
               try {
-                Module.FS.mkdirTree(relativePath); // mkdirTree handles nested parents!
-                term.writeln(system_prefix + `  Created dir: ${relativePath}`);
+                Module.FS.mkdirTree(fullWasmPath); // mkdirTree handles nested parents!
+//                term.writeln(system_prefix + `  Created dir: ${fullWasmPath}`);
               } catch (e) {}
             } else if (item.type === 'blob') {
-              term.writeln(system_prefix + `  Fetching: ${relativePath}`);
+//              term.writeln(system_prefix + `  Fetching: ${fullWasmPath}`);
               const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
               const fileRes = await fetch(downloadUrl);
 
               if (fileRes.ok) {
                 const blob = await fileRes.arrayBuffer();
                 // Ensure the parent directory exists before writing
-                const dirPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
-                if (dirPath) try {
-                  Module.FS.mkdirTree(dirPath);
-                } catch (e) {}
+                const dirPath = fullWasmPath.substring(0, fullWasmPath.lastIndexOf('/'));
+                if (dirPath) {
+                  try {
+                    Module.FS.mkdirTree(dirPath);
+                  } catch (e) {}
+                }
 
-                Module.FS.writeFile(relativePath, new Uint8Array(blob));
+                Module.FS.writeFile(fullWasmPath, new Uint8Array(blob));
               }
             }
           }
           term.writeln(system_prefix + `\x1b[32mDownload Complete!\x1b[0m`);
+          if (window.refreshFileList) window.refreshFileList();
 
         } catch (error) {
           term.writeln(system_prefix + `\x1b[31mError: ${error.message}\x1b[0m`);
