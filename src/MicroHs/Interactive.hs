@@ -303,6 +303,7 @@ err e = do
   liftIO $ err' msg
 
 -- Try to find a file and line number
+-- XXX We should have a special exception instead of parsing the message string.
 parseError :: String -> Maybe (FilePath, Int)
 parseError s =
   case words s of
@@ -339,11 +340,17 @@ oneline aline = do
               liftIO $ putStrLn $ "total " ++ show (t2 - t1) ++ "ms"
 -}
           Left  e -> err e
-  -- First try to parse as a definition,
-  tryParse pTopModule lls def $ \ _ ->
-    -- if that fails, parse as an expression.
-    tryParse pExprTop line expr $
-      liftIO . err'
+  -- A small hack, if we import something we have already imported
+  -- in exactly the same way, we just reload instead.  This is to avoid
+  -- building up multiple imports.
+  if take 1 (words line) == ["import"] && line `elem` lines ls then
+    reload
+   else 
+    -- First try to parse as a definition,
+    tryParse pTopModule lls def $ \ _ ->
+      -- if that fails, parse as an expression.
+      tryParse pExprTop line expr $
+        liftIO . err'
 
 tryParse :: forall a . -- Show a =>
             P a -> String -> I () -> (String -> I ()) -> I ()
