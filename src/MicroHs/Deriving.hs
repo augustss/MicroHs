@@ -209,7 +209,7 @@ conFieldTys (Constr _ _ _ _ as) = getFieldTys as
 -- If there is no mctx we use the default strategy to derive the instance context.
 -- The default strategy basically is to require the class constraint for every
 -- constructor argument (except direct recursion) with free type variables.
--- E.g.  data T = C a | D (a, Int) deriving Eq
+-- E.g.  data T a = C a | D (a, Int) deriving Eq
 -- will get context  (Eq a, Eq (a, Int))
 -- Used for regular deriving, not standalone.
 mkHdr :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
@@ -217,8 +217,12 @@ mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy 0 lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
-      ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
-                            not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
+      ctys = nubBy eqEType [ tt
+                           | Constr evs _ _ _ flds <- cs
+                           , tt <- getFieldTys flds
+                           , not (ty `eqEType` tt)
+                           , not $ null $ freeTyVars [tt] \\ map idKindIdent evs
+                           ]
       iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
 --  traceM $ "mkHdr: " ++ show (cls, iks')
   pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
@@ -228,7 +232,7 @@ mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr1 (Just (ctx, _)) _ _ _ = return ctx
 mkHdr1 _ lhs@(_, iks) cs cls = do
   ty' <- mkLhsTy 1 lhs
-  let tvar = idKindIdent $ last iks        -- safe, because iks is non-null when calling mkHdr1
+  let tvar = idKindIdent $ last iks               -- safe, because iks is non-null when calling mkHdr1
       ctys :: [EType]                             -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt
                            | Constr evs _ _ _ flds <- cs
@@ -254,6 +258,15 @@ mkHdr1 _ lhs@(_, iks) cs cls = do
                       tts -> tt : tts
               _ -> []
   pure $ eForall (init iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty'
+
+-- Used for Data.  Just propagate the constraint to all type variables.
+mkHdrData :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdrData (Just (ctx, _)) _ _ _ = return ctx
+mkHdrData _ lhs@(_, iks) _cs cls = do
+  ty <- mkLhsTy 0 lhs
+  let ctx = map (tApp cls . EVar . idKindIdent) iks
+--  traceM $ "mkHdrData: " ++ show (cls, iks)
+  pure $ eForall iks $ addConstraints ctx $ tApp cls ty
 
 -- Used for regular deriving, not standalone.
 mkLhsTy :: Int -> LHS -> T EType
@@ -539,7 +552,7 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 --  data T a = A
 derData :: Deriver
 derData mctx _ lhs@(utyname, vks) cs edata = do
-  hdr <- mkHdr mctx lhs cs edata
+  hdr <- mkHdrData mctx lhs cs edata
   mn <- getDefModuleName mctx
   let
     tyname = qualIdent mn utyname
