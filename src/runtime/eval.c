@@ -3990,7 +3990,11 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     break;
   case T_PTR:
     if(PTR(n) == NULL) {
-      putsb("toPtr #0 @", f); // hacky but functional
+      if (prefix) {
+        putsb("(toPtr #0)", f);
+      } else {
+        putsb("toPtr #0 @", f);
+      }
     } else
 #if WANT_STDIO
     /* The pointer can be a forptr comb_std* that has been dereferenced */
