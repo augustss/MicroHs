@@ -5,7 +5,7 @@ import Data.Data
 data T a = C0 | C1 a | C2 Int a | C3 { x,y,z :: a } | Int `C4` Int
   deriving (Data, Show)
 
-data TT a b = TT a
+newtype TT a b = TT a
   deriving (Data, Show)
 
 showConstr' :: Constr -> String
