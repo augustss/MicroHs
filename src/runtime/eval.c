@@ -3998,12 +3998,12 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_PTR:
-#if WANT_STDIO
     if(PTR(n) == NULL) {
       putsb("toPtr #0 @", f); // hacky but functional
-    }
+    } else
+#if WANT_STDIO
     /* The pointer can be a forptr comb_std* that has been dereferenced */
-    else if (PTR(n) == FORPTR(comb_stdin)->payload.string) {
+    if (PTR(n) == FORPTR(comb_stdin)->payload.string) {
       SETTAG(spare_node, T_AP);
       FUN(spare_node) = combFP2P;
       ARG(spare_node) = comb_stdin;
