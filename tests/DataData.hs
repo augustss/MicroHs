@@ -5,6 +5,9 @@ import Data.Data
 data T a = C0 | C1 a | C2 Int a | C3 { x,y,z :: a } | Int `C4` Int
   deriving (Data, Show)
 
+newtype TT a b = TT a
+  deriving (Data, Show)
+
 showConstr' :: Constr -> String
 showConstr' c =
   "Constr { conrep=" ++ show (constrRep c)
@@ -30,3 +33,4 @@ main = do
   print (arity (C4 1 2 :: T ()))
   let AlgRep cs = dataTypeRep (dataTypeOf (C1 ()))
   mapM_ (putStrLn . showConstr') cs
+  print $ dataTypeOf (TT () :: TT () Char)
