@@ -49,7 +49,6 @@ instance Pretty Exp where
 ppExp :: Exp -> Doc
 ppExp ae =
   case ae of
---    Let i e b -> sep [ text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b ]
     Var i -> ppIdent i
     App f a -> parens $ ppExp f <+> ppExp a
     Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e

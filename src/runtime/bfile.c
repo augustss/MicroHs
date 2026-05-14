@@ -212,7 +212,7 @@ putdecb(value_t n, BFILE *p)
   }
 }
 
-#if NEED_INT64
+#if WANT_INT64
 void
 putnegb64(int64_t n, BFILE *p)
 {
@@ -233,7 +233,7 @@ putdecb64(int64_t n, BFILE *p)
     putnegb64(-n, p);
   }
 }
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 void
 putint32(value_t n, BFILE *p)

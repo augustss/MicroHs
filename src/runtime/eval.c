@@ -101,8 +101,6 @@ char *get_executable_path(void) { return NULL; }
 #define YIELD_EXTRA do {} while(0)
 #endif
 
-#define NEED_INT64 (WANT_INT64 && WORD_SIZE < 64)
-
 #if !defined(MKDIR)
 #define MKDIR mkdir
 #endif
@@ -483,7 +481,7 @@ islinux(void)
 #define NOTREACHED
 #endif
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -553,13 +551,6 @@ static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
     "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
-
-/* On 64 bit platforms there is no special type for Int64 */
-#if NEED_INT64
-#define T_INT64 T_INT64X
-#else
-#define T_INT64 T_INT
-#endif  /* WORD_SIZE == 64 */
 
 struct ioarray;
 struct bytestring;
@@ -2225,6 +2216,7 @@ struct {
   { "utoU", T_UTOU64 },
   { "Utou", T_U64TOU },
 #endif  /* WANT_INT64 */
+  { "tick", T_TICK },           /* fake op */
 };
 
 #if GCRED
@@ -3392,7 +3384,7 @@ parse_int(BFILE *f)
   return (value_t)(neg * i);
 }
 
-#if NEED_INT64
+#if WANT_INT64
 int64_t
 parse_int64(BFILE *f)
 {
@@ -3415,7 +3407,7 @@ parse_int64(BFILE *f)
   // Multiply by neg without triggering undefined behavior.
   return (int64_t)(neg * i);
 }
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 struct forptr *mkForPtr(struct bytestring bs);
 NODEPTR mkFunPtr(HsFunPtr p);
@@ -3614,16 +3606,15 @@ parse(BFILE *f)
         break;
       }
     case '#':
-#if NEED_INT64
       if (gobble(f, '#')) {
+#if WANT_INT64
         r = mkInt64(parse_int64(f));
+#else
+        ERR("no Int64");
+#endif /* WANT_INT64 */
       } else {
         r = mkInt(parse_int(f));
       }
-#else  /* NEED_INT64 */
-      gobble(f, '#');
-      r = mkInt(parse_int(f));
-#endif /* NEED_INT64 */
       PUSH(r);
       break;
     case '[':
@@ -3967,9 +3958,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     }
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
-#if NEED_INT64
+#if WANT_INT64
   case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 #if WANT_FLOAT64
 case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #endif
@@ -4188,7 +4179,7 @@ mkInt(value_t i)
   return n;
 }
 
-#if NEED_INT64
+#if WANT_INT64
 NODEPTR
 mkInt64(int64_t i)
 {
@@ -4197,7 +4188,7 @@ mkInt64(int64_t i)
   SETINT64VALUE(n, i);
   return n;
 }
-#endif
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT32
 NODEPTR
@@ -4439,7 +4430,7 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
-#if NEED_INT64
+#if WANT_INT64
 /* Evaluate to an INT */
 static INLINE uint64_t
 evalint64(NODEPTR n)
@@ -4452,9 +4443,7 @@ evalint64(NODEPTR n)
 #endif
   return GETINT64VALUE(n);
 }
-#else
-#define evalint64 evalint
-#endif
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT64
 /* Evaluate to a flt64_t */
@@ -4864,7 +4853,7 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -4875,9 +4864,7 @@ evali(NODEPTR an)
 
   case T_INT:    RET;
   case T_DBL:    RET;
-#if NEED_INT64
   case T_INT64:  RET;
-#endif  /* NEED_INT64 */
   case T_FLT32:  RET;
   case T_PTR:    RET;
   case T_FUNPTR: RET;
@@ -5073,38 +5060,6 @@ evali(NODEPTR an)
      *  ----
      *  n -------> INT(x+y)
      */
-#if !NEED_INT64
-  case T_ADD64:
-  case T_SUB64:
-  case T_MUL64:
-  case T_QUOT64:
-  case T_REM64:
-  case T_SUBR64:
-  case T_UADD64:
-  case T_USUB64:
-  case T_UMUL64:
-  case T_UQUOT64:
-  case T_UREM64:
-  case T_USUBR64:
-  case T_AND64:
-  case T_OR64:
-  case T_XOR64:
-  case T_SHL64:
-  case T_SHR64:
-  case T_ASHR64:
-  case T_EQ64:
-  case T_NE64:
-  case T_LT64:
-  case T_LE64:
-  case T_GT64:
-  case T_GE64:
-  case T_ICMP64:
-  case T_ULT64:
-  case T_ULE64:
-  case T_UGT64:
-  case T_UGE64:
-  case T_UCMP64:
-#endif /* !NEED_INT64 */
   case T_ADD:
   case T_SUB:
   case T_MUL:
@@ -5146,14 +5101,6 @@ evali(NODEPTR an)
       PUSH(combBININT2);
     }
     goto top;
-#if !NEED_INT64
-  case T_NEG64:
-  case T_UNEG64:
-  case T_INV64:
-  case T_POPCOUNT64:
-  case T_CLZ64:
-  case T_CTZ64:
-#endif /* !NEED_INT64 */
 
   case T_NEG:
   case T_UNEG:
@@ -5189,7 +5136,7 @@ evali(NODEPTR an)
 
   case T_I64TOF:
     {
-#if WANT_INT64 || WORD_SIZE == 64
+#if WANT_INT64
     CHECK(1);
     flt32_t rf = (flt32_t)evalint64(ARG(TOP(0)));
     POP(1);
@@ -5273,7 +5220,7 @@ evali(NODEPTR an)
     PUSH(combUNDBL1);
     goto top;
 
-#if WANT_INT64 || WORD_SIZE == 64
+#if WANT_INT64
   case T_I64TOD:
     {
     CHECK(1);
@@ -5339,7 +5286,7 @@ evali(NODEPTR an)
     PUSH(combBINBS2);
     goto top;
 
-#if NEED_INT64
+#if WANT_INT64
   case T_ADD64:
   case T_SUB64:
   case T_MUL64:
@@ -5371,13 +5318,25 @@ evali(NODEPTR an)
   case T_UGE64:
   case T_UCMP64:
     CHECK(2);
+    /*
+    fprintf(stderr, "bin64 op=%s\n", TAGNAME(tag)); fflush(stderr);
+    { NODEPTR x = evali(ARG(TOP(1)));
+      fprintf(stderr, "x.tag=%s x.val=%lld\n", TAGNAME(GETTAG(x)), GETINT64VALUE(x)); fflush(stderr);
+      NODEPTR y = evali(ARG(TOP(0)));
+      fprintf(stderr, "y.tag=%s y.val=%ld\n", TAGNAME(GETTAG(y)), GETVALUE(y)); fflush(stderr);
+    }
+    */
     n = ARG(TOP(1));
     if (GETTAG(n) == T_INT64) {
+      //fprintf(stderr, "push combBININT64_1\n"); fflush(stderr);
       n = ARG(TOP(0));
       PUSH(combBININT64_1);
-      if (GETTAG(n) == T_INT64)
+      if (GETTAG(n) == T_INT64) {
+        //fprintf(stderr, "goto binint64_1\n"); fflush(stderr);
         goto binint64_1;
+      }
     } else {
+      //fprintf(stderr, "push combBININT64_2\n"); fflush(stderr);
       PUSH(combBININT64_2);
     }
     goto top;
@@ -5391,24 +5350,23 @@ evali(NODEPTR an)
     n = ARG(TOP(0));
     PUSH(combUNINT64_1);
     goto top;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 
-  /* XXX This needs redoing with Int64 */
-  /* Retag a word sized value, keeping the value bits */
+    /* Convert between different types. */
 #define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
 #if WANT_INT64
   case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
-  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE);
+  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE); /* raw double -> int64_t */
   case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
   case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
   case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
   case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
-#endif
+#endif  /* WANT_INT64 */
 #if WANT_FLOAT32
   case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
   case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
-#endif
+#endif  /* WANT_FLOAT32 */
   case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
   case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
   case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
@@ -6099,6 +6057,7 @@ evali(NODEPTR an)
   case T_TICK:
     xi = GETVALUE(n);
     CHKARG1;
+    // fprintf(stderr, "tick=%s\n", (char*)tick_table[xi].tick_name.string); fflush(stderr);
     dotick(xi);
     GOIND(x);
 #endif
@@ -6113,9 +6072,9 @@ evali(NODEPTR an)
     // In this case, n was an AP that got pushed and potentially
     // updated.
     uvalue_t xu, yu, ru;
-#if NEED_INT64
+#if WANT_INT64
     uint64_t x64u, y64u, r64u;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 #if WANT_FLOAT32
     flt32_t xf, yf, rf;
 #endif  /* WANT_FLOAT32 */
@@ -6153,62 +6112,57 @@ evali(NODEPTR an)
       n = TOP(-1);
     binint:
 /* if we don't need Int64 implementation, just make Int and Int64 the same */
-#if NEED_INT64
-#define CASE64(l) case l
-#else
-#define CASE64(l) case l##64: case l
-#endif
       switch (GETTAG(p)) {
-      case T_IND:      p = GETINDIR(p); goto binint;
-      CASE64(T_ADD):   ADD_OVERFLOW(value_t, ru, xu, yu); break;
-      CASE64(T_SUB):   SUB_OVERFLOW(value_t, ru, xu, yu); break;
-      CASE64(T_MUL):   MUL_OVERFLOW(value_t, ru, xu, yu); break;
-      CASE64(T_SUBR):  SUB_OVERFLOW(value_t, ru, yu, xu); break;
-      CASE64(T_QUOT):  if (yu == 0)
-                         raise_rts(exn_dividebyzero);
-                       else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
-                         raise_rts(exn_overflow);
-                       else
-                         ru = (uvalue_t)((value_t)xu / (value_t)yu);
-                       break;
-      CASE64(T_REM):   if (yu == 0)
-                         raise_rts(exn_dividebyzero);
-                       else        /* this should not overflow under any circumstances */
-                         ru = (uvalue_t)((value_t)xu % (value_t)yu);
-                       break;
-      CASE64(T_UADD):  ru = xu + yu; break;
-      CASE64(T_USUB):  ru = xu - yu; break;
-      CASE64(T_UMUL):  ru = xu * yu; break;
-      CASE64(T_USUBR): ru = yu - xu; break;
-      CASE64(T_UQUOT): if (yu == 0)
-                         raise_rts(exn_dividebyzero);
-                       else
-                         ru = xu / yu;
-                       break;
-      CASE64(T_UREM):  if (yu == 0)
-                         raise_rts(exn_dividebyzero);
-                       else
-                         ru = xu % yu;
-                       break;
-      CASE64(T_AND):   ru = xu & yu; break;
-      CASE64(T_OR):    ru = xu | yu; break;
-      CASE64(T_XOR):   ru = xu ^ yu; break;
-      CASE64(T_SHL):   ru = xu << yu; break;
-      CASE64(T_SHR):   ru = xu >> yu; break;
-      CASE64(T_ASHR):  ru = (uvalue_t)((value_t)xu >> yu); break;
+      case T_IND:   p = GETINDIR(p); goto binint;
+      case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUB:   SUB_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
+      case T_QUOT:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+                      raise_rts(exn_overflow);
+                    else
+                      ru = (uvalue_t)((value_t)xu / (value_t)yu);
+                    break;
+      case T_REM:   if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else        /* this should not overflow under any circumstances */
+                      ru = (uvalue_t)((value_t)xu % (value_t)yu);
+                    break;
+      case T_UADD:  ru = xu + yu; break;
+      case T_USUB:  ru = xu - yu; break;
+      case T_UMUL:  ru = xu * yu; break;
+      case T_USUBR: ru = yu - xu; break;
+      case T_UQUOT: if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu / yu;
+                    break;
+      case T_UREM:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu % yu;
+                    break;
+      case T_AND:   ru = xu & yu; break;
+      case T_OR:    ru = xu | yu; break;
+      case T_XOR:   ru = xu ^ yu; break;
+      case T_SHL:   ru = xu << yu; break;
+      case T_SHR:   ru = xu >> yu; break;
+      case T_ASHR:  ru = (uvalue_t)((value_t)xu >> yu); break;
 
-      CASE64(T_EQ):    GOBOOL(xu == yu);
-      CASE64(T_NE):    GOBOOL(xu != yu);
-      CASE64(T_ULT):   GOBOOL(xu <  yu);
-      CASE64(T_ULE):   GOBOOL(xu <= yu);
-      CASE64(T_UGT):   GOBOOL(xu >  yu);
-      CASE64(T_UGE):   GOBOOL(xu >= yu);
-      CASE64(T_UCMP):  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
-      CASE64(T_LT):    GOBOOL((value_t)xu <  (value_t)yu);
-      CASE64(T_LE):    GOBOOL((value_t)xu <= (value_t)yu);
-      CASE64(T_GT):    GOBOOL((value_t)xu >  (value_t)yu);
-      CASE64(T_GE):    GOBOOL((value_t)xu >= (value_t)yu);
-      CASE64(T_ICMP):  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
+      case T_EQ:    GOBOOL(xu == yu);
+      case T_NE:    GOBOOL(xu != yu);
+      case T_ULT:   GOBOOL(xu <  yu);
+      case T_ULE:   GOBOOL(xu <= yu);
+      case T_UGT:   GOBOOL(xu >  yu);
+      case T_UGE:   GOBOOL(xu >= yu);
+      case T_UCMP:  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
+      case T_LT:    GOBOOL((value_t)xu <  (value_t)yu);
+      case T_LE:    GOBOOL((value_t)xu <= (value_t)yu);
+      case T_GT:    GOBOOL((value_t)xu >  (value_t)yu);
+      case T_GE:    GOBOOL((value_t)xu >= (value_t)yu);
+      case T_ICMP:  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -6229,13 +6183,13 @@ evali(NODEPTR an)
       n = TOP(-1);
     unint:
       switch (GETTAG(p)) {
-      case T_IND:         p = GETINDIR(p); goto unint;
-      CASE64(T_NEG):      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
-      CASE64(T_UNEG):     ru = -xu; break;
-      CASE64(T_INV):      ru = ~xu; break;
-      CASE64(T_POPCOUNT): ru = POPCOUNT(xu); break;
-      CASE64(T_CLZ):      ru = CLZ(xu); break;
-      CASE64(T_CTZ):      ru = CTZ(xu); break;
+      case T_IND:      p = GETINDIR(p); goto unint;
+      case T_NEG:      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
+      case T_UNEG:     ru = -xu; break;
+      case T_INV:      ru = ~xu; break;
+      case T_POPCOUNT: ru = POPCOUNT(xu); break;
+      case T_CLZ:      ru = CLZ(xu); break;
+      case T_CTZ:      ru = CTZ(xu); break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("UNINT");
@@ -6243,7 +6197,7 @@ evali(NODEPTR an)
       SETINT(n, (value_t)ru);
       goto ret;
 
-#if NEED_INT64
+#if WANT_INT64
     case T_BININT64_2:
       n = ARG(TOP(1));
       TOP(0) = combBININT64_1;
@@ -6252,8 +6206,10 @@ evali(NODEPTR an)
     case T_BININT64_1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_INT64)
+      if (GETTAG(n) != T_INT64) {
+        //fprintf(stderr, "tag=%s\n", TAGNAME(GETTAG(n))); fflush(stderr);
         ERR("BININT64 0");
+      }
 #endif  /* SANITY */
     binint64_1:
       x64u = (uint64_t)GETINT64VALUE(n);
@@ -6356,7 +6312,7 @@ evali(NODEPTR an)
       }
       SETINT64(n, (int64_t)r64u);
       goto ret;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT32
     case T_BINFLT2:
@@ -7362,7 +7318,7 @@ print_mpz(mpz_ptr p)
 }
 #endif
 
-#if NEED_INT64
+#if WANT_INT64 && WORD_SIZE < 64
 /* GMP lacks 64 bit support on 32 bit platforms */
 void
 mpz_init_set_ui64(mpz_t rop, uint64_t op)
@@ -7396,7 +7352,7 @@ mpz_get_si64(mpz_t op)
   }
   return r;
 }
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 #if WORD_SIZE == 64
 #define mpz_init_set_ui64 mpz_init_set_ui
 #define mpz_init_set_si64 mpz_init_set_si
