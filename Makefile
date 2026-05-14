@@ -105,9 +105,12 @@ generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
 	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
 
-bin/mhs.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf #generated/mhs.c
+bin/mhs.js:	mhs.js
 	@mkdir -p bin
-	$(EMCCEVAL) generated/mhs.c $(EMCCLIBS) -o bin/mhs.js
+	echo '#! /usr/bin/env node' > bin/mhs.js
+	cat mhs.js >> bin/mhs.js
+	rm mhs.js
+	chmod +x bin/mhs.js
 
 #######################
 # Compile mhs with ghc
@@ -198,6 +201,9 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
 	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest
+
+runtestinstemscripten:
+	cd tests; $(MAKE) MHSTARGET="-temscripten" MHS="mhs.js -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" test
 
 # Run test examples going with tcc
 runtesttcc: bin/mhseval bin/mhs bin/cpphs
