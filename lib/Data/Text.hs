@@ -35,6 +35,10 @@ module Data.Text(
   isInfixOf,
   replace,
   map,
+  dropAround,
+  strip,
+  stripStart,
+  stripEnd,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map)
 import Control.DeepSeq.Class
@@ -195,3 +199,15 @@ takeWhile p = pack . L.takeWhile p . unpack
 
 map :: (Char -> Char) -> Text -> Text
 map f = pack . L.map f . unpack
+
+dropAround :: (Char -> Bool) -> Text -> Text
+dropAround p = dropWhile p . dropWhileEnd p
+
+stripStart :: Text -> Text
+stripStart = dropWhile C.isSpace
+
+stripEnd :: Text -> Text
+stripEnd = dropWhileEnd C.isSpace
+
+strip :: Text -> Text
+strip = dropAround C.isSpace
