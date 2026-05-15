@@ -213,8 +213,11 @@ conFieldTys (Constr _ _ _ _ as) = getFieldTys as
 -- will get context  (Eq a, Eq (a, Int))
 -- Used for regular deriving, not standalone.
 mkHdr :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (Just (ctx, _)) _ _ _ = return ctx
-mkHdr _ lhs@(_, iks) cs cls = do
+mkHdr mctx lhs cs cls = mkHdrWithTyVarConstraint mctx lhs cs cls Nothing
+
+mkHdrWithTyVarConstraint :: StandM -> LHS -> [Constr] -> EConstraint -> Maybe EConstraint -> T EConstraint
+mkHdrWithTyVarConstraint (Just (ctx, _)) _ _ _ _ = return ctx
+mkHdrWithTyVarConstraint _ lhs@(_, iks) cs cls tyVarConstraint = do
   ty <- mkLhsTy 0 lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt
@@ -223,9 +226,11 @@ mkHdr _ lhs@(_, iks) cs cls = do
                            , not (ty `eqEType` tt)
                            , not $ null $ freeTyVars [tt] \\ map idKindIdent evs
                            ]
+      tyVars = map (EVar . idKindIdent) iks  -- type variables in type definition
       iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
---  traceM $ "mkHdr: " ++ show (cls, iks')
-  pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
+      tyVarConstraints = maybe [] (\c -> map (tApp c) tyVars) tyVarConstraint
+--  traceM $ "mkHdrWithTyVarConstraints: " ++ show (cls, iks')
+  pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys ++ tyVarConstraints) $ tApp cls ty
 
 -- instance header for Functor, Foldable, Traversable
 mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
@@ -258,15 +263,6 @@ mkHdr1 _ lhs@(_, iks) cs cls = do
                       tts -> tt : tts
               _ -> []
   pure $ eForall (init iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty'
-
--- Used for Data.  Just propagate the constraint to all type variables.
-mkHdrData :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdrData (Just (ctx, _)) _ _ _ = return ctx
-mkHdrData _ lhs@(_, iks) _cs cls = do
-  ty <- mkLhsTy 0 lhs
-  let ctx = map (tApp cls . EVar . idKindIdent) iks
---  traceM $ "mkHdrData: " ++ show (cls, iks)
-  pure $ eForall iks $ addConstraints ctx $ tApp cls ty
 
 -- Used for regular deriving, not standalone.
 mkLhsTy :: Int -> LHS -> T EType
@@ -552,16 +548,18 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 --  data T a = A
 derData :: Deriver
 derData mctx _ lhs@(utyname, vks) cs edata = do
-  hdr <- mkHdrData mctx lhs cs edata
-  mn <- getDefModuleName mctx
   let
-    tyname = qualIdent mn utyname
     loc = getSLoc edata
     mkB = mkBuiltin loc
     mkI = mkIdentSLoc loc
     lit = ELit loc
     str = lit . LStr . unIdentPar
     eList = EListish . LList
+    etyp = EVar (mkI nameDataTypeableTypeable)
+  hdr <- mkHdrWithTyVarConstraint mctx lhs cs edata (Just etyp)
+  mn <- getDefModuleName mctx
+  let
+    tyname = qualIdent mn utyname
     iMkDataType = mkB "mkDataType"
     iMkConstrTag = mkB "mkConstrTag"
     iConstrIndex = mkB "constrIndex"
