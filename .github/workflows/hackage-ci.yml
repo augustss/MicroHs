@@ -50,6 +50,7 @@ jobs:
           gcc
           make
           curl
+          git
 
     - name: checkout mhs repo
       uses: actions/checkout@v4
