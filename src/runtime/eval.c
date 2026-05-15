@@ -4266,7 +4266,9 @@ mkForPtr(struct bytestring bs)
 struct forptr*
 mkForPtrP(void *p)
 {
-  struct bytestring bs = { NOSIZE, p };
+  struct bytestring bs;
+  bs.size = NOSIZE;
+  bs.string = p;
   return mkForPtr(bs);
 }
 
@@ -4336,7 +4338,9 @@ mkString(struct bytestring bs)
 NODEPTR
 mkStringC(char *str)
 {
-  struct bytestring bs = { strlen(str), str };
+  struct bytestring bs;
+  bs.size = strlen(str);
+  bs.string = str;
   return mkString(bs);
 }
 
@@ -5698,44 +5702,51 @@ evali(NODEPTR an)
   case T_PACKCSTRING:
     {
       CHKARG2NP;                  /* sets x, y, n */
+      {
       char *cstr = evalptr(x);
-      size_t size = strlen(cstr);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
+      struct bytestring bs;
+      bs.size = strlen(cstr);
+      bs.string = mmalloc(bs.size);;
+      memcpy(bs.string, cstr, bs.size);
       NODEPTR res = mkStrNode(bs);
       GCCHECKSAVE(res, 1);
       POP(2);
       GOPAIR(res);
+      }
     }
   case T_PACKCSTRINGLEN:
     {
       CHKARG3NP;                /* sets x,y,z,n */
+      {
       char *cstr = evalptr(x);
-      size_t size = evalint(y);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
+      struct bytestring bs;
+      bs.size = evalint(y);
+      bs.string = mmalloc(bs.size);
+      memcpy(bs.string, cstr, bs.size);
       NODEPTR res = mkStrNode(bs);
       POP(3);
       GCCHECKSAVE(res, 1);
       GOPAIR(res);
+      }
     }
   case T_BSGRAB:
     {
       CHKARG2NP;                  /* sets x, y, n */
-      char *cstr = evalptr(x);
-      size_t size = strlen(cstr);
-      struct bytestring bs = { size, cstr };
+      {
+      struct bytestring bs;
+      bs.string = evalptr(x);
+      bs.size = strlen(bs.string);
       NODEPTR res = mkStrNode(bs);
       GCCHECKSAVE(res, 1);
       POP(2);
       GOPAIR(res);
+      }
     }
 
   case T_ARR_ALLOC:
     {
       CHKARG3NP;                /* sets x,y,z,n */
+      {
       size_t size = evalint(x);
       struct ioarray *arr = arr_alloc(size, y);
       GCCHECK(2);
@@ -5743,10 +5754,12 @@ evali(NODEPTR an)
       ARR(res) = arr;
       POP(3);
       GOPAIR(res);
+      }
     }
   case T_ARR_COPY:
     {
       CHKARG2NP;
+      {
       NODEPTR a = evali(x);
       if (GETTAG(a) != T_ARR)
         ERR("T_ARR_COPY tag");
@@ -5756,6 +5769,7 @@ evali(NODEPTR an)
       ARR(res) = arr;
       POP(2);
       GOPAIR(res);
+      }
     }
   case T_ARR_SIZE:
     {
