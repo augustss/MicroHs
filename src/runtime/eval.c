@@ -2264,10 +2264,8 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
-#if MHS_IO_POLL
   { "IO.waitrdfd", T_IO_WAITRDFD},
   { "IO.waitwrfd", T_IO_WAITWRFD},
-#endif
 #if WANT_INT64
   { "I+", T_ADD64, T_ADD64 },
   { "I-", T_SUB64, T_SUBR64 },
@@ -6091,9 +6089,9 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(mkInt(mt->mt_state));
     }
-#if MHS_IO_POLL
   case T_IO_WAITRDFD:
   case T_IO_WAITWRFD: {
+#if MHS_IO_POLL
     CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
 
     /* io_thread_ready sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
@@ -6104,7 +6102,7 @@ evali(NODEPTR an)
     if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
       runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
       POP(2);
-      GOPAIRUNIT;
+      GOPAIR(mkInt(1));
     }
 
     POP(2);
@@ -6121,8 +6119,12 @@ evali(NODEPTR an)
     io_register(fd, events, mt);
 
     resched(mt, ts_wait_io);
-  }
+#else
+    CHKARG2NP;
+    POP(2);
+    GOPAIR(mkInt(-1));
 #endif
+  }
   case T_IO_GETMASKINGSTATE:
     CHKARG1;                    /* x = ST */
     GOPAIR(mkInt(runq.mq_head->mt_mask));
