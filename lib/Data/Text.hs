@@ -39,6 +39,8 @@ module Data.Text(
   strip,
   stripStart,
   stripEnd,
+  stripPrefix,
+  stripSuffix,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map)
 import Control.DeepSeq.Class
@@ -211,3 +213,9 @@ stripEnd = dropWhileEnd C.isSpace
 
 strip :: Text -> Text
 strip = dropAround C.isSpace
+
+stripPrefix :: Text -> Text -> Maybe Text
+stripPrefix p t = pack <$> L.stripPrefix (unpack p) (unpack t)
+
+stripSuffix :: Text -> Text -> Maybe Text
+stripSuffix p t = pack <$> L.stripSuffix (unpack p) (unpack t)

@@ -10,6 +10,7 @@ import Data.Eq
 import Data.Function
 import Data.Functor
 import Data.Int.Int
+import Data.List(foldr)
 import Data.Ord
 import {-# SOURCE #-} Data.Typeable
 import Text.Show
@@ -46,3 +47,9 @@ instance Applicative (Either a) where
 instance Monad (Either a) where
   Right b >>= k = k b
   Left a  >>= _ = Left a
+
+partitionEithers :: [Either a b] -> ([a],[b])
+partitionEithers = foldr (either left right) ([],[])
+ where
+  left  a ~(l, r) = (a:l, r)
+  right a ~(l, r) = (l, a:r)
