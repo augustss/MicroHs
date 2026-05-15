@@ -9,7 +9,8 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-hackage:
+  # Build on a 64 bit little endian platform
+  build-hackage-x86_64:
     runs-on: ubuntu-latest
     steps:
     # mhs
@@ -28,6 +29,44 @@ jobs:
       run: |
         cd mhs
         make -f Makefile.packages
+
+    # DONE
+    - name: cleanup
+      run: |
+        rm -rf $HOME/.mcabal
+
+
+  # Build on a 32 bit little endian platform
+  build-hackage-x86:
+    runs-on: ubuntu-latest
+    steps:
+    # mhs
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: x86
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+
+    - name: checkout mhs repo
+      uses: actions/checkout@v4
+      with:
+        path: mhs
+    - name: make and install mhs
+      run: |
+        cd mhs
+        make minstall
+        echo "$HOME/.mcabal/bin" >> "$GITHUB_PATH"
+      shell: alpine.sh {0}
+
+    # Build hackage packages
+    - name: compile and install packages
+      run: |
+        cd mhs
+        make -f Makefile.packages
+      shell: alpine.sh {0}
 
     # DONE
     - name: cleanup
