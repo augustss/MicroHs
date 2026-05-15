@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <locale.h>
 #endif
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

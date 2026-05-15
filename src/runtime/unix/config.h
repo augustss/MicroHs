@@ -127,6 +127,7 @@
 #include <stdio.h>
 #include <locale.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #if defined(__APPLE__) && defined(__MACH__)   // any Darwin (macOS, iOS, tvOS, watchOS)
   #include <TargetConditionals.h>

@@ -53,7 +53,28 @@
  */
 #define ISWINDOWS 1
 
-#include <inttypes.h>
+#if defined(_MSC_VER) && (_MSC_VER < 1800) /* Older than VS 2013 */
+    #include <stdint.h>
+    #if defined(_WIN64)
+        /* 64-bit: Use the I64 prefix for 64-bit integers */
+        #define PRIdPTR "I64d"
+        #define PRIuPTR "I64u"
+        #define PRIxPTR "I64x"
+    #else
+        /* 32-bit: Use standard decimal/unsigned */
+        #define PRIdPTR "d"
+        #define PRIuPTR "u"
+        #define PRIxPTR "x"
+    #endif
+    typedef bool unsigned char;
+    #define false 0
+    #define true 1
+    #define inline __inline
+#else
+    #include <inttypes.h>
+    #include <stdbool.h>
+#endif
+
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <intrin.h>
