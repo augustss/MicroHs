@@ -43,6 +43,7 @@ import qualified Data.List as L
 import Data.String
 import qualified Data.ByteString.Internal as BS
 import Data.Text.Internal
+import Text.Read.Internal
 
 type StrictText = Text
 
@@ -61,6 +62,9 @@ show = pack . MiniPrelude.show
 
 cmp :: (BS.ByteString -> BS.ByteString -> Bool) -> (Text -> Text -> Bool)
 cmp op (T x) (T y) = op x y
+
+instance Read Text where
+  readsPrec p str = [(pack x, y) | (x, y) <- readsPrec p str]
 
 instance Show Text where
   showsPrec p = showsPrec p . unpack
