@@ -546,9 +546,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
-#if MHS_IO_POLL
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
-#endif
                 T_LAST_TAG,
 };
 
@@ -912,9 +910,7 @@ enum th_state {
   ts_wait_time,
   ts_finished,
   ts_died,
-#if MHS_IO_POLL
   ts_wait_io,   /* not visible to Haskell; must stay after ts_died */
-#endif
 };
 enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 
@@ -927,6 +923,9 @@ struct handler {
 } *cur_handler = 0;
 
 /***************** THREAD ******************/
+
+#define IO_POLL_WAITING_FOR_NONE (-1)
+#define IO_POLL_EVENT_HAS_HAPPENED (-2)
 
 struct mthread {
   enum th_state   mt_state;      /* thread state */
@@ -941,7 +940,7 @@ struct mthread {
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if MHS_IO_POLL
-  int             mt_fd;         /* The file descriptor that we are waiting on (-1 means none, -2 means we've already been woken) */
+  int             mt_fd;         /* The file descriptor that we are waiting on (will be either IO_POLL_WAITING_FOR_NONE or IO_POLL_EVENT_HAS_HAPPENED) */
   int             mt_events;     /* IO_POLL_READ or IO_POLL_WRITE */
 #endif
 #if defined(CLOCK_INIT)
@@ -1136,15 +1135,14 @@ add_runq_tail(struct mthread *mt)
 }
 
 #if MHS_IO_POLL
-/*
-this is the callback that is sent to the io_poll framework. It is invoked
-when an event a thread is waiting for becomes ready.
-*/
+/* this is the callback that is sent to the io_poll framework.
+ * It is invoked when an event a thread is waiting for becomes ready.
+ */
 static void
 io_thread_ready(void *ptr)
 {
   struct mthread *mt = (struct mthread *)ptr;
-  mt->mt_fd = -2;
+  mt->mt_fd = IO_POLL_EVENT_HAS_HAPPENED;
   add_runq_tail(mt);
 }
 #endif
@@ -1391,7 +1389,7 @@ new_thread(NODEPTR root)
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
 #if MHS_IO_POLL
-  mt->mt_fd = -1;
+  mt->mt_fd = IO_POLL_WAITING_FOR_NONE;
   mt->mt_events = -1;
 #endif
 #if defined(CLOCK_INIT)
@@ -1647,10 +1645,11 @@ void
 pause_exec(void)
 {
 /* End up here if the run queue is empty. If there is no thread waiting for
-a delay to expire, we will never resume operation and we are deadlocked. However, if
-we compile with MHS_IO_POLL there might be threads waiting for IO events, so in
-that case we check for them as well. If there is no thread waiting for a delay or an
-IO event, we are deadlocked. */
+ * a delay to expire, we will never resume operation and we are deadlocked. However, if
+ * we compile with MHS_IO_POLL there might be threads waiting for IO events, so in
+ * that case we check for them as well. If there is no thread waiting for a delay or an
+ * IO event, we are deadlocked.
+ */
 #if MHS_IO_POLL
 
   /* Check for deadlock situation */
@@ -6097,22 +6096,19 @@ evali(NODEPTR an)
   case T_IO_WAITWRFD: {
     CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
 
-    /* io_thread_ready sets mt_fd=-2 when waking the thread. By seeing if it is -2
-       here we can learn that our registered event has happened and we can return
-       unit. If we did not do this check we would just register again.
+    /* io_thread_ready sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
+       If we did not do this check we would just register again.
 
        This seems to be how T_IO_THREADDELAY works, with mt_at == -1.
     */
-    if (runq.mq_head->mt_fd == -2) {
-      runq.mq_head->mt_fd = -1;
+    if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
+      runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
       POP(2);
       GOPAIRUNIT;
     }
 
     POP(2);
-    int fd = evalint(x); // initially I used GETVALUE(x) here, but that did not work.
-                         // I assumed it had to do with lazyness, and the change to evalint
-                         // seems to have fixed it.
+    int fd = evalint(x);
     int events = (tag == T_IO_WAITRDFD) ? IO_POLL_READ : IO_POLL_WRITE;
 
     /* Set up the waiting thread's state, preparing it to leave the run queue
