@@ -3,13 +3,11 @@
  */
 
 /*
- * Selects the platform-specific IO poll backend for Unix targets.
+ * IO poll backend for Unix.
+ *
+ * Currently Linux only, using epoll. When a second implementation for MACOS is
+ * available, do some tricks here to dispatch the correct one.
+ *
  */
 
-#if defined(__linux__)
 #include "io_poll_epoll.c"
-#elif defined(__APPLE__) && defined(__MACH__)
-#include "io_poll_kqueue.c"
-#else
-#error "No IO poll backend available for this platform"
-#endif

@@ -86,10 +86,10 @@
 
 /*
  * Enable non-blocking IO polling.
- * Linux uses epoll; macOS uses kqueue (not yet implemented).
+ * Linux uses epoll
  * The backend is selected in unix/io_poll_impl.c.
  */
-#if defined(__linux__) || (defined(__APPLE__) && defined(__MACH__))
+#if defined(__linux__)
 #define MHS_IO_POLL 1
 #else
 #define MHS_IO_POLL 0
