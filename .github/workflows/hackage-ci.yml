@@ -49,6 +49,7 @@ jobs:
           build-base
           gcc
           make
+          curl
 
     - name: checkout mhs repo
       uses: actions/checkout@v4

@@ -123,3 +123,5 @@
 #define INTTABLE 0              /* use fixed table of small INT nodes */
 #define SANITY   0              /* do some sanity checks */
 #define STACKOVL 0              /* check for stack overflow */
+
+#include <stdbool.h>
