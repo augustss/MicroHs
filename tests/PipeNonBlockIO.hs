@@ -1,5 +1,6 @@
 module PipeNonBlockIO where
 
+import Control.Monad (void)
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Data.Word
@@ -18,7 +19,7 @@ foreign import capi "fcntl.h value F_SETFL"    fSETFL    :: CInt
 foreign import capi "fcntl.h value O_NONBLOCK" oNONBLOCK :: CInt
 
 setNonBlocking :: CInt -> IO ()
-setNonBlocking fd = c_fcntl_setfl fd fSETFL oNONBLOCK >> return ()
+setNonBlocking fd = void (c_fcntl_setfl fd fSETFL oNONBLOCK)
 
 blockOnRead :: CInt -> IO Word8
 blockOnRead fd = alloca $ \p -> go p
