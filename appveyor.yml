@@ -1,39 +1,32 @@
-# Matrix configuration - testing all 5 available versions
-image:
-  - Visual Studio 2022
-  - Visual Studio 2019
-  - Visual Studio 2017
-  - Visual Studio 2015
-  - Visual Studio 2013
+environment:
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+      VCVARS_BAT: "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build"
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      VCVARS_BAT: "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build"
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      VCVARS_BAT: "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build"
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      VCVARS_BAT: "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC"
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
+      VCVARS_BAT: "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC"
 
 platform:
   - x86
   - x64
 
-# Determine the correct architecture flag for vcvarsall.bat
-init:
-  - ps: >-
-      if ($env:PLATFORM -eq "x64") {
-          $env:VCVARS_ARCH = "amd64"
-      } else {
-          $env:VCVARS_ARCH = "x86"
-      }
-
 # Disable default MSBuild behavior
 build: off
 
-# Run environment setup and your nmake commands
 test_script:
   - cmd: >-
-      if "%IMAGE%"=="Visual Studio 2022" call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" %VCVARS_ARCH%
+      if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvars64.bat") else (set "TARGET_BAT=vcvars32.bat")
       
-      if "%IMAGE%"=="Visual Studio 2019" call "C:\Program Files\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" %VCVARS_ARCH%
+      if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvarsall.bat amd64") else (set "TARGET_BAT=vcvarsall.bat x86"))
       
-      if "%IMAGE%"=="Visual Studio 2017" call "C:\Program Files\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" %VCVARS_ARCH%
+      if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2013" (if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvarsall.bat amd64") else (set "TARGET_BAT=vcvarsall.bat x86"))
       
-      if "%IMAGE%"=="Visual Studio 2015" call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %VCVARS_ARCH%
-      
-      if "%IMAGE%"=="Visual Studio 2013" call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %VCVARS_ARCH%
+      call "%VCVARS_BAT%\%TARGET_BAT%"
       
       nmake /f Makefile.windows
       
