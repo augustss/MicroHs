@@ -7274,6 +7274,8 @@ from_t mhs_c_d_name(int s) { return mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to
 from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, MKDIR(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_get_permissions(int s) { return mhs_from_Int(s, 1, get_permissions(mhs_to_Ptr(s, 0))); }
+from_t mhs_set_permissions(int s) { return mhs_from_Int(s, 2, set_permissions(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_ENV
@@ -7597,6 +7599,8 @@ const struct ffi_entry ffi_table[] = {
   { "chdir", 1, mhs_chdir},
   { "mkdir", 2, mhs_mkdir},
   { "getcwd", 2, mhs_getcwd},
+  { "set_permissions", 2, mhs_set_permissions},
+  { "get_permissions", 1, mhs_get_permissions},
 #endif  /* WANT_DIR */
   { "getcpu", 2, mhs_getcpu},
   { "want_gmp", 0, mhs_want_gmp},

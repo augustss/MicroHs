@@ -295,3 +295,54 @@ unsetenv(const char *name)
 
   return 0;
 }
+
+
+#if defined(WANT_DIR)
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <io.h>
+
+#define PERM_SEARCH 8
+#define PERM_READ   4
+#define PERM_WRITE  2
+#define PERM_EXEC   1
+
+int
+get_permissions(const char *path)
+{
+  struct _stat st;
+  int perms = 0;
+    
+  if (_stat(path, &st) == -1) {
+    return -1;
+  }
+
+  if (st.st_mode & _S_IREAD)
+    perms |= PERM_READ;
+  if (st.st_mode & _S_IWRITE)
+    perms |= PERM_WRITE;
+  if (st.st_mode & _S_IFDIR) {
+    perms |= PERM_SEARCH; 
+  } else {
+    if (st.st_mode & _S_IEXEC) {
+      perms |= PERM_EXEC; 
+    }
+  }
+  return perms;
+}
+
+int
+set_permissions(const char *path, int perms)
+{
+  int wperms = 0;
+    
+  if (perms & PERM_READ)
+    wperms |= _S_IREAD;
+  if (perms & PERM_WRITE)
+    wperms |= _S_IWRITE;
+  if ((perms & PERM_EXEC) || (perms & PERM_SEARCH))
+    wperms |= _S_IEXEC;
+
+  return _chmod(path, wperms);
+}
+#endif  /* defined(WANT_DIR) */

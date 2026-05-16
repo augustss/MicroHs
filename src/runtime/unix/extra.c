@@ -64,7 +64,7 @@ getraw(void)
     if (getraw_last_char_in != getraw_last_char_out) {
       int ch = getraw_last_chars[getraw_last_char_out];
       getraw_last_char_out = (getraw_last_char_out + 1) % IN_BUF_SIZE;
-      
+
       getraw_waiting = 0;
       return ch;
     }
@@ -94,7 +94,7 @@ void c_end_draw(void) {
 EM_ASYNC_JS(void, c_waitForFrame, (), {
     return new Promise(function(resolve) {
         requestAnimationFrame(function() {
-            resolve(); 
+            resolve();
         });
     });
 });
@@ -231,7 +231,7 @@ getcputime(long *sec, long *nsec)
 {
 #if WANT_TIME
   struct timespec ts;
-  
+
   if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
     *sec = ts.tv_sec;
     *nsec = ts.tv_nsec;
@@ -271,7 +271,8 @@ uint64_t end_kperf(void) { return 0; }
 
 /* Return path to executable as a null-terminated UTF-8 string. */
 char*
-get_executable_path(void) {
+get_executable_path(void)
+{
 #if defined(__linux__)
     return realpath("/proc/self/exe", NULL);
 
@@ -295,3 +296,73 @@ get_executable_path(void) {
 #endif
 }
 #define GET_EXECUTABLE_PATH get_executable_path
+
+#if defined(WANT_DIR)
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+/* Encoding shared with the Haskell side */
+#define PERM_SEARCH 8
+#define PERM_READ   4
+#define PERM_WRITE  2
+#define PERM_EXEC   1
+
+int
+get_permissions(const char *path)
+{
+  struct stat st;
+  int perms = 0;
+
+  if (stat(path, &st) == -1) {
+    return -1;
+  }
+
+  if (st.st_mode & S_IRUSR)
+    perms |= PERM_READ;
+  if (st.st_mode & S_IWUSR)
+    perms |= PERM_WRITE;
+  if (st.st_mode & S_IXUSR) {
+    if (S_ISDIR(st.st_mode)) {
+      perms |= PERM_SEARCH;
+    } else {
+      perms |= PERM_EXEC;
+    }
+  }
+
+  return perms;
+}
+
+int
+set_permissions(const char *path, int perms)
+{
+  struct stat st;
+  mode_t uperms = 0;
+  int result;
+
+  int fd = open(path, O_RDONLY | O_NONBLOCK);
+  if (fd == -1) {
+    return -1;
+  }
+
+  if (fstat(fd, &st) == -1) {
+    close(fd);
+    return -1;
+  }
+
+  if (perms & PERM_READ)
+    uperms |= S_IRUSR;
+  if (perms & PERM_WRITE)
+    uperms |= S_IWUSR;
+  if ((perms & PERM_EXEC) || (perms & PERM_SEARCH)) {
+    uperms |= S_IXUSR;
+  }
+
+  uperms |= (st.st_mode & ~((mode_t)S_IRWXU));
+  result = fchmod(fd, uperms);
+
+  close(fd);
+  return result;
+}
+#endif  /* WANT_DIR */
