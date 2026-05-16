@@ -101,11 +101,6 @@
     #include <inttypes.h>
 #endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
 
-#if defined(_MSC_VER) && (_MSC_VER < 1800)
-    #define inline __inline
-#endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
-
-
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <intrin.h>
@@ -123,6 +118,9 @@
 /* Make these empty */
 #define NORETURN
 #define PACKED
+
+/* This is a safe way to inline */
+#define INLINE __inline
 
 /*
  * The ERR macro should report an error and exit.

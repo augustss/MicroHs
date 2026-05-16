@@ -602,7 +602,7 @@ typedef struct PACKED node {
 #define BIT_TG    1
 #define BIT_IN    2
 
-static inline tag_t GETTAG(NODEPTR p)
+static INLINE tag_t GETTAG(NODEPTR p)
 {
   tag_t t = p->ufun.uutag;
   switch(t & BIT_MASK) {
@@ -611,7 +611,7 @@ static inline tag_t GETTAG(NODEPTR p)
   default:     return t >> TAG_SHIFT;
   }
 }
-static inline void SETTAG(NODEPTR p, tag_t t)
+static INLINE void SETTAG(NODEPTR p, tag_t t)
 {
   switch(t) {
   case BIT_AP: break;           /* do nothing, bits are already 0 */
@@ -876,7 +876,7 @@ add_tick_table(struct bytestring name)
 }
 
 /* Called with the tick index. */
-static inline void
+static INLINE void
 dotick(value_t i)
 {
   tick_table[i].tick_count++;

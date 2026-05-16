@@ -54,13 +54,13 @@
 
 #include <inttypes.h>
 
-static inline uint64_t clz(uint64_t x) {
+static INLINE uint64_t clz(uint64_t x) {
   if (x == 0) return 64;
   return __builtin_clzll(x);
 }
 #define CLZ clz
 
-static inline uint64_t ctz(uint64_t x) {
+static INLINE uint64_t ctz(uint64_t x) {
   if (x == 0) return 64;
   return __builtin_ctzll(x);
 }

@@ -17,7 +17,7 @@
 #if defined(_M_X64) || defined(_M_ARM64)
 #pragma intrinsic(_BitScanForward64)
 #pragma intrinsic(_BitScanReverse64)
-static inline int
+static INLINE int
 ffs(int64_t arg)
 {
   unsigned long r;
@@ -34,7 +34,7 @@ ffs(int64_t arg)
 #define POPCOUNT __popcnt
 #endif
 
-static inline uint64_t clz(uint64_t x) {
+static INLINE uint64_t clz(uint64_t x) {
   unsigned long count;
   if (_BitScanReverse64(&count, x)) {
     return 63 - (uint64_t)count;
@@ -44,7 +44,7 @@ static inline uint64_t clz(uint64_t x) {
 }
 #define CLZ clz
 
-static inline uint64_t ctz(uint64_t x) {
+static INLINE uint64_t ctz(uint64_t x) {
   unsigned long count;
   if (_BitScanForward64(&count, x)) {
     return (uint64_t)count;
