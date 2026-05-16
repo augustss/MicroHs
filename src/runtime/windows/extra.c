@@ -297,7 +297,7 @@ unsetenv(const char *name)
 }
 
 
-#if defined(WANT_DIR)
+#if defined(WANT_DIR) || defined(WANT_DIR_WIN)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <io.h>
