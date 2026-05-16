@@ -54,12 +54,10 @@
 #define ISWINDOWS 1
 
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
-
-    /* VS 2010/2012 have stdint.h, but 2008 and older do not */
+    /* Fix missing inttypes.h */
     #if _MSC_VER >= 1600
         #include <stdint.h>
     #else  /* _MSC_VER >= 1600 */
-        /* Manual definitions for truly ancient MSVC 2008 or older */
         typedef signed char        int8_t;
         typedef short              int16_t;
         typedef int                int32_t;
@@ -97,15 +95,16 @@
         #define PRIxPTR "x"
     #endif  /* _WIN64 */
 
-    /* Fix missing keywords/functions */
-    #define inline __inline
-    #define snprintf _snprintf
-
 #else  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
     /* Modern Compiler (VS 2013+, GCC, Clang) */
     #include <stdbool.h>
     #include <inttypes.h>
 #endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
+
+#if defined(_MSC_VER) && (_MSC_VER < 1800)
+    #define inline __inline
+#endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
+
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
