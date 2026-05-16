@@ -1,13 +1,13 @@
 environment:
   matrix:
-#    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
-#      VCVARS_BAT: 'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build'
-#    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-#      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build'
-#    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-#      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build'
-#    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-#      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+      VCVARS_BAT: 'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC'
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
       VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC'
 
