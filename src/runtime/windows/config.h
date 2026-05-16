@@ -53,27 +53,59 @@
  */
 #define ISWINDOWS 1
 
-#if defined(_MSC_VER) && (_MSC_VER < 1800) /* Older than VS 2013 */
-    #include <stdint.h>
-    #if defined(_WIN64)
-        /* 64-bit: Use the I64 prefix for 64-bit integers */
+#if defined(_MSC_VER) && (_MSC_VER < 1800)
+
+    /* VS 2010/2012 have stdint.h, but 2008 and older do not */
+    #if _MSC_VER >= 1600
+        #include <stdint.h>
+    #else  /* _MSC_VER >= 1600 */
+        /* Manual definitions for truly ancient MSVC 2008 or older */
+        typedef signed char        int8_t;
+        typedef short              int16_t;
+        typedef int                int32_t;
+        typedef __int64            int64_t;
+        typedef unsigned char      uint8_t;
+        typedef unsigned short     uint16_t;
+        typedef unsigned int       uint32_t;
+        typedef unsigned __int64   uint64_t;
+        #ifdef _WIN64
+            typedef __int64        intptr_t;
+            typedef unsigned __int64 uintptr_t;
+        #else  /* _WIN64 */
+            typedef int            intptr_t;
+            typedef unsigned int   uintptr_t;
+        #endif  /* _WIN64 */
+    #endif  /* _MSC_VER >= 1600 */
+
+    /* Fix missing stdbool.h */
+    typedef unsigned char bool;
+    #define true  1
+    #define false 0
+
+    /* Fix missing inttypes.h PRI macros */
+    #define PRId64 "I64d"
+    #define PRIu64 "I64u"
+    #define PRIx64 "I64x"
+
+    #ifdef _WIN64
         #define PRIdPTR "I64d"
         #define PRIuPTR "I64u"
         #define PRIxPTR "I64x"
-    #else
-        /* 32-bit: Use standard decimal/unsigned */
+    #else  /* _WIN64 */
         #define PRIdPTR "d"
         #define PRIuPTR "u"
         #define PRIxPTR "x"
-    #endif
-    typedef bool unsigned char;
-    #define false 0
-    #define true 1
+    #endif  /* _WIN64 */
+
+    /* Fix missing keywords/functions */
     #define inline __inline
-#else
-    #include <inttypes.h>
+    #define snprintf _snprintf
+
+#else  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
+    /* Modern Compiler (VS 2013+, GCC, Clang) */
     #include <stdbool.h>
-#endif
+    #include <inttypes.h>
+#endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>

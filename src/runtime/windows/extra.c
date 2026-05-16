@@ -14,6 +14,7 @@
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
 //#pragma warning(disable : 4996)
+#if defined(_M_X64) || defined(_M_ARM64)
 #pragma intrinsic(_BitScanForward64)
 #pragma intrinsic(_BitScanReverse64)
 static inline int
@@ -52,6 +53,7 @@ static inline uint64_t ctz(uint64_t x) {
   }
 }
 #define CTZ ctz
+#endif  /* #if defined(_M_X64) || defined(_M_ARM64) */
 
 /*
  * This is the character used for comma-separation in printf.

@@ -3,7 +3,7 @@
 #
 HOME=$(USERPROFILE)
 RTS=src/runtime
-CCEVAL=cl -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c
+CCEVAL=cl -nologo -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c
 
 VERSION=0.15.7.0
 HVERSION=0,15,7,0
