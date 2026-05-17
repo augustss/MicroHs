@@ -37,7 +37,7 @@ main = do
       mcabalBin = mcabal </> "bin"
       exes = ["mhs", "cpphs", "mcabal"]
   --
-  mkdir $ "bin"
+  mkdir "bin"
   mapM_ (buildBin cconf) exes
   machdep $ rts </> "MachDeps.h"
   mkdir mcabalBin
