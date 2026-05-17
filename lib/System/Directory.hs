@@ -136,8 +136,13 @@ copyFile src dst = do
 getHomeDirectory :: IO FilePath
 getHomeDirectory =
   if _isWindows then do
-    user <- getEnv "USERNAME"
-    return $ "C:/Users/" ++ user    -- it's a guess
+    mhome <- lookupEnv "USERPROFILE"
+    case mhome of
+      Just home -> return home
+      Nothing -> do
+        drive <- getEnv "HOMEDRIVE"
+        path <- getEnv "HOMEPATH"
+        return $ drive ++ "\\" ++ path
   else
     getEnv "HOME"
 
