@@ -302,6 +302,7 @@ get_executable_path(void)
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 /* Encoding shared with the Haskell side */
 #define PERM_SEARCH 8

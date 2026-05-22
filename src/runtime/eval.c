@@ -30,7 +30,6 @@
 #endif
 #endif /* __EMSCRIPTEN__ */
 #if WANT_DIR
-#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif  /* WANT_DIR */
