@@ -309,7 +309,8 @@ runtimeFFI = [
   "strerror_r",
   "environ",
   "get_executable_path",
-  "setenv", "unsetenv"
+  "setenv", "unsetenv",
+  "set_permissions", "get_permissions"
   ]
 
 {-
