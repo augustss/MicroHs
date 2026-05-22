@@ -6,14 +6,12 @@ import Foreign.Storable
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import System.Directory
+import System.Envirinment
 import System.FilePath
 import System.Process
 import MicroHs.Config
 
 type CConf = [(Key, Value)]
-
-confFile :: FilePath
-confFile = "mhs.conf"
 
 theConfig :: String
 theConfig | _isWindows = "windows"
@@ -27,8 +25,10 @@ doIt = False
 
 main :: IO ()
 main = do
+  args <- getArgs
+  let flags = decodeArgs defaultFlags args
   home <- getHomeDirectory
-  confText <- readFile confFile
+  confText <- readFile (confFile flags)
   let conf = either (\ s -> error $ "cannot parse config " ++ s) id $
                     parseConfig confFile confText
       cconf = fromMaybe (error $ "Cannot locate section " ++ theConfig) $
@@ -48,10 +48,12 @@ main = do
       mData = mCabalMhs </> "packages" </> ("mhs-" ++ version) </> "data"
   mkdir mData
   copy "mhs.conf" (mData </> "mhs.conf")
+  copyDir rts (mData </> rts)
 
 {-
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
+MRUNTIME=$(MDATA)/$(RTS)
 	cp -r $(RTS)/* $(MRUNTIME)
 	@mkdir -p $(MCABALMHS)
 	bin/mhs -Q generated/base.pkg $(MCABALMHS)
@@ -126,3 +128,48 @@ copy src dst = do
   when doIt $ do
     copyFile src dst
     copyPermissions src dst
+
+copyDir :: FilePath -> FilePath -> IO ()
+copyDir src dst = do
+  mkdir dst
+  let one file = do
+        d <- doesDirectoryExist file
+        (if d then copyDir else copy) (src </> d) (dst </> d)
+  mapM_ one =<< listDirectory src
+
+-----
+
+data Flags = Flags
+  { target   :: String
+  , dryRun   :: Bool
+  , verbose  :: Bool
+  , macros   :: [String]
+  , goals    :: [String]
+  , confFile :: FilePath
+  }
+  deriving (Show)
+
+defaultFlags :: Flags
+defaultFlags = Flags
+  { target   = if _isWindows then "windows" else "unix"
+  , dryRun   = False
+  , verbose  = False
+  , macros   = []
+  , goals    = []
+  , confFile = "mhs.conf"
+  }
+
+decodeArgs :: Flags -> [String] -> Flags
+decodeArgs f [] = f
+decodeArgs f (arg:args) =
+  case arg of
+    "--help"           -> error usage
+    "-v"               -> decodeArgs f{verbose = True} args
+    "--dryrun"         -> decodeArgs f{dryRun = True} args
+    '-':'t':s          -> decodeArgs f{target = s} mdls args
+    '-':_              -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
+    _ | '=' `elem` arg -> decodeArgs f{macros = macros f ++ [arg]} args
+      | otherwise      -> decodeArgs f{goals = goals f ++ [arg]} args
+
+usage :: String
+usage = "\ninstall [--help] [-v] [--dryrun] [-tTARGET] [NAME=MACRO] [GOAL]\n"

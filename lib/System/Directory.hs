@@ -120,9 +120,12 @@ createDirectoryIfMissing False d = do
 createDirectoryIfMissing True d = do
   let ds = scanl1 (\ x y -> x ++ "/" ++ y) . split [] $ d
       split r [] = [r]
-      split r ('/':cs) = r : split [] cs
-      split r (c:cs) = split (r ++ [c]) cs
+      split r (c:cs) | isPathSeparator c = r : split [] cs
+                     | otherwise         = split (r ++ [c]) cs
   mapM_ (createDirectoryIfMissing False) ds
+
+isPathSeparator :: Char -> Bool
+isPathSeparator c = c == '/' || _isWindows && c == '\\'
 
 -- XXX does not copy flags
 copyFile :: FilePath -> FilePath -> IO ()
