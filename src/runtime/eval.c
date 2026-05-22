@@ -7266,7 +7266,7 @@ from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
 from_t mhs_sizeof_size_t(int s) { return mhs_from_Int(s, 0, sizeof(size_t)); }
-#if WANT_DIR || WANT_DIR_WIN
+#if WANT_DIR
 from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
 from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
 from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
@@ -7591,7 +7591,7 @@ const struct ffi_entry ffi_table[] = {
   { "sizeof_llong", 0, mhs_sizeof_llong},
   { "sizeof_long", 0, mhs_sizeof_long},
   { "sizeof_size_t", 0, mhs_sizeof_size_t},
-#if WANT_DIR || WANT_DIR_WIN
+#if WANT_DIR
   { "c_d_name", 1, mhs_c_d_name},
   { "closedir", 1, mhs_closedir},
   { "opendir", 1, mhs_opendir},

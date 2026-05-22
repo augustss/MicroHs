@@ -49,6 +49,11 @@
 #define WANT_TICK 1
 
 /*
+ * Include directory manipulation
+ */
+#define WANT_DIR 1
+
+/*
  * This is Windows
  */
 #define ISWINDOWS 1

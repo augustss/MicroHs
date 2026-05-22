@@ -249,8 +249,6 @@ closedir(DIR *d)
   return 0;
 }
 
-#define WANT_DIR_WIN 1
-
 #define MKDIR(s, m) mkdir(s)
 
 int
@@ -297,7 +295,7 @@ unsetenv(const char *name)
 }
 
 
-#if defined(WANT_DIR) || defined(WANT_DIR_WIN)
+#if defined(WANT_DIR)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <io.h>
