@@ -2,47 +2,40 @@
 # Use with nmake
 #
 HOME=$(USERPROFILE)
-RTS=src/runtime
 CCEVAL=cl -nologo -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c
 MKDIR=md
-
-VERSION=0.15.7.0
-HVERSION=0,15,7,0
-MCABAL=$(HOME)/.mcabal
-MCABALMHS=$(MCABAL)/mhs-$(VERSION)
-MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
-MRUNTIME=$(MDATA)/$(RTS)
-MCABALBIN=$(MCABAL)/bin
-BASE=base-$(VERSION)
+RTS=src/runtime
+RTSFILES=$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/*
 
 all:    bin/mhs.exe bin/mhseval.exe
 
 # Compile mhs from distribution, with C compiler
-bin/mhs.exe:	$(RTS)/*.c  $(RTS)/*.h $(RTS)/windows/* generated/mhs.c
+bin/mhs.exe: $(RTSFILES) generated/mhs.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
         $(CCEVAL) generated/mhs.c -Fe"bin\\mhs.exe"
 
-bin/cpphs.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/cpphs.c
+bin/cpphs.exe: $(RTSFILES) generated/cpphs.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/cpphs.c $(CCLIBS) -Fe"bin\\cpphs.exe"
 
-bin/install.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/install.c
+bin/install.exe: $(RTSFILES) generated/install.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/install.c $(CCLIBS) -Fe"bin\\install.exe"
 
-bin/mcabal.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/mcabal.c
+bin/mcabal.exe:  $(RTSFILES) generated/mcabal.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -Fe"bin\\mcabal.exe"
 
 # Compile combinator evaluator
-bin/mhseval.exe:	$(RTS)/*.c $(RTS)/windows/* $(RTS)/comb.c
+bin/mhseval.exe: $(RTSFILES) $(RTS)/comb.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	cl -nologo -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c $(RTS)/comb.c -Fe"bin\\mhseval.exe"
+
 mhs.conf: mhs.conf.in
 	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 

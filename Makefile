@@ -312,8 +312,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.15.10.0
-HVERSION=0,15,10,0
+VERSION=0.15.11.0
+HVERSION=0,15,11,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -357,7 +357,10 @@ installmsg:
 	@echo '***************************************************'
 	@echo ''
 
-minstall:	bin/mhs bin/cpphs bin/mcabal machdep
+minstall: bin/install
+	bin/install -i$(MCABAL) GMPFLAGS=$(MHSGMPCCFLAGS) GMPLIBS=$(MHSGMPCCLIBS)
+
+oldminstall:	bin/mhs bin/cpphs bin/mcabal machdep
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MRUNTIME)
 	cp bin/mhs bin/cpphs bin/mcabal $(MCABALBIN)
@@ -380,9 +383,6 @@ slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
-
-newinstall: bin/install
-	bin/install -i$(MCABAL) GMPFLAGS=$(MHSGMPCCFLAGS) GMPLIBS=$(MHSGMPCCLIBS)
 
 #####
 # Hugs

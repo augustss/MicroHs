@@ -89,7 +89,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-Dxxx              Pass -Dxxx to cpphs\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
-      \-ECMD              Set editor for :exit command\n\
+      \-ECMD              Set editor for :edit command\n\
       \-eEXPR             Evaluate EXPR\n\
       \-embed-ffis PKG*   Embed packages FFI stubs in mhs binary\n\
       \-embed-packages PKG* Embed packages in mhs binary\n\
