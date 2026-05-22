@@ -80,6 +80,11 @@ bin/mcabal:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mcabal.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o bin/mcabal
 
+# Compile cpphs from distribution, with C compiler
+bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/install.c
+	@mkdir -p bin
+	$(CCEVAL) generated/install.c $(CCLIBS) -o bin/install
+
 # Compile combinator evaluator
 bin/mhseval:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
@@ -127,6 +132,10 @@ bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
+
+generated/install.c:	bin/mhs Tools/Install.hs
+	@mkdir -p generated
+	bin/mhs -z $(MHSINC) -iTools Install -ogenerated/install.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
@@ -177,7 +186,7 @@ bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 mhs.conf: mhs.conf.in
-	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
+	sed -e "s,%GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,%GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
@@ -326,6 +335,7 @@ $(MCABALBIN)/mcabal: bin/mcabal
 preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
+	$(MAKE) generated/install.c
 	$(MAKE) generated/mhseval.js
 	$(MAKE) generated/base.pkg
 

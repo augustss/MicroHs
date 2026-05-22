@@ -10,8 +10,8 @@
 -- Typical unixlike flags
 [unix]
 cc = "cc"
-ccflags = "-w -Wall -O3 GMPFLAGS"
-cclibs = "GMPLIBS -lm"
+ccflags = "-w -Wall -O3 %GMPFLAGS"
+cclibs = "%GMPLIBS -lm"
 conf = "unix"
 
 -- Compile with debugging instead of optimization

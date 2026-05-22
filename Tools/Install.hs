@@ -1,5 +1,6 @@
 module Install where
 import Control.Monad
+import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Word
@@ -30,7 +31,7 @@ main = do
       inst = fromMaybe (home </> ".mcabal") (instDirM flags)
       flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText }
 
-  install flags
+  install flags'
 
 install :: Flags -> IO ()
 install flags = do
@@ -38,7 +39,7 @@ install flags = do
   vers <- init <$> mhsOut flags ["--numeric-version"]
   let flags' = flags { version = vers }
   mkMachdep flags'
-  mkConf flags
+  mkConf flags'
   copyRTS flags'
   copyBase flags'
   checkPath flags'
@@ -88,7 +89,7 @@ checkPath flags = do
   let paths = splitOn pathSep path
       pathSep | target flags == "windows" = ";"
               | otherwise = ":"
-      bin = instDir flags </> bin
+      bin = instDir flags </> "bin"
   when (bin `notElem` paths) $
     putStrLn $ "Please add " ++ bin ++ " to your PATH"
 
@@ -107,7 +108,7 @@ mhsOut flags args = do
   let exe = "bin" </> "mhs" <.> exeSuffix flags
   msg flags $ unwords (exe:args)
   if dryRun flags then
-    return "MHSOUT"
+    return "MHSOUT\n"
    else
     readProcess exe args ""
 
@@ -167,10 +168,12 @@ copy flags src dst = do
 
 copyDir :: Flags -> FilePath -> FilePath -> IO ()
 copyDir flags src dst = do
+  msg flags $ unwords ["cp -r", src, dst]
+  let flags' = flags{ quiet = not (verbose flags) }
   mkdir flags dst
   let one file = do
-        d <- doesDirectoryExist file
-        (if d then copyDir else copy) flags (src </> file) (dst </> file)
+        d <- doesDirectoryExist (src </> file)
+        (if d then copyDir else copy) flags' (src </> file) (dst </> file)
   mapM_ one =<< listDirectory src
 
 splitOn :: String -> String -> [String]
@@ -183,11 +186,11 @@ splitOn d = loop []
 macroExpand :: Flags -> String -> String
 macroExpand flags = loop
   where loop [] = []
-        loop ('$':cs) = p ++ loop r where (p, r) = expnd (macros flags) cs
+        loop ('%':cs) =
+          let (mn, rest) = span nameChar cs
+              nameChar c = isAlphaNum c || c == '_'
+          in  fromMaybe "" (lookup mn (macros flags)) ++ loop rest
         loop (c:cs) = c : loop cs
-        expnd [] s = ("", s)
-        expnd ((m,e):ms) s | Just r <- stripPrefix m s = (e, r)
-                           | otherwise = expnd ms s
 
 -----
 
