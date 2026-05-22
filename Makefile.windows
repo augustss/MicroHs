@@ -18,23 +18,22 @@ BASE=base-$(VERSION)
 all:    bin/mhs.exe bin/mhseval.exe
 
 # Compile mhs from distribution, with C compiler
-bin/mhs.exe:	$(RTS)/*.c  $(RTS)/windows/* #generated/mhs.c
+bin/mhs.exe:	$(RTS)/*.c  $(RTS)/*.h $(RTS)/windows/* generated/mhs.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
         $(CCEVAL) generated/mhs.c -Fe"bin\\mhs.exe"
 
-bin/cpphs.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/cpphs.c
+bin/cpphs.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/cpphs.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/cpphs.c $(CCLIBS) -Fe"bin\\cpphs.exe"
 
-bin/install.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/install.c
+bin/install.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/install.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/install.c $(CCLIBS) -Fe"bin\\install.exe"
 
-# Compile mcabal from distribution, with C compiler
-bin/mcabal.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/mcabal.c
+bin/mcabal.exe:	$(RTS)/*.c $(RTS)/*.h $(RTS)/windows/* generated/mcabal.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -Fe"bin\\mcabal.exe"
@@ -44,7 +43,6 @@ bin/mhseval.exe:	$(RTS)/*.c $(RTS)/windows/* $(RTS)/comb.c
 	@-$(MKDIR) bin
 	@-$(MKDIR) build
 	cl -nologo -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c $(RTS)/comb.c -Fe"bin\\mhseval.exe"
-
 mhs.conf: mhs.conf.in
 	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
@@ -55,16 +53,5 @@ exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs mhs.conf
 	bin\mhs -r -itests Info
 	bin\mhs Example -oEx.exe && Ex && rm Ex.exe
 
-machdep:
-	cl -nologo Tools/machdep.c -Femachdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
-
-install:	bin/mhs.exe bin/cpphs.exe bin/mcabal.exe machdep
-	@$(MKDIR) $(MCABALBIN)
-        @$(MKDIR) $(MRUNTIME)
-	copy bin/mhs.exe bin/cpphs.exe bin/mcabal.exe $(MCABALBIN)
-	copy mhs.conf $(MDATA)
-	robocopy /e $(RTS)/* $(MRUNTIME)
-	bin/mhs -Q generated/base.pkg $(MCABALMHS)
-
-newinstall: bin/install.exe
+install: bin/install.exe
 	bin\install
