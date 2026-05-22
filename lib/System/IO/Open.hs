@@ -9,6 +9,7 @@ import Control.Monad
 import Data.Char
 import Data.Function
 import Data.Functor
+import Data.List_Type
 import Data.Maybe
 import Foreign.C.String
 import Foreign.Ptr
@@ -39,14 +40,15 @@ stdout = unsafeHandle primStdout HWrite "stdout"
 stderr :: Handle
 stderr = unsafeHandle primStderr HWrite "stderr"
 
-openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
-openFILEM p m = do
+openFILEM :: FilePath -> IOMode -> Bool -> IO (Maybe (Ptr FILE))
+openFILEM p m bin = do
   let
     ms = case m of
           ReadMode -> "r"
           WriteMode -> "w"
           AppendMode -> "a"
           ReadWriteMode -> "w+"
+         ++ if bin then "b" else ""
   h <- withCAString p $ \cp -> withCAString ms $ \ cm -> c_fopen cp cm
   if h == nullPtr then
     return Nothing
@@ -55,14 +57,14 @@ openFILEM p m = do
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM fn m = do
-  mf <- openFILEM fn m
+  mf <- openFILEM fn m False
   case mf of
     Nothing -> return Nothing
     Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q (ioModeToHMode m) }
 
 openBinaryFileM :: String -> IOMode -> IO (Maybe Handle)
 openBinaryFileM fn m = do
-  mf <- openFILEM fn m
+  mf <- openFILEM fn m True
   case mf of
     Nothing -> return Nothing
     Just p -> do { q <- c_add_FILE p; Just <$> mkHandle fn q (ioModeToHMode m) }
