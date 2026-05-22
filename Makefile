@@ -81,7 +81,7 @@ bin/mcabal:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mcabal.c
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o bin/mcabal
 
 # Compile cpphs from distribution, with C compiler
-bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/install.c
+bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/install.c
 	@mkdir -p bin
 	$(CCEVAL) generated/install.c $(CCLIBS) -o bin/install
 
@@ -380,6 +380,9 @@ slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	bin/mhs -z $(MHSINCNP) $(MAINMODULE) -o$(MCABALBIN)/mhs
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+
+newinstall: bin/install
+	bin/install -i$(MCABAL) GMPFLAGS=$(MHSGMPCCFLAGS) GMPLIBS=$(MHSGMPCCLIBS)
 
 #####
 # Hugs

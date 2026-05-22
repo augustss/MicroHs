@@ -339,7 +339,8 @@ int
 set_permissions(const char *path, int perms)
 {
   struct stat st;
-  mode_t uperms = 0;
+  mode_t uperms;
+  mode_t mask;
   int result;
 
   int fd = open(path, O_RDONLY | O_NONBLOCK);
@@ -352,6 +353,7 @@ set_permissions(const char *path, int perms)
     return -1;
   }
 
+  uperms = 0;
   if (perms & PERM_READ)
     uperms |= S_IRUSR;
   if (perms & PERM_WRITE)
@@ -359,8 +361,12 @@ set_permissions(const char *path, int perms)
   if ((perms & PERM_EXEC) || (perms & PERM_SEARCH)) {
     uperms |= S_IXUSR;
   }
+  uperms |= (uperms >> 3) | (uperms >> 6); /* copy user permissions to all field */
+  mask = umask(0);                         /* grab current umask */
+  umask(mask);
+  uperms &= ~mask;                         /* mask new permission according to umask */
 
-  uperms |= (st.st_mode & ~((mode_t)S_IRWXU));
+  uperms |= st.st_mode & ~0777;            /* copy other mode bits */
   result = fchmod(fd, uperms);
 
   close(fd);
