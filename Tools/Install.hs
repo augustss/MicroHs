@@ -1,76 +1,115 @@
 module Install where
 import Control.Monad
+import Data.List
 import Data.Maybe
 import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import System.Directory
-import System.Envirinment
+import System.Environment
 import System.FilePath
 import System.Process
 import MicroHs.Config
 
 type CConf = [(Key, Value)]
 
-theConfig :: String
-theConfig | _isWindows = "windows"
-          | otherwise  = "unix"
-
-rts :: String
-rts = "src" </> "runtime"
-
-doIt :: Bool
-doIt = False
 
 main :: IO ()
 main = do
   args <- getArgs
   let flags = decodeArgs defaultFlags args
+  confText <- macroExpand flags <$> readFile (confFile flags)
   home <- getHomeDirectory
-  confText <- readFile (confFile flags)
   let conf = either (\ s -> error $ "cannot parse config " ++ s) id $
-                    parseConfig confFile confText
-      cconf = fromMaybe (error $ "Cannot locate section " ++ theConfig) $
-              lookup theConfig conf
-      mcabal = home </> ".mcabal"
-      mcabalBin = mcabal </> "bin"
+                    parseConfig (confFile flags) confText
+      cc = fromMaybe (error $ "Cannot locate section " ++ target flags) $
+              lookup (target flags) conf
+      exe | target flags == "windows" = "exe"
+          | otherwise                 =  ""
+      inst = fromMaybe (home </> ".mcabal") (instDirM flags)
+      flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText }
+
+  install flags
+
+install :: Flags -> IO ()
+install flags = do
+  instBin flags
+  vers <- init <$> mhsOut flags ["--numeric-version"]
+  let flags' = flags { version = vers }
+  mkMachdep flags'
+  mkConf flags
+  copyRTS flags'
+  copyBase flags'
+  checkPath flags'
+
+instBin :: Flags -> IO ()
+instBin flags = do
+  let mCabal = instDir flags
+      mcabalBin = mCabal </> "bin"
       exes = ["mhs", "cpphs", "mcabal"]
-  --
-  mkdir "bin"
-  mapM_ (buildBin cconf) exes
-  machdep $ rts </> "MachDeps.h"
-  mkdir mcabalBin
-  let cpbin pgm = let exe = pgm <.> exeSuffix in copy ("bin" </> exe) (mcabalBin </> exe)
+  mkdir flags "bin"
+  mapM_ (buildBin flags) exes
+  mkdir flags mcabalBin
+  let cpbin pgm = do
+        let exe = pgm <.> exeSuffix flags
+        copy flags ("bin" </> exe) (mcabalBin </> exe)
   mapM_ cpbin exes
-  version <- init <$> mhsOut ["--numeric-version"]
-  let mCabalMhs = mcabal </> ("mhs-" ++ version)
-      mData = mCabalMhs </> "packages" </> ("mhs-" ++ version) </> "data"
-  mkdir mData
-  copy "mhs.conf" (mData </> "mhs.conf")
-  copyDir rts (mData </> rts)
 
-{-
-MCABALMHS=$(MCABAL)/mhs-$(VERSION)
-MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
-MRUNTIME=$(MDATA)/$(RTS)
-	cp -r $(RTS)/* $(MRUNTIME)
-	@mkdir -p $(MCABALMHS)
-	bin/mhs -Q generated/base.pkg $(MCABALMHS)
-	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
--}
+mkMachdep :: Flags -> IO ()
+mkMachdep flags =
+  machdep flags $ "src" </> "runtime" </> "MachDeps.h"
 
-buildBin :: CConf -> String -> IO ()
-buildBin cconf pgm = do
+mkConf :: Flags -> IO ()
+mkConf flags = do
+  msg flags $ "create mhs.conf"
+  unless (dryRun flags) $
+    writeFile "mhs.conf" (conf flags)
+
+copyRTS :: Flags -> IO ()
+copyRTS flags = do
+  let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
+  let mData = mCabalMhs </> "packages" </> ("mhs-" ++ version flags) </> "data"
+      rts = "src" </> "runtime"
+  mkdir flags mData
+  copy flags "mhs.conf" (mData </> "mhs.conf")
+  copyDir flags rts (mData </> rts)
+
+copyBase :: Flags -> IO ()
+copyBase flags = do
+  let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
+  mkdir flags mCabalMhs
+  out <- mhsOut flags ["-Q", "generated" </> "base.pkg", mCabalMhs]
+  msg flags out
+
+checkPath :: Flags -> IO ()
+checkPath flags = do
+  path <- fromMaybe "" <$> lookupEnv "PATH"
+  let paths = splitOn pathSep path
+      pathSep | target flags == "windows" = ";"
+              | otherwise = ":"
+      bin = instDir flags </> bin
+  when (bin `notElem` paths) $
+    putStrLn $ "Please add " ++ bin ++ " to your PATH"
+
+buildBin :: Flags -> String -> IO ()
+buildBin flags pgm = do
   let src = "generated" </> pgm <.> ".c"
-      dst = "bin" </> pgm <.> exeSuffix
-  cc cconf [get cconf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get cconf "conf"),
+      dst = "bin" </> pgm <.> exeSuffix flags
+      ccf = cconf flags
+      rts = "src" </> "runtime"
+  cc flags [get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
             rts </> "main.c", rts </> "eval.c",
-            src, get cconf "cclibs", getD cconf "-o" "cout" ++ dst]
+            src, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
 
-mhsOut :: [String] -> IO String
-mhsOut args =
-  readProcess ("bin" </> "mhs" <.> exeSuffix) args ""
+mhsOut :: Flags -> [String] -> IO String
+mhsOut flags args = do
+  let exe = "bin" </> "mhs" <.> exeSuffix flags
+  msg flags $ unwords (exe:args)
+  if dryRun flags then
+    return "MHSOUT"
+   else
+    readProcess exe args ""
 
 -----
 
@@ -82,33 +121,30 @@ get cconf key = getD cconf (error $ "Cannot find " ++ key) key
 
 -----
 
-cc :: CConf -> [String] -> IO ()
-cc cconf args = do
-  let c = get cconf "cc"
-  msg $ unwords (c : args)
-  when doIt $
+cc :: Flags -> [String] -> IO ()
+cc flags args = do
+  let c = get (cconf flags) "cc"
+  msg flags $ unwords (c : args)
+  unless (dryRun flags) $
     callProcess c args
 
-exeSuffix :: String
-exeSuffix | _isWindows = "exe"
-          | otherwise  =  ""
-
-msg :: String -> IO ()
-msg s = putStrLn s
+msg :: Flags -> String -> IO ()
+msg flags s | not (quiet flags) = putStrLn s
+            | otherwise         = return ()
 
 -----
 
-mkdir :: FilePath -> IO ()
-mkdir dir = do
-  msg $ "mkdir " ++ dir
-  when doIt $
+mkdir :: Flags -> FilePath -> IO ()
+mkdir flags dir = do
+  msg flags $ "mkdir " ++ dir
+  unless (dryRun flags) $
     createDirectoryIfMissing True dir
 
-machdep :: FilePath -> IO ()
-machdep name = do
-  msg $ "create " ++ name
+machdep :: Flags -> FilePath -> IO ()
+machdep flags name = do
+  msg flags $ "create " ++ name
   big <- isBigEndian
-  when doIt $
+  unless (dryRun flags) $
     writeFile name $ unlines
       [ "#define WORD_SIZE_IN_BITS " ++ show _wordSize
       , (if big then "#define" else "#undef") ++ " WORDS_BIGENDIAN"
@@ -122,42 +158,75 @@ isBigEndian = do
   b <- peek (castPtr p :: Ptr Word8)
   return (b == 1)
 
-copy :: FilePath -> FilePath -> IO ()
-copy src dst = do
-  msg $ unwords ["cp", src, dst]
-  when doIt $ do
+copy :: Flags -> FilePath -> FilePath -> IO ()
+copy flags src dst = do
+  msg flags $ unwords ["cp", src, dst]
+  unless (dryRun flags) $ do
     copyFile src dst
     copyPermissions src dst
 
-copyDir :: FilePath -> FilePath -> IO ()
-copyDir src dst = do
-  mkdir dst
+copyDir :: Flags -> FilePath -> FilePath -> IO ()
+copyDir flags src dst = do
+  mkdir flags dst
   let one file = do
         d <- doesDirectoryExist file
-        (if d then copyDir else copy) (src </> d) (dst </> d)
+        (if d then copyDir else copy) flags (src </> file) (dst </> file)
   mapM_ one =<< listDirectory src
+
+splitOn :: String -> String -> [String]
+splitOn d = loop []
+  where loop [] [] = []
+        loop r [] = [reverse r]
+        loop r s@(c:cs) | Just s' <- stripPrefix d s = reverse r : loop [] s'
+                        | otherwise = loop (c:r) cs
+
+macroExpand :: Flags -> String -> String
+macroExpand flags = loop
+  where loop [] = []
+        loop ('$':cs) = p ++ loop r where (p, r) = expnd (macros flags) cs
+        loop (c:cs) = c : loop cs
+        expnd [] s = ("", s)
+        expnd ((m,e):ms) s | Just r <- stripPrefix m s = (e, r)
+                           | otherwise = expnd ms s
 
 -----
 
 data Flags = Flags
-  { target   :: String
-  , dryRun   :: Bool
-  , verbose  :: Bool
-  , macros   :: [String]
-  , goals    :: [String]
-  , confFile :: FilePath
+  { target    :: String
+  , dryRun    :: Bool
+  , verbose   :: Bool
+  , quiet     :: Bool
+  , macros    :: [(String, String)]
+  , goals     :: [String]
+  , confFile  :: FilePath
+  , instDirM  :: Maybe FilePath
+  -- The rest are for internal use
+  , exeSuffix :: String
+  , instDir   :: FilePath
+  , cconf     :: CConf
+  , version   :: String
+  , conf      :: String
   }
   deriving (Show)
 
 defaultFlags :: Flags
-defaultFlags = Flags
-  { target   = if _isWindows then "windows" else "unix"
-  , dryRun   = False
-  , verbose  = False
-  , macros   = []
-  , goals    = []
-  , confFile = "mhs.conf"
-  }
+defaultFlags =
+  Flags
+    { target    = if _isWindows then "windows" else "unix"
+    , dryRun    = False
+    , verbose   = False
+    , quiet     = False
+    , macros    = []
+    , goals     = []
+    , confFile  = "mhs.conf.in"
+    , instDirM  = Nothing
+    --
+    , exeSuffix = undefined
+    , instDir   = undefined
+    , cconf     = undefined
+    , version   = undefined
+    , conf      = undefined
+    }
 
 decodeArgs :: Flags -> [String] -> Flags
 decodeArgs f [] = f
@@ -165,11 +234,14 @@ decodeArgs f (arg:args) =
   case arg of
     "--help"           -> error usage
     "-v"               -> decodeArgs f{verbose = True} args
+    "-q"               -> decodeArgs f{quiet = True} args
     "--dryrun"         -> decodeArgs f{dryRun = True} args
-    '-':'t':s          -> decodeArgs f{target = s} mdls args
+    '-':'t':s          -> decodeArgs f{target = s} args
+    '-':'i':s          -> decodeArgs f{instDirM = Just s} args
     '-':_              -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
-    _ | '=' `elem` arg -> decodeArgs f{macros = macros f ++ [arg]} args
+    _ | (m, '=':e) <- span (/= '=') arg
+                       -> decodeArgs f{macros = macros f ++ [(m, e)]} args
       | otherwise      -> decodeArgs f{goals = goals f ++ [arg]} args
 
 usage :: String
-usage = "\ninstall [--help] [-v] [--dryrun] [-tTARGET] [NAME=MACRO] [GOAL]\n"
+usage = "\ninstall [--help] [-v] [--dryrun] [-tTARGET] [-iDIR] [NAME=MACRO] [GOAL]\n"
