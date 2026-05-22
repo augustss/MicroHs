@@ -63,7 +63,7 @@ mkMachdep flags =
 
 mkConf :: Flags -> IO ()
 mkConf flags = do
-  msg flags $ "create mhs.conf"
+  msg flags "create mhs.conf"
   unless (dryRun flags) $
     writeFile "mhs.conf" (conf flags)
 
@@ -90,7 +90,7 @@ checkPath flags = do
       pathSep | target flags == "windows" = ";"
               | otherwise = ":"
       bin = instDir flags </> "bin"
-  when (bin `notElem` paths) $
+  unless (bin `elem` paths) $
     putStrLn $ "Please add " ++ bin ++ " to your PATH"
 
 buildBin :: Flags -> String -> IO ()
