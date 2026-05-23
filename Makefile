@@ -81,7 +81,7 @@ bin/mcabal:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mcabal.c
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o bin/mcabal
 
 # Compile cpphs from distribution, with C compiler
-bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h generated/install.c
+bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/install.c
 	@mkdir -p bin
 	$(CCEVAL) generated/install.c $(CCLIBS) -o bin/install
 
