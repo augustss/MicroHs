@@ -42,19 +42,26 @@ import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
 main = do
-  (mhsDir, srcs, pkgs) <- getPaths
+  (mhsDir, srcs, mpkg) <- getPaths
   args <- getArgs
-  case args of
-    ["-h"] -> putStrLn usage
-    ["-?"] -> putStrLn usage
-    ["--help"] -> putStrLn longUsage
-    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
-    ["--numeric-version"] -> putStrLn mhsVersion
+  case () of
+    _ | "-h" `elem` args -> putStrLn usage
+    _ | "-?" `elem` args -> putStrLn usage
+    _ | "--help" `elem` args -> putStrLn longUsage
+    _ | "--version" `elem` args -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
+    _ | "--numeric-version" `elem` args -> putStrLn mhsVersion
     _ -> do
-      let dflags = defaultFlags{ pkgPaths = pkgs, srcPaths = srcs, mhsdir = mhsDir }
-          (eflags, mdls, rargs) = decodeArgs dflags [] args
-      conf <- readConfig eflags
-      let flags = eflags{ config = conf }
+      -- Flag decoding happens twice, because we need to decode the flags to know
+      -- how to read the config file, but we also need the config file for the
+      -- default package search path.
+      let (cflags, _, _) = decodeArgs defaultFlags{ mhsdir = mhsDir } [] args  -- decode flags so we can read the config file
+      conf <- readConfig cflags
+      let paths = splitColonPath $ fromMaybe ('$':mHSPKG) $ lookup "mhs" conf >>= lookup "packageDbPath"
+          (eflags, mdls, rargs) = decodeArgs dflags [] args  -- decode flags for real
+            where dflags = defaultFlags{ pkgPaths = paths, srcPaths = srcs, mhsdir = mhsDir }
+      paths' <- nub . filter (not . null) . splitColonPath <$> expandPath mpkg (intercalate ":" $ pkgPaths eflags)
+      let flags = eflags{ config = conf, pkgPaths = paths'  }
+
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
       preload' <- mapM (findAPackage flags) (preload flags)
@@ -70,6 +77,9 @@ main = do
           _ | interactive flags'              -> mainInteractive flags' mdls
           _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
           _                                   -> mhsError usage
+
+mHSPKG :: String
+mHSPKG = "MHSPKG"
 
 usage :: String
 usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
@@ -194,7 +204,9 @@ readConfig :: Flags -> IO Config
 readConfig flags = do
   let cfFilePath = mhsdir flags </> "mhs.conf"
   exists <- doesFileExist cfFilePath
-  if not exists then
+  if not exists then do
+    when (verbosityGT flags (-1)) $
+      putStrLn $ "Warning: cannot find config file: " ++ cfFilePath
     return []
    else do
     cfFile <- readFile cfFilePath
@@ -205,7 +217,7 @@ readConfig flags = do
           putStrLn e
         return []
       Right cfs -> do
-        when (verbosityGT flags 0) $
+        when (verbosityGT flags 1) $
           putStrLn $ "Read targets file. Possible targets: " ++ show (map fst cfs)
         return cfs
 
@@ -213,7 +225,7 @@ findSection :: Flags -> IO [(Key, Value)]
 findSection flags = do
   case lookup (target flags) (config flags) of
     Nothing ->
-      error $ "Cannot find config section: " ++ target flags
+      error $ "Cannot find config section: " ++ target flags ++ ", available=" ++ unwords (map fst (config flags))
     Just cs -> do
       when (verbosityGT flags 0) $
         putStrLn $ "Found target: " ++ show (target flags, cs)
@@ -527,3 +539,21 @@ addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
   when (verbosityGT flags 0) $
     putStrLn $ "Embedded " ++ show (embedPkgs flags)
   return $ map rep ds
+
+expandPath :: Maybe FilePath -> FilePath -> IO FilePath
+expandPath (Just s) f = do
+  m <- lookupEnv mHSPKG
+  when (isNothing m) $
+    setEnv mHSPKG s
+  expandEnv f
+expandPath Nothing  f = expandEnv f
+
+expandEnv :: String -> IO String
+expandEnv "" = return ""
+expandEnv ('$':cs) = do
+  let (name, rest) = span isMacroName cs
+      isMacroName c = isAlphaNum c || c == '_'
+  repl <- fromMaybe "" <$> lookupEnv name
+  (repl ++) <$> expandEnv rest
+expandEnv (c:cs) =
+  (c :) <$> expandEnv cs

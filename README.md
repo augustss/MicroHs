@@ -250,16 +250,12 @@ To append to the path use `-iPATH`, where `PATH` is a colon (`:`)
 separated list of directories.
 
 ## Setting the _packageDbPath_
-The default _packageDbPath_ is take from the `mhs.config` file
+The default _packageDbPath_ is take from the `mhs.conf` file
 in the section `[mhs]` and key `packageDbPath`.
-If this does not exists the defaults path is empty.
 
 In case this does not exists the path defaults to `~/.mcabal/mhs-VERSION`,
 where `~` will be replaced by the home directory and `VERSION` is the
 compiler version (as displayed by `mhs --numeric-version`).
-
-The directories in _packageDbPath_ can start with a '%', and in this
-case the value of the key `packageDbPrefix` is prepended to the path.
 
 The path can be cleared by using the `-a` command line flag.
 To append to the path use `-aPATH`, where `PATH` is a colon (':')

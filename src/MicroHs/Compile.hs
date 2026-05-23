@@ -589,13 +589,13 @@ unlit fn = unlines . un 1 True . lines
 
 ---------------
 
-getPaths :: IO (FilePath, [FilePath], [FilePath])
+getPaths :: IO (FilePath, [FilePath], Maybe FilePath)
 getPaths = do
   mdir <- lookupEnv "MHSDIR"
   let srcs = ["."]
   case mdir of
     -- If MHSDIR is set, use that and no package directories
-    Just dir -> return (dir, srcs ++ [dir </> "lib"], [])
+    Just dir -> return (dir, srcs ++ [dir </> "lib"], Nothing)
     Nothing -> do
       -- There are two scenarios: either we are running inplace or installed
       binDir <- takeDirectory <$> catch getExecutablePath (\ (_ :: SomeException) -> getProgName) -- ~/.mcabal/bin
@@ -605,9 +605,9 @@ getPaths = do
         let libDir = upDir </> "lib"
             gmpDir | wantGMP   = [libDir </> "gmp"]
                    | otherwise = []
-        return (upDir, srcs ++ gmpDir ++ [libDir], [])
+        return (upDir, srcs ++ gmpDir ++ [libDir], Nothing)
        else do
         let vers = "mhs-" ++ mhsVersion
             pkgDir = upDir </> vers                                   -- ~/.mcabal/bin/../mhs-VERSION
             mhsDir = pkgDir </> "packages" </> vers </> "data"
-        return (mhsDir, srcs, [pkgDir])
+        return (mhsDir, srcs, Just pkgDir)

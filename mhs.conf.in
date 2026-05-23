@@ -1,3 +1,11 @@
+-- mhs keys
+--  packageDbPath  package lookup path
+--                 The path is expanded from the environment.
+--                 $MHSPKG is always the package directory relative
+--                 to the mhs binary.
+[mhs]
+packageDbPath = "$MHSPKG:$HOME/.mcabal-user"
+
 -- Target keys
 --  cc        C compiler to use, default "cc"
 --  ccflags   flags to pass at the beginning of the compiler command, default ""
