@@ -545,8 +545,11 @@ expandPath (Just s) f = do
   m <- lookupEnv mHSPKG
   when (isNothing m) $
     setEnv mHSPKG s
+  setEnv "VERSION" mhsVersion
   expandEnv f
-expandPath Nothing  f = expandEnv f
+expandPath Nothing  f = do
+  setEnv "VERSION" mhsVersion
+  expandEnv f
 
 expandEnv :: String -> IO String
 expandEnv "" = return ""

@@ -37,7 +37,7 @@ bin/mhseval.exe: $(RTSFILES) $(RTS)/comb.c
 	cl -nologo -F"obuild\\" -O2 -I$(RTS) -I$(RTS)/windows $(RTS)/main.c $(RTS)/eval.c $(RTS)/comb.c -Fe"bin\\mhseval.exe"
 
 mhs.conf: mhs.conf.in
-	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
+	sed -e "s,%GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,%GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
 exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs mhs.conf
 	bin\mhs -r Example

@@ -2,9 +2,9 @@
 --  packageDbPath  package lookup path
 --                 The path is expanded from the environment.
 --                 $MHSPKG is always the package directory relative
---                 to the mhs binary.
+--                 to the mhs binary, and $VERSION is the compiler version.
 [mhs]
-packageDbPath = "$MHSPKG:$HOME/.mcabal-user"
+packageDbPath = "$MHSPKG:$HOME/.mcabal-user/mhs-$VERSION"
 
 -- Target keys
 --  cc        C compiler to use, default "cc"
@@ -15,7 +15,7 @@ packageDbPath = "$MHSPKG:$HOME/.mcabal-user"
 
 -- If no target is set, we use 'unix' on non-Windows and 'windows' on Windows.
 
--- Typical unixlike flags
+-- Typical Unix-like flags
 [unix]
 cc = "cc"
 ccflags = "-w -Wall -O3 %GMPFLAGS"

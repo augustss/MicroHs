@@ -156,11 +156,7 @@ getTemporaryDirectory =
   else
     tmp "TMPDIR" $ tmp "TNP"  $ tmp "TEMP"        $ return "/tmp"
   where tmp :: String -> IO String -> IO String
-        tmp e els = do
-          m <- lookupEnv e
-          case m of
-            Just s -> return s
-            Nothing -> els
+        tmp e els = maybe els return =<< lookupEnv e
 
 data Permissions
   = Permissions
