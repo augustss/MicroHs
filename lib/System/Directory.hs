@@ -151,17 +151,16 @@ getHomeDirectory =
 
 getTemporaryDirectory :: IO FilePath
 getTemporaryDirectory =
-  if _isWindows then do
-    mtemp <- lookupEnv "TEMP"
-    case mtemp of
-      Just s -> return s
-      Nothing -> do
-        mtmp <- lookupEnv "TMP"
-        case mtmp of
-          Just s -> return s
-          Nothing -> error "no temp directory"
+  if _isWindows then
+    tmp "TMP"    $ tmp "TEMP" $ tmp "USERPROFILE" $ return "C:\\Windows\\Temp"
   else
-    fromMaybe "/tmp" <$> lookupEnv "TMP"
+    tmp "TMPDIR" $ tmp "TNP"  $ tmp "TEMP"        $ return "/tmp"
+  where tmp :: String -> IO String -> IO String
+        tmp e els = do
+          m <- lookupEnv e
+          case m of
+            Just s -> return s
+            Nothing -> els
 
 data Permissions
   = Permissions
