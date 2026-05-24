@@ -196,7 +196,214 @@ epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
   return n_events;
 }
 
-#endif /* defined(ISMACOS) */
+#elif defined(__EMSCRIPTEN__)
+
+#include <poll.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
+
+/* Emulated Epoll Definitions */
+#define EPOLL_CTL_ADD 1
+#define EPOLL_CTL_DEL 2
+#define EPOLL_CTL_MOD 3
+
+#define EPOLLIN      0x0001
+#define EPOLLOUT     0x0004
+#define EPOLLERR     0x0008
+#define EPOLLHUP     0x0010
+#define EPOLLONESHOT (1U << 30)
+
+#define EPOLL_CLOEXEC O_CLOEXEC
+
+typedef union epoll_data {
+    void    *ptr;
+    int      fd;
+    uint32_t u32;
+    uint64_t u64;
+} epoll_data_t;
+
+struct epoll_event {
+    uint32_t     events;
+    epoll_data_t data;
+};
+
+/* Internal Tracking State */
+typedef struct {
+    struct pollfd *fds;       /* Array of descriptors passed to poll() */
+    struct epoll_event *events; /* Matching user data array for epoll_data_t */
+    int count;                /* Current number of monitored descriptors */
+    int capacity;             /* Allocated size of the tracking arrays */
+} EpollState;
+
+/* Helper to access state hidden behind the file descriptor integer */
+static EpollState *epoll_states[1024]; // Basic tracking registry
+
+int
+epoll_create1(int flags)
+{
+  // We create a fake file descriptor using a pipe just to give the caller a valid tracking handle
+  int pipefds[2];
+  if (pipe(pipefds) == -1) return -1;
+  close(pipefds[1]); // Close write end, keep read end as our virtual "epfd"
+  int epfd = pipefds[0];
+
+  if (flags & EPOLL_CLOEXEC) {
+    fcntl(epfd, F_SETFD, FD_CLOEXEC);
+  }
+
+  // Allocate internal interest list state
+  EpollState *state = malloc(sizeof(EpollState));
+  if (!state) {
+    close(epfd);
+    return -1;
+  }
+  state->count = 0;
+  state->capacity = 16;
+  state->fds = malloc(sizeof(struct pollfd) * state->capacity);
+  state->events = malloc(sizeof(struct epoll_event) * state->capacity);
+
+  if (!state->fds || !state->events) {
+    free(state->fds);
+    free(state->events);
+    free(state);
+    close(epfd);
+    return -1;
+  }
+
+  epoll_states[epfd] = state;
+  return epfd;
+}
+
+int
+epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
+{
+  EpollState *state = epoll_states[epfd];
+  if (!state) {
+    errno = EBADF;
+    return -1;
+  }
+
+  // Find if the fd is already in our list
+  int index = -1;
+  for (int i = 0; i < state->count; i++) {
+    if (state->fds[i].fd == fd) {
+      index = i;
+      break;
+    }
+  }
+
+  if (op == EPOLL_CTL_ADD) {
+    if (index != -1) {
+      errno = EEXIST;
+      return -1;
+    }
+
+    // Resize array if capacity is reached
+    if (state->count >= state->capacity) {
+      state->capacity *= 2;
+      state->fds = realloc(state->fds, sizeof(struct pollfd) * state->capacity);
+      state->events = realloc(state->events, sizeof(struct epoll_event) * state->capacity);
+    }
+
+    // Map epoll events to poll events
+    short poll_events = 0;
+    if (event->events & EPOLLIN)  poll_events |= POLLIN;
+    if (event->events & EPOLLOUT) poll_events |= POLLOUT;
+
+    state->fds[state->count].fd = fd;
+    state->fds[state->count].events = poll_events;
+    state->fds[state->count].revents = 0;
+    state->events[state->count] = *event; // Save original user data & oneshot configuration
+    state->count++;
+    return 0;
+  }
+
+  if (op == EPOLL_CTL_MOD) {
+    if (index == -1) {
+      errno = ENOENT;
+      return -1;
+    }
+
+    short poll_events = 0;
+    if (event->events & EPOLLIN)  poll_events |= POLLIN;
+    if (event->events & EPOLLOUT) poll_events |= POLLOUT;
+
+    state->fds[index].events = poll_events;
+    state->events[index] = *event;
+    return 0;
+  }
+
+  if (op == EPOLL_CTL_DEL) {
+    if (index == -1) {
+      errno = ENOENT;
+      return -1;
+    }
+
+    // Shift remaining items forward to close the gap
+    for (int i = index; i < state->count - 1; i++) {
+      state->fds[i] = state->fds[i + 1];
+      state->events[i] = state->events[i + 1];
+    }
+    state->count--;
+    return 0;
+  }
+
+  errno = EINVAL;
+  return -1;
+}
+
+int
+epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
+{
+  EpollState *state = epoll_states[epfd];
+  if (!state) {
+    errno = EBADF;
+    return -1;
+  }
+
+  if (state->count == 0) {
+    // If there's nothing to poll, sleep manually if a timeout is specified
+    if (timeout > 0) usleep(timeout * 1000);
+    return 0;
+  }
+
+  // Call native poll
+  int ready = poll(state->fds, state->count, timeout);
+  if (ready <= 0) {
+    return ready; // Returns 0 on timeout, -1 on error
+  }
+
+  int num_events = 0;
+  for (int i = 0; i < state->count && num_events < maxevents; i++) {
+    if (state->fds[i].revents != 0) {
+      // Restore user data structure mapping
+      events[num_events].data = state->events[i].data;
+      events[num_events].events = 0;
+
+      // Translate poll outcome flags back to epoll flags
+      if (state->fds[i].revents & POLLIN)  events[num_events].events |= EPOLLIN;
+      if (state->fds[i].revents & POLLOUT) events[num_events].events |= EPOLLOUT;
+      if (state->fds[i].revents & POLLERR) events[num_events].events |= EPOLLERR;
+      if (state->fds[i].revents & POLLHUP) events[num_events].events |= EPOLLHUP;
+
+      // Emulate EPOLLONESHOT behavior
+      if (state->events[i].events & EPOLLONESHOT) {
+        // To disarm the descriptor under poll, we set events to 0
+        state->fds[i].events = 0;
+      }
+
+      num_events++;
+    }
+  }
+
+  return num_events;
+}
+
+#endif /* defined(__EMSCRIPTEN__) */
 
 
 /**************************************************************************/
@@ -300,7 +507,7 @@ io_register(int fd, int events, void *cookie)
   io_waiters++;
 }
 
-INLINE int
+int
 io_waiter_count(void)
 {
   return io_waiters;

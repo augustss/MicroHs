@@ -141,6 +141,9 @@ testapplysp:
 testpipenonblockio:
 	MHSDIR=.. $(TMHS) -oPipeNonBlockIO.exe PipeNonBlockIO && ./PipeNonBlockIO.exe > PipeNonBlockIO.out && diff PipeNonBlockIO.ref PipeNonBlockIO.out
 
+testpipenonblockioem:
+	$(TMHS) PipeNonBlockIO && $(EVAL) > PipeNonBlockIO.out && diff PipeNonBlockIO.ref PipeNonBlockIO.out
+
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 
