@@ -1,8 +1,6 @@
 module System.Directory(
     createDirectory
   , createDirectoryIfMissing
-
-
 --  , removeDirectory
 --  , removeDirectoryRecursive
 --  , removePathForcibly
