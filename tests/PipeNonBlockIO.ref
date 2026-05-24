@@ -1,3 +1,6 @@
 reader: waiting for data
+entering waitForReadFD
 main: writing to pipe
 reader: received 42
+entering waitForReadFD
+reader: received 43

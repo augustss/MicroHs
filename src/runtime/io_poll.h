@@ -6,7 +6,6 @@
  * OS-agnostic interface for non-blocking IO polling.
  * Platform-specific implementations live in <platform>/io_poll_impl.c and
  * are included into eval.c via #include "io_poll_impl.c".
- *
  */
 
 #define IO_POLL_READ  1

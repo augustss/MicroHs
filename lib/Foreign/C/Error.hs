@@ -99,6 +99,9 @@ instance Eq Errno where
     | isValidErrno errno1 = no1 == no2
     | otherwise           = False
 
+instance Show Errno where
+  showsPrec p (Errno e) = showsPrec p e
+
 eOK :: Errno
 eOK = Errno 0
 

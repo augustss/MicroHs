@@ -7,6 +7,7 @@ import Data.Word
 import Foreign.C.Error
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 import System.IO.FD
@@ -14,15 +15,15 @@ import System.IO.FD
 foreign import ccall "unistd.h pipe"  c_pipe  :: Ptr CInt -> IO CInt
 foreign import ccall "unistd.h read"  c_read  :: CInt -> Ptr Word8 -> CInt -> IO CInt
 foreign import ccall "unistd.h write" c_write :: CInt -> Ptr Word8 -> CInt -> IO CInt
-foreign import ccall "fcntl.h fcntl"  c_fcntl_setfl :: CInt -> CInt -> CInt -> IO CInt
+foreign import ccall "fcntl.h fcntl"  c_fcntl :: CInt -> CInt -> CInt -> IO CInt
 foreign import capi "fcntl.h value F_SETFL"    fSETFL    :: CInt
 foreign import capi "fcntl.h value O_NONBLOCK" oNONBLOCK :: CInt
 
 setNonBlocking :: CInt -> IO ()
-setNonBlocking fd = void (c_fcntl_setfl fd fSETFL oNONBLOCK)
+setNonBlocking fd = throwErrnoIfMinus1_ "fcntl" $ c_fcntl fd fSETFL oNONBLOCK
 
 blockOnRead :: CInt -> IO Word8
-blockOnRead fd = alloca $ \p -> go p
+blockOnRead fd = alloca go
   where
     go p = do
       r <- c_read fd p 1
@@ -31,32 +32,46 @@ blockOnRead fd = alloca $ \p -> go p
         else do
           errno <- getErrno
           if errno == eAGAIN || errno == eWOULDBLOCK
-            then waitForReadFD (fromIntegral fd) >> go p
+            then do
+              putStrLn "entering waitForReadFD"
+              waitForReadFD (fromIntegral fd)
+              go p
             else throwErrno "read"
 
 reader :: CInt -> MVar () -> IO ()
 reader fd done = do
   putStrLn "reader: waiting for data"
-  b <- blockOnRead fd
-  putStrLn $ "reader: received " ++ show b
+  b1 <- blockOnRead fd
+  putStrLn $ "reader: received " ++ show b1
+  b2 <- blockOnRead fd
+  putStrLn $ "reader: received " ++ show b2
   putMVar done ()
 
-main :: IO ()
-main =
-  allocaBytes 8 $ \fds -> do        -- space for two CInt file descriptors
+pipe :: IO (CInt, CInt)
+pipe = do
+  allocaArray 2 $ \ fds -> do
     c_pipe fds
-    readFd  <- peekByteOff fds 0 :: IO CInt
-    writeFd <- peekByteOff fds 4 :: IO CInt
-    setNonBlocking readFd
+    rd <- peekElemOff fds 0
+    wr <- peekElemOff fds 1
+    return (rd, wr)
 
-    done <- newEmptyMVar :: IO (MVar ())
-    forkIO $ reader readFd done
-    yield                           -- let reader reach waitForReadFD
+main :: IO ()
+main = do
+  (readFd, writeFd) <- pipe
+  setNonBlocking readFd
+--  print (readFd, writeFd)
 
-    threadDelay 1000000 -- let the other thread reach its blocking state
+  done <- newEmptyMVar :: IO (MVar ())
+  forkIO $ reader readFd done
+
+  threadDelay 1000000 -- let the other thread reach its blocking state
+
+  alloca $ \ p -> do
     putStrLn "main: writing to pipe"
-    alloca $ \p -> do
-      poke p (42 :: Word8)
-      c_write writeFd p 1
+    poke p 42
+    c_write writeFd p 1
+    threadDelay 1000000
+    poke p 43
+    c_write writeFd p 1
 
-    takeMVar done
+  takeMVar done

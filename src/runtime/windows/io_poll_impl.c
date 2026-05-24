@@ -6,4 +6,9 @@
  * Selects the platform-specific IO poll backend for Windows.
  */
 
-#include "io_poll_iocp.c"
+/*
+ * IOCP backend for non-blocking IO polling (Windows).
+ * Not yet implemented.
+ */
+
+#error "IOCP IO poll backend not yet implemented for Windows"

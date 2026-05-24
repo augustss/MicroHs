@@ -42,7 +42,7 @@
 #if WANT_SIGINT
 #include <signal.h>
 #endif
-#if MHS_IO_POLL
+#if WANT_IO_POLL
 #include "io_poll.h"
 #endif
 
@@ -938,8 +938,9 @@ struct mthread {
   NODEPTR         mt_mval;       /* filled after waiting for take/read */
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
-#if MHS_IO_POLL
-  int             mt_fd;         /* The file descriptor that we are waiting on (will be either IO_POLL_WAITING_FOR_NONE or IO_POLL_EVENT_HAS_HAPPENED) */
+#if WANT_IO_POLL
+  int             mt_fd;         /* The file descriptor that we are waiting on
+                                    (will be either IO_POLL_WAITING_FOR_NONE or IO_POLL_EVENT_HAS_HAPPENED) */
   int             mt_events;     /* IO_POLL_READ or IO_POLL_WRITE */
 #endif
 #if defined(CLOCK_INIT)
@@ -1133,8 +1134,8 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
-#if MHS_IO_POLL
-/* this is the callback that is sent to the io_poll framework.
+#if WANT_IO_POLL
+/* This is the callback that is sent to the io_poll framework.
  * It is invoked when an event a thread is waiting for becomes ready.
  */
 static void
@@ -1334,10 +1335,10 @@ yield(void)
   check_thrown(false);
   check_sigint();
 
-#if MHS_IO_POLL
+#if WANT_IO_POLL
   if (io_waiter_count() > 0) {
     /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
-       for the events should not block. */
+     * for the events will not block. */
     io_poll(0, io_thread_ready);
   }
 #endif
@@ -1387,7 +1388,7 @@ new_thread(NODEPTR root)
   mt->mt_mark = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
-#if MHS_IO_POLL
+#if WANT_IO_POLL
   mt->mt_fd = IO_POLL_WAITING_FOR_NONE;
   mt->mt_events = -1;
 #endif
@@ -1643,13 +1644,14 @@ thread_delay(uvalue_t usecs)
 void
 pause_exec(void)
 {
-/* End up here if the run queue is empty. If there is no thread waiting for
+/*
+ * We end up here if the run queue is empty. If there is no thread waiting for
  * a delay to expire, we will never resume operation and we are deadlocked. However, if
- * we compile with MHS_IO_POLL there might be threads waiting for IO events, so in
+ * we compile with WANT_IO_POLL there might be threads waiting for IO events, so in
  * that case we check for them as well. If there is no thread waiting for a delay or an
  * IO event, we are deadlocked.
  */
-#if MHS_IO_POLL
+#if WANT_IO_POLL
 
   /* Check for deadlock situation */
   if (io_waiter_count() == 0
@@ -1663,12 +1665,12 @@ pause_exec(void)
     int timeout_ms = -1; /* block indefinitely if only io_waiters */
 #if defined(CLOCK_INIT)
     /* If there are threads blocked on delays, recompute the timeout_ms to account
-       for that. */
+     * for that. */
     if (timeq.mq_head) {
       CLOCK_T delta = timeq.mq_head->mt_at - CLOCK_GET();
       /* +999 emulates a ceiling function, adding at most 0.999 ms. io_poll wants milliseconds,
-         not microseconds as delta represents. When delta is < 1000, without +999, we'll truncate
-         to zero and enter a loop at full CPU speed. */
+       * not microseconds as delta represents. When delta is < 1000, without +999, we'll truncate
+       * to zero and enter a loop at full CPU speed. */
       timeout_ms = (delta > 0) ? (int)((delta + 999) / 1000) : 0;
     }
 #endif
@@ -1678,7 +1680,7 @@ pause_exec(void)
 #endif
   }
 
-#else /* !MHS_IO_POLL */
+#else /* !WANT_IO_POLL */
 
 #if defined(CLOCK_INIT)
   if (timeq.mq_head) {
@@ -1717,7 +1719,7 @@ pause_exec(void)
 #else  /* CLOCK_INIT */
   ERR("no clock");
 #endif  /* CLOCK_INIT */
-#endif /* MHS_IO_POLL */
+#endif /* WANT_IO_POLL */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
@@ -1905,7 +1907,7 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-#if MHS_IO_POLL
+#if WANT_IO_POLL
 #include "io_poll_impl.c"
 #endif
 
@@ -1923,7 +1925,7 @@ start_exec(NODEPTR root)
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
 
-#if MHS_IO_POLL
+#if WANT_IO_POLL
   io_init();
 #endif
 
@@ -6090,14 +6092,12 @@ evali(NODEPTR an)
     }
   case T_IO_WAITRDFD:
   case T_IO_WAITWRFD: {
-#if MHS_IO_POLL
+#if WANT_IO_POLL
     CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
 
     /* io_thread_ready sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
-       If we did not do this check we would just register again.
-
-       This seems to be how T_IO_THREADDELAY works, with mt_at == -1.
-    */
+     * If we did not do this check we would just register again.
+     */
     if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
       runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
       POP(2);
@@ -6109,7 +6109,8 @@ evali(NODEPTR an)
     int events = (tag == T_IO_WAITRDFD) ? IO_POLL_READ : IO_POLL_WRITE;
 
     /* Set up the waiting thread's state, preparing it to leave the run queue
-       until an event is ready for it */
+     * until an event is ready for it.
+     */
     struct mthread *mt = remove_q_head(&runq);
     mt->mt_fd     = fd;
     mt->mt_events = events;

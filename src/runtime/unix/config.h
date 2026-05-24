@@ -89,11 +89,7 @@
  * Linux uses epoll
  * The backend is selected in unix/io_poll_impl.c.
  */
-#if defined(__linux__)
-#define MHS_IO_POLL 1
-#else
-#define MHS_IO_POLL 0
-#endif
+#define WANT_IO_POLL 1
 
 /*
  * Use CPU counters.
