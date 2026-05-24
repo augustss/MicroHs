@@ -85,6 +85,17 @@
 #define WANT_OVERFLOW 1
 
 /*
+ * Enable non-blocking IO polling.
+ * Linux uses epoll
+ * The backend is selected in unix/io_poll_impl.c.
+ */
+#if defined(__linux__)
+#define MHS_IO_POLL 1
+#else
+#define MHS_IO_POLL 0
+#endif
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU

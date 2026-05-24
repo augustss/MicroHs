@@ -389,6 +389,12 @@ primTryPutMVar = _primitive "IO.tryputmvar"
 primTryReadMVar :: MVar a -> IO b {-(Maybe a)-}
 primTryReadMVar = _primitive "IO.tryreadmvar"
 
+primWaitWriteFD :: Int -> IO Int
+primWaitWriteFD = _primitive "IO.waitwrfd"
+
+primWaitReadFD :: Int -> IO Int
+primWaitReadFD = _primitive "IO.waitrdfd"
+
 primThreadDelay :: Int -> IO ()
 primThreadDelay = _primitive "IO.threaddelay"
 
