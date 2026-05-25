@@ -43,7 +43,7 @@
 #include <signal.h>
 #endif
 #if WANT_IO_POLL
-#include "io_poll.h"
+#include <poll.h>
 #endif
 
 extern char **environ;          /* should probably be behind some WANT_ */
@@ -923,9 +923,6 @@ struct handler {
 
 /***************** THREAD ******************/
 
-#define IO_POLL_WAITING_FOR_NONE (-1)
-#define IO_POLL_EVENT_HAS_HAPPENED (-2)
-
 struct mthread {
   enum th_state   mt_state;      /* thread state */
   enum mask_state mt_mask;       /* making state. */
@@ -939,10 +936,12 @@ struct mthread {
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if WANT_IO_POLL
-  int             mt_fd;         /* The file descriptor that we are waiting on
-                                    (will be either IO_POLL_WAITING_FOR_NONE or IO_POLL_EVENT_HAS_HAPPENED) */
-  int             mt_events;     /* IO_POLL_READ or IO_POLL_WRITE */
-#endif
+  int             mt_fd;         /* The file descriptor that we are waiting on,
+                                  * IO_POLL_WAITING_FOR_NONE, or IO_POLL_EVENT_HAS_HAPPENED */
+#define             IO_POLL_WAITING_FOR_NONE (-1)
+#define             IO_POLL_EVENT_HAS_HAPPENED (-2)
+  int             mt_events;     /* POLLIN or POLLOUT */
+#endif /* WANT_IO_POLL */
 #if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
 #endif
@@ -953,8 +952,9 @@ struct mqueue {
   struct mthread *mq_head;
   struct mthread *mq_tail;
 };
-struct mqueue runq = { 0, 0 };;
-struct mqueue timeq = { 0, 0 };
+struct mqueue runq  = { 0, 0 }; /* runnable threads */
+struct mqueue timeq = { 0, 0 }; /* waiting for a timer to expire, sorted in time order */
+struct mqueue pollq = { 0, 0 }; /* waiting for I/O on a file descriptor */
 
 struct mvar {
   struct mvar    *mv_next;      /* all mvars linked together */
@@ -975,7 +975,7 @@ NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(s
 
 /****** StablePtr ******/
 
-size_t sp_capacity = 4;         /* size of stable pointer table */
+size_t sp_capacity = 4;         /* initial size of stable pointer table */
 NODEPTR *sp_table;              /* stable pointer table */
 
 static void
@@ -1134,19 +1134,6 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
-#if WANT_IO_POLL
-/* This is the callback that is sent to the io_poll framework.
- * It is invoked when an event a thread is waiting for becomes ready.
- */
-static void
-io_thread_ready(void *ptr)
-{
-  struct mthread *mt = (struct mthread *)ptr;
-  mt->mt_fd = IO_POLL_EVENT_HAS_HAPPENED;
-  add_runq_tail(mt);
-}
-#endif
-
 struct mthread*
 remove_q_head(struct mqueue *q)
 {
@@ -1258,6 +1245,52 @@ check_timeq(void)
 }
 
 void
+check_pollq(int timeout)
+{
+#if WANT_IO_POLL
+#define MAX_POLL_FDS 100
+  struct pollfd fds[MAX_POLL_FDS];
+  int nfds = 0;
+  for(struct mthread *mt = pollq.mq_head; mt; mt = mt->mt_queue) {
+    if (nfds >= MAX_POLL_FDS)
+      ERR("check_pollq: too many FDs");
+    fds[nfds].fd = mt->mt_fd;
+    fds[nfds].events = mt->mt_events;
+    nfds++;
+  }
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("check_pollq: enter poll(_, %d, %d)\n", nfds, timeout);
+#endif  /* THREAD_DEBUG */
+  int r = poll(fds, nfds, timeout);
+  if (r < 0)
+    return;                     /* silently ignore errors */
+  nfds = 0;
+  struct mthread *next;
+  for(struct mthread *mt = pollq.mq_head; mt; mt = next) {
+    next = mt->mt_queue;
+    if (fds[nfds].revents & (mt->mt_events | POLLHUP)) {
+      /* Some event has happened, move the thread back to the runq. */
+      find_and_unlink(&pollq, mt); /* remove from I/O queue */
+      add_runq_tail(mt);
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("check_pollq: FD=%d thread=%d done\n", mt->mt_fd, (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+      mt->mt_fd = IO_POLL_EVENT_HAS_HAPPENED;
+    }
+    nfds++;
+  }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("check_pollq: exit\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+#endif  /* WANT_IO_POLL */
+}
+
+void
 throwto(struct mthread *mt, NODEPTR exn)
 {
 #if THREAD_DEBUG
@@ -1335,13 +1368,11 @@ yield(void)
   check_thrown(false);
   check_sigint();
 
-#if WANT_IO_POLL
-  if (io_waiter_count() > 0) {
+  if (pollq.mq_head) {
     /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
      * for the events will not block. */
-    io_poll(0, io_thread_ready);
+    check_pollq(0);
   }
-#endif
 
 // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
@@ -1390,7 +1421,7 @@ new_thread(NODEPTR root)
   mt->mt_id = num_thread_create++;
 #if WANT_IO_POLL
   mt->mt_fd = IO_POLL_WAITING_FOR_NONE;
-  mt->mt_events = -1;
+  mt->mt_events = 0;
 #endif
 #if defined(CLOCK_INIT)
   mt->mt_at = 0;                /* delay has not expired */
@@ -1652,9 +1683,8 @@ pause_exec(void)
  * IO event, we are deadlocked.
  */
 #if WANT_IO_POLL
-
   /* Check for deadlock situation */
-  if (io_waiter_count() == 0
+  if (!pollq.mq_head
 #if defined(CLOCK_INIT)
      && !timeq.mq_head
 #endif
@@ -1664,20 +1694,20 @@ pause_exec(void)
   while (!runq.mq_head) {
     int timeout_ms = -1; /* block indefinitely if only io_waiters */
 #if defined(CLOCK_INIT)
-    /* If there are threads blocked on delays, recompute the timeout_ms to account
-     * for that. */
+    /* If there are threads blocked on delays, compute the timeout_ms to account for that. */
     if (timeq.mq_head) {
-      CLOCK_T delta = timeq.mq_head->mt_at - CLOCK_GET();
-      /* +999 emulates a ceiling function, adding at most 0.999 ms. io_poll wants milliseconds,
-       * not microseconds as delta represents. When delta is < 1000, without +999, we'll truncate
-       * to zero and enter a loop at full CPU speed. */
-      timeout_ms = (delta > 0) ? (int)((delta + 999) / 1000) : 0;
+      CLOCK_T dly = timeq.mq_head->mt_at - CLOCK_GET();
+      if (dly > 0) {
+        /* poll() can be unreliable, so sleep shorter than the delay */
+        dly /= 1100;            /* 1.1=sleep shorter, 1000=convert us to ms */
+        timeout_ms = dly == 0 ? 1 : dly; /* sleep at least 1ms to avoid busy wait */
+      } else {
+        timeout_ms = 0;         /* delay has already expired */
+      }
     }
-#endif
-    io_poll(timeout_ms, io_thread_ready);
-#if defined(CLOCK_INIT)
     check_timeq();
-#endif
+#endif  /* defined(CLOCK_INIT) */
+    check_pollq(timeout_ms);
   }
 
 #else /* !WANT_IO_POLL */
@@ -1719,7 +1749,7 @@ pause_exec(void)
 #else  /* CLOCK_INIT */
   ERR("no clock");
 #endif  /* CLOCK_INIT */
-#endif /* WANT_IO_POLL */
+#endif /* !WANT_IO_POLL */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
@@ -1907,10 +1937,6 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-#if WANT_IO_POLL
-#include "io_poll_impl.c"
-#endif
-
 NODEPTR evali(NODEPTR n);
 
 /* If this is non-0 it means that the threading system is active. */
@@ -1924,10 +1950,6 @@ start_exec(NODEPTR root)
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
-
-#if WANT_IO_POLL
-  io_init();
-#endif
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -6093,10 +6115,12 @@ evali(NODEPTR an)
   case T_IO_WAITRDFD:
   case T_IO_WAITWRFD: {
 #if WANT_IO_POLL
-    CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
+    CHKARG2NP; /* x = filedescriptor, y = RealWorld; no pop yet */
 
-    /* io_thread_ready sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
-     * If we did not do this check we would just register again.
+    /*
+     * When the thread wakes up again it will re-execute that last op.
+     * check_pollq() sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
+     * If we did not do this check we would just sleep again.
      */
     if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
       runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
@@ -6104,9 +6128,10 @@ evali(NODEPTR an)
       GOPAIR(mkInt(1));
     }
 
-    POP(2);
+    check_thrown(true);      /* check if we have a thrown exception */
+
     int fd = evalint(x);
-    int events = (tag == T_IO_WAITRDFD) ? IO_POLL_READ : IO_POLL_WRITE;
+    int events = tag == T_IO_WAITRDFD ? POLLIN : POLLOUT;
 
     /* Set up the waiting thread's state, preparing it to leave the run queue
      * until an event is ready for it.
@@ -6114,16 +6139,19 @@ evali(NODEPTR an)
     struct mthread *mt = remove_q_head(&runq);
     mt->mt_fd     = fd;
     mt->mt_events = events;
-    mt->mt_state  = ts_wait_io;
+    add_q_tail(&pollq, mt);     /* put it on the q of I/O waiters */
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("T_IO_WAITxxFD: wait for FD=%d, events=%x, thread=%d\n", fd, events, (int)mt->mt_id);
+      }
+#endif  /* THREAD_DEBUG */
 
-    io_register(fd, events, mt);
-
-    resched(mt, ts_wait_io);
-#else
-    CHKARG2NP;
     POP(2);
-    GOPAIR(mkInt(-1));
-#endif
+    resched(mt, ts_wait_io);    /* set the thread state and reschedule */
+#else /* WANT_IO_POLL */
+    CHKARG2;
+    GOPAIR(mkInt(-1));          /* cannot poll */
+#endif /* WANT_IO_POLL */
   }
   case T_IO_GETMASKINGSTATE:
     CHKARG1;                    /* x = ST */
