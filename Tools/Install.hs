@@ -11,6 +11,7 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
+import System.IO.TimeMilli
 import MicroHs.Config
 
 type CConf = [(Key, Value)]
@@ -18,6 +19,7 @@ type CConf = [(Key, Value)]
 
 main :: IO ()
 main = do
+  start <- getTimeMilli
   args <- getArgs
   let flags = decodeArgs defaultFlags args
   confText <- macroExpand flags <$> readFile (confFile flags)
@@ -32,6 +34,11 @@ main = do
       flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText }
 
   install flags'
+
+  end <- getTimeMilli
+  let delta = (end - start) `quot` 100
+      (sec, tenths) = delta `quotRem` 10
+  putStrLn $ "Install time: " ++ show sec ++ "." ++ show tenths ++ "s"
 
 install :: Flags -> IO ()
 install flags = do

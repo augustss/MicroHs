@@ -252,63 +252,18 @@ separated list of directories.
 ## Setting the _packageDbPath_
 The default _packageDbPath_ is take from the `mhs.conf` file
 in the section `[mhs]` and key `packageDbPath`.
-
-In case this does not exists the path defaults to `~/.mcabal/mhs-VERSION`,
-where `~` will be replaced by the home directory and `VERSION` is the
-compiler version (as displayed by `mhs --numeric-version`).
+The path can contain environment variables that are expanded.
+In addition $MHSPKG expand to the package directory relative to the executing binary.
+Furthermore $VERSION expands to the mhs version number.
 
 The path can be cleared by using the `-a` command line flag.
 To append to the path use `-aPATH`, where `PATH` is a colon (':')
 separated list if directories.
 
 ## Installing packages
-The default _packageDb_ for installing packages is given by the
-key `packageDbDefaultInstall`.
-If absent, it defaults to `~/.mcabal/mhs-VERSION`.
 
-The _packageDb_ directory can also be given directly with the `-Q`
+The _packageDb_ directory can be given directly with the `-Q`
 flag used to install.
 
 The `mcabal` command can install to a particular package db by using
 `--install=PATH`.
-
-## Examples
-### Status Quo
-All packages go to the same place.
-
-Compile a module with `mhs Foo`.
-
-
-mhs.config:
-```
-[mhs]
-packageDbPath=~/.mcabal/mhs-0.15.5.0
-packageDbDefaultInstall=~/.mcabal/mhs-0.15.5.0
-...
-```
-
-### GhcUp
-Separate system and user package dbs.
-
-Compile a module with `mhs Foo`.
-
-mhs.config:
-```
-[mhs]
-packageDbPath=~/.mcabal/system:~/.mcabal-user
-packageDbDefaultInstall=~/.mcabal-user
-...
-```
-
-### Nix
-A system package db and then a separate db for each package.
-
-Compile a module with `mhs -a%transformers:%mtl Foo`.
-
-```
-[mhs]
-packageDbPath=~/.mcabal/system
-packageDbDefaultInstall=NO_INSTALL_GIVEN
-packageDbPrefix=~/.mcabal-user-dbs
-...
-```
