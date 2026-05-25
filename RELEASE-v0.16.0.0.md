@@ -9,3 +9,4 @@
  * Enable embedding packages in the mhs binary
  * Deriving for Read, Data, Functor, Foldable, Traversable
  * Simple Web app for playing with MicroHs
+ * Non-blocking IO primitives
