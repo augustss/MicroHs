@@ -6125,7 +6125,7 @@ evali(NODEPTR an)
     if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
       runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
       POP(2);
-      GOPAIR(mkInt(1));
+      GOPAIR(mkInt(0));
     }
 
     check_thrown(true);      /* check if we have a thrown exception */
@@ -6150,6 +6150,9 @@ evali(NODEPTR an)
     resched(mt, ts_wait_io);    /* set the thread state and reschedule */
 #else /* WANT_IO_POLL */
     CHKARG2;
+#if WANT_ERRNO
+    errno = EINVAL;
+#endif
     GOPAIR(mkInt(-1));          /* cannot poll */
 #endif /* WANT_IO_POLL */
   }
