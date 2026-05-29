@@ -18,6 +18,7 @@ import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
+import Data.ByteString(ByteString)
 import Data.Int
 import Data.List
 import Data.Maybe
@@ -221,6 +222,7 @@ instance NFData Bool
 instance NFData Ordering
 instance NFData ()
 instance NFData Text
+instance NFData ByteString
 
 instance NFData Integer where
   rnf x = (x == 0) `seq` ()
