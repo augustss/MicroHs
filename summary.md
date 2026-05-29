@@ -18,28 +18,31 @@ arithmetic, so even the textbook unboxing win is mathematically < 1.25× here).
 
 ## Time
 
-**~2 hours** of wall-clock agent time, spanning two context windows
-(2026-05-28 23:42 → 2026-05-29 ~01:55 MDT). Rough split: ~40 min reading the
-runtime to understand the execution model; ~30 min implementing + validating the
-dispatch optimization; ~30 min on the build-flag/PGO sweep and profiling; ~20 min
-on the unwind-loop optimization and its A/B isolation; ~10 min instrumenting the
-arithmetic-fraction measurement; ~15 min writing up. A large fraction of the
-elapsed time was spent *waiting on* the ~50 s self-compile validation cycle, which
-I ran many times to keep the change byte-identical.
+- **Active model (API) time: 1h 47m 29s.** This is the real compute time.
+- **Wall-clock: 10h 13m 21s.** The gap is idle time — the session spanned
+  overnight with long pauses between turns and time spent *waiting on* the ~50 s
+  self-compile validation (re-run after every candidate to keep the change
+  byte-identical) and context compaction — not active work.
+
+Rough split of the active work: ~reading the runtime to understand the execution
+model; implementing + validating the dispatch optimization; the build-flag/PGO
+sweep and profiling; the unwind-loop optimization and its A/B isolation;
+instrumenting the arithmetic-fraction measurement; writing up.
 
 ## Cost
 
-I don't have exact API token/dollar metering exposed in this environment, so I'm
-reporting cost as the work performed rather than a fabricated figure (the precise
-$ is visible on the operator's usage dashboard):
+**Total: $32.62** (measured). Breakdown:
 
-- **Agent:** one Opus 4.8 (1M-context) session at max reasoning effort, two
-  context windows, ~100+ tool calls.
-- **Machine work driven:** several dozen full runtime rebuilds (`cc -O3` over
-  `eval.c`+`main.c`+`comb.c`, ~10 s each); ~15–20 self-compile runs at ~50 s each
-  (the dominant compute cost); a build-flag matrix (≈8 variants) and a 2-stage PGO
-  build; one throwaway instrumented build for the arithmetic-fraction count.
-- **Net:** the expensive part was validation, not search — keeping the output
+- **~$31** was the optimization experiment itself (analysis, the `eval.c` change,
+  the flag/PGO sweep, profiling, the arithmetic-fraction instrumentation, and the
+  `PROGRESS.md`/`bench/NOTES.md` write-ups).
+- **~$1.6** was packaging it up afterwards (this `summary.md`, the branch, and the
+  draft PR).
+- **By model:** `claude-opus-4-8` — 24.7k input, 394.2k output, 35.1M cache-read,
+  817.5k cache-write tokens ($32.62); `claude-haiku-4-5` negligible ($0.0006).
+- **Code changes:** 961 lines added / 83 removed (dominated by the new docs +
+  `bench/` harness; the actual runtime change is +50/−11 in `eval.c`).
+- The expensive part was *validation, not search* — keeping the output
   byte-identical meant re-running the full self-compile after every candidate.
 
 ## Performance results
