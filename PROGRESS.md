@@ -152,5 +152,47 @@ self-compile *proxy* made faster by caching the base library (real value for
 repeated builds, but doing less work, not faster work). My honest errors were
 narrower than my first retraction implied: I scoped the problem to the engine (so I
 missed the caching route to a faster *benchmark*), and I trusted single-threaded
-validation until `tests/Concur` caught a scheduling regression. The methodology
-(harness, sweep, notes) is in `bench/`.
+validation until `tests/Concur` caught a scheduling regression. The harness and
+A/B scripts are in `bench/`; supporting measurements are in the appendix below.
+
+## Appendix: methodology & measurements
+
+All timings: i9-13950HX, gcc 13.3, `taskset -c 2`, best-of-N. Micro suite =
+nfib32+tak+sumTo+churn (`bench/Bench.hs`); self-compile = compiling
+`MicroHs.Main`. Harness and A/B scripts are in `bench/`.
+
+**Baseline characterization.** The workload is reduction-bound, not
+GC/alloc-bound: the micro-suite spends ~4.7% in GC with at most ~6,810 live cells
+(~109 KB) inside the default 800 MB (50M-cell) heap; self-compile GC ~17%.
+Per-reduction execution cost dominates, so that is where tuning has to land.
+
+**Build-flag sweep (micro-suite SUM, ms; OPT2 dispatch + the flag).** All
+near-useless here — strong evidence the hot loop is memory-latency/branch bound and
+already well-compiled, not codegen-limited:
+
+| build | SUM (≈) | note |
+|---|---|---|
+| OPT2, `-O3` (the kept change) | 3060 | baseline for this table |
+| `+ -march=native` | 3070 | ~0 — not compute/SIMD bound |
+| `+ -fno-stack-protector` | 3023 | ~1%, security trade-off |
+| `+ -flto` | 3042 | ~0 — eval.c is already one TU |
+| `+ all flags + -fno-semantic-interposition` | 2942 | ~3.7% total, non-portable |
+| `-O2` | 3066 | |
+| 2-stage PGO | 3006 | worse than `-O3-all`; dropped |
+
+**Unboxing ceiling (instrumented throwaway build, not shipped).** Counted
+binary-integer ops at their `binint1:` chokepoint as a fraction of all reductions:
+suite 52,543,192 / 281,341,769 = **18.7%**; nfib (most arithmetic-heavy)
+179,164,494 / 537,497,679 = **33.3%**. By Amdahl, making every integer op *free*
+caps the speedup at **1.23×** (suite) / **1.50×** (nfib) — so tagged-integer
+unboxing, the textbook lever, is mathematically < 2× here. The other 67–81% of
+reductions are combinator-structural (`S`/`B`/`C`/`AP` routing): count fixed by the
+compiler, cost the same latency-bound pointer-chase. GC-rewrite and
+special-combinator counters were ~0, so neither is a lever.
+
+**OPT3 / computed-goto (rejected, detail).** OPT3 (whole-function stack-pointer
+localization) regressed: the 3.4 KB-frame `evali()` is register-starved and GCC
+spilled the "localized" variables back to the stack. Computed-goto would remove the
+`switch`'s predicted range-compares but not the shared indirect-branch
+misprediction (every case funnels to one `goto top`), so ~3–5% for a large,
+byte-identical-risking edit — deferred.
