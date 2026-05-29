@@ -253,6 +253,17 @@ char* TMPNAME(const char* pre, const char* suf) {
 #endif
 
 #if !defined(FFS)
+#if defined(__GNUC__) || defined(__clang__)
+static INLINE int
+FFS(bits_t x)
+{
+  if (!x)
+    return 0;
+  if (sizeof(bits_t) <= sizeof(unsigned long))
+    return __builtin_ctzl((unsigned long)x) + 1;
+  return __builtin_ctzll((unsigned long long)x) + 1;
+}
+#else
 /* This is pretty bad, could use deBruijn multiplication instead. */
 int
 FFS(bits_t x)
@@ -264,6 +275,7 @@ FFS(bits_t x)
     ;
   return i;
 }
+#endif
 #endif  /* !defined(FFS) */
 
 /***** popcount *****/
@@ -469,7 +481,7 @@ islinux(void)
 #define HIGH_INT 256
 
 #if !defined(HEAP_CELLS)
-#define HEAP_CELLS 50000000
+#define HEAP_CELLS 40000000
 #endif
 
 #if !defined(STACK_SIZE)
@@ -1881,6 +1893,25 @@ static INLINE int is_marked_used(NODEPTR n)
   return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
 
+static INLINE int mark_if_unused(NODEPTR n)
+{
+  heapoffs_t i = LABEL(n);
+  bits_t mask;
+  bits_t *word;
+  if (i < heap_start)
+    return 0;
+#if SANITY
+  if (i >= free_map_nwords * BITS_PER_WORD)
+    ERR("mark_if_unused");
+#endif
+  mask = 1ULL << (i % BITS_PER_WORD);
+  word = &free_map[i / BITS_PER_WORD];
+  if ((*word & mask) == 0)
+    return 0;
+  *word &= ~mask;
+  return 1;
+}
+
 static INLINE void mark_all_free(void)
 {
   memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
@@ -1920,7 +1951,7 @@ alloc_node(enum node_tag t)
   n = HEAPREF(pos);
   // mark_used(n); // equivalent to:
   free_map[i] = word & (word-1);
-  next_scan_index = pos;
+  next_scan_index = pos + 1;
 
   SETTAG(n, t);
   COUNT(num_alloc);
@@ -2700,11 +2731,10 @@ mark(NODEPTR *np)
   }
   if (n < cells || n > cells + heap_size)
     ERR("bad n");
-  if (is_marked_used(n)) {
+  if (!mark_if_unused(n)) {
     goto fin;
   }
   num_marked++;
-  mark_used(n);
   switch (tag) {
 #if GCRED
 #define GCREDIND(x) do { NODEPTR nn = (x); mark(&nn); SETINDIR(n, nn); goto fin; } while(0)
@@ -4823,28 +4853,17 @@ bsappenddot(struct bytestring p, struct bytestring q)
   return r;
 }
 
-/*
- * Compare bytestrings.
- * We can't use memcmp() directly for two reasons:
- *  - the two strings can have different lengths
- *  - the return value is only guaranteed to be ==0 or !=0
- */
+/* Compare bytestrings lexicographically. */
 int
 bscompare(struct bytestring bsp, struct bytestring bsq)
 {
-  uint8_t *p = bsp.string;
-  uint8_t *q = bsq.string;
   size_t len = bsp.size < bsq.size ? bsp.size : bsq.size;
-  while (len--) {
-    int r = (int)*p++ - (int)*q++;
-    if (r) {
-      /* Unequal bytes found. */
-      if (r < 0)
-        return -1;
-      if (r > 0)
-        return 1;
-      return 0;
-    }
+  if (len) {
+    int r = memcmp(bsp.string, bsq.string, len);
+    if (r < 0)
+      return -1;
+    if (r > 0)
+      return 1;
   }
   /* Got to the end of the shorter string. */
   /* The shorter string is considered smaller. */

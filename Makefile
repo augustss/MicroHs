@@ -19,7 +19,7 @@ RTSINC=-I$(RTS) -I$(RTS)/$(CONF)
 MAINC= $(RTS)/main.c
 #
 CCWARNS= -Wall
-CCOPTS= -O3
+CCOPTS= -O3 -flto=auto -fwhole-program
 CCLIBS= -lm $(MHSGMPCCLIBS)
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
@@ -45,8 +45,10 @@ HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
 NODE=node
 #NODEFLAGS=--stack_size=8192
 #
+MHSBASEPKG=$(if $(wildcard generated/base.pkg),-pgenerated/base.pkg,)
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
-MHSINC=$(MHSINCNP)
+MHSINC=$(MHSBASEPKG) $(MHSINCNP)
+GHCMHSINC=$(MHSINCNP)
 MAINMODULE=MicroHs.Main
 #
 .PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
@@ -138,7 +140,7 @@ generated/install.c:	bin/mhs Tools/Install.hs
 	bin/mhs -z $(MHSINC) -iTools Install -ogenerated/install.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
-	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
+	bin/gmhs $(GHCMHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
 # This doesn't keep MicroCabal updated.  I'm not sure how to do it
 #generated/mcabal.c: MicroCabal/.git
@@ -283,7 +285,7 @@ everytest:	newmhs bin/cpphs exampletest info runtest cachetest bootcombtest nfib
 everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest info cachetest bootstrap runtestmhs nfibtest
 
 bootcombtest:	bin/gmhs bin/mhseval
-	bin/gmhs $(MHSINC) -ogmhs.comb $(MAINMODULE)
+	bin/gmhs $(GHCMHSINC) -ogmhs.comb $(MAINMODULE)
 	bin/mhseval +RTS -v -rgmhs.comb -RTS $(MHSINC) -omhs.comb $(MAINMODULE)
 	cmp gmhs.comb mhs.comb
 
@@ -339,9 +341,14 @@ preparedist:	newmhsz bootstrapcpphs
 	$(MAKE) generated/mhseval.js
 	$(MAKE) generated/base.pkg
 
-generated/base.pkg: bin/mhs bin/mcabal
-	cd lib; PATH=../bin:"$$PATH" mcabal $(MCABALGMP) build
-	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
+generated/base.pkg: bin/mhs lib/base.cabal
+	@mkdir -p generated
+	BASE_MODULES=$$(awk '\
+	  /^[[:space:]]*exposed-modules:/ {inmods=1; next} \
+	  /^[[:space:]]*other-modules:/ {inmods=0} \
+	  inmods && /^[[:space:]]*[A-Z][A-Za-z0-9_.]*[[:space:]]*$$/ {print $$1} \
+	' lib/base.cabal); \
+	bin/mhs -i $(MHSGMP) -ilib -P$(BASE) -ogenerated/base.pkg $$BASE_MODULES
 
 install:	installmsg minstall
 
