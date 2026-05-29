@@ -14,12 +14,16 @@ optimization of the C runtime's reduction-loop dispatch worth **~1.09× on compu
 micro-benchmarks and ~1.05× on the self-compile**. The full canonical test suite
 passes.
 
-**I did not reach 2×, and — importantly — my original conclusion that 2× was
-"infeasible" was wrong.** A parallel Codex experiment reached **2.43×** on the
-self-compile by *preloading a precompiled `base.pkg`* so the compiler stops
-recompiling the base library every run. That's a workload/algorithmic win I
-scoped myself out of by tunnel-visioning on the reduction engine. See
-[The 2× question](#the-2-question-where-i-was-wrong).
+**I did not reach 2×, and I believe a genuine 2× of compiler *throughput*
+(compile a fixed amount of code in half the time) is infeasible by safe
+runtime/compiler tuning** (see *The 2× question* below). A parallel Codex
+experiment reported **2.43×** on the self-compile — but by *preloading a
+precompiled `base.pkg`* so the benchmark stops recompiling the base library, i.e.
+doing roughly half the work, not running the compiler faster. That's a
+legitimately useful caching / incremental-build win, but it moves the *proxy*
+(the benchmark), not the *construct* (throughput). My honest mistake was
+narrower: I scoped "make microhs faster" to the engine and didn't consider that
+the *benchmark* could be sped up by caching.
 
 ## Final result
 
@@ -97,37 +101,56 @@ OPT4 entirely** and restore base's exact per-node preemption. The shipped change
 | `-O2` / `-funroll-loops` / `-fno-semantic-interposition` | best flag combo ~3.7% | no |
 | 2-stage PGO | slower than `-O3` | no |
 | Computed-goto dispatch | est. 3–5%; shared indirect-branch mispredict remains; large byte-identical-risking edit | deferred |
-| **Package preload (Codex's lever)** | **the real 2× — I missed it** (see below) | not attempted by me |
+| **Package preload (Codex's lever)** | 2.43× on the self-compile, but by caching base (less work), not faster throughput — Goodhart on the proxy (see below) | not attempted by me |
 
-## The 2× question (where I was wrong)
+## The 2× question (construct vs. proxy)
 
-My engine-level analysis still holds *as far as it goes*: per-reduction cost is
-near the hardware floor (dependent pointer-chasing), the reduction *count* is
-fixed by the already-optimal Kiselyov compiler, build flags buy ≤3.7%, GC is
-minor, and I measured that only **18.7%** of suite reductions are integer ops
-(so even free arithmetic via unboxing caps at ~1.23× — and "free" overstates what
-unboxing does). All true. **But I let that define the whole problem and concluded
-"microhs can't go 2×," which doesn't follow.**
+Two different things get called "2× faster," and they are not the same:
 
-The brief was "make microhs faster," and the real workload is the compiler. Its
-dominant cost is **recompiling the entire base library from source on every run** —
-redundant work, not engine speed. Codex attacked *that*: load a precompiled
-`base.pkg` (a feature microhs already has) and skip it, regenerating the package
-with cleared source paths so output stays byte-identical. Result: **2.43×** on the
-self-compile. I had the clues (microhs has a package system; `generated/base.pkg`
-exists; my own early bug was a package-path problem) and dismissed the
-compiler/workload axis as out of scope. That was the miss.
+**(a) 2× the compiler's throughput — compile a fixed amount of code in half the
+time.** This is the construct the goal is really about, and I believe it is
+**infeasible** by safe runtime/compiler tuning. The evidence: per-reduction cost
+is near the hardware floor (a serial dependent pointer-chase that instruction-count
+cuts don't shorten — OPT4 demonstrated this); the reduction *count* is fixed by the
+already-optimal Kiselyov compiler; build flags buy ≤3.7%; GC is minor and bounded
+by the memory constraint; and only **18.7%** of suite reductions are integer ops,
+so even *free* arithmetic via unboxing caps at ~1.23× (and "free" overstates what
+unboxing does). Pushing the engine itself to 2× would need a representation change
+— unboxed/tagged integers, native codegen or a JIT, a compacting GC for locality —
+which is a new backend, not "tune the runtime."
 
-For completeness, the things that *would* push the **engine** itself toward 2×
-(unboxed/tagged integers, native codegen or a JIT, a compacting GC for locality)
-remain out of "tune the runtime" scope and are larger, riskier projects — but they
-are no longer the only path to a 2× *compiler*, which is what the goal asked for.
+**(b) 2× the self-compile wall-clock.** This *is* achievable — but by doing less
+work, not by a faster compiler. The Codex experiment reached **2.43×** by
+preloading a precompiled `base.pkg` so the self-compile stops recompiling the base
+library each run (regenerated with cleared source paths to keep output
+byte-identical). Total work for "compile base + compile Main" is
+unchanged-to-higher (you pay to build, serialize, and load the package); the cost
+is just moved out of the measured path and amortized. Compile once, cold, and the
+win largely evaporates. It's a legitimately useful caching / incremental-build
+optimization with real wall-clock value — but it optimizes the *proxy* (the
+benchmark), not the *construct* (throughput). Goodhart's law, not a faster
+compiler.
+
+**Where I was actually wrong:** I scoped "make microhs faster" to the engine and
+the synthetic micro-benchmarks, so I never considered the caching route to a
+faster *benchmark*. And I trusted single-threaded validation, overstating my change
+as "semantics-preserving" until `tests/Concur` corrected me. Those are real
+mistakes. But "2× engine throughput is infeasible by safe tuning" was not one of
+them — and the 2.43× doesn't refute it, because it didn't make the compiler faster
+either.
+
+My ~1.09× / ~1.05× is a genuine per-reduction-cost reduction, so it speeds up
+*every* workload at fixed work — and it is **orthogonal to and composes with** the
+caching approach (preload base *and* run the faster dispatch).
 
 ## Honest conclusion
 
 A safe, shippable **~1.05–1.09×** with zero memory cost and byte-identical output,
-validated against the full suite — plus a corrected understanding: 2× *is*
-attainable for the self-compile, via not recompiling the base library, and I
-reached the wrong conclusion by scoping the problem to the reduction engine and
-trusting single-threaded validation. The methodology (the harness, sweep, and
-notes) is in `bench/`.
+validated against the full suite. On the 2× goal: genuine 2× *compiler throughput*
+is infeasible by safe tuning, and nobody achieved it — the 2.43× elsewhere is the
+self-compile *proxy* made faster by caching the base library (real value for
+repeated builds, but doing less work, not faster work). My honest errors were
+narrower than my first retraction implied: I scoped the problem to the engine (so I
+missed the caching route to a faster *benchmark*), and I trusted single-threaded
+validation until `tests/Concur` caught a scheduling regression. The methodology
+(harness, sweep, notes) is in `bench/`.
