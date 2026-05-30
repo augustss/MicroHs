@@ -265,11 +265,11 @@ copyFileBS :: FilePath -> FilePath -> IO ()
 copyFileBS src dst = BS.readFile src >>= BS.writeFile dst
 
 time :: String -> IO a -> IO a
-time _ ioa | True = ioa
+time _ ioa | 0==0 = ioa
 -- Time individual operations
 time s ioa = do
   t1 <- getTimeMilli
   a <- ioa
   t2 <- getTimeMilli
-  printf "***** %s %fs\n" s ((fromIntegral (t2 - t1)) / 1000)
+  printf "***** %s %fs\n" s (fromIntegral (t2 - t1) / 1000)
   return a
