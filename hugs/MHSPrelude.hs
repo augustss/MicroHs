@@ -8,7 +8,8 @@ module MHSPrelude(
   first, second,
   module Data.Monoid,
   module Data.Semigroup,
-  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<)
+  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
+  getExecutablePath
   ) where
 import Hugs.Prelude()
 import Prelude hiding(fail)
@@ -256,3 +257,6 @@ f <=< g = \ a -> do
 
 (>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
+
+getExecutablePath :: forall a . IO a
+getExecutablePath = error "unimplemented"
