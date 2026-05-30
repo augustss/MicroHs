@@ -7,7 +7,7 @@ import System.IO
 -- (32 vs 64 bit, with or without GMP).
 
 delay :: Int -> IO ()
-delay i = loop i `seq` return ()
+delay i = loop (i*100) `seq` return ()
 
 loop :: Int -> Int
 loop i = if i == (0::Int) then (0::Int) else loop (i - (1::Int))
@@ -29,9 +29,9 @@ run i s =
 
 xrun :: Int -> String -> IO ()
 xrun i s = do
-  threadDelay i
+  delay i
   showId s
-  threadDelay (2000::Int)
+  delay (2000::Int)
   run (1000::Int) s
 
 main :: IO ()
