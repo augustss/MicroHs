@@ -16,9 +16,10 @@ packageDbPath = "$MHSPKG:$HOME/.mcabal-user/mhs-$VERSION"
 -- If no target is set, we use 'unix' on non-Windows and 'windows' on Windows.
 
 -- Typical Unix-like flags
+-- Assumes gcc or clang
 [unix]
 cc = "cc"
-ccflags = "-w -Wall -O3 %GMPFLAGS"
+ccflags = "-w -Wall -O3 -flto %GMPFLAGS"
 cclibs = "%GMPLIBS -lm"
 conf = "unix"
 
