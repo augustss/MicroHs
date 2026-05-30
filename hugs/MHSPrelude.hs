@@ -12,7 +12,7 @@ module MHSPrelude(
   getExecutablePath
   ) where
 import Hugs.Prelude()
-import Prelude hiding(fail)
+import Prelude hiding(catch, fail)
 import qualified Prelude
 import Control.Arrow(first, second)
 import Control.Applicative

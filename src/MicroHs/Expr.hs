@@ -59,6 +59,7 @@ module MicroHs.Expr(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.ByteString(ByteString)
+import Data.Int(Int64)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
