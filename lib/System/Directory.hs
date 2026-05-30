@@ -174,7 +174,6 @@ createDirectoryIfMissing True d = do
 isPathSeparator :: Char -> Bool
 isPathSeparator c = c == '/' || _isWindows && c == '\\'
 
--- XXX does not copy flags
 copyFile :: FilePath -> FilePath -> IO ()
 copyFile src dst = do
   hsrc <- openBinaryFile src ReadMode
