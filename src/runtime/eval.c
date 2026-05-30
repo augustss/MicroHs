@@ -4825,26 +4825,17 @@ bsappenddot(struct bytestring p, struct bytestring q)
 
 /*
  * Compare bytestrings.
- * We can't use memcmp() directly for two reasons:
- *  - the two strings can have different lengths
- *  - the return value is only guaranteed to be ==0 or !=0
  */
 int
 bscompare(struct bytestring bsp, struct bytestring bsq)
 {
-  uint8_t *p = bsp.string;
-  uint8_t *q = bsq.string;
   size_t len = bsp.size < bsq.size ? bsp.size : bsq.size;
-  while (len--) {
-    int r = (int)*p++ - (int)*q++;
-    if (r) {
-      /* Unequal bytes found. */
-      if (r < 0)
-        return -1;
-      if (r > 0)
-        return 1;
-      return 0;
-    }
+  if (len) {
+    int r = memcmp(bsp.string, bsq.string, len);
+    if (r < 0)
+      return -1;
+    if (r > 0)
+      return 1;
   }
   /* Got to the end of the shorter string. */
   /* The shorter string is considered smaller. */
