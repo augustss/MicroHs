@@ -1,5 +1,6 @@
 module Install where
 import Control.Monad
+import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -12,6 +13,7 @@ import System.Environment
 import System.FilePath
 import System.Process
 import System.IO.TimeMilli
+import Text.Printf
 import MicroHs.Config
 
 type CConf = [(Key, Value)]
@@ -42,14 +44,14 @@ main = do
 
 install :: Flags -> IO ()
 install flags = do
-  instBin flags
+  time "instBin" $ instBin flags
   vers <- init <$> mhsOut flags ["--numeric-version"]
   let flags' = flags { version = vers }
-  mkMachdep flags'
-  mkConf flags'
-  copyRTS flags'
-  copyBase flags'
-  checkPath flags'
+  time "mkMachdep" $ mkMachdep flags'
+  time "mkConf" $ mkConf flags'
+  time "copyRTS" $ copyRTS flags'
+  time "copyBase" $ copyBase flags'
+  time "checkPath" $ checkPath flags'
 
 instBin :: Flags -> IO ()
 instBin flags = do
@@ -79,9 +81,9 @@ copyRTS flags = do
   let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
   let mData = mCabalMhs </> "packages" </> ("mhs-" ++ version flags) </> "data"
       rts = "src" </> "runtime"
-  mkdir flags mData
-  copy flags "mhs.conf" (mData </> "mhs.conf")
-  copyDir flags rts (mData </> rts)
+  time "mkdir eData" $ mkdir flags mData
+  time "copy mhs.conf" $ copy flags "mhs.conf" (mData </> "mhs.conf")
+  time "copyDir" $ copyDir flags rts (mData </> rts)
 
 copyBase :: Flags -> IO ()
 copyBase flags = do
@@ -106,7 +108,8 @@ buildBin flags pgm = do
       dst = "bin" </> pgm <.> exeSuffix flags
       ccf = cconf flags
       rts = "src" </> "runtime"
-  cc flags [get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
+  time ("buildBin " ++ pgm) $
+   cc flags [get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
             rts </> "main.c", rts </> "eval.c",
             src, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
 
@@ -145,8 +148,10 @@ msg flags s | not (quiet flags) = putStrLn s
 mkdir :: Flags -> FilePath -> IO ()
 mkdir flags dir = do
   msg flags $ "mkdir " ++ dir
-  unless (dryRun flags) $
-    createDirectoryIfMissing True dir
+  unless (dryRun flags) $ do
+    _ <- system $ "mkdir -p " ++ dir
+    return ()
+--    createDirectoryIfMissing True dir
 
 machdep :: Flags -> FilePath -> IO ()
 machdep flags name = do
@@ -170,7 +175,7 @@ copy :: Flags -> FilePath -> FilePath -> IO ()
 copy flags src dst = do
   msg flags $ unwords ["cp", src, dst]
   unless (dryRun flags) $ do
-    copyFile src dst
+    copyFileBS src dst
     copyPermissions src dst
 
 copyDir :: Flags -> FilePath -> FilePath -> IO ()
@@ -255,3 +260,16 @@ decodeArgs f (arg:args) =
 
 usage :: String
 usage = "\ninstall [--help] [-v] [--dryrun] [-tTARGET] [-iDIR] [NAME=MACRO] [GOAL]\n"
+
+copyFileBS :: FilePath -> FilePath -> IO ()
+copyFileBS src dst = BS.readFile src >>= BS.writeFile dst
+
+time :: String -> IO a -> IO a
+time _ ioa | True = ioa
+-- Time individual operations
+time s ioa = do
+  t1 <- getTimeMilli
+  a <- ioa
+  t2 <- getTimeMilli
+  printf "***** %s %fs\n" s ((fromIntegral (t2 - t1)) / 1000)
+  return a
