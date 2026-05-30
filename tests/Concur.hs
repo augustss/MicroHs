@@ -29,9 +29,9 @@ run i s =
 
 xrun :: Int -> String -> IO ()
 xrun i s = do
-  delay i
+  threadDelay i
   showId s
-  delay (2000::Int)
+  threadDelay (2000::Int)
   run (1000::Int) s
 
 main :: IO ()

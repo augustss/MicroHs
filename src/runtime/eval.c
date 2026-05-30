@@ -4894,7 +4894,9 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   struct forptr *xfp;
   char *msg;
+#if 0
   heapoffs_t l;
+#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -4960,22 +4962,40 @@ evali(NODEPTR an)
   /*pp(stdout, an);*/
   if (--glob_slice <= 0)
     yield();
+#if 0
+  /* This increases the cycle count */
   l = LABEL(n);
   if (l < T_IO_STDIN) {
     /* The node is one of the permanent nodes; the address offset is the tag */
     tag = l;
-  } else {
-    /* Heap allocated node */
-    if (ISINDIR(n)) {
-      /* Follow indirections */
+  } else
+#endif
+    {
+    tag_t ut;
+    /* first follow AP nodes down the spine */
+    for(;;) {
+      ut = n->ufun.uutag;
+      if ((ut & BIT_MASK) != BIT_AP)
+        break;
+      PUSH(n);
+      n = (NODEPTR)ut;
+    }
+    /* Skip idirections */
+    if ((ut & BIT_MASK) == BIT_IN) {
+      /* Follow and short-circuit the chain. */
       NODEPTR on = n;
       do {
         n = GETINDIR(n);
       } while(ISINDIR(n));
       SETINDIR(on, n);          /* and short-circuit them */
+      tag = GETTAG(n);
+    } else {
+      /* The tag is the rest of the bits we fetched */
+      tag = ut >> TAG_SHIFT;
     }
-    tag = GETTAG(n);
   }
+  /* Invariant: at this point n=current node, tag=GETTAG(n) */
+
   // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
