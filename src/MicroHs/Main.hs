@@ -471,7 +471,7 @@ mainInstallPackage flags [pkgfn, dir] = do
   let pdir = dir </> packageDir
       pkgout = unIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg) <.> packageSuffix
   createDirectoryIfMissing True pdir
-  copyFile pkgfn (pdir </> pkgout)
+  copyFileBS pkgfn (pdir </> pkgout)
   let mk tm = do
         let fn = dir </> moduleToFile (tModuleName tm) <.> packageTxtSuffix
             dn = takeDirectory fn
@@ -560,3 +560,6 @@ expandEnv ('$':cs) = do
   (repl ++) <$> expandEnv rest
 expandEnv (c:cs) =
   (c :) <$> expandEnv cs
+
+copyFileBS :: FilePath -> FilePath -> IO ()
+copyFileBS src dst = BS.readFile src >>= BS.writeFile dst
