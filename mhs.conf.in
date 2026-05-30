@@ -19,7 +19,7 @@ packageDbPath = "$MHSPKG:$HOME/.mcabal-user/mhs-$VERSION"
 -- Assumes gcc or clang
 [unix]
 cc = "cc"
-ccflags = "-w -Wall -O3 -flto %GMPFLAGS"
+ccflags = "-w -Wall -O3 -flto -march=native %GMPFLAGS"
 cclibs = "%GMPLIBS -lm"
 conf = "unix"
 

@@ -19,7 +19,7 @@ RTSINC=-I$(RTS) -I$(RTS)/$(CONF)
 MAINC= $(RTS)/main.c
 #
 CCWARNS= -Wall
-CCOPTS= -O3 -flto
+CCOPTS= -O3 -flto -march=native
 CCLIBS= -lm $(MHSGMPCCLIBS)
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
@@ -385,6 +385,17 @@ slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 #####
+
+# Profile Guided Optimization for LLVM on MacOS
+# This gives about a 5% speedup on my M4 MacMini
+llvmpgo:
+	rm -f *.profraw
+	$(CCEVAL) -fprofile-generate generated/mhs.c $(CCLIBS) -o $(MCABABIN)/mhs_gen
+	mhs_gen -imhs -isrc MicroHs.Main
+	xcrun llvm-profdata merge -output=code.profdata *.profraw
+	$(CCEVAL) -fprofile-use=code.profdata generated/mhs.c $(CCLIBS) -o $(MCABABIN)/mhs
+
+#####
 # Hugs
 HUGS= runhugs
 HUGSINCS= '+Phugs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
@@ -396,4 +407,5 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
+
 

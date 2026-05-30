@@ -1100,7 +1100,7 @@ handle_sigint(int s)
 #endif
 
 /* Check that there are k nodes available, if not then GC. */
-INLINE void
+static INLINE void
 gc_check(size_t k)
 {
   if (k < num_free)
