@@ -1099,10 +1099,70 @@ handle_sigint(int s)
 }
 #endif
 
+#define TELEM_CACHE_SIZE 65536
+#define TELEM_STRIDE 64
+
+typedef struct {
+    NODEPTR node_ptr;
+    uint32_t hits;
+} TelemEntry;
+
+static TelemEntry telem_cache[TELEM_CACHE_SIZE] = {0};
+static uint64_t telem_total_samples = 0;
+static uint64_t telem_total_hits = 0;
+static uint64_t telem_jit_triggers = 0;
+static bool telem_on = false;
+
 /* Check that there are k nodes available, if not then GC. */
-static INLINE void
+INLINE void
 gc_check(size_t k)
 {
+  static uint32_t telem_stride = TELEM_STRIDE; 
+
+  if (telem_on && __builtin_expect(--telem_stride == 0, 0)) {
+    telem_stride = TELEM_STRIDE; // Reset stride
+    telem_total_samples++;
+
+    // Safety check: Ensure the spine has a parent application node to look at
+    if (stack_ptr >= 1) {
+      //printf("sample %d\n", (int)stack_ptr);
+      NODEPTR parent_node = TOP(1);
+      //printf("parent_node=%p\n", parent_node);
+      while (ISINDIR(parent_node)) {
+        parent_node = GETINDIR(parent_node);
+        //printf("IND parent_node=%p\n", parent_node);
+      }
+      //pp(stdout, parent_node);
+      if (GETTAG(parent_node) != T_AP) {
+        printf("telemetry, not AP, %s\n", tag_names[GETTAG(parent_node)]);
+        //ERR("telemetry");
+        goto notap;
+      }
+        
+      // Hash the pointer address (strip the lower 4 bits of 16-byte alignment)
+      size_t idx = ((uintptr_t)parent_node >> 4) & (TELEM_CACHE_SIZE - 1);
+        
+      if (telem_cache[idx].node_ptr == parent_node) {
+        // Cache Hit: The exact same graph node address survived and was hit again!
+        telem_cache[idx].hits++;
+        telem_total_hits++;
+            
+        // Simulating a JIT trigger threshold
+        if (telem_cache[idx].hits == 50) {
+          telem_jit_triggers++;
+          pp(stdout, parent_node);
+          printf("---------------\n");
+        }
+      } else {
+        // Cache Miss/Eviction: Overwrite with the new contender
+        telem_cache[idx].node_ptr = parent_node;
+        telem_cache[idx].hits = 1;
+      }
+    }
+  }
+ notap:
+
+
   if (k < num_free)
     return;
 #if WANT_STDIO
@@ -3659,6 +3719,9 @@ parse(BFILE *f)
   size_t j;
   char buf[80];                 /* store names of primitives. */
 
+  bool ton = telem_on;
+  telem_on = false;
+
   for(;;) {
     c = getb(f);
     if (c < 0) ERR("parse EOF");
@@ -3682,6 +3745,7 @@ parse(BFILE *f)
       POP(1);
       if (stack_ptr != stk)
         ERR("parse: stack");
+      telem_on = ton;
       return x;
 #if WANT_GMP
     case '%':
@@ -7003,6 +7067,7 @@ mhs_main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_KPERF */
+  telem_on = true;
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
@@ -7064,6 +7129,9 @@ mhs_main(int argc, char **argv)
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
+    printf("telem_total_samples = %"PRIcounter"\n", telem_total_samples);
+    printf("telem_total_hits = %"PRIcounter"\n", telem_total_hits);
+    printf("telem_jit_triggers = %"PRIcounter"\n", telem_jit_triggers);
   }
 #endif  /* WANT_STDIO */
 

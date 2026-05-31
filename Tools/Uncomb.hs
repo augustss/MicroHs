@@ -71,6 +71,8 @@ parseExp ('P':cs) = (P, cs)
 parseExp ('R':cs) = (R, cs)
 parseExp ('O':cs) = (O, cs)
 parseExp ('x':cs) = (Vx, cs)
+parseExp ('y':cs) = (Vy, cs)
+parseExp ('z':cs) = (Vz, cs)
 parseExp cs = error $ "parseExp: " ++ show (take 20 cs)
 
 readExp :: String -> Exp
@@ -99,3 +101,9 @@ t5 = readExp s5
 
 s6 = "(C'B ((C ((C S') (U K))) (U A)))"
 t6 = readExp s6
+
+s7 = "((C'B B) (((C' S) (C (U (K (Z K4))))) ((C (U (K (K4 A)))) ((P K) ((O #1) K)))))"
+t7 = readExp s7
+
+s8 = "(((((C' S) (C (U (K (Z K4))))) ((C (U (K (K4 A)))) ((P K) ((O #1) K)))) y) z)"
+t8 = readExp s8
