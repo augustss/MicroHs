@@ -4,7 +4,7 @@ module System.IO.Serialize(
   hSerialize, hDeserialize,
   writeSerialized, writeSerializedCompressed,
   readSerialized, readSerializedH, readSerializedBS,
-  writeSerializedCompressedBS,
+  writeSerializedCompressedBS, writeSerializedBS,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
@@ -69,3 +69,9 @@ writeSerializedCompressedBS a =
     h' <- addTransducer c_add_lzma_compressor h
     hSerialize h' a
     hFlush h'
+
+writeSerializedBS :: a -> IO ByteString
+writeSerializedBS a =
+  handleWriteToByteString $ \ h -> do
+    hSerialize h a
+    hFlush h
