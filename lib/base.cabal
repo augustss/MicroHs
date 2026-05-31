@@ -52,6 +52,7 @@ library base
         Control.Monad.STM
         Control.Monad.Zip
         Control.WrappedMonad
+        Data.Any
         Data.Array.Byte
         Data.Bifoldable
         Data.Bifoldable1

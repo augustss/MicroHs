@@ -23,6 +23,7 @@ import Control.Monad.ST.Lazy.Unsafe
 import Control.Monad.ST.Strict
 import Control.Monad.ST_Type
 import Control.Monad.ST.Unsafe
+import Data.Any
 import Data.Bits
 import Data.Bool
 import Data.Bool_Type
