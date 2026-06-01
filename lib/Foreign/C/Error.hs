@@ -42,6 +42,7 @@ module Foreign.C.Error (
 
   -- access to the current thread's "errno" value
   --
+  setErrno,
   getErrno,
   resetErrno,
 
@@ -216,11 +217,13 @@ getErrno = do
   e <- peek p
   return (Errno e)
 
-resetErrno :: IO ()
-resetErrno = do
+setErrno :: Errno -> IO ()
+setErrno (Errno e) = do
   p <- c_errno_ptr
-  poke p 0
-  return ()
+  poke p e
+
+resetErrno :: IO ()
+resetErrno = setErrno (Errno 0)
 
 throwErrno :: String -> IO a
 throwErrno loc = do
