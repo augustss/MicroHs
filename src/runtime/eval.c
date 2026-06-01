@@ -1708,6 +1708,7 @@ pause_exec(void)
     check_timeq();
 #endif  /* defined(CLOCK_INIT) */
     check_pollq(timeout_ms);
+    check_sigint();		/* if there is a SIGINT, this will put a thread on the runq */
   }
 
 #else /* !WANT_IO_POLL */
@@ -1793,6 +1794,20 @@ thread_intr(struct mthread *mt)
     /* find thread in timeq */
     if (!find_and_unlink(&timeq, mt))
       ERR("thread_intr: timeq");
+    /* XXX should adjust mq_tail */
+    add_runq_tail(mt);
+    break;
+  case ts_wait_io:
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("thread_intr: ts_wait_io mask=%d\n", (int)mt->mt_mask);
+    }
+#endif  /* THREAD_DEBUG */
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
+    /* find thread in timeq */
+    if (!find_and_unlink(&pollq, mt))
+      ERR("thread_intr: pollq");
     /* XXX should adjust mq_tail */
     add_runq_tail(mt);
     break;
@@ -2612,9 +2627,9 @@ async_throwto(struct mthread *mt, NODEPTR exn)
 {
   GCCHECK(4);
   NODEPTR thid = alloc_node(T_THID);
-  THR(thid) = mt;
-  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld);
-  (void)new_thread(root);       /* spawn and put on runq */
+  THR(thid) = mt;		/* thread ID for mt */
+  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld); /* root = throwTo thid exn */
+  (void)new_thread(root);       /* spawn and put on runq, i.e., forkIO root */
 }
 
 void
