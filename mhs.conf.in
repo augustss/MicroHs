@@ -19,6 +19,14 @@ packageDbPath = "$MHSPKG:$HOME/.mcabal-user/mhs-$VERSION"
 -- Assumes gcc or clang
 [unix]
 cc = "cc"
+ccflags = "-w -Wall -O3 %GMPFLAGS"
+cclibs = "%GMPLIBS -lm"
+conf = "unix"
+
+-- As above, but with -flto
+-- This flag improves performance, but generates a warning with gcc.
+[unix_lto]
+cc = "cc"
 ccflags = "-w -Wall -O3 -flto %GMPFLAGS"
 cclibs = "%GMPLIBS -lm"
 conf = "unix"
