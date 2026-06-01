@@ -12,6 +12,14 @@
 #define WANT_OVERFLOW 0
 #endif /* defined(WANT_OVERFLOW) */
 
+#if !defined(WANT_IO_POLL)
+#define WANT_IO_POLL 0
+#endif /* defined(WANT_IO_POLL) */
+
+#if !defined(WANT_SOCKET)
+#define WANT_SOCKET 0
+#endif /* defined(WANT_SOCKET) */
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -7680,6 +7688,27 @@ from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_P
 #endif
 from_t mhs_get_executable_path(int s) { return mhs_from_Ptr(s, 0, get_executable_path()); }
 
+#if WANT_SOCKET
+#include <sys/socket.h>
+from_t mhs_F_SETFL(int s) { return mhs_from_Int(s, 0, F_SETFL); }
+from_t mhs_O_NONBLOCK(int s) { return mhs_from_Int(s, 0, O_NONBLOCK); }
+from_t mhs_SOL_SOCKET(int s) { return mhs_from_Int(s, 0, SOL_SOCKET); }
+from_t mhs_SO_DEBUG(int s) { return mhs_from_Int(s, 0, SO_DEBUG); }
+from_t mhs_SO_REUSEADDR(int s) { return mhs_from_Int(s, 0, SO_REUSEADDR); }
+from_t mhs_SO_TYPE(int s) { return mhs_from_Int(s, 0, SO_TYPE); }
+from_t mhs_accept(int s) { return mhs_from_Int(s, 3, accept(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_bind(int s) { return mhs_from_Int(s, 3, bind(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_close(int s) { return mhs_from_Int(s, 1, close(mhs_to_Int(s, 0))); }
+from_t mhs_connect(int s) { return mhs_from_Int(s, 3, connect(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_fcntl(int s) { return mhs_from_Int(s, 3, fcntl(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_getsockopt(int s) { return mhs_from_Int(s, 5, getsockopt(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2), mhs_to_Ptr(s, 3), mhs_to_Ptr(s, 4))); }
+from_t mhs_listen(int s) { return mhs_from_Int(s, 2, listen(mhs_to_Int(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_recv(int s) { return mhs_from_Int(s, 4, recv(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2), mhs_to_Int(s, 3))); }
+from_t mhs_send(int s) { return mhs_from_Int(s, 4, send(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2), mhs_to_Int(s, 3))); }
+from_t mhs_setsockopt(int s) { return mhs_from_Int(s, 5, setsockopt(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2), mhs_to_Ptr(s, 3), mhs_to_Int(s, 4))); }
+from_t mhs_socket(int s) { return mhs_from_Int(s, 3, socket(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
+#endif  /* WANT_SOCKET */
+
 const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
   { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
@@ -7997,6 +8026,25 @@ const struct ffi_entry ffi_table[] = {
   { "unsetenv", 1, mhs_unsetenv},
   { "setenv", 3, mhs_setenv},
 #endif  /* WANT_ENV */
+#if WANT_SOCKET
+  { "F_SETFL", 0, mhs_F_SETFL},
+  { "O_NONBLOCK", 0, mhs_O_NONBLOCK},
+  { "SOL_SOCKET", 0, mhs_SOL_SOCKET},
+  { "SO_DEBUG", 0, mhs_SO_DEBUG},
+  { "SO_REUSEADDR", 0, mhs_SO_REUSEADDR},
+  { "SO_TYPE", 0, mhs_SO_TYPE},
+  { "accept", 3, mhs_accept},
+  { "bind", 3, mhs_bind},
+  { "close", 1, mhs_close},
+  { "connect", 3, mhs_connect},
+  { "fcntl", 3, mhs_fcntl},
+  { "getsockopt", 5, mhs_getsockopt},
+  { "listen", 2, mhs_listen},
+  { "recv", 4, mhs_recv},
+  { "send", 4, mhs_send},
+  { "setsockopt", 5, mhs_setsockopt},
+  { "socket", 3, mhs_socket},
+#endif  /* WANT_SOCKET */
   { 0,0 }
 };
 
