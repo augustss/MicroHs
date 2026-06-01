@@ -19,7 +19,8 @@ RTSINC=-I$(RTS) -I$(RTS)/$(CONF)
 MAINC= $(RTS)/main.c
 #
 CCWARNS= -Wall
-CCOPTS= -O3 -flto -march=native
+CCOPTS= -O3 -flto
+# CCOPTS+=  -march=native     # useful on x86, but breaks on some platforms
 CCLIBS= -lm $(MHSGMPCCLIBS)
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
