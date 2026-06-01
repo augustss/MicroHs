@@ -86,10 +86,13 @@
 
 /*
  * Enable non-blocking IO polling.
- * Linux uses epoll
- * The backend is selected in unix/io_poll_impl.c.
  */
 #define WANT_IO_POLL 1
+
+/*
+ * Include socket() & co
+ */
+#define WANT_SOCKET 1
 
 /*
  * Use CPU counters.
