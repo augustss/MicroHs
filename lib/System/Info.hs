@@ -8,7 +8,7 @@ os :: String
 os = if _isWindows then "windows" else uname "-s"
 
 arch :: String
-arch = if _isWindows then "x86_64" else
+arch = if _isWindows then if _wordSize == 64 then "x86_64" else "x86" else
   case uname "-m" of
     "arm64" -> "aarch64"     -- match ghc
     s       -> s
