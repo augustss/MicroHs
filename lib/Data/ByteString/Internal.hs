@@ -69,6 +69,9 @@ primFPtr2BS = _primitive "fp2bs"
 primBSgrab :: Ptr CChar -> IO ByteString
 primBSgrab = _primitive "bsgrab"
 
+primBSgrabLen :: Ptr CChar -> Int -> IO ByteString
+primBSgrabLen = _primitive "bsgrablen"
+
 -----------------------------------------
 
 instance NFData ByteString
@@ -130,7 +133,7 @@ unpack = primBSunpack
 null :: ByteString -> Bool
 null bs = length bs == 0
 
--- Take a C string and turn it into a ByteString.
+-- Take a malloced() C string and turn it into a ByteString.
 -- This will take ownership of the memory which will eventually
 -- be free()d.  The pointer should not be used by the caller after this call.
 grabCString :: Ptr CChar -> IO ByteString

@@ -548,7 +548,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX, T_BSWRITE,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
-                T_BSAPPENDDOT, T_BSGRAB,
+                T_BSAPPENDDOT, T_BSGRAB, T_BSGRABLEN,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
@@ -2346,6 +2346,7 @@ struct {
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
   { "bsgrab", T_BSGRAB },
+  { "bsgrablen", T_BSGRABLEN },
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
@@ -5955,6 +5956,19 @@ evali(NODEPTR an)
       GOPAIR(res);
       }
     }
+  case T_BSGRABLEN:
+    {
+      CHKARG3NP;                  /* sets x, y, z, n */
+      {
+      struct bytestring bs;
+      bs.string = evalptr(x);
+      bs.size = evalint(y);
+      NODEPTR res = mkStrNode(bs);
+      GCCHECKSAVE(res, 1);
+      POP(3);
+      GOPAIR(res);
+      }
+    }
 
   case T_ARR_ALLOC:
     {
@@ -7694,6 +7708,7 @@ from_t mhs_F_SETFL(int s) { return mhs_from_Int(s, 0, F_SETFL); }
 from_t mhs_O_NONBLOCK(int s) { return mhs_from_Int(s, 0, O_NONBLOCK); }
 from_t mhs_SOL_SOCKET(int s) { return mhs_from_Int(s, 0, SOL_SOCKET); }
 from_t mhs_SO_DEBUG(int s) { return mhs_from_Int(s, 0, SO_DEBUG); }
+from_t mhs_SO_ERROR(int s) { return mhs_from_Int(s, 0, SO_ERROR); }
 from_t mhs_SO_REUSEADDR(int s) { return mhs_from_Int(s, 0, SO_REUSEADDR); }
 from_t mhs_SO_TYPE(int s) { return mhs_from_Int(s, 0, SO_TYPE); }
 from_t mhs_accept(int s) { return mhs_from_Int(s, 3, accept(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2))); }
@@ -8031,6 +8046,7 @@ const struct ffi_entry ffi_table[] = {
   { "O_NONBLOCK", 0, mhs_O_NONBLOCK},
   { "SOL_SOCKET", 0, mhs_SOL_SOCKET},
   { "SO_DEBUG", 0, mhs_SO_DEBUG},
+  { "SO_ERROR", 0, mhs_SO_ERROR},
   { "SO_REUSEADDR", 0, mhs_SO_REUSEADDR},
   { "SO_TYPE", 0, mhs_SO_TYPE},
   { "accept", 3, mhs_accept},

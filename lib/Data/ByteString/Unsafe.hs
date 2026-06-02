@@ -14,13 +14,15 @@ module Data.ByteString.Unsafe (
         -- ** Using ByteStrings with functions for CStrings
         unsafeUseAsCString,
         unsafeUseAsCStringLen,
-{-
+
         -- ** Converting CStrings to ByteStrings
+{-
         unsafePackCString,
         unsafePackCStringLen,
+-}
         unsafePackMallocCString,
         unsafePackMallocCStringLen,
-
+{-
         unsafePackAddress,
         unsafePackAddressLen,
         unsafePackCStringFinalizer,
@@ -64,3 +66,9 @@ unsafeUseAsCString bs act = withForeignPtr (primBS2FPtr bs) act
 
 unsafeUseAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
 unsafeUseAsCStringLen bs act = withForeignPtr (primBS2FPtr bs) (\p -> act (p, primBSlength bs))
+
+unsafePackMallocCString :: CString -> IO ByteString
+unsafePackMallocCString = primBSgrab
+
+unsafePackMallocCStringLen :: CString -> Int -> IO ByteString
+unsafePackMallocCStringLen = primBSgrabLen
