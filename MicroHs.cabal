@@ -116,7 +116,7 @@ executable mhs
 
   if impl(ghc)
     hs-source-dirs:    ghc src
-    build-depends:     base         >= 4.10 && < 4.30,
+    build-depends:     base         >= 4.10 && < 4.29,
                        bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
                        filepath     >= 1.1 && < 1.8,
@@ -136,5 +136,5 @@ executable mhs
 
   if impl(mhs)
     hs-source-dirs:    mhs src
-    build-depends:     base         >= 0.1 && < 10.0,
+    build-depends:     base         >= 0.1 && < 99.9,
 
