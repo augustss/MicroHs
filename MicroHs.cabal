@@ -41,7 +41,8 @@ extra-source-files:
       tests/*.ref
 
 data-files:
-      targets.conf
+      mhs.conf
+      mhs.conf.in
       src/runtime/*.c
       src/runtime/*.h
       src/runtime/**/*.c
