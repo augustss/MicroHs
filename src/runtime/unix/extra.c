@@ -180,6 +180,18 @@ gettimemilli(void)
 #define GETTIMEMILLI gettimemilli
 
 /*
+ * Get time since some epoch in microseconds.
+ */
+uintptr_t
+gettimemicro(void)
+{
+  struct timeval tv;
+  (void)gettimeofday(&tv, NULL);
+  return (uintptr_t)((uint64_t)tv.tv_sec * 1000000ULL + tv.tv_usec);
+}
+#define GETTIMEMICRO gettimemicro
+
+/*
  * Create a unique file name.
  */
 char*

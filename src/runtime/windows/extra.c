@@ -120,6 +120,22 @@ gettimemilli(void)
 }
 
 /*
+ * Get time in microseconds (monotonic high-resolution counter).
+ */
+#define GETTIMEMICRO gettimemicro
+
+uint64_t
+gettimemicro(void)
+{
+    static LARGE_INTEGER freq = {0};
+    LARGE_INTEGER counter;
+    if (freq.QuadPart == 0)
+        QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&counter);
+    return (uint64_t)(counter.QuadPart * 1000000ULL / freq.QuadPart);
+}
+
+/*
  * Create a unique file name.
  */
 char*

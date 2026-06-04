@@ -198,6 +198,7 @@ library base
         System.IO.Serialize
         System.IO.StringHandle
         System.IO.TimeMilli
+        System.IO.TimeMicro
         System.IO.Transducers
         System.IO.Unsafe
         System.Info

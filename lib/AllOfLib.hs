@@ -167,6 +167,7 @@ import System.IO.PrintOrRun
 import System.IO.Serialize
 import System.IO.StringHandle
 import System.IO.TimeMilli
+import System.IO.TimeMicro
 import System.Info
 import System.Mem
 import System.Mem.Weak

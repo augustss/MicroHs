@@ -110,6 +110,7 @@ executable mhs
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
+                       System.IO.TimeMicro
                        System.IO.Transducers
                        System.Compress
 

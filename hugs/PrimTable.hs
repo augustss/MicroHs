@@ -6,6 +6,7 @@ import Data.Maybe
 import Data.Word
 import System.IO
 import System.IO.TimeMilli
+import System.IO.TimeMicro
 import Unsafe.Coerce
 import GHC.Exts(Any)
 import Foreign.C.String
@@ -203,6 +204,7 @@ countTrailingZeros = undefined
 cops :: [(String, Any)]
 cops =
   [ comb "getTimeMilli" getTimeMilli
+  , comb "getTimeMicro" getTimeMicro
   , comb "fputc" fputc
   , comb "fgetc" fgetc
   , comb "fopen" fopen
