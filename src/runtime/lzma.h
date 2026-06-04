@@ -1728,13 +1728,11 @@ BoolInt CPU_IsSupported_AES(void)
 
 #else // __APPLE__
 
-#include <sys/auxv.h>
-
 // Don't use asm/hwcap.h, it does not seem to exist on all platforms.
 // #define USE_HWCAP
 
 #ifdef USE_HWCAP
-
+#include <sys/auxv.h>
 #include <asm/hwcap.h>
 
 #define MY_HWCAP_CHECK_FUNC_2(name1, name2)                     \
