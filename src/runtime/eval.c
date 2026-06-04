@@ -5872,7 +5872,7 @@ evali(NODEPTR an)
   case T_IO_DESERIALIZE:
     CHKARG2NP;
     bfile = (struct BFILE*)evalptr(x);
-    //gc();                     /* make sure we have room.  GC during parse is dodgy. */
+    gc();                     /* make sure we have room.  GC during parse is dodgy. */
     x = parse_top(bfile, 0);
     POP(2);
     GOPAIR(x);                /* allocates a cell, but we did a GC above */
