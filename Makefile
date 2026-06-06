@@ -392,10 +392,10 @@ slowinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 # This gives about a 5% speedup on my M4 MacMini
 llvmpgo:
 	rm -f *.profraw
-	$(CCEVAL) -fprofile-generate generated/mhs.c $(CCLIBS) -o $(MCABABIN)/mhs_gen
-	mhs_gen -imhs -isrc MicroHs.Main
+	$(CCEVAL) -flto -fprofile-generate generated/mhs.c $(CCLIBS) -o $(MCABALBIN)/mhs.gen
+	mhs.gen -imhs -isrc MicroHs.Main
 	xcrun llvm-profdata merge -output=code.profdata *.profraw
-	$(CCEVAL) -fprofile-use=code.profdata generated/mhs.c $(CCLIBS) -o $(MCABABIN)/mhs
+	$(CCEVAL) -flto -fprofile-use=code.profdata generated/mhs.c $(CCLIBS) -o $(MCABALBIN)/mhs.pgo
 
 #####
 # Hugs
