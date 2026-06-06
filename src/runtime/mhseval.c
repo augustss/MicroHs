@@ -9,6 +9,12 @@
 const uint8_t *combexpr = NULL;
 // eval.c expects: extern const int combexprlen;
 const int combexprlen = 0;
+// eval.c expects: extern const unsigned char *blobptrs;
+const unsigned char *blobptrs = NULL;
+// eval.c expects: extern const int *bloboffs;
+const int *bloboffs = NULL;
+// eval.c expects: extern const int blobcount;
+const int blobcount = 0;
 
 #include "eval.c"
 

@@ -340,7 +340,7 @@ mainCompile flags mn = do
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
     (forExps, outCMdl@(outDefs, _)) = renumberCMdl cmdl
-    outData = toStringCMdl outCMdl
+    (outData, outBlobs) = toStringCMdl outCMdl
     numOutDefs = length outData
     numDefs = length allDefs
   when (verbosityGT flags 0) $
@@ -377,7 +377,7 @@ mainCompile flags mn = do
     let embedded = concatMap packageModules (getEmbedPkgs cash)
     let (cFFI, hFFI) = makeFFI flags forExps embedded
                                (outDefs : map (packageDefs . snd) embedPkg)
-        cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
+        cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outBlobs outData ++ cFFI
 
     let outFile = output flags
     -- Generate stub file for 'foreign export'

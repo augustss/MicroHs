@@ -3,6 +3,7 @@ module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, remo
 import qualified Prelude(); import MHSPrelude
 import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
+import Data.List(nub)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
 import MicroHs.Desugar(LDef)
@@ -76,20 +77,55 @@ renumberCMdl (ds, emain) =
   in
     (fexps', (checkDupInstances res, substv emain))
 
+collectBlobs :: Exp -> [BS.ByteString]
+collectBlobs (App f a) = collectBlobs f ++ collectBlobs a
+collectBlobs (Lam _ e) = collectBlobs e
+collectBlobs (Lit (LStr s)) | length s > 1 = [BS.pack (utf8encode s)]
+collectBlobs (Lit (LBStr s)) = [s]
+collectBlobs _ = []
+
+type BlobMap = [(BS.ByteString, Int)]
+
+lookupBlob :: BlobMap -> BS.ByteString -> Int
+lookupBlob bm s = case lookup s bm of
+  Just i -> i
+  Nothing -> error "toStringPBlob: blob not in map"
+
+toStringPBlob :: BlobMap -> Exp -> (String -> String)
+toStringPBlob bm ae = case ae of
+  Var x   -> (showIdent x ++) . (' ' :)
+  Lit (LStr s) ->
+    if length s > 1 then
+      toStringPBlob bm (App (Lit (LPrim "fromUTF8")) (Lit (LBStr (BS.pack (utf8encode s)))))
+    else
+      toStringP (encodeString s)
+  Lit (LBStr s) -> ("$" ++) . (show (lookupBlob bm s) ++) . (' ' :)
+  Lit (LInteger _) -> undefined
+  Lit (LRat _) -> undefined
+  Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
+  Lit l -> (showLit l ++) . (' ' :)
+  Lam _ _ -> undefined
+  App f a -> toStringPBlob bm f . toStringPBlob bm a . ("@" ++)
+
 -- The argument is all definitions and the main expression.
--- The result is the program as a string.
-toStringCMdl :: CMdl -> String
+-- The result is the program as a string and a list of binary blobs.
+toStringCMdl :: CMdl -> (String, [BS.ByteString])
 toStringCMdl (ds, emain) =
   let
+    unwrapFE e = case getForExp e of Just (e', _) -> e'; Nothing -> e
+    allExps = emain : map (unwrapFE . snd) ds
+    blobs = nub (concatMap collectBlobs allExps)
+    bm = zip blobs [(0::Int)..]
+
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
     def (i, e) r | Just (e', _) <- getForExp e = def (i, e') r
     def (i, e) r =
-      ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
+      ("A " ++) . toStringPBlob bm e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
     res :: String -> String
-    res = foldr def (toStringP emain) ds
+    res = foldr def (toStringPBlob bm emain) ds
 
-  in combVersion ++ show (length ds) ++ "\n" ++ res " }"
+  in (combVersion ++ show (length ds) ++ "\n" ++ res " }", blobs)
 
 checkDupInstances :: [LDef] -> [LDef]
 checkDupInstances ds =

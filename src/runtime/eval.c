@@ -139,6 +139,10 @@ int num_ffi;
 
 #define VERSION "v8.3\n"
 
+extern const unsigned char *blobptrs;
+extern const int *bloboffs;
+extern const int blobcount;
+
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
 typedef uintptr_t heapoffs_t;   /* Heap offsets */
@@ -3833,6 +3837,22 @@ parse(BFILE *f)
         ERR1("unknown funptr '%s'", buf);
       }
       break;
+    case '$':
+      /* Binary blob reference: $N, points into static memory */
+      {
+        int idx = (int)parse_int(f);
+        if (idx < 0 || idx >= blobcount)
+          ERR1("bad blob index %d", idx);
+        struct bytestring bs;
+        bs.size = bloboffs[idx + 1] - bloboffs[idx];
+        bs.string = (uint8_t *)(blobptrs + bloboffs[idx]);
+        NODEPTR n = alloc_node(T_FORPTR);
+        struct forptr *fp = mkForPtr(bs);
+        FORPTR(n) = fp;
+        fp->finalizer->fptype = FP_BSTR;
+        PUSH(n);
+        break;
+      }
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
