@@ -72,7 +72,7 @@
 /*
  * Get time since some epoch in milliseconds.
  */
-/* #define GETTIMEMILLI */
+/* #define GETTIMEMICRO */
 
 
 /*

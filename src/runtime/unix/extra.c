@@ -171,13 +171,13 @@ getraw(void)
  * Get time since some epoch in milliseconds.
  */
 uintptr_t
-gettimemilli(void)
+gettimemicro(void)
 {
   struct timeval tv;
   (void)gettimeofday(&tv, NULL);
-  return (uintptr_t)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+  return (uintptr_t)(tv.tv_sec * 1000000 + tv.tv_usec);
 }
-#define GETTIMEMILLI gettimemilli
+#define GETTIMEMICRO gettimemicro
 
 /*
  * Create a unique file name.

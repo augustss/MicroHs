@@ -98,25 +98,18 @@ getraw(void)
  * Get time since some epoch in milliseconds.
  * If undefined, return 0.
  */
-#define GETTIMEMILLI gettimemilli
+#define GETTIMEMICRO gettimemicro
 
 uint64_t
-gettimemilli(void)
+gettimemicro(void)
 {
-    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time, msec;
-
-    GetSystemTime( &system_time );
-    SystemTimeToFileTime( &system_time, &file_time );
-    time =  ((uint64_t)file_time.dwLowDateTime )      ;
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    msec = (time - EPOCH) / 10000L;
-    //msec = time + system_time.wMilliseconds;
-    return msec;
+  FILETIME ft;
+  // 100-nanosecond intervals since January 1, 1601 (UTC)
+  GetSystemTimePreciseAsFileTime(&ft);
+  uint64_t intervals = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+  const uint64_t UNIX_EPOCH_OFFSET = 11644473600ULL * 10000000ULL;
+  intervals -= UNIX_EPOCH_OFFSET;
+  return intervals / 10;
 }
 
 /*
