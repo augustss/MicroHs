@@ -137,7 +137,7 @@ int num_ffi;
 #endif
 
 
-#define VERSION "v8.3\n"
+#define VERSION "v8.4\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -3683,6 +3683,7 @@ mkForPtrFree(struct bytestring str)
   return fp;
 }
 
+/* Create a ByteString node.  It's a foreign pointer tagged with FP_BSTR. */
 NODEPTR
 mkStrNode(struct bytestring str)
 {
@@ -3932,6 +3933,20 @@ parse(BFILE *f)
        * where NNN is the decimal value of the character */
       PUSH(mkStrNode(parse_string(f)));
       break;
+    case '$':
+      {
+        struct bytestring bs;
+        bs.size = parse_int(f); /* ByteString length */
+        if (!gobble(f, ' '))
+          ERR("bytestring parse error");
+        bs.string = mmalloc(bs.size);
+        for(size_t i = 0; i < bs.size; i++) {
+          ((uint8_t*)bs.string)[i] = getb(f);
+        }
+        PUSH(mkStrNode(bs));
+        break;
+      }
+
 #if WANT_TICK
     case '!':
       if (!gobble(f, '"'))
@@ -4328,7 +4343,16 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     } else
 #endif  /* WANT_GMP */
     if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
-      print_string(f, FORPTR(n)->payload);
+      struct bytestring bs = FORPTR(n)->payload;
+      if (bs.size > 100) {
+        /* Encode large bytestrings with $len data */
+        putb('$', f);
+        putdecb(bs.size, f);
+        putb(' ', f);
+        writeb(bs.string, bs.size, f);
+      } else {
+        print_string(f, bs);
+      }
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
       putsb(prbuf, f);
