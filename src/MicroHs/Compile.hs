@@ -14,7 +14,6 @@ module MicroHs.Compile(
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
   getPaths,
-  openFilePath,
   loadPkg,
   addPreludeImport,
   loadEmbedded,
@@ -407,6 +406,7 @@ hasLangCPP fn = do
 moduleToFile :: IdentModule -> FilePath
 moduleToFile mn = map (\ c -> if c == '.' then pathSeparator else c) (unIdent mn)
 
+-- Find a source module in the source search path.
 findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags suf mn = do
   let
@@ -414,15 +414,21 @@ findModulePath flags suf mn = do
   openFilePath (srcPaths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
-openFilePath adirs fileName =
+openFilePath = openFilePath' openFileM
+
+openBinaryFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
+openBinaryFilePath = openFilePath' openBinaryFileM
+
+openFilePath' :: (FilePath -> IOMode -> IO (Maybe Handle)) -> [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
+openFilePath' openM adirs fileName =
   case adirs of
     [] -> return Nothing
     dir:dirs -> do
       let
         path = dir </> fileName
-      mh <- openFileM path ReadMode
+      mh <- openM path ReadMode
       case mh of
-        Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
+        Nothing -> openFilePath' openM dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
 
 runCPPString :: Flags -> FilePath -> String -> IO String
@@ -503,7 +509,7 @@ findPkgModule :: Flags -> IdentModule -> CM (FilePath, (TModule [LDef], Symbols,
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn <.> packageTxtSuffix
-  mres <- liftIO $ openFilePath (pkgPaths flags) fn
+  mres <- liftIO $ openBinaryFilePath (pkgPaths flags) fn
   case mres of
     Just (pfn, hdl) -> do
       -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
@@ -558,9 +564,10 @@ loadDependencies flags = do
     mapM_ (loadDeps flags) deps'
     loadDependencies flags  -- loadDeps can add new dependencies
 
+-- Find a package in the package searcg path.
 loadDeps :: Flags -> (IdentPackage, Version) -> CM ()
 loadDeps flags (pid, pver) = do
-  mres <- liftIO $ openFilePath (pkgPaths flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
+  mres <- liftIO $ openBinaryFilePath (pkgPaths flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
   case mres of
     Nothing -> mhsError $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do
