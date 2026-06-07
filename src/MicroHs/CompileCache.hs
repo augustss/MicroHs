@@ -134,7 +134,7 @@ saveCache fn cash = writeSerializedCompressed fn (forceCache cash)
 
 loadCached :: FilePath -> IO (Maybe Cache)
 loadCached fn = do
-  mhin <- openFileM fn ReadMode
+  mhin <- openBinaryFileM fn ReadMode
   case mhin of
     Nothing ->
       return Nothing

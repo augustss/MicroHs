@@ -44,6 +44,13 @@ openFileM path m = do
     Left _ -> return Nothing
     Right h -> return (Just h)
 
+openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
+openBinaryFileM path m = do
+  r <- (try $ openBinaryFile path m) :: IO (Either IOError Handle)
+  case r of
+    Left _ -> return Nothing
+    Right h -> return (Just h)
+
 openTmpFile :: String -> IO (String, Handle)
 openTmpFile tmplt = do
   mtmp <- lookupEnv "TMPDIR"
