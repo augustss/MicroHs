@@ -2423,36 +2423,26 @@ struct {
 enum node_tag flip_ops[T_LAST_TAG+1];
 #endif
 
-/* A table that maps a hash to pairs of names and tags. The idea is that you has a name, and
- * then do a O(1) lookup in this array to retrieve the tag.
- *
- * There may be collisions, which are resolved by names that produce the same hash appearing
- * next to each other, so that a linear search through this (much smaller) sub-segment of the
- * array can yield the tag.
- *
- * This array is built once by init_primop_hash, which is invoked at start. It uses the existing
- * primops table.
+/*
+ * Use a hash table with open linear probing for the lookup of primpo names.
+ * Make the hash table twice the size of the number of primops so we get a load factor of 0.5.
  */
-#define PRIMOP_HASH_SIZE 512 /* power of two let's us do a one-liner to advance to the next
-                              * cell during collisions, while also wrapping around to 0.
-                              */
+#define PRIMOP_HASH_SIZE (2 * sizeof primops / sizeof primops[0])
 static struct {
-  const char   *name;           // NULL marks an empty slot
+  const char   *name;           /* NULL marks an empty slot */
   enum node_tag tag;
 } primop_hash[PRIMOP_HASH_SIZE];
 
-/* FNV-1a hashing. It seems simple, fast, and the magic hashes are given. 
- * See more here: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
- */
+/* FNV-1a hashing. It's simple and fast. */
 static uint32_t
 primop_hash_str(const char *s)
 {
-  uint32_t h = 2166136261u;
+  uint32_t h = 2166136261;
   while (*s) {
     h ^= (uint8_t)*s++;
-    h *= 16777619u;
+    h *= 16777619;
   }
-  return h;
+  return h % PRIMOP_HASH_SIZE;
 }
 
 /* Build the initial table that maps a hash to a pair of a name and tag */
@@ -2460,18 +2450,17 @@ static void
 init_primop_hash(void)
 {
   size_t i;
-  // NULL-initialise all names
-  for (i = 0; i < PRIMOP_HASH_SIZE; i++)
-    primop_hash[i].name = NULL;
-  for (i = 0; i < sizeof primops / sizeof primops[0]; i++) {
-    uint32_t k = primop_hash_str(primops[i].name) & (PRIMOP_HASH_SIZE - 1);
 
-    // This slot is already occupied, so we progress to the next slot
-    while (primop_hash[k].name != NULL) {
-      k = (k + 1) & (PRIMOP_HASH_SIZE - 1);
+  for (i = 0; i < sizeof primops / sizeof primops[0]; i++) {
+    uint32_t k = primop_hash_str(primops[i].name);
+
+    /* This slot is already occupied, so we progress to the next slot. */
+    /* This must terminate, size the hash table is twice the size of the primops. */
+    while (primop_hash[k].name) {
+      k = (k + 1) % PRIMOP_HASH_SIZE;
     }
     /* Found the first empty slot for this hash.
-     * This is where we insert this (name,tag) pair.
+     * Insert the (name,tag) pair.
      */
     if (primop_hash[k].name == NULL) {
       primop_hash[k].name = primops[i].name;
@@ -2480,22 +2469,16 @@ init_primop_hash(void)
   }
 }
 
-// Return the tag for a primop name, or -1 if there is no such primop.
+/* Return the tag for a primop name, or -1 if there is no such primop. */
 static int
 lookup_primop(const char *name)
 {
-  uint32_t k = primop_hash_str(name) & (PRIMOP_HASH_SIZE - 1);
-  uint32_t tried = 0;
+  uint32_t k = primop_hash_str(name);
 
-  /* Once we've tried as many times as there are entries, we terminate.
-   * In practice, this won't happen because there are more slots in the array
-   * than there are primops, but I guess it makes sense to be cautious.
-   */
-  while (primop_hash[k].name != NULL && tried < PRIMOP_HASH_SIZE) {
+  while (primop_hash[k].name) {
     if (strcmp(primop_hash[k].name, name) == 0)
-      return (int) primop_hash[k].tag;
-    k = (k + 1) & (PRIMOP_HASH_SIZE - 1);
-    tried++;
+      return (int)primop_hash[k].tag;
+    k = (k + 1) % PRIMOP_HASH_SIZE;
   }
   return -1;
 }
