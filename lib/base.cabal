@@ -130,6 +130,9 @@ library base
         Data.STRef.Strict
         Data.Semigroup
         Data.String
+        Data.String.Interpolate
+        Data.String.Interpolate.Basic
+        Data.String.Interpolate.ShowS
         Data.Text
         Data.Text.Encoding
         Data.Text.IO

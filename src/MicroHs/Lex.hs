@@ -28,6 +28,10 @@ data Token
                                   --  NOT YET  @  for type app
                                   --  L  for (#
                                   --  R  for #)
+                                  --  I  interpolation start
+                                  --  E  interpolation end
+                                  --  $  interpolation expr start
+                                  --  %  interpolation expr end
   | TError  SLoc String           -- lexical error
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
@@ -85,6 +89,8 @@ lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
     (ds, rs) = span (== '-') cs
     isComm [] = True
     isComm (d:_) = not (isOperChar d)
+lex loc ('s':'"':'"':'"':cs) = lexInterp "\"\"\"" (addCol 4 loc) cs
+lex loc ('s':'"':        cs) = lexInterp "\""     (addCol 2 loc) cs
 lex loc (d:cs) | isLower_ d =
   case spanIdent cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
@@ -500,3 +506,12 @@ lexStart ts =
 lexTopLS :: FilePath -> String -> LexState
 lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
   -- error $ show $ map showToken $ lex (SLoc f 1 1) s
+
+-------
+-- Interpolation nonsense
+lexInterp :: String -> String -> [Token]
+lexInterp end aloc acs = TSpec aloc 'I' : scanExpr aloc acs
+  where
+    scanExpr loc cs | Just r <- stripPrefix end cs =
+      -- The string has ended.  Turn it into a proper token,
+      -- signal end of interpolation, and continue tokenization.
