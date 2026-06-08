@@ -16,6 +16,7 @@ import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 data Token
   = TIdent  SLoc [String] String  -- identifier
   | TString SLoc String           -- String literal
+  | TQual   SLoc [String]         -- qualified literal
   | TChar   SLoc Char             -- Char literal
   | TInt    SLoc Integer          -- Integer literal
   | TRat    SLoc Rational         -- Rational literal (i.e., decimal number)
@@ -38,6 +39,7 @@ data Token
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
 showToken (TString _ s) = show s
+showToken (TQual _ ss) = concatMap (++ ".") ss
 showToken (TChar _ c) = show c
 showToken (TInt _ i) = show i
 showToken (TRat _ d) = show d
@@ -347,17 +349,26 @@ isSpecSing '!' = True
 isSpecSing '~' = True
 isSpecSing _ = False
 
+-- Called with current location, starting location, qualifiers so far (reverse),
+-- and string to parse.
 upperIdent :: SLoc -> SLoc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
 upperIdent loc sloc qs acs =
   case span isIdentChar acs of
    (ds, rs) ->
     case rs of
-      '.':cs@(d:_) | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
+      '.':cs@(d:_) -- either another module name or a qualified uppercase identifier
+                   | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
+                   -- qualified lower case identifier
                    | isLower_ d   -> ident (spanIdent cs)
+                   -- qualified operator
                    | isOperChar d -> ident (span isOperChar cs)
+                   -- qualified string
+                   | d == '"'     -> TQual sloc (reverse (ds:qs)) : lex (addCol loc $ 1 + length ds) cs
+                   -- could add qualified numbers here
          where
            ident (xs, ys) = tIdent sloc (reverse (ds:qs)) xs (lex (addCol loc $ 1 + length ds + length xs) ys)
+      -- Identifier with trailing #
       '#':_ -> mk (ds ++ hs) rs' where (hs, rs') = span (== '#') rs
       _ -> mk ds rs
   where
@@ -394,6 +405,7 @@ tBrace ts = TBrace (tokensLoc ts) : ts
 tokensLoc :: [Token] -> SLoc
 tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
+tokensLoc (TQual   loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
 tokensLoc (TRat    loc _  :_) = loc

@@ -185,6 +185,7 @@ data Expr
   | EOper Expr [(Ident, Expr)]
   | ELam SLoc [Eqn]
   | ELit SLoc Lit
+  | EQLit SLoc Ident Lit
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
@@ -220,6 +221,7 @@ instance NFData Expr where
   rnf (EOper a b) = rnf a `seq` rnf b
   rnf (ELam a b) = rnf a `seq` rnf b
   rnf (ELit a b) = rnf a `seq` rnf b
+  rnf (EQLit a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (ECase a b) = rnf a `seq` rnf b
   rnf (ELet a b) = rnf a `seq` rnf b
   rnf (ETuple a) = rnf a
@@ -448,6 +450,7 @@ patVars apat =
     EApp p1 p2 -> patVars p1 ++ patVars p2
     EOper p1 ips -> patVars p1 ++ concatMap (\ (i, p2) -> i `add` patVars p2) ips
     ELit _ _ -> []
+    EQLit _ _ _ -> []
     ETuple ps -> concatMap patVars ps
     EParen p -> patVars p
     EListish (LList ps) -> concatMap patVars ps
@@ -588,6 +591,7 @@ instance HasLoc Expr where
   getSLoc (EOper e _) = getSLoc e
   getSLoc (ELam l _) = l
   getSLoc (ELit l _) = l
+  getSLoc (EQLit l _ _) = l
   getSLoc (ECase e _) = getSLoc e
   getSLoc (ELet bs _) = getSLoc bs
   getSLoc (ETuple es) = getSLoc es
@@ -684,6 +688,7 @@ subst s =
                 vs = freeTyVars (map snd s')    -- these are free in s'
 
         ELit _ _ -> ae
+        EQLit _ _ _ -> ae
         ETuple ts -> ETuple (map sub ts)
         EOper t1 its -> EOper (sub t1) (map (second sub) its)
         EListish (LList [t]) -> EListish (LList [sub t])
@@ -762,6 +767,7 @@ allVarsExpr' aexpr =
     EOper e1 ies -> allVarsExpr' e1 . composeMap (\ (i,e2) -> (i :) . allVarsExpr' e2) ies
     ELam _ qs -> composeMap allVarsEqn qs
     ELit _ _ -> id
+    EQLit _ _ _ -> id
     ECase e as -> allVarsExpr' e . composeMap allVarsCaseArm as
     ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
     ETuple es -> composeMap allVarsExpr' es
@@ -818,6 +824,7 @@ setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
 setSLocExpr l (ELit _ k) = ELit l k
+setSLocExpr l (EQLit _ mq k) = EQLit l mq k
 setSLocExpr l (EApp f a) = EApp (setSLocExpr l f) a
 setSLocExpr l (EForall q vs e) = EForall q vs (setSLocExpr l e)
 setSLocExpr _ e@(EUVar _) = e
@@ -1001,6 +1008,7 @@ instance Pretty Expr where
         EOper e ies -> ppE prec (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
         ELam _ qs -> parens $ text "\\" <> ppEqns l empty (text "->") qs
         ELit _ i -> text (showLit i)
+        EQLit _ m i -> pPrint0 l m <> text "." <>  text (showLit i)
         ECase e as -> maybeParens (prec > 0) $ text "case" <+> ppE 0 e <+> text "of" $$ nest 2 (vcat (map (ppCaseArm l) as))
         ELet bs e -> maybeParens (prec > 0) $ text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE 0 e
         ETuple es -> parens $ hsep $ punctuate (text ",") (map (ppE 0) es)
@@ -1228,6 +1236,7 @@ freeTyVars = foldr (go []) []
     go _bound (EUVar _) acc = acc
     go _bound (ECon _) acc = acc
     go _bound (ELit _ _) acc = acc
+    go _bound (EQLit _ _ _) acc = acc
     go bound (EOper e ies) acc = go bound e (goList bound (map snd ies) acc)
     go bound (ESign e _) acc = go bound e acc
     go bound (EListish (LList [e])) acc = go bound e acc

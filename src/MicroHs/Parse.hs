@@ -291,13 +291,23 @@ pLIdentSymbol = pParens pLSymOper
 pParens :: forall a . P a -> P a
 pParens p = lpar *> p <* rpar
 
+-- Parse a qualifier used for literals
+pLitQual :: P Ident
+pLitQual = do
+  let
+    is (TQual l ss) = Just $ mkIdentSLoc l (intercalate "." ss)
+    is _ = Nothing
+  satisfyM "qual" is
+
 pLit :: P Expr
 pLit = do
+  mqual <- optional pLitQual
   let
-    is (TString loc s) = Just (ELit loc (LStr s))
-    is (TChar   loc a) = Just (ELit loc (LChar a))
-    is (TInt    loc i) = Just (ELit loc (LInteger i))
-    is (TRat    loc d) = Just (ELit loc (LRat d))
+    elit = maybe ELit (flip EQLit) mqual
+    is (TString loc s) = Just (elit loc (LStr s))
+    is (TChar   loc a) = Just (elit loc (LChar a))
+    is (TInt    loc i) = Just (elit loc (LInteger i))
+    is (TRat    loc d) = Just (elit loc (LRat d))
     is _ = Nothing
   satisfyM "literal" is
 
@@ -544,10 +554,10 @@ pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pSource = (ImpBoot <$ pPragma "SOURCE") <|> pure ImpNormal
-    pQual = True <$ pKeyword "qualified"
+    pQualified = True <$ pKeyword "qualified"
     -- the 'qualified' can occur before or after the module name
-    pQId =      ((,) <$> pQual <*> pUQIdentA)
-            <|> ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|> pure False))
+    pQId =      ((,) <$> pQualified <*> pUQIdentA)
+            <|> ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQualified <|> pure False))
     imp a (b, c) = ImportSpec a b c
   in  imp <$> pSource <*> pQId <*> optional (pKeyword "as" *> pUQIdent) <*>
               optional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (sepEndBy pImportItem comma))
