@@ -103,6 +103,9 @@ import Data.STRef
 import Data.STRef.Lazy
 import Data.STRef.Strict
 import Data.String
+import Data.String.Interpolate
+import Data.String.Interpolate.Basic
+import Data.String.Interpolate.ShowS
 import Data.Text
 import Data.Text.Encoding
 import Data.Text.IO
