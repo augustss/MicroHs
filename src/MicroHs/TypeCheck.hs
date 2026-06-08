@@ -1877,6 +1877,11 @@ tcExprR mt ae =
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam _ qs -> tcExprLam mt loc qs
+    EQLit lloc mq lit@(LStr _) ->
+      -- Turn M."foo" into M.fromString ("foo" :: [Char])
+      tcExpr mt $ EApp (EVar $ qualIdent mq $ mkIdentSLoc lloc "fromString") (ESign (ELit lloc lit) eStr)
+        where eStr = EListish $ LList [EVar $ mkBuiltin loc "Char"]
+    EQLit _ _ _ -> impossible
     ELit _ lit -> do
       tcm <- gets tcMode
       case tcm of
@@ -2633,7 +2638,7 @@ tcPats at pps ta =
         case ds of
           [] -> return eqn
           _  -> return $ addSolved ds eqn
-    ARet at' -> 
+    ARet at' ->
       case pps of
         p:ps -> do
           (tp, tr) <- unArrow (getSLoc p) at'
