@@ -121,6 +121,7 @@ test:
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
 	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
 	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
+	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
 	$(TMHS) DerivingBuiltin
 
 testforimp:
