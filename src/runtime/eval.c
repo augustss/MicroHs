@@ -7091,7 +7091,7 @@ MHS_INIT_ARGS(
     } else {
 #if WANT_STDIO & WANT_ARGS
       /* Open a regular file */
-      FILE *f = fopen(inname, "r");
+      FILE *f = fopen(inname, "rb");
       if (!f)
         ERR1("file not found %s", inname);
       fseek(f, 0, SEEK_END);
@@ -7159,7 +7159,7 @@ mhs_main(int argc, char **argv)
   heapoffs_t start_size = num_marked;
   if (outname) {
     /* Save GCed file (smaller), and exit. */
-    FILE *out = fopen(outname, "w");
+    FILE *out = fopen(outname, "wb");
     if (!out)
       ERR1("cannot open output file %s", outname);
     struct BFILE *bf = add_FILE(out);
