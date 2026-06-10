@@ -9,7 +9,7 @@
 #endif /* defined(WANT_GMP) */
 
 #if !defined(WANT_IMATH) && !WANT_GMP
-#define WANT_GMP 1
+#define WANT_IMATH 1
 #endif /* defined(WANT_MATH) */
 
 #if !defined(WANT_OVERFLOW)

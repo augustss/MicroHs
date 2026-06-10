@@ -47,7 +47,7 @@ _intToInteger i = primPerformIO (
   )
 
 _wordToInteger :: Word -> Integer
-_wordToInteger i = primPerformIO (do
+_wordToInteger i = primPerformIO (
   newMPZ `primBind` \ x ->
   withForeignPtr x ( \ p -> mpz_init_set_ui p i) `primThen`
   primReturn (I x)
