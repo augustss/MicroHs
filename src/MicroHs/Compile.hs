@@ -610,7 +610,9 @@ getPaths = do
       inplace <- doesFileExist (upDir </> "src/runtime/eval.c")
       if inplace then do
         let libDir = upDir </> "lib"
-        return (upDir, srcs ++ [libDir], Nothing)
+            nogmpDir | not (wantGMP || wantImath) = [libDir </> "no-gmp"]
+                     | otherwise                  = []
+        return (upDir, srcs ++ nogmpDir ++ [libDir], Nothing)
        else do
         let vers = "mhs-" ++ mhsVersion
             pkgDir = upDir </> vers                                   -- ~/.mcabal/bin/../mhs-VERSION

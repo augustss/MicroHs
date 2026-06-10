@@ -1,5 +1,4 @@
 module Install where
-import MHSPrelude(wantImath)
 import Control.Monad
 import qualified Data.ByteString as BS
 import Data.Char
@@ -22,7 +21,6 @@ type CConf = [(Key, Value)]
 
 main :: IO ()
 main = do
-  print wantImath
   start <- getTimeMilli
   args <- getArgs
   let flags = decodeArgs defaultFlags args
@@ -110,12 +108,10 @@ buildBin flags pgm = do
       dst = "bin" </> pgm <.> exeSuffix flags
       ccf = cconf flags
       rts = "src" </> "runtime"
-      imath | wantImath = rts </> "imath.c"
-            | otherwise = ""
   time ("buildBin " ++ pgm) $
    cc flags [get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
             rts </> "main.c", rts </> "eval.c",
-            src, imath, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
+            src, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
 
 mhsOut :: Flags -> [String] -> IO String
 mhsOut flags args = do

@@ -449,7 +449,6 @@ mainCompileC flags pkgs infile = do
                        optls ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
-                      [ rtdir </> "imath.c" | wantImath ] ++
                       [ rtdir </> "eval.c",
                         infile,
                         vcclibs,
