@@ -290,6 +290,7 @@ runtimeFFI = [
   "mpz_get_si64", "mpz_init_set_si64", "mpz_init_set_ui64",
   "mpz_log2",
   "want_gmp",
+  "want_imath",
   "gettimeofday",
   "EOK", "E2BIG", "EACCES", "EADDRINUSE", "EADDRNOTAVAIL", "EADV", "EAFNOSUPPORT", "EAGAIN",
   "EALREADY", "EBADF", "EBADMSG", "EBADRPC", "EBUSY", "ECHILD", "ECOMM", "ECONNABORTED",

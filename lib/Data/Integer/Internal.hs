@@ -16,367 +16,156 @@ module Data.Integer.Internal(
   _integerToInt,
   _wordToInteger,
   ) where
-import qualified Prelude()              -- do not import Prelude
+import qualified Prelude()
 import Primitives
-import Control.Error
-import Control.Exception.Internal
-import Data.Bits.Base
+import Control.Monad
 import Data.Bool
-import Data.Enum
 import Data.Eq
 import Data.Function
-import Data.Int.Int
-import Data.Integral
-import Data.List
-import Data.Maybe_Type
-import Data.Num
 import Data.Ord
-import Data.Word
+--import Foreign.Ptr(Ptr)
+--import Foreign.ForeignPtr(withForeignPtr)
+import System.IO.Internal
+import System.IO.Unsafe
 import Data.Integer_Type
 
-isZero :: Integer -> Bool
-isZero (I _ ds) = null ds
+-- We cannot import Foreign.ForeignPtr; it is circular.
+withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
+withForeignPtr fp io =
+  io (primForeignPtrToPtr fp) `primBind` \ b ->
+  primSeq fp (primReturn b)
 
-instance Eq Sign where
-  (==) Plus Plus = True
-  (==) Minus Minus = True
-  (==) _ _ = False
+-----
 
--- Trim off 0s and make an Integer
-sI :: Sign -> [Digit] -> Integer
-sI s ds =
-  -- Remove trailing 0s
-  case dropWhileEnd (== (0 :: Word)) ds of
-    []  -> I Plus []
-    ds' -> I s    ds'
+foreign import capi "mpz_add"         mpz_add         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_sub"         mpz_sub         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_mul"         mpz_mul         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_neg"         mpz_neg         :: Ptr MPZ -> Ptr MPZ ->                       IO ()
+foreign import capi "mpz_abs"         mpz_abs         :: Ptr MPZ -> Ptr MPZ ->                       IO ()
+foreign import capi "mpz_tdiv_qr"     mpz_tdiv_qr     :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()
+foreign import capi "mpz_cmp"         mpz_cmp         :: Ptr MPZ -> Ptr MPZ ->                       IO Int
+foreign import capi "mpz_and"         mpz_and         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_ior"         mpz_ior         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_xor"         mpz_xor         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_mul_2exp"    mpz_mul_2exp    :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
+foreign import capi "mpz_fdiv_q_2exp" mpz_fdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
+foreign import capi "mpz_popcount"    mpz_popcount    :: Ptr MPZ ->                                  IO Int
+foreign import capi "mpz_tstbit"      mpz_tstbit      :: Ptr MPZ -> Int ->                           IO Int
+foreign import capi "mpz_log2"        mpz_log2        :: Ptr MPZ ->                                  IO Int
 
-zeroD :: Digit
-zeroD = 0
+binop :: (Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()) -> Integer -> Integer -> Integer
+binop f (I x) (I y) = unsafePerformIO $ do
+  z <- newMPZ
+  withForeignPtr x $ \ px ->
+    withForeignPtr y $ \ py ->
+      withForeignPtr z $ \ pz ->
+        f pz px py
+  return (I z)
+
+unop :: (Ptr MPZ -> Ptr MPZ -> IO ()) -> Integer -> Integer
+unop f (I x) = unsafePerformIO $ do
+  z <- newMPZ
+  withForeignPtr x $ \ px ->
+    withForeignPtr z $ \ pz ->
+      f pz px
+  return (I z)
 
 addI :: Integer -> Integer -> Integer
-addI (I Plus  xs) (I Plus  ys)                    =  I Plus  (add xs ys)
-addI (I Plus  xs) (I Minus ys) | LT <- cmpW xs ys = sI Minus (sub ys xs)
-                               | True             = sI Plus  (sub xs ys)
-addI (I Minus xs) (I Plus  ys) | LT <- cmpW ys xs = sI Minus (sub xs ys)
-                               | True             = sI Plus  (sub ys xs)
-addI (I Minus xs) (I Minus ys)                    =  I Minus (add xs ys)
-
-negateI :: Integer -> Integer
-negateI i@(I _    []) = i
-negateI   (I Plus  x) = I Minus x
-negateI   (I Minus x) = I Plus  x
-
-absI :: Integer -> Integer
-absI (I _ x) = I Plus x
+addI = binop mpz_add
 
 subI :: Integer -> Integer -> Integer
-subI x y = addI x (negateI y)
-
-add :: [Digit] -> [Digit] -> [Digit]
-add = add' zeroD
-
-add' :: Digit -> [Digit] -> [Digit] -> [Digit]
-add' ci (x : xs) (y : ys) = s : add' co xs ys  where (co, s) = addD ci x y
-add' ci (x : xs) []       = s : add' co xs []  where (co, s) = addD ci x zeroD
-add' ci []       (y : ys) = s : add' co [] ys  where (co, s) = addD ci zeroD y
-add' ci []       []       = if ci == zeroD then [] else [ci]
-
--- Add 3 digits with carry
-addD :: Digit -> Digit -> Digit -> (Digit, Digit)
-addD x y z = (quotMaxD s, remMaxD s)  where s = x + y + z
-
--- Invariant: xs >= ys, so result is always >= 0
-sub :: [Digit] -> [Digit] -> [Digit]
-sub xs ys = sub' zeroD xs ys
-
-sub' :: Digit -> [Digit] -> [Digit] -> [Digit]
-sub' bi (x : xs) (y : ys) = d : sub' bo xs ys  where (bo, d) = subW bi x y
-sub' bi (x : xs) []       = d : sub' bo xs []  where (bo, d) = subW bi x zeroD
-sub' 0  []       []       = []
-sub' _  []       _        = error "impossible: xs >= ys"
-
--- Subtract with borrow
-subW :: Digit -> Digit -> Digit -> (Digit, Digit)
-subW b x y =
-  let d = maxD + x - y - b
-  in (1 - quotMaxD d, remMaxD d)
-
-cmpW :: [Digit] -> [Digit] -> Ordering
-cmpW (x : xs) (y : ys) =
-  case cmpW xs ys of
-    EQ -> compare x y
-    res -> res
-cmpW (_ : _) [] = GT
-cmpW [] (_ : _) = LT
-cmpW [] [] = EQ
+subI = binop mpz_sub
 
 mulI :: Integer -> Integer -> Integer
-mulI (I _ []) _ = I Plus []         -- 0 * x = 0
-mulI _ (I _ []) = I Plus []         -- x * 0 = 0
-mulI (I sx [x]) (I sy ys)  = I (mulSign sx sy) (mulD zeroD ys x)
-mulI (I sx xs)  (I sy [y]) = I (mulSign sx sy) (mulD zeroD xs y)
-mulI (I sx xs)  (I sy ys)  = I (mulSign sx sy) (mulM xs ys)
+mulI = binop mpz_mul
 
-mulSign :: Sign -> Sign -> Sign
-mulSign s t = if s == t then Plus else Minus
+negateI :: Integer -> Integer
+negateI = unop mpz_neg
 
--- Multiply with a single digit, and add carry.
-mulD :: Digit -> [Digit] -> Digit -> [Digit]
-mulD ci [] _ = if ci == 0 then [] else [ci]
-mulD ci (x:xs) y = r : mulD q xs y
-  where
-    xy = x * y + ci
-    q = quotMaxD xy
-    r = remMaxD xy
+absI :: Integer -> Integer
+absI = unop mpz_abs
 
-mulM :: [Digit] -> [Digit] -> [Digit]
-mulM xs ys =
-  let rs = map (mulD zeroD xs) ys
-      ss = zipWith (++) (map (`replicate` (0 :: Word)) [0 :: Int ..]) rs
-  in  foldl1 add ss
-
--- Signs:
---  + +  -> (+,+)
---  + -  -> (-,+)
---  - +  -> (-,-)
---  - -  -> (+,-)
 quotRemI :: Integer -> Integer -> (Integer, Integer)
-quotRemI _         (I _  [])  = throw DivideByZero             -- n / 0
-quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
-quotRemI (I sx xs) (I sy ys) | Just (y, n) <- msd ys =
-  -- All but the MSD are 0.  Scale numerator accordingly and divide.
-  -- Then add back (the ++) the remainder we scaled off.
-  let (rs, xs') = splitAt n xs  -- xs' is the scaled number
-  in case quotRemD xs' y of
-    (q, r) -> qrRes sx sy (q, rs ++ r)
-quotRemI (I sx xs) (I sy ys)  = qrRes sx sy (quotRemB xs ys)
+quotRemI (I x) (I y) = unsafePerformIO $ do
+  q <- newMPZ
+  r <- newMPZ
+  withForeignPtr x $ \ px ->
+    withForeignPtr y $ \ py ->
+      withForeignPtr q $ \ pq ->
+        withForeignPtr r $ \ pr ->
+          mpz_tdiv_qr pq pr px py
+  return (I q, I r)
 
-msd :: [Digit] -> Maybe (Digit, Int)
-msd = go 0
-  where
-    go _ [] = Nothing
-    go n [d] = Just (d, n)
-    go n (d : ds) = if d == 0 then go (n + 1) ds else Nothing
-
-qrRes :: Sign -> Sign -> ([Digit], [Digit]) -> (Integer, Integer)
-qrRes sx sy (ds, rs) = (sI (mulSign sx sy) ds, sI sx rs)
-
-quotI :: Integer -> Integer -> Integer
-quotI x y =
-  case quotRemI x y of
-    (q, _) -> q
-
--- Divide by a single digit.
--- Does not return normalized numbers.
-quotRemD :: [Digit] -> Digit -> ([Digit], [Digit])
-quotRemD axs y = qr zeroD (reverse axs) []
-  where
-    qr ci []     res = (res, [ci])
-    qr ci (x:xs) res = qr r xs (q:res)
-      where
-        --cx = ci `unsafeShiftL` shiftD + x
-        cx = ci * maxD + x
-        q = quot cx y
-        r = rem cx y
-
--- Simple iterative long division.
-quotRemB :: [Digit] -> [Digit] -> ([Digit], [Digit])
-quotRemB xs ys =
-  let n  = I Plus xs
-      d  = I Plus ys
-      a  = I Plus $ replicate (length ys - (1 :: Int)) (0 :: Word) ++ [last ys]  -- only MSD of ys
-      aq = quotI n a
-      ar = addI d oneI
-      loop q r =
-        if absI r `geI` d then
-          let r' = n `subI` (q `mulI` d)
-              qn = q `addI` (r' `quotI` a)
-              q' = (q `addI` qn) `quotI` twoI
-          in  loop q' r'
-        else
-          q
-      q' = loop aq ar
-      r = n `subI` (q' `mulI` d)
-  in  if r `ltI` zeroI then
-        (digits (q' `subI` oneI), digits (r `addI` d))
-      else
-        (digits q', digits r)
-
-digits :: Integer -> [Digit]
-digits (I _ ds) = ds
+-- XXX should do quot and rem too
 
 zeroI :: Integer
-zeroI = I Plus []
+zeroI = _intToInteger (0::Int)
 
 oneI :: Integer
-oneI = I Plus [1]
-
-twoI :: Integer
-twoI = I Plus [2]
-
-tenI :: Integer
-tenI = I Plus [10]
+oneI = _intToInteger (1::Int)
 
 negOneI :: Integer
-negOneI = I Minus [1]
+negOneI = _intToInteger (primIntNeg 1)
 
---------------
+isZero :: Integer -> Bool
+isZero = eqI zeroI
+
+cmpop :: (Int -> a) -> Integer -> Integer -> a
+cmpop f (I x) (I y) = unsafePerformIO $
+  withForeignPtr x $ \ px ->
+    withForeignPtr y $ \ py -> do
+      s <- mpz_cmp px py
+      return (f s)
 
 eqI :: Integer -> Integer -> Bool
-eqI (I sx xs) (I sy ys) = sx == sy && xs == ys
+eqI = cmpop ((0::Int) ==)
 
 neI :: Integer -> Integer -> Bool
-neI x y = not (eqI x y)
+neI = cmpop ((0::Int) /=)
 
 cmpI :: Integer -> Integer -> Ordering
-cmpI (I Plus  xs) (I Plus  ys) = cmpW xs ys
-cmpI (I Minus  _) (I Plus   _) = LT
-cmpI (I Plus   _) (I Minus  _) = GT
-cmpI (I Minus xs) (I Minus ys) = cmpW ys xs
+cmpI = cmpop (\ i -> if i < (0::Int) then LT else if i > (0::Int) then GT else EQ)
 
 ltI :: Integer -> Integer -> Bool
-ltI x y =
-  case cmpI x y of
-    LT -> True
-    _  -> False
+ltI = cmpop (< (0::Int))
 
 leI :: Integer -> Integer -> Bool
-leI x y =
-  case cmpI x y of
-    GT -> False
-    _  -> True
+leI = cmpop (<= (0::Int))
 
 gtI :: Integer -> Integer -> Bool
-gtI x y =
-  case cmpI x y of
-    GT -> True
-    _  -> False
+gtI = cmpop (> (0::Int))
 
 geI :: Integer -> Integer -> Bool
-geI x y =
-  case cmpI x y of
-    LT -> False
-    _  -> True
-
----------------------------------
+geI = cmpop (>= (0::Int))
 
 andI :: Integer -> Integer -> Integer
-andI (I Plus  xs) (I Plus  ys) = bI Plus  (andDigits xs ys)
-andI (I Plus  xs) (I Minus ys) = bI Plus  (andNotDigits (sub1 ys) xs)
-andI (I Minus xs) (I Plus  ys) = bI Plus  (andNotDigits (sub1 xs) ys)
-andI (I Minus xs) (I Minus ys) = bI Minus (orDigits (sub1 xs) (sub1 ys))
+andI = binop mpz_and
 
 orI :: Integer -> Integer -> Integer
-orI (I Plus  xs) (I Plus  ys) = bI Plus  (orDigits xs ys)
-orI (I Plus  xs) (I Minus ys) = bI Minus (andNotDigits xs (sub1 ys))
-orI (I Minus xs) (I Plus  ys) = bI Minus (andNotDigits ys (sub1 xs))
-orI (I Minus xs) (I Minus ys) = bI Minus (andDigits (sub1 xs) (sub1 ys))
+orI = binop mpz_ior
 
 xorI :: Integer -> Integer -> Integer
-xorI (I Plus  xs) (I Plus  ys) = bI Plus  (xorDigits xs ys)
-xorI (I Plus  xs) (I Minus ys) = bI Minus (xorDigits xs (sub1 ys))
-xorI (I Minus xs) (I Plus  ys) = bI Minus (xorDigits (sub1 xs) ys)
-xorI (I Minus xs) (I Minus ys) = bI Plus  (xorDigits (sub1 xs) (sub1 ys))
+xorI = binop mpz_xor
 
-bI :: Sign -> [Digit] -> Integer
-bI Plus  ds = sI Plus  ds
-bI Minus ds = sI Minus (add1 ds)
-
-add1 :: [Digit] -> [Digit]
-add1 ds = add ds [1]
-
-sub1 :: [Digit] -> [Digit]
-sub1 ds = sub ds [1]
-
-andDigits :: [Digit] -> [Digit] -> [Digit]
-andDigits (x : xs) (y : ys) = (x .&. y) : andDigits xs ys
-andDigits _        _        = []
-
-andNotDigits :: [Digit] -> [Digit] -> [Digit]
-andNotDigits []       []       = []
-andNotDigits []       ys       = ys
-andNotDigits xs       []       = []
-andNotDigits (x : xs) (y : ys) = (complement x .&. y) : andNotDigits xs ys
-
-orDigits :: [Digit] -> [Digit] -> [Digit]
-orDigits []       []       = []
-orDigits []       ys       = ys
-orDigits xs       []       = xs
-orDigits (x : xs) (y : ys) = (x .|. y) : orDigits xs ys
-
-xorDigits :: [Digit] -> [Digit] -> [Digit]
-xorDigits []       []       = []
-xorDigits []       ys       = ys
-xorDigits xs       []       = xs
-xorDigits (x : xs) (y : ys) = (x `xor` y) : xorDigits xs ys
-
-shiftLD :: [Digit] -> Int -> [Digit]
-shiftLD ds 0 = ds
-shiftLD ds i = go 0 ds
-  where
-    go ci [] = if ci == 0 then [] else [ci]
-    go ci (d : ds) =
-      let
-        x = (d `unsafeShiftL` i) .|. ci
-        co = quotMaxD x
-        s = remMaxD x
-      in s : go co ds
-
-shiftRD :: [Digit] -> Int -> ([Digit], Bool)
-shiftRD ds 0 = (ds, False)
-shiftRD ds i =
-  let (rs, ds') = splitAt 1 (shiftLD ds (shiftD - i))
-  in  (ds', any (/= 0) rs)
+-- XXX add complement
 
 testBitI :: Integer -> Int -> Bool
-testBitI (I Plus  ds) i =
-  case ds !? q of
-    Just d -> testBit d r
-    Nothing -> False
-  where (q, r) = quotRem i shiftD
-testBitI (I Minus ds) i =
-  -- not (testBitI (complement (I Minus ds)) i)
-  case ds !? q of
-    Just d ->
-      let d' = if all (== 0) (take q ds) then d - 1 else d
-      in  not (testBit d' r)
-    Nothing -> True
-  where (q, r) = quotRem i shiftD
+testBitI (I x) i = unsafePerformIO $
+  withForeignPtr x $ \ px -> do
+    r <- mpz_tstbit px i
+    return (r == (1::Int))
 
 shiftLI :: Integer -> Int -> Integer
-shiftLI (I sign ds) i
-  | null ds = zeroI
-  | otherwise =
-    let (q, r) = quotRem i shiftD
-    in  I sign (replicate q 0 ++ shiftLD ds r)
+shiftLI x i = unop (\ pz px -> mpz_mul_2exp pz px i) x
 
 shiftRI :: Integer -> Int -> Integer
-shiftRI (I sign ds) i
-  | null ds = zeroI
-  | otherwise =
-    let
-      (q, r) = quotRem i shiftD
-      (rs, ds') = splitAt q ds
-      (ds'', shiftedOut1s) = shiftRD ds' r
-    in case sign of
-         Minus | shiftedOut1s || any (/= 0) rs -> I sign (add1 ds'')
-         _ -> I sign ds''
+shiftRI x i = unop (\ pz px -> mpz_fdiv_q_2exp pz px i) x
 
 popCountI :: Integer -> Int
-popCountI (I sign ds) =
-  let count = sum (map popCount ds)
-  in  case sign of
-        Plus  ->  count
-        Minus -> -count
+popCountI (I x) = unsafePerformIO $ withForeignPtr x mpz_popcount
 
 log2I :: Integer -> Int
-log2I (I _ ds) = case go 0 ds of
-  Nothing -> 0
-  Just (d, n) -> n * shiftD + _wordSize - 1 - primWordClz d
-  where
-    go _ [] = Nothing
-    go n [d] = Just (d, n)
-    go n (d : ds) = go (n + 1) ds
+log2I (I x) = unsafePerformIO $ withForeignPtr x mpz_log2
 
 ---------------------------------
 {-
@@ -521,3 +310,4 @@ checkAll = do
   mapM_ qc [prop_div, prop_muldiv]
 
 -}
+

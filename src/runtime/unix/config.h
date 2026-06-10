@@ -95,6 +95,16 @@
 #define WANT_SOCKET 1
 
 /*
+ * Use GMP for bignums
+ */
+#define WANT_GMP 0
+
+/*
+ * Use imath for bignums
+ */
+#define WANT_IMATH 1
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU

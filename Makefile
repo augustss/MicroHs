@@ -7,22 +7,25 @@
 # OR, for Ubuntu Linux (after apt-get install -y libgmp-dev):
 #MHSGMPCCLIBS=-lgmp
 #
+
+#
 # installation prefix
 PREFIX=/usr/local
 # Unix-like system, 32/64 bit words
 CONF=unix
 #
-# Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
-#CC=gcc-14
 RTS=src/runtime
 RTSINC=-I$(RTS) -I$(RTS)/$(CONF)
 MAINC= $(RTS)/main.c
 #
+# Set this when using imath instead of GMP
+MHSIMATH=$(RTS)/imath.c
+
 CCWARNS= -Wall
 CCOPTS= -O3
 # CCOPTS+=  -flto             # useful, but generates harmless warning with gcc
 # CCOPTS+=  -march=native     # useful on x86, but breaks on some platforms
-CCLIBS= -lm $(MHSGMPCCLIBS)
+CCLIBS= $(MHSIMATH) $(MHSGMPCCLIBS) -lm
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 #
@@ -106,7 +109,7 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 #EMCC=emcc
 #EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
-EMCCLIBS= -lm
+EMCCLIBS= $(MHSIMATH) $(MHSGMPCCLIBS) -lm
 EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin

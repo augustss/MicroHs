@@ -38,7 +38,7 @@ module MHSPrelude(
   _usingMhs, _wordSize,
   _isWindows,
   appendDot,
-  wantGMP,
+  wantGMP, wantImath,
   compiledWithMhs,
   Int64,
   HasCallStack,
@@ -107,9 +107,13 @@ appendDot x y =
 
 -- Exported by the runtime system to indicate if GMP is desired.
 foreign import capi "want_gmp" want_gmp :: Int
+foreign import capi "want_imath" want_imath :: Int
 
 wantGMP :: Bool
 wantGMP = want_gmp /= 0
+
+wantImath :: Bool
+wantImath = want_imath /= 0
 
 compiledWithMhs :: Bool
 compiledWithMhs = True

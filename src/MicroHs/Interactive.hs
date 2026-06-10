@@ -57,6 +57,7 @@ mainInteractive :: Flags -> [String] -> IO ()
 mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   when wantGMP $ putStrLn "Using GMP"
+  when wantImath $ putStrLn "Using imath"
   mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
