@@ -614,9 +614,8 @@ formatIntegral m x ufmt0 =
         ufmt0 { fmtAdjust = Nothing }
       _ -> ufmt0
     alt _ 0 = Nothing
-    alt p _ = case fmtAlternate ufmt of
-      True -> Just p
-      False -> Nothing
+    alt p _ | fmtAlternate ufmt = Just p
+            | otherwise         = Nothing
     upcase (s1, s2) = (s1, map toUpper s2)
 
 -- | Formatter for 'RealFloat' values.
