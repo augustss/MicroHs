@@ -39,6 +39,8 @@ data Token
   | TEnd    SLoc
   | TRaw [Token]
 --  deriving (Show)
+instance Show Token where
+  show = showToken
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
@@ -51,7 +53,7 @@ showToken (TSpec _ c) | c == '<' = "{ layout"
                       | c == '>' = "} layout"
                       | c == 'L' = "(#"
                       | c == 'R' = "#)"
-                      | otherwise = [c]
+                      | otherwise = ['S',c]
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
@@ -89,8 +91,8 @@ lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
     (ds, rs) = span (== '-') cs
     isComm [] = True
     isComm (d:_) = not (isOperChar d)
-lex loc ('s':'"':'"':'"':cs) = lexInterp "\"\"\"" (addCol 4 loc) cs
-lex loc ('s':'"':        cs) = lexInterp "\""     (addCol 2 loc) cs
+lex loc ('s':'"':'"':'"':cs) = lexLitStr loc (addCol loc 4) (mkInterp loc) isTrip   multiLine interpSkip cs
+lex loc ('s':'"':        cs) = lexLitStr loc (addCol loc 2) (mkInterp loc) isDQuote id        interpSkip cs
 lex loc (d:cs) | isLower_ d =
   case spanIdent cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
@@ -131,20 +133,22 @@ lex loc (d:cs) | isOperChar d =
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d =
   TSpec loc d : lex (addCol loc 1) cs
-lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (TString loc) isTrip multiLine cs
-  where isTrip ('"':'"':'"':_) = Just 3
-        isTrip _ = Nothing
-lex loc ('"':cs) = lexLitStr loc (addCol loc 1) (TString loc) isDQuote id cs
-  where isDQuote ('"':_) = Just 1
-        isDQuote _ = Nothing
-lex loc ('\'':cs) = lexLitStr loc (addCol loc 1) tchar isSQuote id cs
+lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (\ s -> [TString loc s]) isTrip   multiLine (\ _ _ -> Nothing) cs
+lex loc ('"':cs)         = lexLitStr loc (addCol loc 1) (\ s -> [TString loc s]) isDQuote id        (\ _ _ ->  Nothing) cs
+lex loc ('\'':cs)        = lexLitStr loc (addCol loc 1) tchar                    isSQuote id        (\ _ _ -> Nothing) cs
   where isSQuote ('\'':_) = Just 1
         isSQuote _ = Nothing
-        tchar [c] = TChar loc c
-        tchar _   = TError loc "Illegal Char literal"
+        tchar [c] = [TChar loc c]
+        tchar _   = [TError loc "Illegal Char literal"]
 
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex loc [] = [TEnd loc]
+
+isTrip, isDQuote :: String -> Maybe Int
+isTrip ('"':'"':'"':_) = Just 3
+isTrip _ = Nothing
+isDQuote ('"':_) = Just 1
+isDQuote _ = Nothing
 
 nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
@@ -238,9 +242,10 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-lexLitStr :: SLoc -> SLoc -> (String -> Token) -> (String -> Maybe Int) -> (String -> String) -> String -> [Token]
-lexLitStr oloc loc mk end post acs = loop loc [] acs
-  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) : lex (addCol l k) (drop k cs)
+lexLitStr :: SLoc -> SLoc -> (String -> [Token]) -> (String -> Maybe Int) -> (String -> String) -> (SLoc -> String -> Maybe (String, String, SLoc)) -> String -> [Token]
+lexLitStr oloc loc mk end post interp acs = loop loc [] acs
+  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
+                     | Just (rs', cs', l') <- interp l cs = loop l' (rs' ++ rs) cs'
         loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
         loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
         loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
@@ -508,10 +513,49 @@ lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
   -- error $ show $ map showToken $ lex (SLoc f 1 1) s
 
 -------
--- Interpolation nonsense
-lexInterp :: String -> String -> [Token]
-lexInterp end aloc acs = TSpec aloc 'I' : scanExpr aloc acs
-  where
-    scanExpr loc cs | Just r <- stripPrefix end cs =
-      -- The string has ended.  Turn it into a proper token,
-      -- signal end of interpolation, and continue tokenization.
+--lexInterp :: String -> String -> [Token]
+--lexInterp end aloc acs = TSpec aloc 'I' : scanExpr aloc acs
+
+-- Recognize ${ and find the corresponding }.
+-- Return the (characters skipped, rest, new location)
+interpSkip :: SLoc -> String -> Maybe (String, String, SLoc)
+interpSkip aloc ('$':'{':acs) = skip 0 "{$" aloc acs
+  where skip :: Int -> String -> SLoc -> String -> Maybe (String, String, SLoc)
+        skip 0 rs l ('}':cs)     = Just ('}':rs, cs, l)
+        skip _n _rs _l ('{':'-':_cs) = undefined
+        skip n rs l ('-':'-':cs) = skipl n rs l cs
+        skip n rs l ('{':cs)     = skip (n+1) ('{':rs) (addCol l 1) cs
+        skip n rs l ('}':cs)     = skip (n-1) ('}':rs) (addCol l 1) cs
+        skip n rs l ('\n':cs)    = skip n rs (incrLine l) cs
+        skip n rs l ('"':'"':'"':cs) = skipss n ('"':'"':'"':rs) (addCol l 3) cs
+        skip n rs l ('"':cs)     = skips n ('"':rs) (addCol l 1) cs
+        skip n rs l (c:cs)       = skip n (c:rs) (addCol l 1) cs
+        skip _  _ _ []           = Nothing
+
+        skipl n rs l cs@('\n':_) = skip n rs l cs
+        skipl n rs l (_:cs) = skipl n rs (addCol l 1) cs
+        skipl n rs l [] = skip n rs l []
+
+        skipss _n _rs _l _cs = undefined
+
+        skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
+        skips n rs l ('"'   :cs) = skip  n ('"':rs)    (addCol l 1) cs
+        skips n rs l (     c:cs) = skips n (  c:rs)    (addCol l 1) cs
+        skips n rs l []          = skip  n      rs               l  []
+interpSkip _ _ = Nothing
+
+mkInterp :: SLoc -> String -> [Token]
+mkInterp aloc acs = TSpec aloc 'I' : scan aloc [] acs
+  where scan :: SLoc -> String -> String -> [Token]
+        scan l rs [] = mkS l rs ++ [TSpec l 'E']
+        scan l rs cs@('$':'{':_) =
+          case interpSkip l cs of
+            Just (_:sexpr, rest, l') -> mkS l rs ++ [TSpec l '$'] ++
+                                        init (lex (addCol l 2) (drop 2 $ reverse sexpr)) ++
+                                        [TSpec l' '%'] ++ scan l' [] rest
+            x -> error $ "mkInterp " ++ show (cs, x)
+        -- XXX handle TAB and NL
+        scan l rs (c:cs) = scan (addCol l 1) (c:rs) cs
+
+        mkS _ "" = []
+        mkS l rs = [TString l (reverse rs)]
