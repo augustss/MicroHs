@@ -80,6 +80,16 @@
 #define WANT_ENV 0
 
 /*
+ * Use GMP for bignums
+ */
+#define WANT_GMP 0
+
+/*
+ * Use imath for bignums
+ */
+#define WANT_IMATH 0
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 //#define WORD_SIZE 64
