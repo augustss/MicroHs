@@ -8,6 +8,10 @@
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
 
+#if !defined(WANT_IMATH) && !WANT_GMP
+#define WANT_GMP 1
+#endif /* defined(WANT_MATH) */
+
 #if !defined(WANT_OVERFLOW)
 #define WANT_OVERFLOW 0
 #endif /* defined(WANT_OVERFLOW) */
@@ -46,7 +50,10 @@
 #endif
 #if WANT_GMP
 #include <gmp.h>
-#endif
+#endif  /* WANT_GMP */
+#if WANT_IMATH
+#include "imgmp.h"
+#endif  /* WANT_IMATH */
 #if WANT_SIGINT
 #include <signal.h>
 #endif
@@ -3835,7 +3842,7 @@ parse(BFILE *f)
         ERR("parse: stack");
       telem_on = ton;
       return x;
-#if WANT_GMP
+#if WANT_GMP || WANT_IMATH
     case '%':
       {
         struct bytestring bs = parse_string(f); /* get all the digits, terminated by " */
@@ -4329,7 +4336,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putsb("IO.stderr", f);
     else
 #endif  /* WANT_STDIO */
-#if WANT_GMP
+#if WANT_GMP || WANT_IMATH
     if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
       mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
@@ -4341,7 +4348,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putsb("\"", f);                         /* so we can use parse_string */
       free(s);
     } else
-#endif  /* WANT_GMP */
+#endif  /* WANT_GMP || WANT_IMATH */
     if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
       struct bytestring bs = FORPTR(n)->payload;
       if (bs.size > 100) {
@@ -7641,10 +7648,11 @@ from_t mhs_unsetenv(int s) { return mhs_from_Int(s, 1, unsetenv(mhs_to_Ptr(s, 0)
 from_t mhs_setenv(int s) { return mhs_from_Int(s, 3, setenv(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
 #endif  /* WANT_ENV */
 
-/* Use this to detect if we have (and want) GMP or not. */
+/* Use this to detect if we have (and want) GMP/imath or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
+from_t mhs_want_imath(int s) { return mhs_from_Int(s, 0, WANT_IMATH); }
 
-#if WANT_GMP
+#if WANT_GMP || WANT_IMATH
 void
 free_mpz(void *p)
 {
@@ -7776,7 +7784,7 @@ from_t mhs_mpz_log2(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
   return mhs_from_Int(s, 1, mpz_sizeinbase(a, 2) - 1);
 }
-#endif  /* WANT_GMP */
+#endif  /* WANT_GMP || WANT_IMATH */
 #if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 #endif
@@ -7982,7 +7990,8 @@ const struct ffi_entry ffi_table[] = {
 #endif  /* WANT_DIR */
   { "getcpu", 2, mhs_getcpu},
   { "want_gmp", 0, mhs_want_gmp},
-#if WANT_GMP
+  { "want_imath", 0, mhs_want_imath},
+#if WANT_GMP || WANT_IMATH
   { "new_mpz", 0, mhs_new_mpz},
   { "mpz_abs", 2, mhs_mpz_abs},
   { "mpz_add", 3, mhs_mpz_add},
@@ -8007,7 +8016,7 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
   { "mpz_log2", 1, mhs_mpz_log2},
-#endif  /* WANT_GMP */
+#endif  /* WANT_GMP || WANT_IMATH */
 #if WANT_TIME
   { "gettimeofday", 2, mhs_gettimeofday},
 #endif
