@@ -76,12 +76,14 @@ showSignedInt p n r
   | otherwise = showUnsignedNeg (-n) r
 
 showUnsignedNeg :: (Integral a) => a -> ShowS
-showUnsignedNeg n r =
-  let c = primChr (primOrd '0' - fromIntegral (rem n 10))
-  in  if n > -10 then
-        c : r
-      else
-        showUnsignedNeg (quot n 10) (c : r)
+showUnsignedNeg n rest =
+  case quotRem n 10 of
+    (q, r) ->
+      let c = primChr (primOrd '0' - fromIntegral r)
+      in  if n > -10 then
+            c : rest
+          else
+            showUnsignedNeg q (c : rest)
 
 showUnsignedInt :: (Integral a) => Int -> a -> ShowS
 showUnsignedInt _ = showInt

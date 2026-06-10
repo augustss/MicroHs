@@ -185,6 +185,9 @@ appendDot x y = x `append` pack "." `append` y
 wantGMP :: Bool
 wantGMP = False
 
+wantImath :: Bool
+wantImath = False
+
 compiledWithMhs :: Bool
 compiledWithMhs = False
 
