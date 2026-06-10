@@ -6,7 +6,7 @@
 #include <limits.h>
 
 #define mpz_t __imath_mpz_t
-#include "imath.h"
+#include "imath.c"
 #undef mpz_t
 
 typedef __imath_mpz_t mpz_t[1];
