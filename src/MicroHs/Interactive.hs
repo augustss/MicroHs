@@ -56,8 +56,8 @@ type I a = StateIO IState a
 mainInteractive :: Flags -> [String] -> IO ()
 mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
-  when wantGMP $ putStrLn "Using GMP"
-  when wantImath $ putStrLn "Using imath"
+  putStrLn $ "Integer implemented with " ++
+    if wantGMP then "GMP" else if wantImath then "imath" else "Haskell"
   mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
