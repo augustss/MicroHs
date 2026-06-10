@@ -78,7 +78,7 @@ _integerToWord64 :: Integer -> Word64
 _integerToWord64 i = primInt64ToWord64 (_integerToInt64 i)
 
 _word64ToInteger :: Word64 -> Integer
-_word64ToInteger i = primPerformIO (do
+_word64ToInteger i = primPerformIO (
   newMPZ `primBind` \ x ->
   withForeignPtr x ( \ p -> mpz_init_set_ui64 p i) `primThen`
   primReturn (I x)
