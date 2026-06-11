@@ -26,6 +26,7 @@ module Mhs.Builtin(
   module Data.Monoid.Internal,
   module Data.Proxy,
   module Data.String,
+  module Data.String.Interpolate,
   module Text.ParserCombinators.ReadPrec,
   module Text.Read.Internal,
   module Text.Read.Lex,
@@ -63,6 +64,7 @@ import Data.Num(Num((+), (-), (*), fromInteger, negate))
 import Data.Proxy(Proxy(..))
 import Data.Monoid.Internal(Semigroup(..))
 import Data.String(IsString(..))
+import Data.String.Interpolate(interpolateRaw, interpolateValue, interpolateAppend, interpolateEmpty, interpolateFinalize)
 import Data.Records(HasField(..), SetField(..), composeSet)
 import Data.Traversable(Traversable(..))
 import {-# SOURCE #-} Data.Typeable(Typeable(..), _mkTyCon, gcast1, gcast2)

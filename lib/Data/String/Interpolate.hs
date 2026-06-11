@@ -10,7 +10,7 @@ import Data.Int
 import Data.Integer
 import Data.List
 import Data.Monoid
-import Data.Semigroup
+import Data.Monoid.Internal(Semigroup(..))
 import Data.String
 import Data.Word
 import {-# SOURCE #-} Data.Typeable
@@ -30,6 +30,7 @@ import Text.Show
 --   interpolateRaw " baz "  `interpolateAppend`
 --   interpolateValue name   `interpolateAppend`
 --   interpolateEmpty
+--
 
 interpolateRaw :: String -> StringBuilder
 interpolateRaw = fromString

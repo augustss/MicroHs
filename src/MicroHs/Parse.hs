@@ -8,7 +8,9 @@ import Control.Monad
 import Control.Monad.Fail
 import Data.Char
 import Data.List
+import Data.Maybe
 import Text.ParserComb as P
+import MicroHs.Builtin(builtinMdl)
 import MicroHs.Lex
 import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
@@ -297,7 +299,7 @@ pLitQual = do
   let
     is (TQual l ss) = Just $ mkIdentSLoc l (intercalate "." ss)
     is _ = Nothing
-  satisfyM "qual" is
+  satisfyM "QualString" is
 
 pLit :: P Expr
 pLit = do
@@ -309,7 +311,25 @@ pLit = do
     is (TInt    loc i) = Just (elit loc (LInteger i))
     is (TRat    loc d) = Just (elit loc (LRat d))
     is _ = Nothing
-  satisfyM "literal" is
+  satisfyM "literal" is <|> pInterpolate mqual
+
+pInterpolate :: Maybe Ident -> P Expr
+pInterpolate mqual = do
+  -- XXX locations
+  let mdl = fromMaybe builtinMdl mqual
+      fin = EVar $ qualIdent mdl $ mkIdent "interpolateFinalize"
+      raw = EVar $ qualIdent mdl $ mkIdent "interpolateRaw"
+      val = EVar $ qualIdent mdl $ mkIdent "interpolateValue"
+      app = EVar $ qualIdent mdl $ mkIdent "interpolateAppend"
+      emp = EVar $ qualIdent mdl $ mkIdent "interpolateEmpty"
+  let pStr = satisfyM "string" is
+        where is (TString loc s) = Just $ EApp raw $ ELit loc (LStr s)
+              is _ = Nothing
+      pExp = pSpec '$' *> (EApp val <$> pExpr) <* pSpec '%'
+  pSpec 'I'
+  frags <- many (pStr <|> pExp)
+  pSpec 'E'
+  pure $ EApp fin $ foldr (eApp2 app) emp frags
 
 pNumLit :: P Expr
 pNumLit = guardM pLit isNum

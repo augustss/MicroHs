@@ -4,6 +4,7 @@ module MicroHs.Lex(
   LexState, lexTopLS,
   popLayout, lex,
   readInt,
+  interpSkip,
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
@@ -12,6 +13,7 @@ import Data.Maybe (fromJust)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Debug.Trace
 
 data Token
   = TIdent  SLoc [String] String  -- identifier
@@ -245,7 +247,9 @@ tIndent ts = TIndent (tokensLoc ts) : ts
 lexLitStr :: SLoc -> SLoc -> (String -> [Token]) -> (String -> Maybe Int) -> (String -> String) -> (SLoc -> String -> Maybe (String, String, SLoc)) -> String -> [Token]
 lexLitStr oloc loc mk end post interp acs = loop loc [] acs
   where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
-                     | Just (rs', cs', l') <- interp l cs = loop l' (rs' ++ rs) cs'
+                     | Just (rs', cs', l') <- interp l cs =
+                         trace ("lexLitStr " ++ reverse rs') $
+                         loop l' (rs' ++ rs) cs'
         loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
         loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
         loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
@@ -368,14 +372,16 @@ upperIdent loc sloc qs acs =
   case span isIdentChar acs of
    (ds, rs) ->
     case rs of
+                   -- qualified string, maybe with interpolation
+      '.':cs@(d1:d2:_) | d1 == '"' || d1 == 's' && d2 == '"'    -- M."..." or M.s"..."
+                                  -> TQual sloc (reverse (ds:qs)) : lex (addCol loc $ 1 + length ds) cs
+
       '.':cs@(d:_) -- either another module name or a qualified uppercase identifier
                    | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
                    -- qualified lower case identifier
                    | isLower_ d   -> ident (spanIdent cs)
                    -- qualified operator
                    | isOperChar d -> ident (span isOperChar cs)
-                   -- qualified string
-                   | d == '"'     -> TQual sloc (reverse (ds:qs)) : lex (addCol loc $ 1 + length ds) cs
                    -- could add qualified numbers here
          where
            ident (xs, ys) = tIdent sloc (reverse (ds:qs)) xs (lex (addCol loc $ 1 + length ds + length xs) ys)
@@ -513,35 +519,66 @@ lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
   -- error $ show $ map showToken $ lex (SLoc f 1 1) s
 
 -------
---lexInterp :: String -> String -> [Token]
---lexInterp end aloc acs = TSpec aloc 'I' : scanExpr aloc acs
+
+-- String interpolation proceeds in several steps.
+--  * interpSkip is used to skip over ${expr} parts, keeping all characters.
+--  * normal string processing, i.e., removing gaps and joining multiline strings
+--  * find the ${expr} (again), and recursively run the lexer on the expr substring
 
 -- Recognize ${ and find the corresponding }.
 -- Return the (characters skipped, rest, new location)
+-- Complicated because we want to keep all characters inside ${...},
+-- but also correctly identifying the closing }, whilst tracking the location.
 interpSkip :: SLoc -> String -> Maybe (String, String, SLoc)
-interpSkip aloc ('$':'{':acs) = skip 0 "{$" aloc acs
+interpSkip aloc ('$':'{':acs) =
+--  trace ("interpSkip " ++ acs) $
+  skip 0 "{$" aloc acs
   where skip :: Int -> String -> SLoc -> String -> Maybe (String, String, SLoc)
-        skip 0 rs l ('}':cs)     = Just ('}':rs, cs, l)
-        skip _n _rs _l ('{':'-':_cs) = undefined
-        skip n rs l ('-':'-':cs) = skipl n rs l cs
-        skip n rs l ('{':cs)     = skip (n+1) ('{':rs) (addCol l 1) cs
-        skip n rs l ('}':cs)     = skip (n-1) ('}':rs) (addCol l 1) cs
-        skip n rs l ('\n':cs)    = skip n rs (incrLine l) cs
-        skip n rs l ('"':'"':'"':cs) = skipss n ('"':'"':'"':rs) (addCol l 3) cs
-        skip n rs l ('"':cs)     = skips n ('"':rs) (addCol l 1) cs
-        skip n rs l (c:cs)       = skip n (c:rs) (addCol l 1) cs
-        skip _  _ _ []           = Nothing
+        skip 0 rs l ('}':cs)         = Just ('}':rs, cs, l)
+        skip n rs l ('{':'-':cs)     = skipn  n     ('-':'{':rs)           l 1 cs
+        skip n rs l ('-':'-':cs)     = skipl  n     ('-':'-':rs)           l   cs
+        skip n rs l ('{':cs)         = skip (n+1)       ('{':rs) (addCol l 1)  cs
+        skip n rs l ('}':cs)         = skip (n-1)       ('}':rs) (addCol l 1)  cs
+        skip n rs l ('"':'"':'"':cs) = skipss n ('"':'"':'"':rs) (addCol l 3)  cs
+        skip n rs l ('"':cs)         = skips  n ('"'        :rs) (addCol l 1)  cs
+        skip n rs l ('\t':cs)        = skip   n ('\t'       :rs) (tabCol l)    cs
+        skip n rs l ('\n':cs)        = skip   n ('\n'       :rs) (incrLine l)  cs
+        skip n rs l ('\r':cs)        = skip   n              rs             l  cs
+        skip n rs l (c:cs)           = skip   n (c          :rs) (addCol l 1)  cs
+        skip _  _ _ []               = Nothing
 
-        skipl n rs l cs@('\n':_) = skip n rs l cs
-        skipl n rs l (_:cs) = skipl n rs (addCol l 1) cs
-        skipl n rs l [] = skip n rs l []
+        -- Skip """...""" string.  Keep all the characters, and keep track of position.
+        skipss n rs l ('\\':c     :cs) = skipss n (c:'\\'     :rs) (addCol l 2) cs
+        skipss n rs l ('"':'"':'"':cs) = skip   n ('"':'"':'"':rs) (addCol l 3) cs
+        skipss n rs l (c          :cs) = skipss n (c          :rs) (addCol l 1) cs
+        skipss n rs l []               = skip   n              rs            l  []
 
-        skipss _n _rs _l _cs = undefined
+        -- Skip "..." string.  Keep all the characters, and keep track of position.
+--        skips _ rs l cs | trace ("skips " ++ show (rs, l, cs)) False = undefined
+        skips n rs l ('"'   :cs) = -- trace ("skips returns " ++ reverse ('"':rs)) $
+          skip  n ('"'   :rs) (addCol l 1) cs
+--        skips n rs l ('\\':'\\':cs) = skips n ('\\':'\\':'\\':'\\':rs) (addCol l 2) cs
+        skips n rs l ('\\':c:cs) = skips n (c:'\\':'\\':rs) (addCol l 2) cs
+--        skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
+        skips n rs l (     c:cs) = skips n (c     :rs) (addCol l 1) cs
+        skips n rs l []          = skip  n         rs            l  []
 
-        skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
-        skips n rs l ('"'   :cs) = skip  n ('"':rs)    (addCol l 1) cs
-        skips n rs l (     c:cs) = skips n (  c:rs)    (addCol l 1) cs
-        skips n rs l []          = skip  n      rs               l  []
+        -- Skip -- comment.  Keep all the characters, and keep track of position.
+        skipl n rs l cs@('\n':_) = skip  n    rs            l  cs
+        skipl n rs l (c:cs)      = skipl n (c:rs) (addCol l 1) cs
+        skipl n rs l []          = skip  n    rs            l  []
+
+        -- Skip {- -} comment.  Keep all the characters, and keep track of position.
+        skipn :: Int -> String -> SLoc -> Int -> String -> Maybe (String, String, SLoc)
+        skipn n rs l 0 cs           = skip  n          rs            l          cs
+        skipn n rs l d ('{':'-':cs) = skipn n ('-':'{':rs) (addCol l 2) (d + 1) cs
+        skipn n rs l d ('-':'}':cs) = skipn n ('}':'-':rs) (addCol l 2) (d - 1) cs
+        skipn n rs l d ('\n':cs)    = skipn n ('\n'   :rs) (incrLine l)  d      cs
+        skipn n rs l d ('\t':cs)    = skipn n ('\t'   :rs) (tabCol   l)  d      cs
+        skipn n rs l d ('\r':cs)    = skipn n          rs            l   d      cs
+        skipn n rs l d (c:cs)       = skipn n (c      :rs) (addCol l 1)  d      cs
+        skipn n rs l _ []           = skip  n          rs            l          []
+
 interpSkip _ _ = Nothing
 
 mkInterp :: SLoc -> String -> [Token]
@@ -549,10 +586,14 @@ mkInterp aloc acs = TSpec aloc 'I' : scan aloc [] acs
   where scan :: SLoc -> String -> String -> [Token]
         scan l rs [] = mkS l rs ++ [TSpec l 'E']
         scan l rs cs@('$':'{':_) =
+          trace ("scan " ++ cs) $
           case interpSkip l cs of
-            Just (_:sexpr, rest, l') -> mkS l rs ++ [TSpec l '$'] ++
-                                        init (lex (addCol l 2) (drop 2 $ reverse sexpr)) ++
-                                        [TSpec l' '%'] ++ scan l' [] rest
+            Just (_:rsexpr, rest, l') ->
+              let sexpr = drop 2 $ reverse rsexpr in  -- the string to re-lex.  
+              trace ("re-lex " ++ sexpr) $
+              mkS l rs ++ [TSpec l '$'] ++
+              init (lex (addCol l 2) sexpr) ++
+              [TSpec l' '%'] ++ scan l' [] rest
             x -> error $ "mkInterp " ++ show (cs, x)
         -- XXX handle TAB and NL
         scan l rs (c:cs) = scan (addCol l 1) (c:rs) cs
