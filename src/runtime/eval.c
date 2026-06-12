@@ -554,7 +554,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX, T_BSWRITE,
+                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT, T_BSGRAB, T_BSGRABLEN,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
@@ -676,12 +677,26 @@ static INLINE void SETTAG(NODEPTR p, tag_t t)
 node *cells;                 /* All cells */
 
 /*
- * byte arrays
+ * Byte arrays.
+ * This is used for both read-only and read-write values.
+ * This struct is often passed by value.
  */
 struct bytestring {
-  size_t size;
-  void *string;
+  size_t   bs_size;                  /* current size of string */
+  size_t   bs_capacity;              /* size allocated for string, 0 if read-only */
+  void    *bs_array;                 /* bytes */
 };
+
+/* Create a new read-only bytestring, if buf is NULL also allocates the array */
+struct bytestring
+mk_ro_bytestring(size_t size, void *buf)
+{
+  struct bytestring bs;
+  bs.bs_capacity = 0;
+  bs.bs_size = size;
+  bs.bs_array = buf ? buf : mmalloc(size);
+  return bs;
+}
 
 /*
  * Arrays are allocated with malloc()/free().
@@ -912,7 +927,7 @@ dump_tick_table(FILE *f)
   for (size_t i = 0; i < tick_index; i++) {
     counter_t n = tick_table[i].tick_count;
     if (n)
-      fprintf(f, "%-60s %10"PRIcounter"\n", (char *)tick_table[i].tick_name.string, n);
+      fprintf(f, "%-60s %10"PRIcounter"\n", (char *)tick_table[i].tick_name.bs_array, n);
   }
 }
 #endif
@@ -2217,7 +2232,12 @@ struct {
   { "bslength", T_BSLENGTH },
   { "bssubstr", T_BSSUBSTR },
   { "bsindex", T_BSINDEX },
+  { "bsnew", T_BSNEW },
+  { "bsread", T_BSREAD },
   { "bswrite", T_BSWRITE },
+  { "bsfreeze", T_BSFREEZE },
+  { "bsappbyte", T_BSAPPBYTE },
+  { "bsappchar", T_BSAPPCHAR },
 
   { "ord", T_I },
   { "chr", T_I },
@@ -2443,7 +2463,7 @@ mk_std(NODEPTR n, FILE *f)
   FORPTR(n) = fp;
   fin->arg = bf;
   fin->back = fp;
-  fp->payload.string = bf;
+  fp->payload.bs_array = bf;
   fp->finalizer = fin;
 }
 #endif
@@ -3680,7 +3700,6 @@ find_label(heapoffs_t label)
 struct bytestring
 parse_string(BFILE *f)
 {
-  struct bytestring bs;
   size_t sz = 20;
   uint8_t *buffer = mmalloc(sz);
   size_t i;
@@ -3732,13 +3751,10 @@ parse_string(BFILE *f)
     buffer[i++] = c;
 #endif
   }
-  buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
+  buffer[i] = 0;    /* add a trailing 0 in case we need a C string, not counted in size */
   buffer = mrealloc(buffer, i + 1);
-
-  bs.size = i;
-  bs.string = buffer;
   //printf("parse_string %d %s\n", (int)bs.size, (char*)bs.string);
-  return bs;
+  return mk_ro_bytestring(i, buffer);
 }
 
 struct forptr *new_mpz(void);
@@ -3783,9 +3799,9 @@ parse(BFILE *f)
       {
         struct bytestring bs = parse_string(f); /* get all the digits, terminated by " */
         struct forptr *fp = new_mpz();          /* a new mpz */
-        mpz_ptr op = fp->payload.string;        /* get actual pointer */
-        mpz_set_str(op, bs.string, 10);         /* convert to an mpz */
-        free(bs.string);
+        mpz_ptr op = fp->payload.bs_array;      /* get actual pointer */
+        mpz_set_str(op, bs.bs_array, 10);       /* convert to an mpz */
+        free(bs.bs_array);
         r = alloc_node(T_FORPTR);
         FORPTR(r) = fp;
         PUSH(r);
@@ -3878,13 +3894,11 @@ parse(BFILE *f)
       break;
     case '$':
       {
-        struct bytestring bs;
-        bs.size = parse_int(f); /* ByteString length */
+        struct bytestring bs = mk_ro_bytestring(parse_int(f), NULL);
         if (!gobble(f, ' '))
           ERR("bytestring parse error");
-        bs.string = mmalloc(bs.size);
-        for(size_t i = 0; i < bs.size; i++) {
-          ((uint8_t*)bs.string)[i] = getb(f);
+        for(size_t i = 0; i < bs.bs_size; i++) {
+          ((uint8_t*)bs.bs_array)[i] = getb(f);
         }
         PUSH(mkStrNode(bs));
         break;
@@ -4084,9 +4098,9 @@ find_sharing(struct print_bits *pb, NODEPTR n)
 void
 print_string(BFILE *f, struct bytestring bs)
 {
-  uint8_t *str = bs.string;
+  uint8_t *str = bs.bs_array;
   putb('"', f);
-  for (size_t i = 0; i < bs.size; i++) {
+  for (size_t i = 0; i < bs.bs_size; i++) {
     int c = str[i];
 #if 0
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
@@ -4215,17 +4229,17 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     } else
 #if WANT_STDIO
     /* The pointer can be a forptr comb_std* that has been dereferenced */
-    if (PTR(n) == FORPTR(comb_stdin)->payload.string) {
+    if (PTR(n) == FORPTR(comb_stdin)->payload.bs_array) {
       SETTAG(spare_node, T_AP);
       FUN(spare_node) = combFP2P;
       ARG(spare_node) = comb_stdin;
       printrec(f, pb, spare_node, prefix);
-    } else if (PTR(n) == FORPTR(comb_stdout)->payload.string) {
+    } else if (PTR(n) == FORPTR(comb_stdout)->payload.bs_array) {
       SETTAG(spare_node, T_AP);
       FUN(spare_node) = combFP2P;
       ARG(spare_node) = comb_stdout;
       printrec(f, pb, spare_node, prefix);
-    } else if (PTR(n) == FORPTR(comb_stderr)->payload.string) {
+    } else if (PTR(n) == FORPTR(comb_stderr)->payload.bs_array) {
       SETTAG(spare_node, T_AP);
       FUN(spare_node) = combFP2P;
       ARG(spare_node) = comb_stderr;
@@ -4275,7 +4289,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #if WANT_GMP || WANT_IMATH
     if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
-      mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
+      mpz_ptr op = FORPTR(n)->payload.bs_array; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
       char *s = mmalloc(sz + 2);
       (void)mpz_get_str(s, 10, op);           /* convert to a string */
@@ -4287,12 +4301,12 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #endif  /* WANT_GMP || WANT_IMATH */
     if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
       struct bytestring bs = FORPTR(n)->payload;
-      if (bs.size > 100) {
+      if (bs.bs_size > 100) {
         /* Encode large bytestrings with $len data */
         putb('$', f);
-        putdecb(bs.size, f);
+        putdecb(bs.bs_size, f);
         putb(' ', f);
-        writeb(bs.string, bs.size, f);
+        writeb(bs.bs_array, bs.bs_size, f);
       } else {
         print_string(f, bs);
       }
@@ -4465,12 +4479,12 @@ mkForPtr(struct bytestring bs)
 {
   struct final *fin = mcalloc(1, sizeof(struct final));
   struct forptr *fp = mcalloc(1, sizeof(struct forptr));
-  if (bs.size == NOSIZE) {
+  if (bs.bs_size == NOSIZE) {
     num_fin_alloc++;
   } else {
     num_bs_alloc++;
-    num_bs_inuse += bs.size;
-    num_bs_bytes += bs.size;
+    num_bs_inuse += bs.bs_size;
+    num_bs_bytes += bs.bs_size;
     if (num_bs_inuse > num_bs_inuse_max)
       num_bs_inuse_max = num_bs_inuse;
   }
@@ -4478,8 +4492,8 @@ mkForPtr(struct bytestring bs)
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
-  fin->arg = bs.string;
-  fin->size = bs.size;          /* The size is not really needed */
+  fin->arg = bs.bs_array;
+  fin->size = bs.bs_size;          /* The size is not really needed */
   fin->back = fp;
   fin->marked = 0;
   fp->next = 0;
@@ -4493,8 +4507,8 @@ struct forptr*
 mkForPtrP(void *p)
 {
   struct bytestring bs;
-  bs.size = NOSIZE;
-  bs.string = p;
+  bs.bs_size = NOSIZE;
+  bs.bs_array = p;
   return mkForPtr(bs);
 }
 
@@ -4506,9 +4520,9 @@ addForPtr(struct forptr *ofp, int s)
 
   fp->next = ofp;
   fin->back = fp;
-  if (ofp->payload.size != NOSIZE)
-    fp->payload.size = ofp->payload.size - s;
-  fp->payload.string = (uint8_t*)ofp->payload.string + s;
+  if (ofp->payload.bs_size != NOSIZE)
+    fp->payload.bs_size = ofp->payload.bs_size - s;
+  fp->payload.bs_array = (uint8_t*)ofp->payload.bs_array + s;
   fp->finalizer = fin;
   return fp;
 }
@@ -4517,8 +4531,18 @@ struct forptr*
 bssubstr(struct forptr *fp, value_t offs, value_t len)
 {
   struct forptr *res = addForPtr(fp, offs);
-  res->payload.size = len;
+  res->payload.bs_size = len;
   return res;
+}
+
+void
+bsappbyte(struct bytestring *bsp, uint8_t b)
+{
+  if (bsp->bs_size >= bsp->bs_capacity) {
+    bsp->bs_capacity += bsp->bs_capacity / 2 + 1;
+    bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_capacity);
+  }
+  ((uint8_t*)bsp->bs_array)[bsp->bs_size++] = b;
 }
 
 static INLINE NODEPTR
@@ -4551,10 +4575,10 @@ mkString(struct bytestring bs)
 {
   NODEPTR n, nc;
   size_t i;
-  const unsigned char *str = bs.string; /* no sign bits, please */
+  const unsigned char *str = bs.bs_array; /* no sign bits, please */
 
   n = mkNil();
-  for(i = bs.size; i > 0; i--) {
+  for(i = bs.bs_size; i > 0; i--) {
     nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
@@ -4564,16 +4588,13 @@ mkString(struct bytestring bs)
 NODEPTR
 mkStringC(char *str)
 {
-  struct bytestring bs;
-  bs.size = strlen(str);
-  bs.string = str;
-  return mkString(bs);
+  return mkString(mk_ro_bytestring(strlen(str), str));
 }
 
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_rd_mem(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_mem(bs.bs_array, bs.bs_size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -4600,8 +4621,8 @@ bsunpack(struct bytestring bs)
 
   n = mkNil();
   np = &n;
-  for(i = 0; i < bs.size; i++) {
-    nc = mkInt(((uint8_t *)bs.string)[i]);
+  for(i = 0; i < bs.bs_size; i++) {
+    nc = mkInt(((uint8_t *)bs.bs_array)[i]);
     *np = mkCons(nc, *np);
     np = &ARG(*np);
   }
@@ -4614,8 +4635,8 @@ bsunpack(struct bytestring bs)
 value_t
 headutf8(struct bytestring bs, void **ret)
 {
-  uint8_t *p = bs.string;
-  if (bs.size == 0)
+  uint8_t *p = bs.bs_array;
+  if (bs.bs_size == 0)
     ERR("headUTF8 0");
   int c1 = *p++;
   if ((c1 & 0x80) == 0) {
@@ -4623,7 +4644,7 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return c1;
   }
-  if (bs.size == 1)
+  if (bs.bs_size == 1)
     ERR("headUTF8 1");
   int c2 = *p++;
   if ((c1 & 0xe0) == 0xc0) {
@@ -4631,7 +4652,7 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
   }
-  if (bs.size == 2)
+  if (bs.bs_size == 2)
     ERR("headUTF8 2");
   int c3 = *p++;
   if ((c1 & 0xf0) == 0xe0) {
@@ -4639,7 +4660,7 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
   }
-  if (bs.size == 3)
+  if (bs.bs_size == 3)
     ERR("headUTF8 3");
   int c4 = *p++;
   if ((c1 & 0xf8) == 0xf0) {
@@ -4814,7 +4835,6 @@ evalstring(NODEPTR n)
   size_t offs;
   uvalue_t c;
   NODEPTR x;
-  struct bytestring bs;
 
   for (offs = 0;;) {
     if (offs >= sz - 4) {
@@ -4858,9 +4878,7 @@ evalstring(NODEPTR n)
     }
   }
   buf[offs] = 0;                /* in case we use it as a C string */
-  bs.size = offs;
-  bs.string = buf;
-  return bs;
+  return mk_ro_bytestring(offs, buf);
 }
 
 /* Does not do UTF-8 encoding */
@@ -4872,7 +4890,6 @@ evalbytestring(NODEPTR n)
   size_t offs;
   uvalue_t c;
   NODEPTR x;
-  struct bytestring bs;
 
   for (offs = 0;;) {
     if (offs >= sz - 1) {
@@ -4896,41 +4913,33 @@ evalbytestring(NODEPTR n)
     }
   }
   buf[offs] = 0;                /* in case we use it as a C string */
-  bs.size = offs;
-  bs.string = buf;
-  return bs;
+  return mk_ro_bytestring(offs, buf);
 }
 
 struct bytestring
 bsreplicate(size_t size, uint8_t value)
 {
-  struct bytestring bs;
-  bs.size = size;
-  bs.string = mmalloc(size);
-  memset(bs.string, value, size);
+  struct bytestring bs = mk_ro_bytestring(size, NULL);
+  memset(bs.bs_array, value, size);
   return bs;
 }
 
 struct bytestring
 bsappend(struct bytestring p, struct bytestring q)
 {
-  struct bytestring r;
-  r.size = p.size + q.size;
-  r.string = mmalloc(r.size);
-  memcpy(r.string, p.string, p.size);
-  memcpy((uint8_t *)r.string + p.size, q.string, q.size);
+  struct bytestring r = mk_ro_bytestring(p.bs_size + q.bs_size, NULL);
+  memcpy(r.bs_array, p.bs_array, p.bs_size);
+  memcpy((uint8_t *)r.bs_array + p.bs_size, q.bs_array, q.bs_size);
   return r;
 }
 
 struct bytestring
 bsappenddot(struct bytestring p, struct bytestring q)
 {
-  struct bytestring r;
-  r.size = p.size + q.size + 1;
-  r.string = mmalloc(r.size);
-  memcpy(r.string, p.string, p.size);
-  memcpy((uint8_t *)r.string + p.size, ".", 1);
-  memcpy((uint8_t *)r.string + p.size + 1, q.string, q.size);
+  struct bytestring r = mk_ro_bytestring(r.bs_size = p.bs_size + q.bs_size + 1, NULL);
+  memcpy(r.bs_array, p.bs_array, p.bs_size);
+  memcpy((uint8_t *)r.bs_array + p.bs_size, ".", 1);
+  memcpy((uint8_t *)r.bs_array + p.bs_size + 1, q.bs_array, q.bs_size);
   return r;
 }
 
@@ -4940,9 +4949,9 @@ bsappenddot(struct bytestring p, struct bytestring q)
 int
 bscompare(struct bytestring bsp, struct bytestring bsq)
 {
-  size_t len = bsp.size < bsq.size ? bsp.size : bsq.size;
+  size_t len = bsp.bs_size < bsq.bs_size ? bsp.bs_size : bsq.bs_size;
   if (len) {
-    int r = memcmp(bsp.string, bsq.string, len);
+    int r = memcmp(bsp.bs_array, bsq.bs_array, len);
     if (r < 0)
       return -1;
     if (r > 0)
@@ -4950,9 +4959,9 @@ bscompare(struct bytestring bsp, struct bytestring bsq)
   }
   /* Got to the end of the shorter string. */
   /* The shorter string is considered smaller. */
-  if (bsp.size < bsq.size)
+  if (bsp.bs_size < bsq.bs_size)
     return -1;
-  if (bsp.size > bsq.size)
+  if (bsp.bs_size > bsq.bs_size)
     return 1;
   return 0;
 }
@@ -5623,7 +5632,7 @@ evali(NODEPTR an)
     xfp = evalforptr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETPTR(n, xfp->payload.string);
+    SETPTR(n, xfp->payload.bs_array);
     RET;
 
   case T_FP2BS:
@@ -5632,7 +5641,7 @@ evali(NODEPTR an)
     xi = evalint(ARG(TOP(1)));
     POP(2);
     n = TOP(-1);
-    xfp->payload.size = xi;
+    xfp->payload.bs_size = xi;
     SETBSTR(n, xfp);
     RET;
 
@@ -5660,7 +5669,7 @@ evali(NODEPTR an)
       CHECK(1);
       n = ARG(TOP(0));
       /* Zap the pointer to the list so it can be GC:ed.
-       * The actual list is protected from GC by evalbytestring().
+       * The actual list is protected from GC by evalstring().
        */
       // ARG(TOP(0)) = combK;
       struct bytestring bs = evalstring(n);
@@ -5684,10 +5693,10 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     { void *out;
-      (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
-      xi = (char*)out - (char*)xfp->payload.string; /* offset */
-      yi = xfp->payload.size - xi;                  /* remaining length */
-      SETBSTR(n, bssubstr(xfp, xi, yi));            /* make a substring */
+      (void)headutf8(xfp->payload, &out);             /* skip one UTF8 character */
+      xi = (char*)out - (char*)xfp->payload.bs_array; /* offset */
+      yi = xfp->payload.bs_size - xi;                 /* remaining length */
+      SETBSTR(n, bssubstr(xfp, xi, yi));              /* make a substring */
     }
     RET;
 
@@ -5696,7 +5705,7 @@ evali(NODEPTR an)
     CHECK(1);
 
     xfp = evalbstr(ARG(TOP(0)));
-    GCCHECK(strNodes(xfp->payload.size));
+    GCCHECK(strNodes(xfp->payload.bs_size));
     POP(1);
     n = TOP(-1);
     //printf("T_FROMUTF8 x = %p fp=%p payload.string=%p\n", x, x->uarg.uuforptr, x->uarg.uuforptr->payload.string);
@@ -5706,7 +5715,7 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     CHECK(1);
     struct forptr *xfp = evalbstr(ARG(TOP(0)));
-    GCCHECK(strNodes(xfp->payload.size));
+    GCCHECK(strNodes(xfp->payload.bs_size));
     POP(1);
     n = TOP(-1);
     GOIND(bsunpack(xfp->payload));
@@ -5738,7 +5747,7 @@ evali(NODEPTR an)
     xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, xfp->payload.size);
+    SETINT(n, xfp->payload.bs_size);
     RET;
 
   case T_BSSUBSTR:
@@ -5757,8 +5766,74 @@ evali(NODEPTR an)
     xi = evalint(ARG(TOP(1)));
     POP(2);
     n = TOP(-1);
-    SETINT(n, ((uint8_t *)xfp->payload.string)[xi]);
+    SETINT(n, ((uint8_t *)xfp->payload.bs_array)[xi]);
     RET;
+
+  case T_BSNEW:
+    {
+    CHKARG3NP;
+    struct bytestring bs;
+    bs.bs_size = evalint(x);
+    bs.bs_capacity = evalint(y);
+    bs.bs_array = mmalloc(bs.bs_capacity);
+    memset(bs.bs_array, 0, bs.bs_size);
+    POP(3);
+    GOPAIR(mkStrNode(bs));
+    }
+
+  case T_BSFREEZE:
+    {
+    CHKARG2NP;
+    xfp = evalbstr(x);
+    struct bytestring *bsp = &xfp->payload;
+    if (bsp->bs_size != bsp->bs_capacity) {
+      bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_size);
+    }
+    bsp->bs_capacity = 0;        /* mark a read-only */
+    POP(2);
+    GOPAIR(x);
+    }
+
+  case T_BSAPPBYTE:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    bsappbyte(&xfp->payload, xi);
+    POP(3);
+    GOPAIRUNIT;
+    
+  case T_BSAPPCHAR:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    if (0 < xi && xi < 0x80) {   /* exclude 0, since this is modified UTF-8 */
+      bsappbyte(&xfp->payload, xi);
+    } else if (xi < 0x800) {
+      /* 0 encodes here, with an over-long representation */
+      bsappbyte(&xfp->payload, ((xi >> 6 )       ) | 0xc0);
+      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+    } else if (xi < 0x10000) {
+      bsappbyte(&xfp->payload, ((xi >> 12)       ) | 0xe0);
+      bsappbyte(&xfp->payload, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+    } else if (xi < 0x110000) {
+      bsappbyte(&xfp->payload, ((xi >> 18)       ) | 0xf0);
+      bsappbyte(&xfp->payload, ((xi >> 12) & 0x3f) | 0x80);
+      bsappbyte(&xfp->payload, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+    } else {
+      ERR("invalid char");
+    }
+    POP(3);
+    GOPAIRUNIT;
+
+  case T_BSREAD:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    POP(3);
+    yi = ((uint8_t *)xfp->payload.bs_array)[xi];
+    GOPAIR(mkInt(yi));
 
   case T_BSWRITE:
     CHKARG4NP;
@@ -5766,7 +5841,7 @@ evali(NODEPTR an)
     xi = evalint(y);
     yi = evalint(z);
     POP(4);
-    ((uint8_t *)xfp->payload.string)[xi] = (uint8_t)yi;
+    ((uint8_t *)xfp->payload.bs_array)[xi] = (uint8_t)yi;
     GOPAIRUNIT;
 
   case T_RAISE:
@@ -5931,8 +6006,8 @@ evali(NODEPTR an)
       struct bytestring bs = evalbytestring(x);
       GCCHECK(5);
       NODEPTR cs = alloc_node(T_PTR);
-      PTR(cs) = bs.string;
-      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.size));
+      PTR(cs) = bs.bs_array;
+      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.bs_size));
       POP(2);
       GOPAIR(res);
     }
@@ -5941,10 +6016,8 @@ evali(NODEPTR an)
       CHKARG2NP;                  /* sets x, y, n */
       {
       char *cstr = evalptr(x);
-      struct bytestring bs;
-      bs.size = strlen(cstr);
-      bs.string = mmalloc(bs.size);;
-      memcpy(bs.string, cstr, bs.size);
+      struct bytestring bs = mk_ro_bytestring(strlen(cstr), NULL);
+      memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -5956,10 +6029,8 @@ evali(NODEPTR an)
       CHKARG3NP;                /* sets x,y,z,n */
       {
       char *cstr = evalptr(x);
-      struct bytestring bs;
-      bs.size = evalint(y);
-      bs.string = mmalloc(bs.size);
-      memcpy(bs.string, cstr, bs.size);
+      struct bytestring bs = mk_ro_bytestring(evalint(y), NULL);
+      memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
       POP(3);
       GCCHECKSAVE(res, 1);
@@ -5970,9 +6041,8 @@ evali(NODEPTR an)
     {
       CHKARG2NP;                  /* sets x, y, n */
       {
-      struct bytestring bs;
-      bs.string = evalptr(x);
-      bs.size = strlen(bs.string);
+      char *p = evalptr(x);
+      struct bytestring bs = mk_ro_bytestring(strlen(p), p);
       NODEPTR res = mkStrNode(bs);
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -5983,9 +6053,7 @@ evali(NODEPTR an)
     {
       CHKARG3NP;                  /* sets x, y, z, n */
       {
-      struct bytestring bs;
-      bs.string = evalptr(x);
-      bs.size = evalint(y);
+      struct bytestring bs = mk_ro_bytestring(evalint(y), evalptr(x));
       NODEPTR res = mkStrNode(bs);
       GCCHECKSAVE(res, 1);
       POP(3);
@@ -6357,7 +6425,7 @@ evali(NODEPTR an)
   case T_DYNSYM:
     /* A dynamic FFI lookup */
     CHECK(1);
-    msg = evalstring(ARG(TOP(0))).string;
+    msg = evalstring(ARG(TOP(0))).bs_array;
     GCCHECK(1);
     x = ffiNode(msg);
     FREE(msg);
@@ -6854,7 +6922,7 @@ die_exn(NODEPTR exn)
     GCCHECK(1);
     PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
     x = evali(TOP(0));             /* evaluate it */
-    msg = evalstring(x).string;    /* and convert to a C string */
+    msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
 #if WANT_STDIO
@@ -7129,8 +7197,8 @@ mhs_main(int argc, char **argv)
 #endif  /* WANT_KPERF */
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
-  flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
-  flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
+  flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
+  flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
   gc();                      /* Run finalizers */
 #if WANT_KPERF
   instrs = end_kperf();

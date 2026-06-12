@@ -10,12 +10,15 @@ module Data.Array.Byte(
 
   MutableByteArray,
   sizeOfMutableByteArray,
+  newMutableEmptyByteArray,
   newMutableByteArray,
   freezeMutableByteArray,
   unsafeFreezeMutableByteArray,
   readWord8,
   writeWord8,
   withMutableByteArrayPtr,
+  appendByte,
+  appendChar,
   ) where
 import Control.Monad.ST
 import Control.Monad.ST_Type
@@ -53,8 +56,11 @@ withByteArrayPtr (A bs) act = withForeignPtr (primBS2FPtr bs) (act . castPtr)
 
 newtype MutableByteArray s = M BS.ByteString
 
+newMutableEmptyByteArray :: Int -> ST s (MutableByteArray s)
+newMutableEmptyByteArray n = ST (M <$> primBSnew 0 n)
+
 newMutableByteArray :: Int -> ST s (MutableByteArray s)
-newMutableByteArray n = return $! M (BS.replicate n 0)
+newMutableByteArray n = ST (M <$> primBSnew n n)
 
 freezeMutableByteArray :: MutableByteArray s -> ST s ByteArray
 freezeMutableByteArray (M bs) = return $! A (BS.copy bs)
@@ -63,16 +69,38 @@ writeWord8 :: MutableByteArray s -> Int -> Word8 -> ST s ()
 writeWord8 (M bs) n b = ST (primBSwrite bs n b)
 
 readWord8 :: MutableByteArray s -> Int -> ST s Word8
-readWord8 (M bs) i = return $! BS.index bs i
+readWord8 (M bs) i = ST (primBSread bs i)
 
 sizeOfMutableByteArray :: MutableByteArray s -> ST s Int
 sizeOfMutableByteArray (M bs) = return $! BS.length bs
 
-primBSwrite :: BS.ByteString -> Int -> Word8 -> IO ()
-primBSwrite = _primitive "bswrite"
-
 unsafeFreezeMutableByteArray :: MutableByteArray s -> ST s ByteArray
-unsafeFreezeMutableByteArray (M bs) = return (A bs)
+unsafeFreezeMutableByteArray (M bs) = ST (A <$> primBSfreeze bs)
 
 withMutableByteArrayPtr :: MutableByteArray s -> (Ptr Word8 -> IO a) -> IO a
 withMutableByteArrayPtr (M bs) act = withForeignPtr (primBS2FPtr bs) (act . castPtr)
+
+appendByte :: MutableByteArray s -> Word8 -> ST s ()
+appendByte (M bs) b = ST (primBSappByte bs b)
+
+appendChar :: MutableByteArray s -> Char -> ST s ()
+appendChar (M bs) b = ST (primBSappChar bs b)
+
+-- Initial size and initial capacity, zero fill.
+primBSnew :: Int -> Int -> IO BS.ByteString
+primBSnew = _primitive "bsnew"
+
+primBSwrite :: BS.ByteString -> Int -> Word8 -> IO ()
+primBSwrite = _primitive "bswrite"
+
+primBSread :: BS.ByteString -> Int -> IO Word8
+primBSread = _primitive "bsread"
+
+primBSfreeze :: BS.ByteString -> IO BS.ByteString
+primBSfreeze = _primitive "bsfreeze"
+
+primBSappByte :: BS.ByteString -> Word8 -> IO ()
+primBSappByte = _primitive "bsappbyte"
+
+primBSappChar :: BS.ByteString -> Char -> IO ()
+primBSappChar = _primitive "bsappchar"
