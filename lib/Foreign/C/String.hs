@@ -26,12 +26,12 @@ newCAString s = packIO (primUnsafeCoerce s) `primBind` getBSPtr
 newCAStringLen :: String -> IO CStringLen
 newCAStringLen s = packIO (primUnsafeCoerce s) `primBind` getBSPtrLen
 
-getBSPtrLen :: ByteString -> IO (Ptr CChar, Int)
+getBSPtrLen :: ByteString -> IO (CString, Int)
 getBSPtrLen bs =
   let l = primBSlength bs  -- carefully get the length before getPtr zaps it
   in  l `primSeq` (primBSgetPtr bs `primBind` \ p -> primReturn (p, l))
 
-getBSPtr :: ByteString -> IO (Ptr CChar)
+getBSPtr :: ByteString -> IO CString
 getBSPtr = primBSgetPtr
 
 withCAString :: forall a . String -> (CString -> IO a) -> IO a
