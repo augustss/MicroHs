@@ -4621,7 +4621,7 @@ void
 bsappbyte(struct forptr *fp, uint8_t b)
 {
   struct bytestring *bsp = &fp->payload;
-  if (bsp->bs_size + 1 >= bsp->bs_capacity) { /* make sure there is room for 1 more byte */
+  if (bsp->bs_size >= bsp->bs_capacity) {
     bsp->bs_capacity += bsp->bs_capacity / 2 + 2;
     bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_capacity);
     adjforptr(fp);
@@ -5843,9 +5843,10 @@ evali(NODEPTR an)
     xfp = evalbstr(x);
     GCCHECK(1);                 /* PAIR */
     struct bytestring *bsp = &xfp->payload;
-    ((uint8_t *)bsp->bs_array)[bsp->bs_size] = 0; /* put a 0 in the spare byte */
-    bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_size+1);
-    adjforptr(xfp);              /* in case bs_array moved */
+    if (bsp->bs_size != bsp->bs_capacity) {
+      bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_size);
+      adjforptr(xfp);           /* in case bs_array moved */
+    }
     bsp->bs_capacity = 0;        /* mark a immutable */
     POP(2);
     GOPAIR(x);
@@ -6063,20 +6064,12 @@ evali(NODEPTR an)
 
   case T_BSGETPTR:
     {
-      /* This primop will return the underlying allocated memory
-      * and relingquish ownership of it. */
       CHKARG2NP;                /* set x,n */
       struct forptr *xfp = evalbstr(x);
       GCCHECK(2);               /* PAIR + Ptr */
-#if 0
-      void *ptr = xfp->payload.bs_array;
-      xfp->payload.bs_array = NULL;
-      xfp->payload.bs_size = 0;
-      adjforptr(xfp);
-#else
-      void *ptr = malloc(xfp->payload.bs_size+1);
-      memcpy(ptr, xfp->payload.bs_array, xfp->payload.bs_size+1);
-#endif
+      uint8_t *ptr = malloc(xfp->payload.bs_size + 1);
+      memcpy(ptr, xfp->payload.bs_array, xfp->payload.bs_size);
+      ptr[xfp->payload.bs_size] = 0; /* add trailing 0 */
       POP(2);
       GOPAIR(mkPtr(ptr));
     }

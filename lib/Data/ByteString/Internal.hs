@@ -98,10 +98,9 @@ primBSheadUTF8 = _primitive "headUTF8"
 primBStailUTF8 :: ByteString -> ByteString
 primBStailUTF8 = _primitive "tailUTF8"
 
--- This primitive takes over ownership of the malloc()ed buffer in the bytestring.
--- The actual pointer is NULLed.
--- Use with care!  Only use after a mutable bytestring has just been built.
-primBSgetPtr :: ByteString -> IO (Ptr a)
+-- Take a copy of a bytestring and add a trailing 0 so it can
+-- be used as a C string.  The caller of this function owns the string.
+primBSgetPtr :: ByteString -> IO (Ptr CChar)
 primBSgetPtr = _primitive "bsgetptr"
 
 -----------------------------------------
