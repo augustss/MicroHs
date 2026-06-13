@@ -5831,6 +5831,7 @@ evali(NODEPTR an)
     struct bytestring bs;
     bs.bs_size = evalint(x);
     bs.bs_capacity = evalint(y);
+    GCCHECK(2);                 /* PAIR + StrNode */
     bs.bs_array = mmalloc(bs.bs_capacity);
     memset(bs.bs_array, 0, bs.bs_size);
     POP(3);
@@ -5893,6 +5894,7 @@ evali(NODEPTR an)
     CHKARG3NP;
     xfp = evalbstr(x);
     xi = evalint(y);
+    GCCHECK(2);                 /* PAIR + Int */
     POP(3);
     yi = ((uint8_t *)xfp->payload.bs_array)[xi];
     GOPAIR(mkInt(yi));
@@ -5912,13 +5914,14 @@ evali(NODEPTR an)
     raise_exn(x);               /* never returns */
 
   case T_SPNEW:
-    GCCHECK(1);
+    GCCHECK(2);                 /* PAIR + Int */
     CHKARG2;
     xi = new_stableptr(x);
     GOPAIR(mkInt(xi));
   case T_SPDEREF:
     CHKARG2NP;
     xi = evalint(x);
+    GCCHECK(1);                 /* PAIR */
     POP(2);
     GOPAIR(deref_stableptr(xi));
   case T_SPFREE:
@@ -5929,16 +5932,17 @@ evali(NODEPTR an)
     GOPAIRUNIT;
 
   case T_WKNEW:
-    GCCHECK(2);
+    GCCHECK(2);                 /* PAIR + weak */
     CHKARG3;
     GOPAIR(new_weak_ptr(x, y, 0));
   case T_WKNEWFIN:
-    GCCHECK(3);
+    GCCHECK(3);                 /* PAIR + weak + finalizer */
     CHKARG4;
     GOPAIR(new_weak_ptr(x, y, z));
   case T_WKDEREF:
     CHKARG2NP;
     x = deref_weak_ptr(evalweak(x));
+    GCCHECK(1);                 /* PAIR */
     POP(2);
     GOPAIR(x);
   case T_WKFINAL:
@@ -6082,7 +6086,7 @@ evali(NODEPTR an)
       struct bytestring bs = mk_ro_bytestring(strlen(cstr), NULL);
       memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       POP(2);
       GOPAIR(res);
       }
@@ -6096,7 +6100,7 @@ evali(NODEPTR an)
       memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
       POP(3);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       GOPAIR(res);
       }
     }
@@ -6107,7 +6111,7 @@ evali(NODEPTR an)
       char *p = evalptr(x);
       struct bytestring bs = mk_ro_bytestring(strlen(p), p);
       NODEPTR res = mkStrNode(bs);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       POP(2);
       GOPAIR(res);
       }
@@ -6118,7 +6122,7 @@ evali(NODEPTR an)
       {
       struct bytestring bs = mk_ro_bytestring(evalint(y), evalptr(x));
       NODEPTR res = mkStrNode(bs);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       POP(3);
       GOPAIR(res);
       }
@@ -6246,7 +6250,7 @@ evali(NODEPTR an)
 
   case T_IO_STATS:
     {
-    GCCHECK(4);
+    GCCHECK(5);
     CHKARG1;
     NODEPTR res = new_ap(new_ap(combPair, mkInt((uvalue_t)num_alloc)), mkInt((uvalue_t)(num_reductions - glob_slice)));
     GOPAIR(res);
@@ -6382,6 +6386,7 @@ evali(NODEPTR an)
   case T_IO_WAITWRFD: {
 #if WANT_IO_POLL
     CHKARG2NP; /* x = filedescriptor, y = RealWorld; no pop yet */
+    GCCHECK(2);
 
     /*
      * When the thread wakes up again it will re-execute that last op.
@@ -6419,10 +6424,12 @@ evali(NODEPTR an)
 #if WANT_ERRNO
     errno = EINVAL;
 #endif
+    GCCHECK(2);
     GOPAIR(mkInt(-1));          /* cannot poll */
 #endif /* WANT_IO_POLL */
   }
   case T_IO_GETMASKINGSTATE:
+    GCCHECK(2);
     CHKARG1;                    /* x = ST */
     GOPAIR(mkInt(runq.mq_head->mt_mask));
 
