@@ -40,8 +40,6 @@ primBSGE      :: ByteString -> ByteString -> Bool
 primBSGE      = _primitive "bs>="
 primBScmp     :: ByteString -> ByteString -> Ordering
 primBScmp     = _primitive "bscmp"
-primBSpack    :: [Word8] -> ByteString
-primBSpack    = _primitive "bspack"
 primBSunpack  :: ByteString -> [Word8]
 primBSunpack  = _primitive "bsunpack"
 primBSlength  :: ByteString -> Int
@@ -71,6 +69,40 @@ primBSgrab = _primitive "bsgrab"
 
 primBSgrabLen :: Ptr CChar -> Int -> IO ByteString
 primBSgrabLen = _primitive "bsgrablen"
+
+-- Initial size and initial capacity, zero fill.
+primBSnew :: Int -> Int -> IO ByteString
+primBSnew = _primitive "bsnew"
+
+primBSwrite :: ByteString -> Int -> Word8 -> IO ()
+primBSwrite = _primitive "bswrite"
+
+primBSread :: ByteString -> Int -> IO Word8
+primBSread = _primitive "bsread"
+
+primBSfreeze :: ByteString -> IO ByteString
+primBSfreeze = _primitive "bsfreeze"
+
+primBSappByte :: ByteString -> Word8 -> IO ()
+primBSappByte = _primitive "bsappbyte"
+
+primBSappChar :: ByteString -> Char -> IO ()
+primBSappChar = _primitive "bsappchar"
+
+primBSfromUTF8 :: ByteString -> String
+primBSfromUTF8 = _primitive "fromUTF8"
+
+primBSheadUTF8 :: ByteString -> Char
+primBSheadUTF8 = _primitive "headUTF8"
+
+primBStailUTF8 :: ByteString -> ByteString
+primBStailUTF8 = _primitive "tailUTF8"
+
+-- This primitive takes over ownership of the malloc()ed buffer in the bytestring.
+-- The actual pointer is NULLed.
+-- Use with care!  Only use after a mutable bytestring has just been built.
+primBSgetPtr :: ByteString -> IO (Ptr a)
+primBSgetPtr = _primitive "bsgetptr"
 
 -----------------------------------------
 
@@ -125,7 +157,22 @@ bsError :: String -> a
 bsError s = error $ "Data.ByteString." ++ s
 
 pack :: [Word8] -> ByteString
-pack = primBSpack
+pack s = primPerformIO $ packIO s
+
+packIO :: [Word8] -> IO ByteString
+packIO s =
+  let loop bs [] = primBSfreeze bs
+      loop bs (c:cs) = primBSappByte bs c `primThen` loop bs cs
+  in  primBSnew 0 10 `primBind` \ bs -> loop bs s
+
+packUTF8 :: [Char] -> ByteString
+packUTF8 s = primPerformIO (packUTF8IO s)
+
+packUTF8IO :: [Char] -> IO ByteString
+packUTF8IO s =
+  let loop bs [] = primBSfreeze bs
+      loop bs (c:cs) = primBSappChar bs c `primThen` loop bs cs
+  in  primBSnew 0 10 `primBind` \ bs -> loop bs s
 
 unpack :: ByteString -> [Word8]
 unpack = primBSunpack
