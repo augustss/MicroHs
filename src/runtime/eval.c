@@ -552,7 +552,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
-                T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
+                T_BSGETPTR, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
@@ -2308,7 +2308,7 @@ struct {
   { "IO.threadstatus", T_IO_THREADSTATUS },
   { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
   { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
-  { "newCAStringLen", T_NEWCASTRINGLEN },
+  { "bsgetptr", T_BSGETPTR },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
   { "bsgrab", T_BSGRAB },
@@ -5998,17 +5998,21 @@ evali(NODEPTR an)
       GOPAIR(x);                  /* and this is the result */
     }
 
-  case T_NEWCASTRINGLEN:
+  case T_BSGETPTR:
     {
-      CHKARG2NP;                /* set x,y,n */
-      struct bytestring bs = evalbytestring(x);
-      GCCHECK(5);
-      NODEPTR cs = alloc_node(T_PTR);
-      PTR(cs) = bs.bs_array;
-      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.bs_size));
+      /* This primop will return the underlying allocated memory
+      * and relingquish ownership of it. */
+      CHKARG2NP;                /* set x,n */
+      struct forptr *xfp = evalbstr(x);
+      GCCHECK(2);               /* PAIR + Ptr */
+      void *ptr = xfp->payload.bs_array;
+      xfp->payload.bs_array = NULL;
+      xfp->payload.bs_size = 0;
+      adjforptr(xfp);
       POP(2);
-      GOPAIR(res);
+      GOPAIR(mkPtr(ptr));
     }
+
   case T_PACKCSTRING:
     {
       CHKARG2NP;                  /* sets x, y, n */
