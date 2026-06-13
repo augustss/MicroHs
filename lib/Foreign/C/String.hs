@@ -55,22 +55,29 @@ peekCAStringLen :: CStringLen -> IO String
 peekCAStringLen (cstr, len) = primPackCStringLen cstr len `primBind` \bs -> primReturn (primUnsafeCoerce unpack bs)
 
 ------------------------------------------------------
--- XXX:  No encoding!
 
 newCString :: String -> IO CString
-newCString = newCAString
+newCString s = packUTF8IO s `primBind` getBSPtr
 
 newCStringLen :: String -> IO CStringLen
-newCStringLen = newCAStringLen
+newCStringLen s = packUTF8IO s `primBind` getBSPtrLen
 
 withCString :: forall a . String -> (CString -> IO a) -> IO a
-withCString = withCAString
+withCString s io =
+  newCString s `primBind` \ cs ->
+  io cs `primBind` \ a ->
+  free cs `primThen`
+  primReturn a
 
 withCStringLen :: forall a . String -> (CStringLen -> IO a) -> IO a
-withCStringLen = withCAStringLen
+withCStringLen s io =
+  newCAStringLen s `primBind` \ cs@(p, _) ->
+  io cs `primBind` \ a ->
+  free p `primThen`
+  primReturn a
 
 peekCString :: CString -> IO String
-peekCString = peekCAString
+peekCString cstr = primPackCString cstr `primBind` \bs -> primReturn (primBSfromUTF8 bs)
 
 peekCStringLen :: CStringLen -> IO String
-peekCStringLen = peekCAStringLen
+peekCStringLen (cstr, len) = primPackCStringLen cstr len `primBind` \bs -> primReturn (primBSfromUTF8 bs)
