@@ -18,14 +18,21 @@ import Foreign.Marshal.Alloc
 type CString = Ptr CChar
 type CStringLen = (Ptr CChar, Int)
 
-primNewCAStringLen :: [Char] -> IO (Ptr CChar, Int)
-primNewCAStringLen = _primitive "newCAStringLen"
-
+-- The coercion is OK, because we will only use the lower 8 bits
+-- of each Char.  That's what the A signifies.
 newCAString :: String -> IO CString
-newCAString s = primNewCAStringLen s `primBind` \ (s, _) -> primReturn s
+newCAString s = packIO (primUnsafeCoerce s) `primBind` getBSPtr
 
 newCAStringLen :: String -> IO CStringLen
-newCAStringLen = primNewCAStringLen
+newCAStringLen s = packIO (primUnsafeCoerce s) `primBind` getBSPtrLen
+
+getBSPtrLen :: ByteString -> IO (Ptr CChar, Int)
+getBSPtrLen bs =
+  let l = primBSlength bs  -- carefully get the length before getPtr zaps it
+  in  l `primSeq` (primBSgetPtr bs `primBind` \ p -> primReturn (p, l))
+
+getBSPtr :: ByteString -> IO (Ptr CChar)
+getBSPtr = primBSgetPtr
 
 withCAString :: forall a . String -> (CString -> IO a) -> IO a
 withCAString s io =
