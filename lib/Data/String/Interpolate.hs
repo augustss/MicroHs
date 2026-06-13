@@ -44,8 +44,8 @@ interpolateAppend = mappend
 interpolateEmpty :: StringBuilder
 interpolateEmpty = mempty
 
-interpolateFinalize :: StringBuilder -> String
-interpolateFinalize = buildString
+interpolateFinalize :: IsString a => StringBuilder -> a
+interpolateFinalize = fromString . buildString
 
 -----
 -- StringBuilder
@@ -94,6 +94,8 @@ instance Interpolate Word32 where
 instance Interpolate Word64 where
   interpolate = fromString . show
 
+instance Interpolate Float where
+  interpolate = fromString . show
 instance Interpolate Double where
   interpolate = fromString . show
 
