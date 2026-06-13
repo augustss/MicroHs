@@ -3,7 +3,7 @@ module Data.ByteString.Builder.Internal where
 import qualified Prelude ()
 import MiniPrelude
 
-import Data.ByteString.Internal (StrictByteString)
+import Data.ByteString.Internal (StrictByteString, packUTF8)
 import Data.ByteString.Lazy (LazyByteString, append, empty, fromStrict)
 
 newtype Builder = Builder (LazyByteString -> LazyByteString)
@@ -30,4 +30,4 @@ lazyByteString :: LazyByteString -> Builder
 lazyByteString bs = Builder (bs `append`)
 
 stringUtf8 :: String -> Builder
-stringUtf8 = byteString . _primitive "toUTF8"
+stringUtf8 = byteString . packUTF8

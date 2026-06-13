@@ -94,10 +94,10 @@ singleton :: Char -> Text
 singleton c = pack [c]
 
 pack :: String -> Text
-pack s = T (_primitive "toUTF8" s)
+pack = T . BS.packUTF8
 
 unpack :: Text -> String
-unpack (T t) = _primitive "fromUTF8" t
+unpack (T t) = BS.primBSfromUTF8 t
 
 append :: Text -> Text -> Text
 append (T x) (T y) = T (BS.append x y)
@@ -111,7 +111,7 @@ length = L.length . unpack
 head :: Text -> Char
 head (T t)
   | BS.null t = error "Data.Text.head: empty"
-  | otherwise = _primitive "headUTF8" t
+  | otherwise = BS.primBSheadUTF8 t
 
 cons :: Char -> Text -> Text
 cons c t = singleton c `append` t
@@ -122,7 +122,7 @@ snoc t c = t `append` singleton c
 tail :: Text -> Text
 tail (T t)
   | BS.null t = error "Data.Text.tail: empty"
-  | otherwise = _primitive "tailUTF8" t
+  | otherwise = T (BS.primBStailUTF8 t)
 
 uncons :: Text -> Maybe (Char, Text)
 uncons t | null t    = Nothing
