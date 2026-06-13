@@ -554,9 +554,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
-                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
+                T_BSFROMUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT, T_BSGRAB, T_BSGRABLEN,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
@@ -678,16 +678,16 @@ node *cells;                 /* All cells */
 
 /*
  * Byte arrays.
- * This is used for both read-only and read-write values.
+ * This is used for both immutable and mutable arrays.
  * This struct is often passed by value.
  */
 struct bytestring {
   size_t   bs_size;                  /* current size of string */
-  size_t   bs_capacity;              /* size allocated for string, 0 if read-only */
+  size_t   bs_capacity;              /* size allocated for string, 0 if immutable */
   void    *bs_array;                 /* bytes */
 };
 
-/* Create a new read-only bytestring, if buf is NULL also allocates the array */
+/* Create a new immutable bytestring, if buf is NULL also allocates the array */
 struct bytestring
 mk_ro_bytestring(size_t size, void *buf)
 {
@@ -2226,7 +2226,6 @@ struct {
   { "bs>", T_BSGT, T_BSLT },
   { "bs>=", T_BSGE, T_BSLE  },
   { "bscmp", T_BSCMP },
-  { "bspack", T_BSPACK },
   { "bsunpack", T_BSUNPACK },
   { "bsreplicate", T_BSREPLICATE },
   { "bslength", T_BSLENGTH },
@@ -2263,7 +2262,6 @@ struct {
   { "ucmp", T_UCMP },
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
-  { "toUTF8", T_BSTOUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
   { "tailUTF8", T_BSTAILUTF8 },
   /* IO primops */
@@ -4508,6 +4506,7 @@ mkForPtrP(void *p)
 {
   struct bytestring bs;
   bs.bs_size = NOSIZE;
+  bs.bs_capacity = 0;
   bs.bs_array = p;
   return mkForPtr(bs);
 }
@@ -4515,8 +4514,13 @@ mkForPtrP(void *p)
 struct forptr*
 addForPtr(struct forptr *ofp, int s)
 {
-  struct forptr *fp = mmalloc(sizeof(struct forptr));
+  struct forptr *fp = mcalloc(1, sizeof(struct forptr));
   struct final *fin = ofp->finalizer;
+
+  /* Only allowed for immutable bytestrings */
+  if (ofp->payload.bs_capacity != 0) {
+    ERR("addForPtr");
+  }
 
   fp->next = ofp;
   fin->back = fp;
@@ -4535,12 +4539,28 @@ bssubstr(struct forptr *fp, value_t offs, value_t len)
   return res;
 }
 
+/* The array might have moved, so update base pointer in the finalizer. */
 void
-bsappbyte(struct bytestring *bsp, uint8_t b)
+adjforptr(struct forptr *fp)
 {
+  struct final *fin = fp->finalizer;
+  if (fp->next || fin->back != fp) {
+    /* We can only do this if fp is the only pointer to the allocated array.
+       Sharing can only happen by adding to a forptr, and we don't do that
+       to mutable BSTR pointers. */
+    ERR("adjforptr");
+  }
+  fin->arg = fp->payload.bs_array;
+}
+    
+void
+bsappbyte(struct forptr *fp, uint8_t b)
+{
+  struct bytestring *bsp = &fp->payload;
   if (bsp->bs_size >= bsp->bs_capacity) {
     bsp->bs_capacity += bsp->bs_capacity / 2 + 1;
     bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_capacity);
+    adjforptr(fp);
   }
   ((uint8_t*)bsp->bs_array)[bsp->bs_size++] = b;
 }
@@ -5664,21 +5684,6 @@ evali(NODEPTR an)
       GOBOOL(arr == ARR(y));
     }
 
-  case T_BSTOUTF8:
-    {
-      CHECK(1);
-      n = ARG(TOP(0));
-      /* Zap the pointer to the list so it can be GC:ed.
-       * The actual list is protected from GC by evalstring().
-       */
-      // ARG(TOP(0)) = combK;
-      struct bytestring bs = evalstring(n);
-      POP(1);
-      n = TOP(-1);
-      SETBSTR(n, mkForPtrFree(bs));
-      RET;
-    }
-
   case T_BSHEADUTF8:
     CHECK(1);
     xfp = evalbstr(ARG(TOP(0)));
@@ -5719,19 +5724,6 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     GOIND(bsunpack(xfp->payload));
-
-  case T_BSPACK:
-    CHECK(1);
-    n = ARG(TOP(0));
-    /* Zap the pointer to the list so it can be GC:ed.
-     * The actual list is protected from GC by evalbytestring().
-     */
-    ARG(TOP(0)) = combK;
-    struct bytestring rbs = evalbytestring(n);
-    POP(1);
-    n = TOP(-1);
-    SETBSTR(n, mkForPtrFree(rbs));
-    RET;
 
   case T_BSREPLICATE:
     CHECK(2);
@@ -5785,11 +5777,13 @@ evali(NODEPTR an)
     {
     CHKARG2NP;
     xfp = evalbstr(x);
+    GCCHECK(1);                 /* PAIR */
     struct bytestring *bsp = &xfp->payload;
     if (bsp->bs_size != bsp->bs_capacity) {
       bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_size);
+      adjforptr(xfp);           /* in case bs_array moved */
     }
-    bsp->bs_capacity = 0;        /* mark a read-only */
+    bsp->bs_capacity = 0;        /* mark a immutable */
     POP(2);
     GOPAIR(x);
     }
@@ -5798,7 +5792,7 @@ evali(NODEPTR an)
     CHKARG3NP;
     xfp = evalbstr(x);
     xi = evalint(y);
-    bsappbyte(&xfp->payload, xi);
+    bsappbyte(xfp, xi);
     POP(3);
     GOPAIRUNIT;
     
@@ -5806,21 +5800,25 @@ evali(NODEPTR an)
     CHKARG3NP;
     xfp = evalbstr(x);
     xi = evalint(y);
+    if ((xi & 0x1ff800) == 0xd800) {
+      /* xi is a surrogate */
+      xi = 0xfffd; /* replacement character */
+    }
     if (0 < xi && xi < 0x80) {   /* exclude 0, since this is modified UTF-8 */
-      bsappbyte(&xfp->payload, xi);
+      bsappbyte(xfp, xi);
     } else if (xi < 0x800) {
       /* 0 encodes here, with an over-long representation */
-      bsappbyte(&xfp->payload, ((xi >> 6 )       ) | 0xc0);
-      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi >> 6 )       ) | 0xc0);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
     } else if (xi < 0x10000) {
-      bsappbyte(&xfp->payload, ((xi >> 12)       ) | 0xe0);
-      bsappbyte(&xfp->payload, ((xi >> 6 ) & 0x3f) | 0x80);
-      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi >> 12)       ) | 0xe0);
+      bsappbyte(xfp, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
     } else if (xi < 0x110000) {
-      bsappbyte(&xfp->payload, ((xi >> 18)       ) | 0xf0);
-      bsappbyte(&xfp->payload, ((xi >> 12) & 0x3f) | 0x80);
-      bsappbyte(&xfp->payload, ((xi >> 6 ) & 0x3f) | 0x80);
-      bsappbyte(&xfp->payload, ((xi      ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi >> 18)       ) | 0xf0);
+      bsappbyte(xfp, ((xi >> 12) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
     } else {
       ERR("invalid char");
     }
