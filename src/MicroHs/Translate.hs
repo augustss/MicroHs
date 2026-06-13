@@ -227,7 +227,7 @@ primTable = [
   ("raise", _primitive "raise"),
   ("catch", _primitive "catch"),
   ("dynsym", _primitive "dynsym"),
-  ("newCAStringLen", _primitive "newCAStringLen"),
+  ("bsgetptr", _primitive "bsgetptr"),
   ("packCString", _primitive "packCString"),
   ("packCStringLen", _primitive "packCStringLen"),
   ("toInt", _primitive "toInt"),
