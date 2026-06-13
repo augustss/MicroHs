@@ -6,7 +6,8 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import System.Info as I
 
-foreign import capi "want_gmp" want_gmp :: Int
+foreign import capi "want_gmp"   want_gmp   :: Int
+foreign import capi "want_imath" want_imath :: Int
 
 main :: IO ()
 main = do
@@ -25,4 +26,5 @@ main = do
       2 -> "little endian"
       _ -> "mystery endian"
 
-  putStrLn $ "GMP: " ++ if want_gmp /= 0 then "yes" else "no"
+  putStrLn $ "Integer implemented with " ++
+    if want_gmp /= 0 then "GMP" else if want_imath /= 0 then "imath" else "Haskell"
