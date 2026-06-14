@@ -10,8 +10,15 @@ module Foreign.Marshal.Utils (
   copyBytes,
   moveBytes,
 ) where
-
-import qualified Prelude(); import MiniPrelude
+import qualified Prelude()
+import Primitives(IO)
+import Control.Monad
+import Data.Bool
+import Data.Eq(Eq(..))
+import Data.Function(($))
+import Data.Int(Int)
+import Data.Maybe
+import Data.Num
 import Foreign.Marshal.Alloc
 import Foreign.C.Types
 import Foreign.Ptr
