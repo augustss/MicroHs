@@ -98,11 +98,6 @@ primBSheadUTF8 = _primitive "headUTF8"
 primBStailUTF8 :: ByteString -> ByteString
 primBStailUTF8 = _primitive "tailUTF8"
 
--- Take a copy of a bytestring and add a trailing 0 so it can
--- be used as a C string.  The caller of this function owns the string.
-primBSgetPtr :: ByteString -> IO (Ptr CChar)
-primBSgetPtr = _primitive "bsgetptr"
-
 -----------------------------------------
 
 instance NFData ByteString

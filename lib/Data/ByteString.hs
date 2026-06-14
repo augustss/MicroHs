@@ -537,14 +537,15 @@ sort = pack . P.sort . unpack
 
 useAsCString :: ByteString -> (CString -> IO a) -> IO a
 useAsCString bs act =
-  allocaBytes (l + 1) $ \buf -> do
-    withForeignPtr (primBS2FPtr bs) $ \p -> copyBytes buf p l
-    pokeByteOff buf l (0 :: Word8)
-    act (castPtr buf)
-  where l = length bs
+  withForeignPtr (primBS2FPtr bs) $ \ p -> do   -- Raw pointer to the bytestring
+    let l = length bs
+    allocaBytes (l + 1) $ \ buf -> do           -- Temporary buffer
+      copyBytes buf p l                         -- Copy the bytestring,
+      pokeByteOff buf l (0 :: Word8)            -- and add a trailing 0.
+      act (castPtr buf)
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-useAsCStringLen bs act = useAsCString bs $ \cstr -> act (cstr, length bs)
+useAsCStringLen bs act = useAsCString bs $ \ cstr -> act (cstr, length bs)
 
 packCString :: CString -> IO ByteString
 packCString = primPackCString
@@ -565,8 +566,8 @@ hGetLine = fmap fromString . P.hGetLine
 -- We should write raw bytes
 hPut :: Handle -> ByteString -> IO ()
 hPut h bs =
-  withHandleWr h $ \bfile ->
-    useAsCStringLen bs $ \(cstr, len) ->
+  withHandleWr h $ \ bfile ->
+    useAsCStringLen bs $ \ (cstr, len) ->
       void (c_writeb cstr len bfile)
       -- XXX: flush if not BlockBuffering
 
@@ -581,9 +582,9 @@ putStr = hPut stdout
 
 hGet :: Handle -> Int -> IO ByteString
 hGet h i =
-  withHandleRd h $ \bfile -> do
+  withHandleRd h $ \ bfile -> do
     fp <- mallocForeignPtrBytes i
-    bytesRead <- withForeignPtr fp $ \buf -> c_readb buf i bfile
+    bytesRead <- withForeignPtr fp $ \ buf -> c_readb buf i bfile
     return $! primFPtr2BS fp bytesRead
 
 hGetNonBlocking :: Handle -> Int -> IO ByteString
@@ -594,7 +595,7 @@ hGetSome h i = bsUnimp "hGetSome"
 
 hGetContents :: Handle -> IO ByteString
 hGetContents h =
-  withHandleRd h $ \bfile -> do
+  withHandleRd h $ \ bfile -> do
     let
       readChunks chunkSize chunks = do
         fp <- mallocForeignPtrBytes chunkSize

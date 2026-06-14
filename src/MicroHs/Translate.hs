@@ -230,7 +230,6 @@ primTable = [
   ("bsnew", _primitive "bsnew"),
   ("bsappbyte", _primitive "bsappbyte"),
   ("bsappchar", _primitive "bsappchar"),
-  ("bsgetptr", _primitive "bsgetptr"),
   ("bsfreeze", _primitive "bsfreeze"),
   ("packCString", _primitive "packCString"),
   ("packCStringLen", _primitive "packCStringLen"),
