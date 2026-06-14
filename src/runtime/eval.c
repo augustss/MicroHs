@@ -552,7 +552,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
-                T_BSGETPTR, T_PACKCSTRING, T_PACKCSTRINGLEN,
+                T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
@@ -2368,7 +2368,6 @@ struct {
   { "IO.threadstatus", T_IO_THREADSTATUS },
   { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
   { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
-  { "bsgetptr", T_BSGETPTR },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
   { "bsgrab", T_BSGRAB },
@@ -6031,18 +6030,6 @@ evali(NODEPTR an)
         ERR("CCALL POP");
       n = POPTOP();               /* node to update */
       GOPAIR(x);                  /* and this is the result */
-    }
-
-  case T_BSGETPTR:
-    {
-      CHKARG2NP;                /* set x,n */
-      struct forptr *xfp = evalbstr(x);
-      GCCHECK(2);               /* PAIR + Ptr */
-      uint8_t *ptr = malloc(xfp->payload.bs_size + 1);
-      memcpy(ptr, xfp->payload.bs_array, xfp->payload.bs_size);
-      ptr[xfp->payload.bs_size] = 0; /* add trailing 0 */
-      POP(2);
-      GOPAIR(mkPtr(ptr));
     }
 
   case T_PACKCSTRING:
