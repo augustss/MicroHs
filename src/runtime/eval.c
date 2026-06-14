@@ -4910,6 +4910,8 @@ evalweak(NODEPTR n)
  * XXX the malloc()ed string is leaked if we yield in here.
  * Caller is responsible to free().
  * Does modified UTF-8 encoding.
+ * Only used to display an uncaught exception.
+ * XXX Should remove from DYNSYM
  */
 struct bytestring
 evalstring(NODEPTR n)
@@ -4959,41 +4961,6 @@ evalstring(NODEPTR n)
       n = ARG(n);
     } else {
       ERR("evalstring not Nil/Cons");
-    }
-  }
-  buf[offs] = 0;                /* in case we use it as a C string */
-  return mk_ro_bytestring(offs, buf);
-}
-
-/* Does not do UTF-8 encoding */
-struct bytestring
-evalbytestring(NODEPTR n)
-{
-  size_t sz = 100;
-  uint8_t *buf = mmalloc(sz);
-  size_t offs;
-  uvalue_t c;
-  NODEPTR x;
-
-  for (offs = 0;;) {
-    if (offs >= sz - 1) {
-      sz *= 2;
-      buf = mrealloc(buf, sz);
-    }
-    PUSH(n);                    /* protect list from GC */
-    n = evali(n);
-    POP(1);
-    if (GETTAG(n) == T_K)       /* Nil */
-      break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
-      PUSH(n);                  /* protect from GC */
-      c = evalint(ARG(x));
-      n = POPTOP();
-      buf[offs++] = c;
-      n = ARG(n);
-    } else {
-      //pp(stdout, n);
-      ERR("evalbytestring not Nil/Cons");
     }
   }
   buf[offs] = 0;                /* in case we use it as a C string */
