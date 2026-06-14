@@ -6,4 +6,4 @@ import qualified Prelude()
 import Data.Version
 
 version :: Version
-version = makeVersion [0,16,2,1]
+version = makeVersion [0,16,3,0]
