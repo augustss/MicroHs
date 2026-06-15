@@ -227,6 +227,7 @@ NORETURN void memerr(void);
 void *
 mmalloc(size_t s)
 {
+  if (s == 0) s = 1;            /* avoid malloc() returning NULL */
   void *p = MALLOC(s);
   if (!p)
     memerr();
@@ -236,6 +237,7 @@ mmalloc(size_t s)
 void *
 mrealloc(void *q, size_t s)
 {
+  if (s == 0) s = 1;            /* avoid realloc() returning NULL */
   void *p = REALLOC(q, s);
   if (!p)
     memerr();
@@ -245,6 +247,7 @@ mrealloc(void *q, size_t s)
 void *
 mcalloc(size_t n, size_t s)
 {
+  if (n * s == 0) n = s = 1;    /* avoid calloc() returning NULL */
   void *p = CALLOC(n, s);
   if (!p)
     memerr();
