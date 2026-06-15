@@ -13,15 +13,27 @@ module Numeric.FormatFloat(
   floatToDigits,
   ) where
 import qualified Prelude()
-import MiniPrelude
+import Control.Error
+import Data.Bool
 import Data.Char
+import Data.Eq
 import Data.Float
 import Data.Floating
 import Data.Fractional
+import Data.Function
+import Data.Int
 import Data.Integer
+import Data.Integral
+import Data.List
+import Data.Maybe
+import Data.Num
+import Data.Ord
 import Data.RealFloat
 import Data.RealFrac
+import Data.String
+import {-# SOURCE #-} Data.Typeable
 import Numeric.Show
+import Text.Show
 
 showFloat :: (RealFloat a) => a -> ShowS
 showFloat x = showString (formatRealFloat FFGeneric Nothing x)
