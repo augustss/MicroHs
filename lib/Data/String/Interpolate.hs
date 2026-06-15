@@ -1,19 +1,37 @@
-module Data.String.Interpolate where
+module Data.String.Interpolate(
+  interpolateRaw,
+  interpolateValue,
+  interpolateAppend,
+  interpolateEmpty,
+  interpolateFinalize,
+  StringBuilder,
+  buildString,
+  Interpolate(..),
+  --
+  Adjust(..),
+  FloatFmt(..),
+  ) where
 import qualified Prelude()
 import Data.Bool
 import Data.Char
 import Data.Coerce
 import Data.Double
+import Data.Eq
 import Data.Float
 import Data.Function
 import Data.Int
 import Data.Integer
 import Data.List
+import Data.Num
+import Data.Maybe
 import Data.Monoid
 import Data.Monoid.Internal(Semigroup(..))
+import Data.Ord
+import Data.RealFloat
 import Data.String
 import Data.Word
 import {-# SOURCE #-} Data.Typeable
+import Numeric.FormatFloat
 import Text.Show
 
 -----
@@ -101,3 +119,24 @@ instance Interpolate Double where
 
 instance Interpolate Bool where
   interpolate = fromString . show
+
+----------------------------------
+-- MicroHs externsions
+
+measure :: Interpolate a => a -> Int
+measure = length . buildString . interpolate
+
+data Adjust a = LeftAdj Int a | RightAdj Int a
+  deriving (Eq, Show)
+
+instance Interpolate a => Interpolate (Adjust a) where
+  interpolate (LeftAdj  n a) = interpolate a <> fromString (replicate (n - measure a) ' ')
+  interpolate (RightAdj n a) = fromString (replicate (n - measure a) ' ') <> interpolate a
+
+data FloatFmt a = EFloat Int a | FFloat Int a | GFloat Int a
+  deriving (Eq, Show)
+
+instance (RealFloat a) => Interpolate (FloatFmt a) where
+  interpolate (EFloat n a) = fromString (showEFloat (Just n) a "")
+  interpolate (FFloat n a) = fromString (showFFloat (Just n) a "")
+  interpolate (GFloat n a) = fromString (showGFloat (Just n) a "")
