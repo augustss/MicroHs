@@ -360,6 +360,13 @@ primNewForeignPtr = _primitive "fpnew"
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
 
+-- Run the IO action somewhat atomically.
+-- This means that it is guaranteed an uninterrupted slice.
+-- This is used for atomicModifyIORef which has a very bounded amount of work,
+-- so a slice is good enough.
+primAtomic :: IO a -> IO a
+primAtomic = _primitive "IO.atomic"
+
 primForkIO :: IO () -> IO ThreadId
 primForkIO = _primitive "IO.fork"
 
