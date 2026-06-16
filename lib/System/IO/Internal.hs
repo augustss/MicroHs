@@ -121,6 +121,7 @@ instance Functor IO where
 
 instance Applicative IO where
   pure         = primReturn
+  (*>)         = primThen
   (<*>)        = ap
 
 instance Monad IO where
