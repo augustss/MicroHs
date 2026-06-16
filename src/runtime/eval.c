@@ -544,7 +544,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
+                T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
                 T_IO_LAZYBIND, T_IO_STRICT,
@@ -2291,6 +2291,7 @@ struct {
   { "IO.stderr", T_IO_STDERR },
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
+  { "IO.atomic", T_IO_ATOMIC },
   { "IO.gc", T_IO_GC },
   { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
@@ -5897,6 +5898,24 @@ evali(NODEPTR an)
       GOIND(p3);
     }
 #endif
+
+  case T_IO_ATOMIC:
+    /* Perform an IO action "atomically".
+     * It's not really atomic, but 10 uninterrupted slices.
+     * This is good enough for atomicModifyIORef. */
+    {
+      GCCHECK(2);
+      CHKARG2NP;                     /* set x=action, y=world, n */
+      NODEPTR p1 = new_ap(x, y);
+      NODEPTR p2 = new_ap(p1, combK);
+      glob_slice += slice * 10;      /* give the current thread 10 extra slices */
+      NODEPTR p3 = evali(p2);        /* this evaluation is guarenteed at least 10 uninterrupted slices */
+      glob_slice -= slice * 10;      /* and take them away again */
+      GCCHECKSAVE(p3, 2);
+      POP(2);
+      GOPAIR(p3);
+    }
+    break;
 
   case T_IO_BIND:
     goto t_c;

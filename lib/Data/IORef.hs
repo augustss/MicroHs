@@ -14,6 +14,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Eq
 import Data.Maybe_Type
+import Data.Tuple(fst)
 import {-# SOURCE #-} Data.Typeable
 import System.Mem.Weak
 
@@ -42,9 +43,10 @@ modifyIORef' (R p) f = primArrRead p 0 `primBind` \ a -> let a' = f a in primSeq
 mkWeakIORef :: IORef a -> IO () -> IO (Weak (IORef a))
 mkWeakIORef r fin = mkWeakPtr r (Just fin)
 
--- XXX WRONG
 atomicModifyIORef :: forall a b . IORef a -> (a -> (a, b)) -> IO b
-atomicModifyIORef r f = readIORef r `primBind` \ a -> let (a', b) = f a in writeIORef r a' `primThen` primReturn b
+atomicModifyIORef r f =
+  primAtomic (readIORef r `primBind` \ a -> let ab = f a in writeIORef r (fst ab) `primThen` primReturn ab) `primBind` \ ab ->
+  case ab of (_, b) -> primReturn b
 
 atomicModifyIORef' :: forall a b . IORef a -> (a -> (a, b)) -> IO b
 atomicModifyIORef' r f = atomicModifyIORef r f' `primBind` \ b -> b `primSeq` primReturn b
