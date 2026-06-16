@@ -222,6 +222,7 @@ primTable = [
   ("IO.stderr", _primitive "IO.stderr"),
   ("IO.getArgRef", _primitive "IO.getArgRef"),
   ("IO.performIO", _primitive "IO.performIO"),
+  ("IO.atomic", _primitive "IO.atomic"),
   ("IO.gc", _primitive "IO.gc"),
   ("IO.stats", _primitive "IO.stats"),
   ("raise", _primitive "raise"),
