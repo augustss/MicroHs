@@ -966,7 +966,9 @@ struct mthread {
   counter_t       mt_num_slices; /* number of slices so far */
   NODEPTR         mt_root;       /* root of the graph to reduce */
   struct mvar    *mt_exn;        /* possible thrown exception */
-  NODEPTR         mt_mval;       /* filled after waiting for take/read */
+  NODEPTR         mt_mval;       /* Filled when put_mvar wakes a thread waiting in read_mvar.
+                                  * The value cannot be taken from the mvar by the read, because
+                                  * we need to guarantee that all reads get the same value. */
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if WANT_IO_POLL
@@ -1357,18 +1359,10 @@ check_thrown(bool intr)
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-  /* Take the exception directly from the exception MVar, rather than reading it
-   * from the threads own mt_mval. The thread may have been woken up by a different
-   * MVar, but might not yet have consumed that value.
-   */
-  struct mvar *exnmv = runq.mq_head->mt_exn;
-  NODEPTR exn = exnmv->mv_data;
-  exnmv->mv_data = NIL;
 
-  /* Do we need to do this? What if a second throwTo is blocked? Let that thread proceed. */
-  struct mthread *waiter = remove_q_head(&exnmv->mv_takeput);
-  if (waiter)
-    add_runq_tail(waiter);
+  NODEPTR exn = take_mvar(true, runq.mq_head->mt_exn); /* get the exception */
+  if (!exn)
+    ERR("check_thrown: no exception");
 
   raise_exn(exn);
 }
@@ -1522,21 +1516,12 @@ take_mvar(bool try, struct mvar *mv)
   }
 #endif  /* THREAD_DEBUG */
   NODEPTR n;
-  if ((n = runq.mq_head->mt_mval) != NIL) {
-#if THREAD_DEBUG
-    if (thread_trace)
-      printf("take_mvar: end mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
-#endif  /* THREAD_DEBUG */
-    /* We have no data after waking up */
-    runq.mq_head->mt_mval = NIL;
-    return n;                   /* returned the stashed data */
-  }
   if ((n = mv->mv_data) != NIL) {
+    /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p full\n", mv);
 #endif  /* THREAD_DEBUG */
-    /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
 
     /* move one thread waiting to put to the runq */
@@ -1561,6 +1546,7 @@ take_mvar(bool try, struct mvar *mv)
 #endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
   } else {
+    /* The mvar is empty. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p empty\n", mv);
@@ -1588,9 +1574,10 @@ read_mvar(bool try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
-    /* We have no data after waking up */
-    runq.mq_head->mt_mval = NIL;
-    return n;                   /* returned the stashed data */
+    /* The putMVar delivers the data in mt_mval and wakes the thread.
+     * So first first check if we already have data in mt_mval. */
+    runq.mq_head->mt_mval = NIL; /* empty again */
+    return n;                    /* returned the stashed data */
   }
   if ((n = mv->mv_data) != NIL) {
     /* mvar is full */
@@ -1623,11 +1610,11 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
   }
 #endif  /* THREAD_DEBUG */
   if (mv->mv_data != NIL) {
+    /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p full\n", mv);
 #endif  /* THREAD_DEBUG */
-    /* mvar is full */
     if (try)
       return 0;
     struct mthread *mt = remove_q_head(&runq);
@@ -1641,11 +1628,13 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
 #endif  /* THREAD_DEBUG */
     resched(mt, ts_wait_mvar);                  /* never returns */
   } else {
+    /* The mvar is empty. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
 #endif  /* THREAD_DEBUG */
     /* mvar is empty */
+    mv->mv_data = v;              /* put the data in the mvar */
     if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
       /* one or more threads are waiting */
       struct mthread *mt;
@@ -1656,9 +1645,9 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
         add_runq_tail(mt);             /* and schedule for execution later */
-        mt->mt_mval = v;
       }
       for(;;) {
+        /* wake up all 'read' */
         mt = remove_q_head(&mv->mv_read);
         if (!mt)
           break;
@@ -1666,6 +1655,8 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
+        if (mt->mt_mval != NIL)
+          ERR("put_mvar: mt_mval != NIL");
         mt->mt_mval = v;               /* value for restarted read */
         add_runq_tail(mt);             /* and schedule for execution later */
       }

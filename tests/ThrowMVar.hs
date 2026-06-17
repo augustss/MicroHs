@@ -9,9 +9,10 @@ main = do
 
   _ <- forkIO $ do
     putMVar sig ()              -- wake main: () parked in main's mt_mval
+    putStrLn "throwing"
     throwTo mainTid ExitSuccess -- real exception parked in main's mt_exn
 
   () <- takeMVar sig
 
-  -- This is not printed, since the exception has been delivered
-  putStrLn "BUG NOT TRIGGERED"
+  putStrLn "should not print"
+  return ()
