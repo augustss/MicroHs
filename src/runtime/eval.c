@@ -1357,7 +1357,19 @@ check_thrown(bool intr)
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-  NODEPTR exn = take_mvar(false, runq.mq_head->mt_exn); /* get the exception */
+  /* Take the exception directly from the exception MVar, rather than reading it
+   * from the threads own mt_mval. The thread may have been woken up by a different
+   * MVar, but might not yet have consumed that value.
+   */
+  struct mvar *exnmv = runq.mq_head->mt_exn;
+  NODEPTR exn = exnmv->mv_data;
+  exnmv->mv_data = NIL;
+
+  /* Do we need to do this? What if a second throwTo is blocked? Let that thread proceed. */
+  struct mthread *waiter = remove_q_head(&exnmv->mv_takeput);
+  if (waiter)
+    add_runq_tail(waiter);
+
   raise_exn(exn);
 }
 
