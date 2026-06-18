@@ -45,8 +45,8 @@ mkWeakIORef r fin = mkWeakPtr r (Just fin)
 
 atomicModifyIORef :: forall a b . IORef a -> (a -> (a, b)) -> IO b
 atomicModifyIORef r f =
-  primAtomic (readIORef r `primBind` \ a -> let ab = f a in writeIORef r (fst ab) `primThen` primReturn ab) `primBind` \ ab ->
-  case ab of (_, b) -> primReturn b
+  primAtomic (readIORef r `primBind` \ a ->
+  let ab = f a in writeIORef r (fst ab) `primThen` primReturn ab) `primBind` \ (_, b) -> primReturn b
 
 atomicModifyIORef' :: forall a b . IORef a -> (a -> (a, b)) -> IO b
 atomicModifyIORef' r f = atomicModifyIORef r f' `primBind` \ b -> b `primSeq` primReturn b
