@@ -85,3 +85,4 @@
     - --ignore-glob=tests/Fix.hs
     - --ignore-glob=tests/Unboxed.hs
     - --ignore-glob=tests/TypeOp.hs
+    - --ignore-glob=tests/Interpolate.hs
