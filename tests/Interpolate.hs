@@ -30,6 +30,8 @@ main = do
   putStrLn s"x=${x}, y=${y} end"
   putStrLn s"a${ 1 + {- some {-nested-} comment -} 2}b"
   putStrLn s"${ let { x = 21 } in x+x }"
+  putStrLn s"a ${ '{' } b"
+  putStrLn s"a ${ '}' } b"
   putStr   s"""
     This is a multiline string.
     x=${x}
