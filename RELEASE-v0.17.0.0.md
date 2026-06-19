@@ -2,4 +2,5 @@
 
 ## Features
  * Qualified Strings
+ * String interpolation
  * Bignum defaults to using imath (in C) rather than Haskell
