@@ -547,6 +547,7 @@ interpSkip aloc ('$':'{':acs) =
         skip n rs l ('}':cs)         = skip (n-1)       ('}':rs) (addCol l 1)  cs
         skip n rs l ('"':'"':'"':cs) = skipss n ('"':'"':'"':rs) (addCol l 3)  cs
         skip n rs l ('"':cs)         = skips  n ('"'        :rs) (addCol l 1)  cs
+        skip n rs l ('\'':cs)        = skipc  n ('\''       :rs) (addCol l 1)  cs
         skip n rs l ('\t':cs)        = skip   n ('\t'       :rs) (tabCol l)    cs
         skip n rs l ('\n':cs)        = skip   n ('\n'       :rs) (incrLine l)  cs
         skip n rs l ('\r':cs)        = skip   n              rs             l  cs
@@ -560,13 +561,16 @@ interpSkip aloc ('$':'{':acs) =
         skipss n rs l []               = skip   n              rs            l  []
 
         -- Skip "..." string.  Keep all the characters, and keep track of position.
---        skips _ rs l cs | trace ("skips " ++ show (rs, l, cs)) False = undefined
-        skips n rs l ('"'   :cs) = -- trace ("skips returns " ++ reverse ('"':rs)) $
-          skip  n ('"'   :rs) (addCol l 1) cs
---        skips n rs l ('\\':c:cs) = skips n (c:'\\':'\\':rs) (addCol l 2) cs
+        skips n rs l ('"'   :cs) = skip  n ('"'   :rs) (addCol l 1) cs
         skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
         skips n rs l (     c:cs) = skips n (c     :rs) (addCol l 1) cs
         skips n rs l []          = skip  n         rs            l  []
+
+        -- Skip '...' string.  Keep all the characters, and keep track of position.
+        skipc n rs l ('\''  :cs) = skip  n ('\''  :rs) (addCol l 1) cs
+        skipc n rs l ('\\':c:cs) = skipc n (c:'\\':rs) (addCol l 2) cs
+        skipc n rs l (     c:cs) = skipc n (c     :rs) (addCol l 1) cs
+        skipc n rs l []          = skip  n         rs            l  []
 
         -- Skip -- comment.  Keep all the characters, and keep track of position.
         skipl n rs l cs@('\n':_) = skip  n    rs            l  cs

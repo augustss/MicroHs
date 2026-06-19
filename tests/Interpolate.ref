@@ -7,6 +7,8 @@ y+"=Hello"-end
 x=33, y=Hello end
 a3b
 42
+a { b
+a } b
 This is a multiline string.
 x=33
 Third line.
