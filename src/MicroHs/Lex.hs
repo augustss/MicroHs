@@ -13,7 +13,7 @@ import Data.Maybe (fromJust)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
-import Debug.Trace
+--import Debug.Trace
 
 data Token
   = TIdent  SLoc [String] String  -- identifier
@@ -135,13 +135,13 @@ lex loc (d:cs) | isOperChar d =
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d =
   TSpec loc d : lex (addCol loc 1) cs
-lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (\ s -> [TString loc s]) isTrip   multiLine (\ _ _ -> Nothing) cs
-lex loc ('"':cs)         = lexLitStr loc (addCol loc 1) (\ s -> [TString loc s]) isDQuote id        (\ _ _ ->  Nothing) cs
-lex loc ('\'':cs)        = lexLitStr loc (addCol loc 1) tchar                    isSQuote id        (\ _ _ -> Nothing) cs
+lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (\ _ s -> [TString loc s]) isTrip   multiLine (\ _ _ -> Nothing) cs
+lex loc ('"':cs)         = lexLitStr loc (addCol loc 1) (\ _ s -> [TString loc s]) isDQuote id        (\ _ _ -> Nothing) cs
+lex loc ('\'':cs)        = lexLitStr loc (addCol loc 1) tchar                      isSQuote id        (\ _ _ -> Nothing) cs
   where isSQuote ('\'':_) = Just 1
         isSQuote _ = Nothing
-        tchar [c] = [TChar loc c]
-        tchar _   = [TError loc "Illegal Char literal"]
+        tchar _ [c] = [TChar loc c]
+        tchar _ _   = [TError loc "Illegal Char literal"]
 
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex loc [] = [TEnd loc]
@@ -244,31 +244,36 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-lexLitStr :: SLoc -> SLoc -> (String -> [Token]) -> (String -> Maybe Int) -> (String -> String) -> (SLoc -> String -> Maybe (String, String, SLoc)) -> String -> [Token]
-lexLitStr oloc loc mk end post interp acs = loop loc [] acs
-  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
-                     | Just (rs', cs', l') <- interp l cs =
-                         trace ("lexLitStr " ++ reverse rs') $
-                         loop l' (rs' ++ rs) cs'
-        loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
-        loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
-        loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
-        loop l rs       cs                = loop' l rs cs
+lexLitStr :: SLoc -> SLoc -> ([[Token]] -> String -> [Token]) -> (String -> Maybe Int) ->
+             (String -> String) -> (SLoc -> String -> Maybe ([Token], String, SLoc)) -> String -> [Token]
+lexLitStr oloc loc mk end post interp acs = loop loc [] [] acs
+  where
+        loop :: SLoc -> String -> [[Token]] -> String -> [Token]
+        loop l rs tss cs | Just k <- end cs   = mk (reverse tss) (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
+                         | Just (ts, cs', l') <- interp l cs = loop l' (chMark : rs) (ts : tss) cs'
+        loop l rs tss ('\\':c:cs) | isSpace c = remGap l rs tss cs
+        loop l rs tss ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) tss cs  -- special hack for unescaped \
+        loop l rs tss ('\\':cs)               = loop' (addCol l 1) ('\\':rs) tss cs
+        loop l rs tss       cs                = loop' l rs tss cs
 
-        loop' l rs ('\n' :cs) = loop  (incrLine l) ( '\n':rs) cs
-        loop' l rs ('\t' :cs) = loop  (tabCol   l) ( '\t':rs) cs
-        loop' l rs ('\r' :cs) = loop            l         rs  cs
-        loop' l rs     (c:cs) = loop  (addCol l 1) (    c:rs) cs
-        loop' _ _          [] = [TError oloc "unterminated Char/String literal"]
---        foo xs = trace (show ("foo", loc, take 20 acs, xs)) xs
+        loop' :: SLoc -> String -> [[Token]] -> String -> [Token]
+        loop' l rs tss ('\n' :cs) = loop  (incrLine l) ( '\n':rs) tss cs
+        loop' l rs tss ('\t' :cs) = loop  (tabCol   l) ( '\t':rs) tss cs
+        loop' l rs tss ('\r' :cs) = loop            l         rs  tss cs
+        loop' l rs tss     (c:cs) = loop  (addCol l 1) (    c:rs) tss cs
+        loop' _ _  _           [] = [TError oloc "unterminated Char/String literal"]
 
-        remGap l rs ('\\':cs) = loop   (addCol l 1)       rs  cs
-        remGap l rs ('\n':cs) = remGap (incrLine l) ('\n':rs) cs
-        remGap l rs ('\t':cs) = remGap (tabCol   l) ('\t':rs) cs
-        remGap l rs ('\r':cs) = remGap           l        rs  cs
-        remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
-        remGap l _         _  = --errorMessage oloc "bad string gap"
-                                mhsError (prettyShow l ++ ": bad string gap")
+        remGap :: SLoc -> String -> [[Token]] -> String -> [Token]
+        remGap l rs tss ('\\':cs) = loop   (addCol l 1)       rs  tss cs
+        remGap l rs tss ('\n':cs) = remGap (incrLine l) ('\n':rs) tss cs
+        remGap l rs tss ('\t':cs) = remGap (tabCol   l) ('\t':rs) tss cs
+        remGap l rs tss ('\r':cs) = remGap           l        rs  tss cs
+        remGap l rs tss (' ' :cs) = remGap (addCol l 1)       rs  tss cs
+        remGap l _  _          _  = --errorMessage oloc "bad string gap"
+                                    mhsError (prettyShow l ++ ": bad string gap")
+
+chMark :: Char
+chMark = '\xffff'     -- reserved, and will not occur in text
 
 decodeEscs :: String -> String
 decodeEscs [] = []
@@ -521,20 +526,21 @@ lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
 -------
 
 -- String interpolation proceeds in several steps.
---  * interpSkip is used to skip over ${expr} parts, keeping all characters.
---  * normal string processing, i.e., removing gaps and joining multiline strings
---  * find the ${expr} (again), and recursively run the lexer on the expr substring
+--  * interpSkip is used to skip over ${expr} parts, and insert '\xffff' for each interpoland.
+--  * do regular string processing of that string (gaps, escapes, multiline, etc)
+--  * splice the interpolands back into the processed strings, breaking it at '\xffff'
 
 -- Recognize ${ and find the corresponding }.
--- Return the (characters skipped, rest, new location)
+-- Return the (yokens for characters skipped, rest, new location)
 -- Complicated because we want to keep all characters inside ${...},
 -- but also correctly identifying the closing }, whilst tracking the location.
-interpSkip :: SLoc -> String -> Maybe (String, String, SLoc)
+interpSkip :: SLoc -> String -> Maybe ([Token], String, SLoc)
 interpSkip aloc ('$':'{':acs) =
 --  trace ("interpSkip " ++ acs) $
-  skip 0 "{$" aloc acs
-  where skip :: Int -> String -> SLoc -> String -> Maybe (String, String, SLoc)
-        skip 0 rs l ('}':cs)         = Just ('}':rs, cs, l)
+  skip 0 "" aloc' acs
+  where aloc' = addCol aloc 2
+        skip :: Int -> String -> SLoc -> String -> Maybe ([Token], String, SLoc)
+        skip 0 rs l ('}':cs)         = Just (recLex aloc' (reverse rs), cs, addCol l 1)
         skip n rs l ('{':'-':cs)     = skipn  n     ('-':'{':rs)           l 1 cs
         skip n rs l ('-':'-':cs)     = skipl  n     ('-':'-':rs)           l   cs
         skip n rs l ('{':cs)         = skip (n+1)       ('{':rs) (addCol l 1)  cs
@@ -557,9 +563,8 @@ interpSkip aloc ('$':'{':acs) =
 --        skips _ rs l cs | trace ("skips " ++ show (rs, l, cs)) False = undefined
         skips n rs l ('"'   :cs) = -- trace ("skips returns " ++ reverse ('"':rs)) $
           skip  n ('"'   :rs) (addCol l 1) cs
---        skips n rs l ('\\':'\\':cs) = skips n ('\\':'\\':'\\':'\\':rs) (addCol l 2) cs
-        skips n rs l ('\\':c:cs) = skips n (c:'\\':'\\':rs) (addCol l 2) cs
---        skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
+--        skips n rs l ('\\':c:cs) = skips n (c:'\\':'\\':rs) (addCol l 2) cs
+        skips n rs l ('\\':c:cs) = skips n (c:'\\':rs) (addCol l 2) cs
         skips n rs l (     c:cs) = skips n (c     :rs) (addCol l 1) cs
         skips n rs l []          = skip  n         rs            l  []
 
@@ -569,7 +574,7 @@ interpSkip aloc ('$':'{':acs) =
         skipl n rs l []          = skip  n    rs            l  []
 
         -- Skip {- -} comment.  Keep all the characters, and keep track of position.
-        skipn :: Int -> String -> SLoc -> Int -> String -> Maybe (String, String, SLoc)
+        skipn :: Int -> String -> SLoc -> Int -> String -> Maybe ([Token], String, SLoc)
         skipn n rs l 0 cs           = skip  n          rs            l          cs
         skipn n rs l d ('{':'-':cs) = skipn n ('-':'{':rs) (addCol l 2) (d + 1) cs
         skipn n rs l d ('-':'}':cs) = skipn n ('}':'-':rs) (addCol l 2) (d - 1) cs
@@ -579,24 +584,20 @@ interpSkip aloc ('$':'{':acs) =
         skipn n rs l d (c:cs)       = skipn n (c      :rs) (addCol l 1)  d      cs
         skipn n rs l _ []           = skip  n          rs            l          []
 
+        -- lex an expression to be interpolated.  Add interpolation markers.
+        recLex :: SLoc -> String -> [Token]
+        recLex l s = [TSpec l '$'] ++ init ls ++ [TSpec ll '%']
+          where ls = lex l s
+                ll = tokensLoc [last ls]
+
 interpSkip _ _ = Nothing
 
-mkInterp :: SLoc -> String -> [Token]
-mkInterp aloc acs = TSpec aloc 'I' : scan aloc [] acs
-  where scan :: SLoc -> String -> String -> [Token]
-        scan l rs [] = mkS l rs ++ [TSpec l 'E']
-        scan l rs cs@('$':'{':_) =
-          trace ("scan " ++ cs) $
-          case interpSkip l cs of
-            Just (_:rsexpr, rest, l') ->
-              let sexpr = drop 2 $ reverse rsexpr in  -- the string to re-lex.  
-              trace ("re-lex " ++ sexpr) $
-              mkS l rs ++ [TSpec l '$'] ++
-              init (lex (addCol l 2) sexpr) ++
-              [TSpec l' '%'] ++ scan l' [] rest
-            x -> error $ "mkInterp " ++ show (cs, x)
-        -- XXX handle TAB and NL
-        scan l rs (c:cs) = scan (addCol l 1) (c:rs) cs
+-- Splice in the interpolated tokens into the string
+mkInterp :: SLoc -> [[Token]] -> String -> [Token]
+mkInterp l atss as = TSpec l 'I' : splice atss [] as
+  where splice _        rs []                   = mkS rs ++ [TSpec l 'E']
+        splice (ts:tss) rs (c:cs) | c == chMark = mkS rs ++ ts ++ splice tss [] cs
+        splice tss      rs (c:cs)               = splice tss (c:rs) cs
 
-        mkS _ "" = []
-        mkS l rs = [TString l (reverse rs)]
+        mkS "" = []
+        mkS rs = [TString l (reverse rs)]
