@@ -1,0 +1,14 @@
+x=33
+y=Hello
+x+1=34
+y+!=Hello!-end
+y+{=Hello{-end
+y+"=Hello"-end
+x=33, y=Hello end
+a3b
+42
+This is a multiline string.
+x=33
+Third line.
+x=33
+y="Hello"

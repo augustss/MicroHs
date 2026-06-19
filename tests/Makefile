@@ -124,6 +124,7 @@ test:
 	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
 	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
 	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
+	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
 	$(TMHS) DerivingBuiltin
 
 testforimp:
