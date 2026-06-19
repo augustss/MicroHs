@@ -35,5 +35,6 @@ main = do
     x=${x}
     Third line.
     """
+  putStrLn s"a '${ y ++ s" x=${x}" ++ " end" }' b"
   putStrLn Interpolate.s"x=${x}"
   putStrLn Interpolate.s"y=${y}"

@@ -10,5 +10,6 @@ a3b
 This is a multiline string.
 x=33
 Third line.
+a 'Hello x=33 end' b
 x=33
 y="Hello"
