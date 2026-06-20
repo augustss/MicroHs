@@ -83,6 +83,9 @@ data NewlineMode = NewlineMode {inputNL :: Newline, outputNL :: Newline}
 
 data TextEncoding = UTF8
 
+instance Show TextEncoding where
+  show UTF8 = "UTF-8"
+
 mkTextEncoding :: String -> IO TextEncoding
 mkTextEncoding "UTF-8//ROUNDTRIP" = return UTF8
 mkTextEncoding _ = error "unknown text encoding"
@@ -90,6 +93,9 @@ mkTextEncoding _ = error "unknown text encoding"
 -- XXX Always in UTF8 mode
 hSetEncoding :: Handle -> TextEncoding -> IO ()
 hSetEncoding _ _ = return ()
+
+hGetEncoding :: Handle -> IO (Maybe TextEncoding)
+hGetEncoding _ = return (Just UTF8)
 
 latin1, utf8, utf8_bom, utf16, utf16le, utf16be, utf32, utf32le, utf32be, localeEncoding, char8 :: TextEncoding
 latin1 = UTF8
