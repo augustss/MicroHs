@@ -71,6 +71,12 @@ fixIO k = do
 instance MonadFix IO where
   mfix = fixIO
 
+instance Semigroup a => Semigroup (IO a) where
+  (<>) = liftA2 (<>)
+
+instance Monoid a => Monoid (IO a) where
+  mempty = pure mempty
+
 data Newline = LF | CRLF
   deriving (Eq, Ord, Show, Read)
 
