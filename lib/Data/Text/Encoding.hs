@@ -22,6 +22,7 @@ import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.Text
+import Data.Text.Internal
 import Data.Word.Word8 (intToWord8, word8ToInt)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -36,12 +37,12 @@ decodeASCIIPrefix bs = let (a, b) = BS.span (< 0x80) bs in (unsafeCoerce a, b) -
 
 decodeASCII :: ByteString -> Text
 decodeASCII bs
-    | isValidASCII bs = unsafeCoerce bs -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
+    | isValidASCII bs = T bs -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
     | otherwise = error "Data.Text.Encoding.decodeASCII: invalid"
 
 decodeUtf8 :: ByteString -> Text
 decodeUtf8 bs
-    | isValidUtf8 bs = unsafeCoerce bs -- Safety: the ByteString is valid UTF-8 and Text uses UTF-8 encoding
+    | isValidUtf8 bs = T bs -- Safety: the ByteString is valid UTF-8 and Text uses UTF-8 encoding
     | otherwise = error "Data.Text.Encoding.decodeUtf8: invalid"
 
 decodeUtf16LE :: ByteString -> Text
@@ -89,7 +90,7 @@ decodeUtf32BE bs
     decode _ = error "Data.Text.Encoding.decodeUtf32BE: impossible" -- length is not a multiple of 4
 
 encodeUtf8 :: Text -> ByteString
-encodeUtf8 = unsafeCoerce -- Safety: Text uses UTF-8 encoding
+encodeUtf8 (T bs) = bs -- Safety: Text uses UTF-8 encoding
 
 encodeUtf16LE :: Text -> ByteString
 encodeUtf16LE = BS.pack . concatMap f . unpack
