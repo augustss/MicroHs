@@ -41,6 +41,8 @@ module Data.Text(
   stripEnd,
   stripPrefix,
   stripSuffix,
+  all,
+  any,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map)
 import Control.DeepSeq.Class
@@ -219,3 +221,9 @@ stripPrefix p t = pack <$> L.stripPrefix (unpack p) (unpack t)
 
 stripSuffix :: Text -> Text -> Maybe Text
 stripSuffix p t = pack <$> L.stripSuffix (unpack p) (unpack t)
+
+all :: (Char -> Bool) -> Text -> Bool
+all p = L.all p . unpack
+
+any :: (Char -> Bool) -> Text -> Bool
+any p = L.any p . unpack
