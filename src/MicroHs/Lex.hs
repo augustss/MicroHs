@@ -55,7 +55,7 @@ showToken (TSpec _ c) | c == '<' = "{ layout"
                       | c == '>' = "} layout"
                       | c == 'L' = "(#"
                       | c == 'R' = "#)"
-                      | otherwise = ['S',c]
+                      | otherwise = [c]
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"

@@ -1348,21 +1348,19 @@ throwto(struct mthread *mt, NODEPTR exn)
 void
 check_thrown(bool intr)
 {
-  if (runq.mq_head->mt_exn->mv_data == NIL)
-    return;            /* no thrown exception */
   if (runq.mq_head->mt_mask == mask_uninterruptible ||
       (!intr && runq.mq_head->mt_mask == mask_interruptible)) {
-    return;            /* interrupts are masked, so don't throw */
+    /* interrupts are masked, so don't throw */
+    return;
   }
+  NODEPTR exn = take_mvar(true, runq.mq_head->mt_exn); /* get the exception */
+  if (exn == NIL)
+    return;            /* no thrown exception */
   /* the current thread has an async exception */
 #if THREAD_DEBUG
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-
-  NODEPTR exn = take_mvar(true, runq.mq_head->mt_exn); /* get the exception */
-  if (!exn)
-    ERR("check_thrown: no exception");
 
   raise_exn(exn);
 }

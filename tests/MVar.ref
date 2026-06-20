@@ -3,9 +3,9 @@ test1 B
 fun A
 test1 C
 test1 D
-test1 E
 999
 fun B
+test1 E
 fun A
 888
 fun B
