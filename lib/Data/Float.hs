@@ -115,6 +115,7 @@ instance Floating Float where
   asin x = casin x
   acos x = cacos x
   atan x = catan x
+  (**) x y = cpow x y
 
 foreign import ccall "logf"  clog  :: Float -> Float
 foreign import ccall "expf"  cexp  :: Float -> Float
@@ -127,6 +128,7 @@ foreign import ccall "acosf" cacos :: Float -> Float
 foreign import ccall "atanf" catan :: Float -> Float
 foreign import ccall "atan2f" catan2 :: Float -> Float -> Float
 foreign import ccall "scalbnf" cscalbn :: Float -> Int -> Float
+foreign import ccall "powf"  cpow  :: Float -> Float -> Float
 
 -- Assumes 32/64 bit floats
 instance RealFloat Float where

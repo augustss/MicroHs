@@ -118,6 +118,7 @@ instance Floating Double where
   asin x = casin x
   acos x = cacos x
   atan x = catan x
+  (**) x y = cpow x y
 
 foreign import ccall "log"  clog  :: Double -> Double
 foreign import ccall "exp"  cexp  :: Double -> Double
@@ -130,6 +131,7 @@ foreign import ccall "acos" cacos :: Double -> Double
 foreign import ccall "atan" catan :: Double -> Double
 foreign import ccall "atan2" catan2 :: Double -> Double -> Double
 foreign import ccall "scalbn" cscalbn :: Double -> Int -> Double
+foreign import ccall "pow"  cpow  :: Double -> Double -> Double
 
 -- Assumes 32/64 bit floats
 instance RealFloat Double where

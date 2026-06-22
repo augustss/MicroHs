@@ -7449,6 +7449,7 @@ from_t mhs_sin(int s) { return mhs_from_Double(s, 1, sin(mhs_to_Double(s, 0))); 
 from_t mhs_sqrt(int s) { return mhs_from_Double(s, 1, sqrt(mhs_to_Double(s, 0))); }
 from_t mhs_tan(int s) { return mhs_from_Double(s, 1, tan(mhs_to_Double(s, 0))); }
 from_t mhs_scalbn(int s) { return mhs_from_Double(s, 2, scalbn(mhs_to_Double(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_pow(int s) { return mhs_from_Double(s, 2, pow(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
 #endif  /* WANT_FLOAT64 */
 #if WANT_FLOAT32
 from_t mhs_acosf(int s) { return mhs_from_Float(s, 1, acosf(mhs_to_Float(s, 0))); }
@@ -7462,6 +7463,7 @@ from_t mhs_sinf(int s) { return mhs_from_Float(s, 1, sinf(mhs_to_Float(s, 0))); 
 from_t mhs_sqrtf(int s) { return mhs_from_Float(s, 1, sqrtf(mhs_to_Float(s, 0))); }
 from_t mhs_tanf(int s) { return mhs_from_Float(s, 1, tanf(mhs_to_Float(s, 0))); }
 from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_powf(int s) { return mhs_from_Float(s, 2, powf(mhs_to_Float(s, 0), mhs_to_Float(s, 1))); }
 #endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
@@ -7811,6 +7813,7 @@ const struct ffi_entry ffi_table[] = {
   { "sqrt", 1, mhs_sqrt},
   { "tan", 1, mhs_tan},
   { "scalbn", 2, mhs_scalbn},
+  { "pow", 2, mhs_pow},
   { "poke_flt64", 2, mhs_poke_flt64 },
   { "peek_flt64", 1, mhs_peek_flt64 },
 #endif  /* WANT_FLOAT64 */
@@ -7826,6 +7829,7 @@ const struct ffi_entry ffi_table[] = {
   { "sqrtf", 1, mhs_sqrtf},
   { "tanf", 1, mhs_tanf},
   { "scalbnf", 2, mhs_scalbnf},
+  { "powf", 2, mhs_powf},
   { "poke_flt32", 2, mhs_poke_flt32 },
   { "peek_flt32", 1, mhs_peek_flt32 },
 #endif  /* WANT_FLOAT32 */

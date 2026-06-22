@@ -259,7 +259,7 @@ runtimeFFI = [
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "remove",
   "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",
-  "scalbn", "scalbnf",
+  "scalbn", "scalbnf", "pow", "powf",
   "js_debug", "js_eval_run", "js_eval_call", "js_set_haskellCallback",
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
