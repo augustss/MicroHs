@@ -1032,6 +1032,7 @@ instance Pretty Expr where
         EUVar i -> text ("_a" ++ show i)
         EQVar e t -> parens $ ppE 0 e <> text ":::" <> ppE 0 t
         ECon c -> {-text "***" <>-} ppCon l c
+        EForall _ [] e | not raw -> ppE prec e
         EForall q iks e -> maybeParens (prec > 0) $ ppForall l q iks <+> ppE 0 e
 
     ppApp :: PrettyPrec -> [Expr] -> Expr -> Doc
