@@ -126,12 +126,18 @@ instance Interpolate Bool where
 measure :: Interpolate a => a -> Int
 measure = length . buildString . interpolate
 
-data Adjust a = LeftAdj Int a | RightAdj Int a
+data Adjust a
+  = LeftAdj          Int a
+  | RightAdj         Int a
+  | LeftAdjPad  Char Int a
+  | RightAdjPad Char Int a
   deriving (Eq, Show)
 
 instance Interpolate a => Interpolate (Adjust a) where
-  interpolate (LeftAdj  n a) = interpolate a <> fromString (replicate (n - measure a) ' ')
-  interpolate (RightAdj n a) = fromString (replicate (n - measure a) ' ') <> interpolate a
+  interpolate (LeftAdj       n a) = interpolate (LeftAdjPad  ' ' n a)
+  interpolate (RightAdj      n a) = interpolate (RightAdjPad ' ' n a)
+  interpolate (LeftAdjPad  c n a) = interpolate a <> fromString (replicate (n - measure a) c)
+  interpolate (RightAdjPad c n a) = fromString (replicate (n - measure a) c) <> interpolate a
 
 data FloatFmt a = EFloat Int a | FFloat Int a | GFloat Int a
   deriving (Eq, Show)
