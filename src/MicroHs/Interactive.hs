@@ -234,7 +234,7 @@ setOptions "-s" = do
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
 setOptions _ =
-  putStrLnI "Unknown flag.  Known flags: +s, -s"
+  putStrLnI "Unknown flag.  Known flags: +s, -s, path=PATH"
 
 reload :: I ()
 reload = do
@@ -258,17 +258,8 @@ helpText = "\
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ is -> is{ isLines = f (isLines is) }
 
---updateCache :: (Cache -> Cache) -> I ()
---updateCache f = modify $ \ is -> is{ isCache = f (isCache is) }
-
---setSyms :: Symbols -> I ()
---setSyms syms = modify $ \ is -> is{ isSymbols = syms }
-
 interactiveName :: String
 interactiveName = "Interactive"
-
---interactiveId :: Ident
---interactiveId = mkIdent interactiveName
 
 itName :: String
 itName = "_it"
@@ -321,17 +312,16 @@ oneline aline = do
   let line = dropWhile isSpace aline
   ls <- gets isLines
   stats <- gets isStats
-  let lls = ls ++ line ++ "\n"
-      def = do
+  let def lls = do
         defTest <- tryCompile lls
         case defTest of
           Right _ -> do
             updateLines (const lls)
           Left  e -> err e
-      expr = do
+      expr ln = do
 --        t1 <- liftIO getTimeMilli
         flgs <- gets isFlags
-        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats line)
+        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats ln)
         case exprTest of
           Right (m, _) -> do
             evalExpr m
@@ -348,16 +338,20 @@ oneline aline = do
     reload
    else 
     -- First try to parse as a definition,
-    tryParse pTopModule lls def $ \ _ ->
+    tryParse pTopModule (ls ++ line ++ "\n") def $ \ _ ->
       -- if that fails, parse as an expression.
-      tryParse pExprTop line expr $
-        liftIO . err'
+      tryParse pExprTop line expr $ \ msg ->
+        -- finally, try to strip an initial 'let' and parse as a definition
+        let emsg = liftIO (err' msg) in
+        case stripPrefix "let " line of
+          Just line' -> tryParse pTopModule (ls ++ line' ++ "\n") def $ const emsg
+          Nothing    -> emsg
 
 tryParse :: forall a . -- Show a =>
-            P a -> String -> I () -> (String -> I ()) -> I ()
+            P a -> String -> (String -> I ()) -> (String -> I ()) -> I ()
 tryParse p s ok bad =
   case parse p "" s of
-    Right _ -> ok
+    Right _ -> ok s
     Left  e -> bad e
 
 tryCompile :: String -> I (Either SomeException ([LDef], TCState))
