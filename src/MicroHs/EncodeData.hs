@@ -22,6 +22,52 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
 
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
+encCase e pes@((SPat (ConData cs _ _) _, _) : _) dflt =
+  let m = length cs                    -- number of constructors
+      arm (c, k) =
+          head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
+                 [ lams (replicate k dummyIdent) dflt ]
+      cased = LPrim $ "CASED_" ++ show m
+  in  apps (Lit cased) (e : map arm cs)
+
+encConstr :: Int -> Int -> [Bool] -> Exp
+encConstr k m ss =          -- constructor k out of n
+  let n = length ss         -- constructor arity
+      con = LPrim $ "CON_" ++ show k ++ "_" ++ show n
+      xs = [mkIdent ("$x" ++ show j) | j <- [0 .. n-1] ]
+      res = apps (Lit con) (map Var xs)
+      encLazy   = lams xs                res
+      encStrict = lams xs $ strict ss xs res
+      strict (False:ys) (_:is) e = strict ys is e
+      strict (True :ys) (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
+      strict _          _      e = e
+  in  if or ss then encStrict else encLazy
+
+-- Special case of encCase
+encIf :: Exp -> Exp -> Exp -> Exp
+encIf c t e = apps (Lit (LPrim "CASED_2")) [c, t, e]
+
+encList :: [Exp] -> Exp
+encList = foldr (app2 cCons) cNil
+
+cNil :: Exp
+cNil = encConstr 0 2 []
+
+cCons :: Exp
+cCons = encConstr 1 2 [False, False]
+
+-- XXX get rid of replicate
+encTuple :: [Exp] -> Exp
+encTuple es = apps (encConstr 0 1 (replicate (length es) False) es
+
+encTupleSel :: Int -> Int -> Exp -> Exp
+encTupleSel m n tup =
+  let
+    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
+  in App tup (foldr Lam (Var (xs !! m)) xs)
+
+{-
+encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes dflt | n <= scottLimit = encCaseScott var pes dflt
                      | otherwise = encCaseNo var pes dflt
   where n = numConstr pes
@@ -224,3 +270,4 @@ encTupleSel m n tup =
     xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
+-}
