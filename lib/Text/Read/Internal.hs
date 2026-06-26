@@ -56,6 +56,8 @@ import Data.Eq
 import Data.Float
 import Data.Fractional
 import Data.Function
+import Data.Functor.Const_Type
+import Data.Functor.Identity
 import Data.Maybe
 import Data.Monoid
 import Data.Int
@@ -857,3 +859,5 @@ deriving newtype instance Read WordPtr
 deriving instance Read a => Read (First a)
 deriving instance Read a => Read (Last a)
 deriving instance Read (f a) => Read (Ap f a)
+deriving instance Read a => Read (Identity a)
+deriving instance Read a => Read (Const a b)
