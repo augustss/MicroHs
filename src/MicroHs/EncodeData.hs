@@ -9,7 +9,6 @@ module MicroHs.EncodeData(
   encTupleSel,
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.List
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..), impossible)
 import MicroHs.Ident
@@ -22,252 +21,57 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
 
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCase e pes@((SPat (ConData cs _ _) _, _) : _) dflt =
+encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
   let m = length cs                    -- number of constructors
       arm (c, k) =
           head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                  [ lams (replicate k dummyIdent) dflt ]
-      cased = LPrim $ "CASED_" ++ show m
-  in  apps (Lit cased) (e : map arm cs)
+  in  apps (cCase m) (var : map arm cs)
+encCase _ _ _ = impossible
 
+-- constructor k out of m
 encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr k m ss =          -- constructor k out of n
+encConstr k m ss | or ss     = encConstrStrict k m ss
+                 | otherwise = encConstrLazy   k m
+
+-- constructor k out of m
+encConstrStrict :: Int -> Int -> [Bool] -> Exp
+encConstrStrict k m ss =
   let n = length ss         -- constructor arity
-      con = LPrim $ "CON_" ++ show k ++ "_" ++ show n
       xs = [mkIdent ("$x" ++ show j) | j <- [0 .. n-1] ]
-      res = apps (Lit con) (map Var xs)
-      encLazy   = lams xs                res
-      encStrict = lams xs $ strict ss xs res
       strict (False:ys) (_:is) e = strict ys is e
       strict (True :ys) (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
       strict _          _      e = e
-  in  if or ss then encStrict else encLazy
+  in  lams xs $ strict ss xs $ apps (cCon k m) (map Var xs)
+
+-- Constructor k out of m
+encConstrLazy :: Int -> Int -> Exp
+encConstrLazy k m = cCon k m
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
-encIf c t e = apps (Lit (LPrim "CASED_2")) [c, t, e]
+encIf c t e = apps (cCase 2) [c, t, e]
 
 encList :: [Exp] -> Exp
 encList = foldr (app2 cCons) cNil
 
 cNil :: Exp
-cNil = encConstr 0 2 []
+cNil = encConstrLazy 0 2
 
 cCons :: Exp
-cCons = encConstr 1 2 [False, False]
+cCons = encConstrLazy 1 2
 
 -- XXX get rid of replicate
 encTuple :: [Exp] -> Exp
-encTuple es = apps (encConstr 0 1 (replicate (length es) False) es
+encTuple es = apps (encConstrLazy 0 1) es
 
 encTupleSel :: Int -> Int -> Exp -> Exp
 encTupleSel m n tup =
-  let
-    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in App tup (foldr Lam (Var (xs !! m)) xs)
+  let xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
+  in  apps (cCase 1) [tup, foldr Lam (Var (xs !! m)) xs]
 
-{-
-encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCase var pes dflt | n <= scottLimit = encCaseScott var pes dflt
-                     | otherwise = encCaseNo var pes dflt
-  where n = numConstr pes
+cCase :: Int -> Exp
+cCase m = Lit $ LPrim $ "D_" ++ show m
 
-encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr i n ss | n <= scottLimit = encConstrScott i n ss
-                 | otherwise       = encConstrNo i n ss
-
-encIf :: Exp -> Exp -> Exp -> Exp
-encIf = encIfScott
-
--- Lowest value that works is 3.
--- The runtime system knows the encoding of some types:
--- Bool, [], Ordering
-scottLimit :: Int
-scottLimit = 6
--- Some timing for different limits
---   3  27.9s
---   5  26.5s
---  10  26.4s
---  20  27.3s
--- 100  32.0s
-
--- Special tuple constructors T3,T4,...Tn
-tupleLimit :: Int
-tupleLimit = 16
-
--- Special tag constructors TAG0,TAG1,...Tn
-tagLimit :: Int
-tagLimit = 32
-
--------------------------------------------
-
--- Scott encoding
---   C_i e1 ... en
--- encodes as, assuming k constructors
---   \ x1 ... xn -> \ f1 ... fi ... fk -> fi x1 ... xn
-
--- Encode a case expression:
---  case var of p1->e1; p2->e2; ...; _->dflt
-encCaseScott :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCaseScott var pes dflt =
-  --trace ("mkCase " ++ show pes) $
-  case pes of
-    (SPat (ConData cs _ _) _, _) : _ ->
-      let
-        arm (c, k) =
-          head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
-                 [ lams (replicate k dummyIdent) dflt ]
-      in  apps var (map arm cs)
-    _ -> undefined
-
--- Encode a constructor with strictness flags ss.
--- The constructor arity is given by ss, and the constructor number is i out of n.
--- It's always possible to just use the lambda expression, but we handle some
--- cases specially to speed up combinator optimization.
-encConstrScott :: Int -> Int -> [Bool] -> Exp
-encConstrScott i n ss | or ss     = encConstrScottStrict i n ss
-                      | otherwise = encConstrScottLazy   i n (length ss)
-
-encConstrScottLazy :: Int -> Int -> Int -> Exp
-encConstrScottLazy i n l =
-  case (i, n, l) of
-    (0, 1, 0) -> comb "I"       -- single nullary
-    (0, 1, 1) -> comb "U"       -- single unary
-    (0, 1, 2) -> comb "P"       -- pair/...
-    (0, 1, _) | l <= tupleLimit -> comb ("T" ++ show l)
-
-    (0, 2, 0) -> comb "K"       -- []/False/Nothing/...
-    (0, 2, 1) -> comb "L"       -- Left/...
-
-    (1, 2, 0) -> comb "A"       -- True/...
-    (1, 2, 1) -> comb "J"       -- Just/...
-    (1, 2, 2) -> comb "O"       -- (:)/...
-
-    (0, 3, 0) -> comb "K2"      -- LT/...
-    (1, 3, 0) -> comb "KK"      -- EQ/...
-    (2, 3, 0) -> comb "KA"      -- GT/...
-    _ -> encConstrScottLambda i n l
-  where comb = Lit . LPrim
-
-encConstrScottLambda :: Int -> Int -> Int -> Exp
-encConstrScottLambda i n l =
-  let
-    f = mkIdent "$f"
-    fs = map (\ k -> if k == i then f else dummyIdent) [0::Int .. n-1]
-    xs = [mkIdent ("$x" ++ show j) | j <- [0 .. l-1] ]
-  in lams xs $ lams fs $ apps (Var f) (map Var xs)
-
-encConstrScottStrict :: Int -> Int -> [Bool] -> Exp
-encConstrScottStrict i n ss =
-  let
-    f = mkIdent "$f"
-    fs = map (\ k -> if k == i then f else dummyIdent) [0::Int .. n-1]
-    xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
-    strict (False:ys) (_:is) e = strict ys is e
-    strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
-    strict _ _ e = e
-  in lams xs $ strict ss xs $ lams fs $ apps (Var f) (map Var xs)
-
-encIfScott :: Exp -> Exp -> Exp -> Exp
-encIfScott c t e = app2 c e t
-
-encList :: [Exp] -> Exp
-encList = foldr (app2 cCons) cNil
-
-cCons :: Exp
-cCons = encConstrScottLazy 1 2 2
-
-cNil :: Exp
-cNil = encConstrScottLazy 0 2 0
-
--------------------------------------------
-
--- Explicit constructor number encoding
---   C_i e1 e2 ... en
--- encodes as
---   (i, (e1, e2, ..., en))
--- with the tuples being Scott encoded.
-
--- Could be improved by a new node type holding
--- both the constructor number and a pointer to the tuple.
--- Also, could use a "jump table" case combinator instead
--- of a decision tree.
-
-encConstrNo :: Int -> Int -> [Bool] -> Exp
-encConstrNo i _n ss =
-  let
-    xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
-    strict (False:ys) (_:is) e = strict ys is e
-    strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
-    strict _ _ e = e
-  in lams xs $ strict ss xs $ encTag i $ encTuple (map Var xs)
-
-encTag :: Int -> Exp -> Exp
-encTag i e | i <= tagLimit = App (Lit (LPrim ("TAG" ++ show i))) e
-           | otherwise     = encTuple [Lit (LInt i), e]
-
-encCaseNo :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCaseNo var pes dflt =
-  App var (Lam n $ Lam t $ caseTree (Var n) (Var t) 0 (numConstr pes) pes' dflt)
-  where n = mkIdent "$n"
-        t = mkIdent "$tt"
-        pes' = sortBy (\ (x, _, _) (y, _, _) -> compare x y)
-                      [(conNo c, xs, e) | (SPat c xs, e) <- pes]
-
-caseTree :: Exp -> Exp -> Int -> Int -> [(Int, [Ident], Exp)] -> Exp -> Exp
-caseTree n tup lo hi pes dflt =
-  case pes of
-    [] -> dflt
-    [(i, xs, e)] | hi - lo == 1 -> match tup xs e
-                 | otherwise    -> encIf (eqInt i n) (match tup xs e) dflt
-{-
-    -- Strangely, this slows things down.
-    -- Why?  A 3-way branch should be better than a 2-way.
-    [(i, xs, e), (_, xs', e')]
-                 | hi - lo == 2 -> encIf (eqInt i n) (match tup xs e) (match tup xs' e')
-    _ ->
-      case splitAt (length pes `quot` 2) pes of
-        (pesl, (i, xs, e) : pesh) ->
-          encTri (cmpInt i n) (caseTree n tup (i+1) hi pesh dflt)
-                              (match tup xs e)
-                              (caseTree n tup lo i pesl dflt)
-        _ -> impossible
--}
-    _ ->
-      case splitAt (length pes `quot` 2) pes of
-        (pesl, pesh@((i, _, _):_)) ->
-          encIf (gtInt i n) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
-        _ -> impossible
- where
-   eqInt :: Int -> Exp -> Exp
-   eqInt i x = app2 (Lit (LPrim "==")) (Lit (LInt i)) x
-   gtInt :: Int -> Exp -> Exp
-   gtInt i x = app2 (Lit (LPrim ">")) (Lit (LInt i)) x
-   match :: Exp -> [Ident] -> Exp -> Exp
-   match e is rhs = App e $ lams is rhs
-{-
-   cmpInt :: Exp -> Int -> Exp
-   cmpInt i x = app2 (Lit (LPrim "icmp")) (Lit (LInt i)) x
-   encTri o l e h = app3 o l e h
--}
-
-conNo :: Con -> Int
-conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
-conNo _ = undefined
-
-numConstr :: [(SPat, Exp)] -> Int
-numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
-numConstr _ = undefined
-
--- Make a tuple
-encTuple :: [Exp] -> Exp
-encTuple es = apps (encConstrScottLazy 0 1 (length es)) es
-
--- Select component m from an n-tuple
-encTupleSel :: Int -> Int -> Exp -> Exp
-encTupleSel m n tup =
-  let
-    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in App tup (foldr Lam (Var (xs !! m)) xs)
-
--}
+cCon :: Int -> Int -> Exp
+cCon k n = Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
