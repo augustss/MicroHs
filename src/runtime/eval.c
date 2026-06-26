@@ -566,7 +566,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
+                T_CASE, T_LOOK, T_CONSTR,
                 T_LAST_TAG,
+                T_XXX = 0x7fffffff
 };
 
 /* Most entries are initialized from the primops table. */
@@ -625,6 +627,20 @@ typedef struct PACKED node {
 #define BIT_AP    0
 #define BIT_TG    1
 #define BIT_IN    2
+#define TAG_BITS  10        /* Allow 4096 primops */
+#define TAG_MASK  ((1 << TAG_BITS) - 1)
+
+#define MK_CASE(m) ((T_CASE | ((m) << TAG_BITS)))
+#define MK_LOOK(m) ((T_LOOK | ((m) << TAG_BITS)))
+#define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
+#define CASE_SIZE(tag, m) ((m) = (tag) >> (TAG_BITS + TAG_SHIFT))
+#define CONSTR_NO(tag, k, n) ((n) = (tag) >> (TAG_BITS + TAG_SHIFT + 10), (k) = ((tag) >> (TAG_BITS + TAG_SHIFT)) & 0x3ff)
+
+static INLINE tag_t GETRAWTAG(NODEPTR p)
+{
+  tag_t t = p->ufun.uutag;
+  return t;
+}
 
 static INLINE tag_t GETTAG(NODEPTR p)
 {
@@ -632,7 +648,7 @@ static INLINE tag_t GETTAG(NODEPTR p)
   switch(t & BIT_MASK) {
   case BIT_AP: return T_AP;
   case BIT_IN: return T_IND;
-  default:     return t >> TAG_SHIFT;
+  default:     return (t >> TAG_SHIFT) & TAG_MASK;
   }
 }
 static INLINE void SETTAG(NODEPTR p, tag_t t)
@@ -2386,6 +2402,9 @@ struct {
   { "Utou", T_U64TOU },
 #endif  /* WANT_INT64 */
   { "tick", T_TICK },           /* fake op */
+  { "D_", T_CASE },
+  { "L_", T_LOOK },
+  { "C_", T_CONSTR },
 };
 
 #if GCRED
@@ -3934,6 +3953,37 @@ parse(BFILE *f)
         ERR1("unknown funptr '%s'", buf);
       }
       break;
+    case 'C':
+      if (gobble(f, '_')) {
+        int k = parse_int(f);
+        if (!gobble(f, '_'))
+          ERR("parse C");
+        int n = parse_int(f);
+        r = alloc_node(MK_CONSTR(k, n));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }
+    case 'D':
+      if (gobble(f, '_')) {
+        int m = parse_int(f);
+        r = alloc_node(MK_CASE(m));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }      
+    case 'L':
+      if (gobble(f, '_')) {
+        int m = parse_int(f);
+        r = alloc_node(MK_LOOK(m));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }      
+    def:
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
@@ -4327,6 +4377,29 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
 #endif
+  case T_CASE:
+  case T_LOOK:
+    {
+      putb(tag == T_CASE ? 'D' : 'L', f);
+      putb('_', f);
+      tag_t rtag = GETRAWTAG(n);
+      int m;
+      CASE_SIZE(rtag, m);
+      putdecb((value_t)m, f);
+      break;
+    }
+  case T_CONSTR:
+    {
+      putb('C', f);
+      putb('_', f);
+      tag_t rtag = GETRAWTAG(n);
+      int k, n;
+      CONSTR_NO(rtag, k, n);
+      putdecb((value_t)k, f);
+      putb('_', f);
+      putdecb((value_t)n, f);
+      break;
+    }
   default:
     if (0 <= tag && tag <= T_LAST_TAG) {
       if (tag_names[tag]) {
@@ -6426,6 +6499,7 @@ evali(NODEPTR an)
 #endif
 
   default:
+    fprintf(stderr, "LAST=%d\n", (int)T_LAST_TAG);
     ERR1("eval tag %s", TAGNAME(GETTAG(n)));
   }
 
