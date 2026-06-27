@@ -630,6 +630,8 @@ typedef struct PACKED node {
 #define TAG_BITS  10        /* Allow 4096 primops */
 #define TAG_MASK  ((1 << TAG_BITS) - 1)
 
+#define TAGOF(t) (((t) >> TAG_SHIFT) & TAG_MASK)
+
 #define MK_CASE(m) ((T_CASE | ((m) << TAG_BITS)))
 #define MK_LOOK(m) ((T_LOOK | ((m) << TAG_BITS)))
 #define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
@@ -648,7 +650,7 @@ static INLINE tag_t GETTAG(NODEPTR p)
   switch(t & BIT_MASK) {
   case BIT_AP: return T_AP;
   case BIT_IN: return T_IND;
-  default:     return (t >> TAG_SHIFT) & TAG_MASK;
+  default:     return TAGOF(t);
   }
 }
 static INLINE void SETTAG(NODEPTR p, tag_t t)
@@ -1123,13 +1125,14 @@ NODEPTR combCATCHR;
 NODEPTR combFst, combSnd;
 NODEPTR combFP2P;
 NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
-#define combFalse combK
-#define combTrue combA
-#define combNothing combK
-#define combUnit combI
-#define combLT combK2
-#define combEQ combKK
-#define combGT combKA
+
+NODEPTR combFalse;
+NODEPTR combTrue;
+NODEPTR combNothing;
+NODEPTR combUnit;
+NODEPTR combLT;
+NODEPTR combEQ;
+NODEPTR combGT;
 
 /*******************************/
 
@@ -2567,11 +2570,9 @@ init_nodes(void)
 
   init_primop_hash();
 
-  /* The representation of the constructors of
-   *  data Ordering = LT | EQ | GT
-   * do not have single constructors.
-   * But we can make compound one, since they are irreducible.
-   */
+  combFalse = NEW
+
+#define NEW(n, t) do { n = HEAPREF(heap_start++); SETTAG(n, t); } while(0)
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
   {
@@ -2581,12 +2582,26 @@ init_nodes(void)
     NEWAP(x, combU, x);                /* (U (K2 A)) */
     NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
   }
-  NEWAP(combJust, combZ, combU);       /* (Z U) */
+  NEW(combFalse, MK_CONSTR(0, 0));
+  NEW(combTrue, MK_CONSTR(1, 0));
+  NEW(combNothing, MK_CONSTR(0, 0));
+  NEW(combJust, MK_CONSTR(1, 1));
+  NEW(combUnit, MK_CONSTR(0, 0));
+  NEW(combLT, MK_CONSTR(0, 0));
+  NEW(combEQ, MK_CONSTR(1, 0));
+  NEW(combEQ, MK_CONSTR(2, 0));
+  {
+    NODEPTR d_1 = NEW(MK_CASE(1));
+    NODEPTR x;
+    NEWAP(x, combC, d_1);
+    NEWAP(combFst, x, combK);
+    NEWAP(combSnd, x, combA);
+  }
   MKINT(combWorld, 99999);
   NEWAP(combPairUnit, combPair, combUnit);
-  NEWAP(combFst, combU, combK);
-  NEWAP(combSnd, combU, combA);
+#undef NEW
 #undef NEWAP
+#undef MKINT
 
 #if INTTABLE
   /* Allocate permanent Int nodes */
@@ -5073,6 +5088,7 @@ evali(NODEPTR an)
   heapoffs_t l;
 #endif
   enum node_tag tag;
+  tag_t rtag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
 #if WANT_STDIO
@@ -5146,28 +5162,25 @@ evali(NODEPTR an)
   } else
 #endif
     {
-    tag_t ut;
     /* first follow AP nodes down the spine */
     for(;;) {
-      ut = n->ufun.uutag;
-      if ((ut & BIT_MASK) != BIT_AP)
+      rtag = GETRAWTAG(n);
+      if ((rtag & BIT_MASK) != BIT_AP)
         break;
       PUSH(n);
-      n = (NODEPTR)ut;
+      n = (NODEPTR)rtag;
     }
     /* Skip idirections */
-    if ((ut & BIT_MASK) == BIT_IN) {
+    if ((rtag & BIT_MASK) == BIT_IN) {
       /* Follow and short-circuit the chain. */
       NODEPTR on = n;
       do {
         n = GETINDIR(n);
       } while(ISINDIR(n));
       SETINDIR(on, n);          /* and short-circuit them */
-      tag = GETTAG(n);
-    } else {
-      /* The tag is the rest of the bits we fetched */
-      tag = ut >> TAG_SHIFT;
+      rtag = GETRAWTAG(n);
     }
+    tag = TAGOF(rtag);
   }
   /* Invariant: at this point n=current node, tag=GETTAG(n) */
 
@@ -6497,6 +6510,40 @@ evali(NODEPTR an)
     dotick(xi);
     GOIND(x);
 #endif
+
+  case T_CASE:
+    {
+      /* CASE_m e ...  -->  e LOOK_m ... */
+      GCCHECK(1);
+      CHKARG1;
+      int m;
+      CASE_SIZE(rtag, m);
+      NODEPTR l = alloc_node(MK_LOOK(m));
+      GOAP(x, l);
+    }
+  case T_LOOK:
+    RET;                        /* this should never happen */
+  case T_CONSTR:
+    {
+      int k, m, nn;
+      CONSTR_NO(rtag, k, nn);
+      CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
+      NODEPTR p = ARG(TOP(nn));  /* The LOOK_m */
+      tag_t ltag = GETRAWTAG(p);
+      if (TAGOF(ltag) != T_LOOK)
+        ERR("constr no LOOK");
+      CASE_SIZE(ltag, m);
+      /* CONSTR_k_n e1 ... en LOOK_m f0 ... f{m-1}  -->  fk e1 ... en */
+      GCCHECK(nn);
+      /* XXX should sanity check stack depth */
+      NODEPTR fk = ARG(TOP(nn + 1 + k));
+      for (int i=0; i < nn; i++) {
+        fk = new_ap(fk, ARG(TOP(i)));
+      }
+      POP(nn + 1 + m);
+      n = TOP(-1);
+      GOIND(fk);
+    }
 
   default:
     fprintf(stderr, "LAST=%d\n", (int)T_LAST_TAG);

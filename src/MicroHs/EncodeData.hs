@@ -31,22 +31,22 @@ encCase _ _ _ = impossible
 
 -- constructor k out of m
 encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr k m ss | or ss     = encConstrStrict k m ss
-                 | otherwise = encConstrLazy   k m
+encConstr k _m ss | or ss     = encConstrStrict k ss
+                  | otherwise = encConstrLazy   k (length ss)
 
 -- constructor k out of m
-encConstrStrict :: Int -> Int -> [Bool] -> Exp
-encConstrStrict k m ss =
+encConstrStrict :: Int -> [Bool] -> Exp
+encConstrStrict k ss =
   let n = length ss         -- constructor arity
       xs = [mkIdent ("$x" ++ show j) | j <- [0 .. n-1] ]
       strict (False:ys) (_:is) e = strict ys is e
       strict (True :ys) (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
       strict _          _      e = e
-  in  lams xs $ strict ss xs $ apps (cCon k m) (map Var xs)
+  in  lams xs $ strict ss xs $ apps (cCon k n) (map Var xs)
 
 -- Constructor k out of m
 encConstrLazy :: Int -> Int -> Exp
-encConstrLazy k m = cCon k m
+encConstrLazy k n = cCon k n
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
