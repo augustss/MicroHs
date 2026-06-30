@@ -630,8 +630,6 @@ typedef struct PACKED node {
 #define TAG_BITS  10        /* Allow 4096 primops */
 #define TAG_MASK  ((1 << TAG_BITS) - 1)
 
-#define TAGOF(t) (((t) >> TAG_SHIFT) & TAG_MASK)
-
 #define MK_CASE(m) ((T_CASE | ((m) << TAG_BITS)))
 #define MK_LOOK(m) ((T_LOOK | ((m) << TAG_BITS)))
 #define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
@@ -640,19 +638,23 @@ typedef struct PACKED node {
 
 static INLINE tag_t GETRAWTAG(NODEPTR p)
 {
-  tag_t t = p->ufun.uutag;
-  return t;
+  return p->ufun.uutag;
+}
+
+static INLINE enum node_tag TAGOF(tag_t t)
+{
+  switch(t & BIT_MASK) {
+  case BIT_AP: return T_AP;
+  case BIT_IN: return T_IND;
+  default:     return (t >> TAG_SHIFT) & TAG_MASK;
+  }
 }
 
 static INLINE tag_t GETTAG(NODEPTR p)
 {
-  tag_t t = p->ufun.uutag;
-  switch(t & BIT_MASK) {
-  case BIT_AP: return T_AP;
-  case BIT_IN: return T_IND;
-  default:     return TAGOF(t);
-  }
+  return TAGOF(GETRAWTAG(p));
 }
+
 static INLINE void SETTAG(NODEPTR p, tag_t t)
 {
   switch(t) {
@@ -1105,9 +1107,9 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combA, combI, combCons, combPair;
+NODEPTR combK, combA, combI;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
-NODEPTR combKK, combKA;
+NODEPTR combKK, combKA, combP;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
@@ -1117,22 +1119,20 @@ NODEPTR combBINFLT1, combBINFLT2, combUNFLT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
-NODEPTR combJust;
 NODEPTR combTHROWTO;
-NODEPTR combPairUnit;
-NODEPTR combWorld;
 NODEPTR combCATCHR;
-NODEPTR combFst, combSnd;
 NODEPTR combFP2P;
 NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
 
-NODEPTR combFalse;
-NODEPTR combTrue;
-NODEPTR combNothing;
+NODEPTR combFalse, combTrue;
+NODEPTR combNothing, combJust;
 NODEPTR combUnit;
-NODEPTR combLT;
-NODEPTR combEQ;
-NODEPTR combGT;
+NODEPTR combNil, combCons;
+NODEPTR combPair;
+NODEPTR combFst, combSnd;
+NODEPTR combLT, combEQ, combGT;
+NODEPTR combPUnit;
+NODEPTR combWorld;
 
 /*******************************/
 
@@ -2510,10 +2510,8 @@ init_nodes(void)
     SETTAG(n, t);
     switch (t) {
     case T_K: combK = n; break;
-    case T_A: combTrue = n; break;
     case T_I: combI = n; break;
-    case T_O: combCons = n; break;
-    case T_P: combPair = n; break;
+    case T_P: combP = n; break;
     case T_CC: combCC = n; break;
     case T_BB: combBB = n; break;
     case T_B: combB = n; break;
@@ -2570,8 +2568,6 @@ init_nodes(void)
 
   init_primop_hash();
 
-  combFalse = NEW
-
 #define NEW(n, t) do { n = HEAPREF(heap_start++); SETTAG(n, t); } while(0)
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
@@ -2587,18 +2583,21 @@ init_nodes(void)
   NEW(combNothing, MK_CONSTR(0, 0));
   NEW(combJust, MK_CONSTR(1, 1));
   NEW(combUnit, MK_CONSTR(0, 0));
-  NEW(combLT, MK_CONSTR(0, 0));
-  NEW(combEQ, MK_CONSTR(1, 0));
-  NEW(combEQ, MK_CONSTR(2, 0));
+  NEW(combNil, MK_CONSTR(0, 0));
+  NEW(combCons, MK_CONSTR(1, 2));
+  NEW(combPair, MK_CONSTR(0, 2));
   {
-    NODEPTR d_1 = NEW(MK_CASE(1));
+    NODEPTR d_1; NEW(d_1, MK_CASE(1));
     NODEPTR x;
     NEWAP(x, combC, d_1);
     NEWAP(combFst, x, combK);
     NEWAP(combSnd, x, combA);
   }
+  NEW(combLT, MK_CONSTR(0, 0));
+  NEW(combEQ, MK_CONSTR(1, 0));
+  NEW(combEQ, MK_CONSTR(2, 0));
+  NEWAP(combPUnit, combP, combUnit);
   MKINT(combWorld, 99999);
-  NEWAP(combPairUnit, combPair, combUnit);
 #undef NEW
 #undef NEWAP
 #undef MKINT
@@ -5112,9 +5111,9 @@ evali(NODEPTR an)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
 #define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
 #define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
-#define GOPAIR(a) do { FUN(n) = new_ap(combPair, (a)); goto ap; } while(0)
-#define GOPAIRUNIT do { FUN(n) = combPairUnit; goto ap; } while(0)
-#define GOBOOL(b) do { if (b) goto lbltrue; else goto lblfalse; } while(0)
+#define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); goto ap; } while(0)
+#define GOPAIRUNIT do { FUN(n) = combPUnit; goto ap; } while(0)
+#define GOBOOL(b) do { GOIND(b ? combTrue : combFalse); } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -5184,7 +5183,7 @@ evali(NODEPTR an)
   }
   /* Invariant: at this point n=current node, tag=GETTAG(n) */
 
-  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -5214,11 +5213,7 @@ evali(NODEPTR an)
    */
   case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
   case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
-  lblfalse:
-    n = combFalse;
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
-  lbltrue:
-    n = combTrue;
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
@@ -5256,70 +5251,6 @@ evali(NODEPTR an)
                GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
                GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
 
-  case T_TAG0:
-  case T_TAG1:
-  case T_TAG2:
-  case T_TAG3:
-  case T_TAG4:
-  case T_TAG5:
-  case T_TAG6:
-  case T_TAG7:
-  case T_TAG8:
-  case T_TAG9:
-  case T_TAG10:
-  case T_TAG11:
-  case T_TAG12:
-  case T_TAG13:
-  case T_TAG14:
-  case T_TAG15:
-  case T_TAG16:
-  case T_TAG17:
-  case T_TAG18:
-  case T_TAG19:
-  case T_TAG20:
-  case T_TAG21:
-  case T_TAG22:
-  case T_TAG23:
-  case T_TAG24:
-  case T_TAG25:
-  case T_TAG26:
-  case T_TAG27:
-  case T_TAG28:
-  case T_TAG29:
-  case T_TAG30:
-  case T_TAG31:
-  case T_TAG32:
-               GCCHECK(2); CHKARG2; GOAP2(y, mkInt(tag - T_TAG0), x);                     /* TAGN x y = y (INT N) x */
-
-  case T_T3:   GCCHECK(2); CHECK(4); POP(4); n = TOP(-1); x = ARG(n);
-               GOAP2(new_ap(x, ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));                /* T3 x1 x2 x3 f = x x1 x2 x3 */
-  case T_T4:   GCCHECK(3); CHECK(5); POP(5); n = TOP(-1); x = ARG(n);
-               GOAP2(new_ap(new_ap(x, ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));  /* T4 x1 x2 x3 x4 f = x x1 x2 x3 x4 */
-  case T_T5:   GCCHECK(4); CHECK(6); POP(6); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(x, ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T6:   GCCHECK(5); CHECK(7); POP(7); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T7:   GCCHECK(6); CHECK(8); POP(8); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T8:   GCCHECK(7); CHECK(9); POP(9); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T9:   GCCHECK(8); CHECK(10); POP(10); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T10:   GCCHECK(9); CHECK(11); POP(11); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T11:   GCCHECK(10); CHECK(12); POP(12); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T12:   GCCHECK(11); CHECK(13); POP(13); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T13:   GCCHECK(12); CHECK(14); POP(14); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T14:   GCCHECK(13); CHECK(15); POP(15); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T15:   GCCHECK(14); CHECK(16); POP(16); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-16))), ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-  case T_T16:   GCCHECK(15); CHECK(17); POP(17); n = TOP(-1); x = ARG(n);
-    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-17))), ARG(TOP(-16))), ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
-
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
      * The easiest way to do this is to just recursively call evali() for each argument.
@@ -5335,6 +5266,8 @@ evali(NODEPTR an)
      *  Continue evaluation of n.
      *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT1.
      *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
+     * If we switch threads at any time during this the BININT1/2 on top of the stack will be lost,
+     * but this doesn't matter; the operation is there and we will find it and redo BININT2 again.
      *
      * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
      *
@@ -6008,6 +5941,7 @@ evali(NODEPTR an)
     GCCHECK(4);
     CHKARG3;
     w = new_ap(x, z);
+    abort();
     GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
   case T_IO_STRICT:
     CHKARG2;
@@ -6530,8 +6464,9 @@ evali(NODEPTR an)
       CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
       NODEPTR p = ARG(TOP(nn));  /* The LOOK_m */
       tag_t ltag = GETRAWTAG(p);
-      if (TAGOF(ltag) != T_LOOK)
+      if (TAGOF(ltag) != T_LOOK) {
         ERR("constr no LOOK");
+      }
       CASE_SIZE(ltag, m);
       /* CONSTR_k_n e1 ... en LOOK_m f0 ... f{m-1}  -->  fk e1 ... en */
       GCCHECK(nn);
@@ -7005,6 +6940,8 @@ die_exn(NODEPTR exn)
   NODEPTR x;
   char *msg;
 
+  fprintf(stderr, "die_exn\n");
+  exit(1);
   in_raise = true;
 
   if (GETTAG(exn) == T_INT) {

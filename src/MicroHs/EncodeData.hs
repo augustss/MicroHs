@@ -50,7 +50,7 @@ encConstrLazy k n = cCon k n
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
-encIf c t e = apps (cCase 2) [c, t, e]
+encIf c t e = apps (cCase 2) [c, e, t]
 
 encList :: [Exp] -> Exp
 encList = foldr (app2 cCons) cNil
