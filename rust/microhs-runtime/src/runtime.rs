@@ -111,10 +111,12 @@ impl Program {
     pub fn reduce_whnf(&mut self, limit: usize) -> Result<(NodeId, usize), EvalError> {
         let mut root = self.root;
         for steps in 0..limit {
-            let Some(next) = self.step(root)? else {
-                self.root = root;
-                return Ok((root, steps));
+            let current = self.resolve(root)?;
+            let Some(next) = self.step(current)? else {
+                self.root = current;
+                return Ok((current, steps));
             };
+            self.nodes[current.0] = Node::Indir(Some(next));
             root = next;
         }
         Err(EvalError::StepLimit { limit })
@@ -770,9 +772,11 @@ impl Program {
 
     fn reduce_node_whnf(&mut self, mut root: NodeId, limit: usize) -> Result<NodeId, EvalError> {
         for _ in 0..limit {
-            let Some(next) = self.step(root)? else {
-                return Ok(root);
+            let current = self.resolve(root)?;
+            let Some(next) = self.step(current)? else {
+                return Ok(current);
             };
+            self.nodes[current.0] = Node::Indir(Some(next));
             root = next;
         }
         Err(EvalError::StepLimit { limit })
@@ -1601,6 +1605,11 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n1\nseq A.trunc #0 #0 #0 [3] :0 @ #1 @ @ A.size _0 @ @ }"),
             "1"
+        );
+        assert_eq!(whnf(b"v8.4\n1\nA.== A.alloc #1 @ #0 @ :0 @ _0 @ }"), "A");
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq A.write A.alloc #3 @ #0 @ :0 @ #1 @ #42 @ @ A.read _0 @ #1 @ @ }"),
+            "42"
         );
     }
 }
