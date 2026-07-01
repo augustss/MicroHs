@@ -3697,16 +3697,17 @@ find_label(heapoffs_t label)
 
 /* Dynamic JavaScript FFI (emscripten only).  The compiler serializes a
  * `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
- * the return tag, tags[1..] the args: I=Int D=Double F=Float P=Ptr V=unit).  At
+ * the return tag, tags[1..] the args: I=Int/Word/Char D=Double F=Float P=Ptr
+ * B=Bool J=JSVal V=unit(return only)).  At
  * parse time the body is compiled to a JS function in globalThis.__mhs and the
  * T_IO_JSCALL node holds its index; dispatch marshals by the tags.  The registry
  * is append-only: parse_top is re-entered by IO.deserialize, so resetting it
  * would invalidate live nodes. */
 #define JS_MAX_ARGS 32
 struct js_dyn_entry { int arity; char *tags; struct bytestring body; }; /* body kept for printb */
+#if defined(__EMSCRIPTEN__)
 static struct js_dyn_entry *js_dyn_table = NULL;
 static int js_dyn_count = 0;
-#if defined(__EMSCRIPTEN__)
 static int js_dyn_cap = 0;
 #endif
 
@@ -3755,12 +3756,15 @@ EM_JS(void *, mhs_js_call_ptr,  (int idx),   { try { return globalThis.__mhs.reg
 EM_JS(void,   mhs_js_call_void, (int idx),   { try { globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); } });
 EM_JS(int,    mhs_js_haserr,    (void),      { return globalThis.__mhs.err ? 1 : 0; });
 EM_JS(void,   mhs_js_logerr,    (void),      { console.error('MicroHs JavaScript FFI exception:', globalThis.__mhs.err); });
-EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m && m.obj && h >= 1 && m.obj[h] !== undefined) { m.obj[h] = undefined; m.objfree.push(h); } });
+EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m && m.obj && h >= 1 && Object.prototype.hasOwnProperty.call(m.obj, h)) { delete m.obj[h]; m.objfree.push(h); } });
+EM_JS(void,   mhs_js_push_obj,  (int h),     { globalThis.__mhs.argbuf.push(globalThis.__mhs.obj[h]); });
+EM_JS(int,    mhs_js_call_bool, (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf) ? 1 : 0; } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+EM_JS(int,    mhs_js_call_obj,  (int idx),   { try { return globalThis.__mhs.intern(globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf)); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
 #endif  /* __EMSCRIPTEN__ */
 
-/* FinalizerPtr for a JSVal (a ForeignPtr whose "pointer" is the object handle):
- * free the registry slot so the JS value can be collected.  Reached from Haskell
- * via `foreign import ccall "&mhs_js_obj_free"`.  A no-op off emscripten. */
+/* GC finalizer for a JSVal (a ForeignPtr whose "pointer" is the object handle),
+ * set on the forptr by the J return path: free the registry slot so the JS value
+ * can be collected.  A no-op off emscripten. */
 void
 mhs_js_obj_free(void *p)
 {
@@ -3781,7 +3785,8 @@ js_dyn_tags_ok(const char *tags, int arity)
     return 0;
   for (int i = 0; tags[i]; i++) {
     char t = tags[i];
-    if (!(t == 'I' || t == 'D' || t == 'F' || t == 'P' || (i == 0 && t == 'V')))
+    if (!(t == 'I' || t == 'D' || t == 'F' || t == 'P' || t == 'B' || t == 'J' ||
+          (i == 0 && t == 'V')))
       return 0;
   }
   return 1;
@@ -4073,8 +4078,6 @@ parse(BFILE *f)
         PUSH(mkFunPtr((HsFunPtr)0));
       } else if (strcmp(buf, "closeb") == 0) {
         PUSH(mkFunPtr((HsFunPtr)closeb));
-      } else if (strcmp(buf, "mhs_js_obj_free") == 0) {
-        PUSH(mkFunPtr((HsFunPtr)mhs_js_obj_free));
       } else {
         ERR1("unknown funptr '%s'", buf);
       }
@@ -4409,8 +4412,6 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putsb(";0 ", f);
     } else if (FUNPTR(n) == (HsFunPtr)closeb) {
       putsb(";closeb ", f);
-    } else if (FUNPTR(n) == (HsFunPtr)mhs_js_obj_free) {
-      putsb(";mhs_js_obj_free ", f);
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>", FUNPTR(n));
       putsb(prbuf, f);
@@ -4467,8 +4468,10 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
+#if defined(__EMSCRIPTEN__)
   case T_IO_JSCALL: { struct js_dyn_entry *je = &js_dyn_table[GETVALUE(n)];
                       putb('~', f); putsb(je->tags, f); putb(' ', f); print_string(f, je->body); break; }
+#endif
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
 #if WANT_TICK
   case T_TICK:
@@ -6163,13 +6166,16 @@ evali(NODEPTR an)
           char t = e->tags[i + 1];
           if      (t == 'D') dvals[i] = mhs_to_Double(stk, i);
           else if (t == 'F') dvals[i] = (double)mhs_to_Float(stk, i);
-          else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);
+          else if (t == 'B') ivals[i] = mhs_to_Bool(stk, i);
+          else if (t == 'J') ivals[i] = (value_t)(intptr_t)evalforptr(ARG(TOP(i + 1)))->payload.bs_array;
+          else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);  /* I, Word/Char */
         }
         mhs_js_argreset();
         for (int i = 0; i < arity; i++) {
           char t = e->tags[i + 1];
-          if (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
-          else                      mhs_js_push_int((int)ivals[i]);
+          if      (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
+          else if (t == 'J')             mhs_js_push_obj((int)ivals[i]);
+          else                           mhs_js_push_int((int)ivals[i]);  /* I, Word/Char, B, P */
         }
       }
       switch (e->tags[0]) {
@@ -6177,7 +6183,13 @@ evali(NODEPTR an)
       case 'D': mhs_from_Double(stk, arity, mhs_js_call_dbl(idx));                                    break;
       case 'F': mhs_from_Float(stk, arity, (flt32_t)mhs_js_call_dbl(idx));                            break;
       case 'P': mhs_from_Ptr(stk, arity, mhs_js_call_ptr(idx));                                       break;
-      default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* 'I' */
+      case 'B': mhs_from_Bool(stk, arity, mhs_js_call_bool(idx));                                     break;
+      case 'J': {                                                       /* intern + wrap as a JSVal */
+        struct forptr *fp = mkForPtrP((void *)(intptr_t)mhs_js_call_obj(idx));
+        fp->finalizer->final = (HsFunPtr)mhs_js_obj_free;               /* free the slot on GC */
+        SETFORPTR(TOP(0), fp);
+      } break;
+      default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* 'I', Word/Char */
       }
       if (mhs_js_haserr()) {
         mhs_js_logerr();
@@ -7578,6 +7590,9 @@ MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
 #endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
+/* Bool is the combinators K (False) / A (True), not an int node. */
+#define SETBOOL(n, x) SETINDIR((n), (x) ? combTrue : combFalse)
+MHS_FROM(mhs_from_Bool, SETBOOL, value_t);
 #if WANT_INT64
 MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
 #endif
@@ -7615,6 +7630,13 @@ mhs_from_Unit(stackptr_t stk, int n)
   return n;
 }
 
+/* A forced Bool reduces to the A (True) or K (False) combinator. */
+static value_t
+evalbool(NODEPTR n)
+{
+  return GETTAG(evali(n)) == T_A;
+}
+
 #define MHS_TO(name, eval, type) \
 type name(stackptr_t stk, int n) \
 { \
@@ -7627,6 +7649,7 @@ MHS_TO(mhs_to_Float, evalflt, flt32_t);
 MHS_TO(mhs_to_Double, evaldbl, flt64_t);
 #endif
 MHS_TO(mhs_to_Int, evalint, value_t);
+MHS_TO(mhs_to_Bool, evalbool, value_t);
 #if WANT_INT64
 MHS_TO(mhs_to_Int64, evalint64, int64_t);
 #endif
@@ -7765,7 +7788,6 @@ from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), 
 from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
-from_t mhs_addr_mhs_js_obj_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&mhs_js_obj_free); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
@@ -8134,7 +8156,6 @@ const struct ffi_entry ffi_table[] = {
   { "realloc", 2, mhs_realloc},
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
-  { "&mhs_js_obj_free", 0, mhs_addr_mhs_js_obj_free},
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},
