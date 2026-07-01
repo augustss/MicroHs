@@ -178,6 +178,7 @@ library base
         Mhs.Arr
         Mhs.Array
         Mhs.Builtin
+        Mhs.JavaScript
         Mhs.MutArr
         Mhs.MutUArr
         Mhs.UArr

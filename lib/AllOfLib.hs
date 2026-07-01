@@ -151,6 +151,7 @@ import Numeric.Natural
 import Mhs.Arr
 import Mhs.Array
 import Mhs.Builtin
+import Mhs.JavaScript
 import Mhs.MutArr
 import Mhs.MutUArr
 import Mhs.UArr
