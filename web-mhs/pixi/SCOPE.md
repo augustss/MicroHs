@@ -37,7 +37,11 @@ can drive Haskell.
   re-entered during evaluation).  The closure's `StablePtr` lives until exit (JS
   may retain the function after the `JSVal` is collected), so there is no auto-free
   yet.  This is the interpreter-model analogue of a static `foreign export
-  javascript` (which MicroHs can't do without per-program `emcc`).
+  javascript` (which MicroHs can't do without per-program `emcc`).  Each callback's
+  arguments are read into a private frame (isolated from the `~`-import scratch
+  buffer), so a callback that re-enters the runtime mid-call can't corrupt them; a
+  pathological argument whose `valueOf`/`toString` throws degrades to `0`/`""` at
+  the boundary rather than unwinding through the runtime.
 - **First-class `JSVal` (GC-managed object handles).** A body can take and return
   `JSVal` (`Mhs.JavaScript`) directly: on return the runtime interns the JS value
   into `globalThis.__mhs.obj` and wraps the handle in a `ForeignPtr` whose
