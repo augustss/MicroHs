@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MicroHs + pixi.js — JS events driving Haskell</title>
+  <style>
+    body { margin: 0; background: #0b0b16; color: #e8e8f0; font-family: monospace; }
+    #log { padding: 10px; white-space: pre-wrap; }
+    #stage { display: flex; justify-content: center; padding: 12px; }
+    #stage canvas { cursor: pointer; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+  <script src="mhseval-web.js"></script>
+</head>
+<body>
+  <div id="log">loading…</div>
+  <div id="stage"></div>
+  <script>
+  (async () => {
+    const logEl = document.getElementById('log');
+    const log = (m) => { logEl.textContent = m; console.log(m); };
+    try {
+      // 1. pixi app + userland object-handle registry.
+      const app = new PIXI.Application({ width: 480, height: 360, background: 0x111133, antialias: true });
+      document.getElementById('stage').appendChild(app.view);
+      globalThis.__pixiApp = app;
+      globalThis.pixiObjs = [];
+
+      // 2. Fetch the host-compiled program as BINARY (raw byte-strings).
+      const combBuf = new Uint8Array(await (await fetch('PixiEvents.comb')).arrayBuffer());
+
+      // 3. Runtime WASM (built with _mhs_invoke_int exported, no EXIT_RUNTIME, so
+      //    the instance stays alive for post-main event callbacks).
+      const Module = await MhsEval({
+        noInitialRun: true,
+        print:    (t) => console.log('[mhs] ' + t),
+        printErr: (t) => console.error('[mhs] ' + t),
+      });
+
+      // 4. Run main. It creates the box and registers a Haskell click handler as
+      //    a StablePtr; main then RETURNS. Subsequent clicks re-enter Haskell via
+      //    globalThis.__mhs.invoke (a fresh evaluator thread per click).
+      Module.FS.writeFile('/prog.comb', combBuf);
+      Module.callMain(['+RTS', '-r/prog.comb', '-RTS']);
+
+      log('Ready — click the box. Each click rotates it FROM HASKELL (see console).');
+      globalThis.__ready = true;
+    } catch (e) {
+      log('ERROR: ' + (e && e.stack || e));
+      globalThis.__error = String(e);
+    }
+  })();
+  </script>
+</body>
+</html>
