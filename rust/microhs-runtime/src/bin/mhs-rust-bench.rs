@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -178,6 +178,15 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
         let mut expr = String::from("&&0");
         for _ in 0..size {
             expr = format!("f+ {expr} @ &&1.25 @");
+        }
+        return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("bytes-chain:") {
+        let size = parse_scenario_size("bytes-chain", size)?;
+        let mut expr = String::from("\"\"");
+        for idx in 0..size {
+            let byte = (b'a' + (idx % 26) as u8) as char;
+            expr = format!("bs++ {expr} @ \"{byte}\" @");
         }
         return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
     }

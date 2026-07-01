@@ -32,9 +32,11 @@ pub enum EvalError {
     ExpectedInt64(NodeId),
     ExpectedFloat64(NodeId),
     ExpectedFloat32(NodeId),
+    ExpectedBytes(NodeId),
     DivideByZero,
     Overflow,
     InvalidShift(i64),
+    InvalidByteString,
 }
 
 impl fmt::Display for EvalError {
@@ -46,9 +48,11 @@ impl fmt::Display for EvalError {
             Self::ExpectedInt64(id) => write!(f, "expected Int64 at node {id:?}"),
             Self::ExpectedFloat64(id) => write!(f, "expected Float64 at node {id:?}"),
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
+            Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
             Self::Overflow => write!(f, "integer overflow"),
             Self::InvalidShift(n) => write!(f, "invalid shift amount {n}"),
+            Self::InvalidByteString => write!(f, "invalid ByteString operation"),
         }
     }
 }
@@ -261,12 +265,14 @@ impl Program {
                 Some((fields + 1, n))
             }
             name if args.len() >= 2 => self
-                .float64_binop(name, &args)?
+                .bytes_op(name, &args)?
+                .or(self.float64_binop(name, &args)?)
                 .or(self.float32_binop(name, &args)?)
                 .or(self.int64_binop(name, &args)?)
                 .or(self.int_binop(name, &args)?),
             name if !args.is_empty() => self
-                .float64_unop(name, &args)?
+                .bytes_unop(name, &args)?
+                .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
                 .or(self.float_conversion(name, &args)?)
                 .or(self.int64_unop(name, &args)?)
@@ -527,6 +533,91 @@ impl Program {
         Ok(Some((1, node)))
     }
 
+    fn bytes_op(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "bs++" => {
+                let mut bytes = self.eval_bytes(args[0])?;
+                bytes.extend(self.eval_bytes(args[1])?);
+                self.push_node(Node::Bytes(bytes))
+            }
+            "bs++." => {
+                let mut bytes = self.eval_bytes(args[0])?;
+                bytes.push(b'.');
+                bytes.extend(self.eval_bytes(args[1])?);
+                self.push_node(Node::Bytes(bytes))
+            }
+            "bs==" | "bs/=" | "bs<" | "bs<=" | "bs>" | "bs>=" | "bscmp" => {
+                let cmp = self.eval_bytes(args[0])?.cmp(&self.eval_bytes(args[1])?);
+                match name {
+                    "bs==" => self.prim(if cmp == Ordering::Equal { "A" } else { "K" }),
+                    "bs/=" => self.prim(if cmp != Ordering::Equal { "A" } else { "K" }),
+                    "bs<" => self.prim(if cmp == Ordering::Less { "A" } else { "K" }),
+                    "bs<=" => self.prim(if cmp != Ordering::Greater { "A" } else { "K" }),
+                    "bs>" => self.prim(if cmp == Ordering::Greater { "A" } else { "K" }),
+                    "bs>=" => self.prim(if cmp != Ordering::Less { "A" } else { "K" }),
+                    "bscmp" => self.ordering(cmp),
+                    _ => unreachable!(),
+                }
+            }
+            "bsreplicate" => {
+                let len = int_to_usize(self.eval_int(args[0])?)?;
+                let byte = self.eval_int(args[1])? as u8;
+                self.push_node(Node::Bytes(vec![byte; len]))
+            }
+            "bsindex" => {
+                let bytes = self.eval_bytes(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let byte = bytes
+                    .get(index)
+                    .copied()
+                    .ok_or(EvalError::InvalidByteString)?;
+                self.push_node(Node::Int(byte as i64))
+            }
+            "bssubstr" if args.len() >= 3 => {
+                let bytes = self.eval_bytes(args[0])?;
+                let offset = int_to_usize(self.eval_int(args[1])?)?;
+                let len = int_to_usize(self.eval_int(args[2])?)?;
+                let end = offset
+                    .checked_add(len)
+                    .filter(|end| *end <= bytes.len())
+                    .ok_or(EvalError::InvalidByteString)?;
+                self.push_node(Node::Bytes(bytes[offset..end].to_vec()))
+            }
+            _ => return Ok(None),
+        };
+        let used = if name == "bssubstr" { 3 } else { 2 };
+        Ok(Some((used, node)))
+    }
+
+    fn bytes_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "bslength" => {
+                let len = i64::try_from(self.eval_bytes(args[0])?.len())
+                    .map_err(|_| EvalError::Overflow)?;
+                self.push_node(Node::Int(len))
+            }
+            "headUTF8" => {
+                let (codepoint, _) = head_utf8(&self.eval_bytes(args[0])?)?;
+                self.push_node(Node::Int(codepoint as i64))
+            }
+            "tailUTF8" => {
+                let bytes = self.eval_bytes(args[0])?;
+                let (_, offset) = head_utf8(&bytes)?;
+                self.push_node(Node::Bytes(bytes[offset..].to_vec()))
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn eval_int(&mut self, id: NodeId) -> Result<i64, EvalError> {
         let root = self.reduce_node_whnf(id, 10_000)?;
         match self.nodes[self.resolve(root)?.0] {
@@ -556,6 +647,14 @@ impl Program {
         match self.nodes[self.resolve(root)?.0] {
             Node::Float32(n) => Ok(n),
             _ => Err(EvalError::ExpectedFloat32(root)),
+        }
+    }
+
+    fn eval_bytes(&mut self, id: NodeId) -> Result<Vec<u8>, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match &self.nodes[self.resolve(root)?.0] {
+            Node::Bytes(bytes) => Ok(bytes.clone()),
+            _ => Err(EvalError::ExpectedBytes(root)),
         }
     }
 
@@ -1158,6 +1257,43 @@ fn tuple_fields(name: &str) -> Option<usize> {
     (3..=16).contains(&fields).then_some(fields)
 }
 
+fn int_to_usize(n: i64) -> Result<usize, EvalError> {
+    usize::try_from(n).map_err(|_| EvalError::InvalidByteString)
+}
+
+fn head_utf8(bytes: &[u8]) -> Result<(u32, usize), EvalError> {
+    let c1 = *bytes.first().ok_or(EvalError::InvalidByteString)?;
+    if c1 & 0x80 == 0 {
+        return Ok((c1 as u32, 1));
+    }
+
+    let c2 = *bytes.get(1).ok_or(EvalError::InvalidByteString)?;
+    if c1 & 0xe0 == 0xc0 {
+        return Ok(((((c1 & 0x1f) as u32) << 6) | ((c2 & 0x3f) as u32), 2));
+    }
+
+    let c3 = *bytes.get(2).ok_or(EvalError::InvalidByteString)?;
+    if c1 & 0xf0 == 0xe0 {
+        return Ok((
+            (((c1 & 0x0f) as u32) << 12) | (((c2 & 0x3f) as u32) << 6) | ((c3 & 0x3f) as u32),
+            3,
+        ));
+    }
+
+    let c4 = *bytes.get(3).ok_or(EvalError::InvalidByteString)?;
+    if c1 & 0xf8 == 0xf0 {
+        return Ok((
+            (((c1 & 0x07) as u32) << 18)
+                | (((c2 & 0x3f) as u32) << 12)
+                | (((c3 & 0x3f) as u32) << 6)
+                | ((c4 & 0x3f) as u32),
+            4,
+        ));
+    }
+
+    Err(EvalError::InvalidByteString)
+}
+
 fn render_bytes(bytes: &[u8], out: &mut String) {
     out.push('"');
     for &byte in bytes {
@@ -1312,5 +1448,23 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\nf> utof #-1 @ @ &&1000 @ }"), "A");
         assert_eq!(whnf(b"v8.4\n0\nftod dtof &1.5 @ @ }"), "1.5");
         assert_eq!(whnf(b"v8.4\n0\ntoFlt fromFlt &&1.5 @ @ }"), "1.5f");
+    }
+
+    #[test]
+    fn reduces_bytestring_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nbs++ \"foo\" @ \"bar\" @ }"), "\"foobar\"");
+        assert_eq!(whnf(b"v8.4\n0\nbs++. \"foo\" @ \"bar\" @ }"), "\"foo.bar\"");
+        assert_eq!(whnf(b"v8.4\n0\nbs== \"x\" @ \"x\" @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nbs< \"abc\" @ \"abd\" @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nbscmp \"abd\" @ \"abc\" @ }"), "KA");
+        assert_eq!(whnf(b"v8.4\n0\nbslength \"hello\" @ }"), "5");
+        assert_eq!(whnf(b"v8.4\n0\nbsreplicate #3 @ #65 @ }"), "\"AAA\"");
+        assert_eq!(whnf(b"v8.4\n0\nbsindex \"ABC\" @ #1 @ }"), "66");
+        assert_eq!(
+            whnf(b"v8.4\n0\nbssubstr \"abcdef\" @ #2 @ #3 @ }"),
+            "\"cde\""
+        );
+        assert_eq!(whnf(b"v8.4\n0\nheadUTF8 $2 \xc3\xa5 @ }"), "229");
+        assert_eq!(whnf(b"v8.4\n0\ntailUTF8 $3 \xc3\xa5x @ }"), "\"x\"");
     }
 }
