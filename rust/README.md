@@ -60,8 +60,11 @@ With `--c-mhseval`, the benchmark runs the C evaluator on the same `.comb`
 input using `+RTS -rFILE -o/dev/null -RTS`. That measures C process
 parse/load/serialize wall time; keep it only as a legacy baseline. With
 `--c-mhsbench`, the benchmark runs `bin/mhsbench` once and the C runtime loops
-over parse, execute, and serialize in-process, so the reported
-`c_parse_reduce_serialize_ns_per_iter` is the comparable C number for Rust
-`reduce_ns_per_iter`. Rust `reduce_steps` currently counts outer WHNF rewrites;
-strict primitive argument evaluation is included in elapsed time but not counted
-as separate steps.
+over parse, eval, and serialize in-process. The Rust runner passes
+`--mode whnf` by default, so C evaluates the same expression-shaped benchmark to
+WHNF that Rust evaluates. Use `--c-mhsbench-mode main` only for a real MicroHs
+main program that expects the runtime `World` argument. The comparable C number
+is `c_parse_eval_serialize_ns_per_iter`; the comparable Rust number is
+`parse_reduce_render_ns_per_iter`. Rust `whnf_steps` currently counts outer WHNF
+rewrites; strict primitive argument evaluation is included in elapsed time but
+not counted as separate steps.

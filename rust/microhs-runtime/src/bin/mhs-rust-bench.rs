@@ -16,12 +16,36 @@ struct Config {
     iters: usize,
     c_mhseval: Option<String>,
     c_mhsbench: Option<String>,
+    c_mhsbench_mode: CBenchMode,
+}
+
+#[derive(Clone, Copy)]
+enum CBenchMode {
+    Whnf,
+    Main,
+}
+
+impl CBenchMode {
+    fn parse(text: &str) -> Result<Self, String> {
+        match text {
+            "whnf" => Ok(Self::Whnf),
+            "main" => Ok(Self::Main),
+            _ => Err(format!("invalid --c-mhsbench-mode value: {text}")),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Whnf => "whnf",
+            Self::Main => "main",
+        }
+    }
 }
 
 fn usage() {
     eprintln!(
         "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|foreignptr-slice:N|cstring-pack:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|argref-chain:N|stdio-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
-                                  [--c-mhseval PATH] [--c-mhsbench PATH]\n\
+                                  [--c-mhseval PATH] [--c-mhsbench PATH] [--c-mhsbench-mode whnf|main]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
 }
@@ -37,7 +61,7 @@ fn main() -> ExitCode {
     };
 
     let parse = bench_parse(&config.input, config.iters);
-    let reduce = bench_reduce(&config.input, config.iters);
+    let eval = bench_eval(&config.input, config.iters);
     let bytes = config.input.len();
 
     println!("input: {}", config.name);
@@ -52,18 +76,18 @@ fn main() -> ExitCode {
         "parse_mib_per_s: {:.1}",
         mib_per_s(bytes, config.iters, parse.elapsed)
     );
-    println!("reduce_total_ms: {:.3}", millis(reduce.elapsed));
+    println!("parse_reduce_render_total_ms: {:.3}", millis(eval.elapsed));
     println!(
-        "reduce_ns_per_iter: {:.1}",
-        nanos_per_iter(reduce.elapsed, config.iters)
+        "parse_reduce_render_ns_per_iter: {:.1}",
+        nanos_per_iter(eval.elapsed, config.iters)
     );
     println!(
-        "reduce_steps_per_iter: {:.1}",
-        reduce.steps as f64 / config.iters as f64
+        "whnf_steps_per_iter: {:.1}",
+        eval.steps as f64 / config.iters as f64
     );
     println!(
-        "reduce_steps_per_s: {:.1}",
-        reduce.steps as f64 / reduce.elapsed.as_secs_f64()
+        "whnf_steps_per_s: {:.1}",
+        eval.steps as f64 / eval.elapsed.as_secs_f64()
     );
 
     if let Some(c_mhseval) = &config.c_mhseval {
@@ -84,10 +108,16 @@ fn main() -> ExitCode {
     }
 
     if let Some(c_mhsbench) = &config.c_mhsbench {
-        match bench_c_mhsbench(&config.input, c_mhsbench, config.iters) {
+        match bench_c_mhsbench(
+            &config.input,
+            c_mhsbench,
+            config.c_mhsbench_mode,
+            config.iters,
+        ) {
             Ok(c) => {
                 println!("c_mhsbench: {c_mhsbench}");
-                println!("c_parse_reduce_serialize_ns_per_iter: {:.1}", c.ns_per_iter);
+                println!("c_mhsbench_mode: {}", c.mode.as_str());
+                println!("c_parse_eval_serialize_ns_per_iter: {:.1}", c.ns_per_iter);
             }
             Err(err) => {
                 eprintln!("C mhsbench benchmark failed: {err}");
@@ -105,6 +135,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
     let mut name = None;
     let mut c_mhseval = None;
     let mut c_mhsbench = None;
+    let mut c_mhsbench_mode = CBenchMode::Whnf;
     let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
@@ -135,6 +166,10 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
             "--c-mhsbench" => {
                 c_mhsbench = Some(args.next().ok_or("--c-mhsbench requires a path")?);
             }
+            "--c-mhsbench-mode" => {
+                let mode = args.next().ok_or("--c-mhsbench-mode requires a value")?;
+                c_mhsbench_mode = CBenchMode::parse(&mode)?;
+            }
             "-h" | "--help" => return Err(String::new()),
             _ => return Err(format!("unknown argument: {arg}")),
         }
@@ -155,6 +190,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
         iters,
         c_mhseval,
         c_mhsbench,
+        c_mhsbench_mode,
     })
 }
 
@@ -413,12 +449,12 @@ fn bench_parse(input: &[u8], iters: usize) -> ParseBench {
     }
 }
 
-struct ReduceBench {
+struct EvalBench {
     elapsed: Duration,
     steps: usize,
 }
 
-fn bench_reduce(input: &[u8], iters: usize) -> ReduceBench {
+fn bench_eval(input: &[u8], iters: usize) -> EvalBench {
     let started = Instant::now();
     let mut steps = 0;
     for _ in 0..iters {
@@ -429,7 +465,7 @@ fn bench_reduce(input: &[u8], iters: usize) -> ReduceBench {
         black_box(program.render(root));
         steps += n;
     }
-    ReduceBench {
+    EvalBench {
         elapsed: started.elapsed(),
         steps,
     }
@@ -440,6 +476,7 @@ struct CBench {
 }
 
 struct CInProcessBench {
+    mode: CBenchMode,
     ns_per_iter: f64,
 }
 
@@ -467,6 +504,7 @@ fn bench_c_mhseval(input: &[u8], c_mhseval: &str, iters: usize) -> Result<CBench
 fn bench_c_mhsbench(
     input: &[u8],
     c_mhsbench: &str,
+    mode: CBenchMode,
     iters: usize,
 ) -> Result<CInProcessBench, String> {
     let file = env::temp_dir().join(format!("mhs-rust-bench-{}.comb", std::process::id()));
@@ -474,7 +512,7 @@ fn bench_c_mhsbench(
     let iters_arg = iters.to_string();
     let file_arg = file.to_str().ok_or("non-utf8 temp file")?;
     let output = Command::new(c_mhsbench)
-        .args(["--iters", &iters_arg, file_arg])
+        .args(["--mode", mode.as_str(), "--iters", &iters_arg, file_arg])
         .output()
         .map_err(|err| format!("{c_mhsbench}: {err}"))?;
     let _ = fs::remove_file(&file);
@@ -488,11 +526,14 @@ fn bench_c_mhsbench(
     let stdout = String::from_utf8(output.stdout).map_err(|_| "non-utf8 mhsbench output")?;
     let ns_per_iter = stdout
         .lines()
-        .find_map(|line| line.strip_prefix("c_parse_reduce_serialize_ns_per_iter: "))
+        .find_map(|line| {
+            line.strip_prefix("c_parse_eval_serialize_ns_per_iter: ")
+                .or_else(|| line.strip_prefix("c_parse_reduce_serialize_ns_per_iter: "))
+        })
         .ok_or_else(|| format!("missing timing in mhsbench output:\n{stdout}"))?
         .parse()
         .map_err(|_| format!("invalid timing in mhsbench output:\n{stdout}"))?;
-    Ok(CInProcessBench { ns_per_iter })
+    Ok(CInProcessBench { mode, ns_per_iter })
 }
 
 fn millis(duration: Duration) -> f64 {
