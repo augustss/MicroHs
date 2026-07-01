@@ -32,6 +32,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario float32-chain:200 --iters
 cargo run --release --bin mhs-rust-bench -- --scenario bytes-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario unpack-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario fromutf8-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario foreignptr-slice:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario array-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-array-chain:200 --iters 1000

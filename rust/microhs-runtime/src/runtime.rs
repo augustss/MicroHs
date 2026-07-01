@@ -17,6 +17,12 @@ pub enum Node {
     ThreadId(i64),
     Ptr(i64),
     RawFunPtr(i64),
+    ForeignPtr {
+        bytes: Option<Vec<u8>>,
+        offset: usize,
+        ptr: i64,
+        finalizer: Option<NodeId>,
+    },
     Weak {
         value: Option<NodeId>,
         finalizer: Option<NodeId>,
@@ -51,6 +57,7 @@ pub enum EvalError {
     ExpectedFloat32(NodeId),
     ExpectedThreadId(NodeId),
     ExpectedPointer(NodeId),
+    ExpectedForeignPtr(NodeId),
     ExpectedWeak(NodeId),
     ExpectedMVar(NodeId),
     ExpectedBytes(NodeId),
@@ -76,6 +83,7 @@ impl fmt::Display for EvalError {
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
             Self::ExpectedThreadId(id) => write!(f, "expected ThreadId at node {id:?}"),
             Self::ExpectedPointer(id) => write!(f, "expected pointer-like node {id:?}"),
+            Self::ExpectedForeignPtr(id) => write!(f, "expected ForeignPtr at node {id:?}"),
             Self::ExpectedWeak(id) => write!(f, "expected Weak pointer at node {id:?}"),
             Self::ExpectedMVar(id) => write!(f, "expected MVar at node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
@@ -467,6 +475,7 @@ impl Program {
             }
             name if args.len() >= 2 => self
                 .array_op(name, &args)?
+                .or(self.foreign_ptr_op(name, &args)?)
                 .or(self.stable_ptr_op(name, &args)?)
                 .or(self.weak_ptr_op(name, &args)?)
                 .or(self.bytes_op(name, &args)?)
@@ -485,6 +494,7 @@ impl Program {
                 .or(self.int_unop(name, &args)?),
             name if !args.is_empty() => self
                 .array_unop(name, &args)?
+                .or(self.foreign_ptr_unop(name, &args)?)
                 .or(self.stable_ptr_unop(name, &args)?)
                 .or(self.weak_ptr_unop(name, &args)?)
                 .or(self.bytes_unop(name, &args)?)
@@ -811,6 +821,84 @@ impl Program {
             _ => return Ok(None),
         };
         Ok(Some((1, self.push_node(value))))
+    }
+
+    fn foreign_ptr_op(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let rewrite = match name {
+            "fp+" => {
+                let foreign_ptr = self.eval_foreign_ptr_id(args[0])?;
+                let offset = int_to_usize(self.eval_int(args[1])?)?;
+                Some((2, self.offset_foreign_ptr(foreign_ptr, offset)?))
+            }
+            "fp2bs" => {
+                let foreign_ptr = self.eval_foreign_ptr_id(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                Some((2, self.foreign_ptr_to_bytes(foreign_ptr, len)?))
+            }
+            "fpnew" if args.len() >= 2 => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let foreign_ptr = self.push_node(Node::ForeignPtr {
+                    bytes: None,
+                    offset: 0,
+                    ptr,
+                    finalizer: None,
+                });
+                Some((2, self.pair(foreign_ptr, args[1])))
+            }
+            "fpfin" if args.len() >= 3 => {
+                let foreign_ptr = self.eval_foreign_ptr_id(args[1])?;
+                self.set_foreign_ptr_finalizer(foreign_ptr, args[0])?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
+            }
+            "fpfin" => {
+                let foreign_ptr = self.eval_foreign_ptr_id(args[1])?;
+                self.set_foreign_ptr_finalizer(foreign_ptr, args[0])?;
+                Some((2, self.prim("I")))
+            }
+            _ => None,
+        };
+        Ok(rewrite)
+    }
+
+    fn foreign_ptr_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "bs2fp" => {
+                let bytes_id = self.eval_bytes_id(args[0])?;
+                let bytes = self.bytes(bytes_id)?.to_vec();
+                let ptr = self.synthetic_ptr(bytes_id, 0)?;
+                self.push_node(Node::ForeignPtr {
+                    bytes: Some(bytes),
+                    offset: 0,
+                    ptr,
+                    finalizer: None,
+                })
+            }
+            "fp2p" => {
+                let foreign_ptr = self.eval_foreign_ptr_id(args[0])?;
+                let ptr = self.foreign_ptr_value(foreign_ptr)?;
+                self.push_node(Node::Ptr(ptr))
+            }
+            "fpnew" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                self.push_node(Node::ForeignPtr {
+                    bytes: None,
+                    offset: 0,
+                    ptr,
+                    finalizer: None,
+                })
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
     }
 
     fn array_op(
@@ -1266,6 +1354,15 @@ impl Program {
         }
     }
 
+    fn eval_foreign_ptr_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        let id = self.resolve(root)?;
+        match self.nodes[id.0] {
+            Node::ForeignPtr { .. } => Ok(id),
+            _ => Err(EvalError::ExpectedForeignPtr(root)),
+        }
+    }
+
     fn eval_bytes(&mut self, id: NodeId) -> Result<Vec<u8>, EvalError> {
         let id = self.eval_bytes_id(id)?;
         Ok(self.bytes(id)?.to_vec())
@@ -1411,6 +1508,76 @@ impl Program {
         }
         *slot = None;
         Ok(())
+    }
+
+    fn synthetic_ptr(&self, id: NodeId, offset: usize) -> Result<i64, EvalError> {
+        let base = i64::try_from(id.0).map_err(|_| EvalError::Overflow)?;
+        let offset = i64::try_from(offset).map_err(|_| EvalError::Overflow)?;
+        base.checked_shl(32)
+            .and_then(|base| base.checked_add(offset))
+            .ok_or(EvalError::Overflow)
+    }
+
+    fn offset_foreign_ptr(&mut self, id: NodeId, by: usize) -> Result<NodeId, EvalError> {
+        let (bytes, offset, ptr, finalizer) = match &self.nodes[id.0] {
+            Node::ForeignPtr {
+                bytes,
+                offset,
+                ptr,
+                finalizer,
+            } => (bytes.clone(), *offset, *ptr, *finalizer),
+            _ => return Err(EvalError::ExpectedForeignPtr(id)),
+        };
+        let offset = offset.checked_add(by).ok_or(EvalError::Overflow)?;
+        let ptr = ptr
+            .checked_add(i64::try_from(by).map_err(|_| EvalError::Overflow)?)
+            .ok_or(EvalError::Overflow)?;
+        Ok(self.push_node(Node::ForeignPtr {
+            bytes,
+            offset,
+            ptr,
+            finalizer,
+        }))
+    }
+
+    fn foreign_ptr_to_bytes(&mut self, id: NodeId, len: usize) -> Result<NodeId, EvalError> {
+        let (bytes, offset) = match &self.nodes[id.0] {
+            Node::ForeignPtr {
+                bytes: Some(bytes),
+                offset,
+                ..
+            } => (bytes, *offset),
+            Node::ForeignPtr { .. } => return Err(EvalError::InvalidByteString),
+            _ => return Err(EvalError::ExpectedForeignPtr(id)),
+        };
+        let end = offset
+            .checked_add(len)
+            .filter(|end| *end <= bytes.len())
+            .ok_or(EvalError::InvalidByteString)?;
+        Ok(self.push_node(Node::Bytes(bytes[offset..end].to_vec())))
+    }
+
+    fn foreign_ptr_value(&self, id: NodeId) -> Result<i64, EvalError> {
+        match self.nodes[id.0] {
+            Node::ForeignPtr { ptr, .. } => Ok(ptr),
+            _ => Err(EvalError::ExpectedForeignPtr(id)),
+        }
+    }
+
+    fn set_foreign_ptr_finalizer(
+        &mut self,
+        id: NodeId,
+        finalizer: NodeId,
+    ) -> Result<(), EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::ForeignPtr {
+                finalizer: slot, ..
+            } => {
+                *slot = Some(finalizer);
+                Ok(())
+            }
+            _ => Err(EvalError::ExpectedForeignPtr(id)),
+        }
     }
 
     fn new_weak_ptr(&mut self, value: NodeId, finalizer: Option<NodeId>) -> NodeId {
@@ -1594,6 +1761,10 @@ impl Program {
             Node::RawFunPtr(n) => {
                 out.push_str("FunPtr#");
                 out.push_str(&n.to_string());
+            }
+            Node::ForeignPtr { ptr, .. } => {
+                out.push_str("ForeignPtr#");
+                out.push_str(&ptr.to_string());
             }
             Node::Weak { .. } => {
                 out.push_str("Weak#");
@@ -2488,6 +2659,30 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\ntoFunPtr #7 @ }"), "FunPtr#7");
         assert_eq!(whnf(b"v8.4\n0\ntoInt toFunPtr #7 @ @ }"), "7");
         assert_eq!(whnf(b"v8.4\n0\ntoInt toPtr toFunPtr #9 @ @ @ }"), "9");
+    }
+
+    #[test]
+    fn reduces_foreign_pointer_primitives() {
+        assert_eq!(
+            whnf(b"v8.4\n0\nfp2bs bs2fp \"abcdef\" @ @ #3 @ }"),
+            "\"abc\""
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nfp2bs fp+ bs2fp \"abcdef\" @ @ #2 @ @ #3 @ }"),
+            "\"cde\""
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\n== toInt fp2p bs2fp \"abc\" :0 @ @ @ @ toInt fp2p bs2fp _0 @ @ @ @ }"),
+            "A"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO fpnew toPtr #42 @ @ @ }"),
+            "ForeignPtr#42"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nseq fpfin toFunPtr #0 @ @ bs2fp \"abc\" @ @ @ #7 @ }"),
+            "7"
+        );
     }
 
     #[test]
