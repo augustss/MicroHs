@@ -21,6 +21,7 @@ pub enum Node {
         value: Option<NodeId>,
         finalizer: Option<NodeId>,
     },
+    MVar(Option<NodeId>),
     BigInt(Vec<u8>),
     Bytes(Vec<u8>),
     MutableBytes {
@@ -51,6 +52,7 @@ pub enum EvalError {
     ExpectedThreadId(NodeId),
     ExpectedPointer(NodeId),
     ExpectedWeak(NodeId),
+    ExpectedMVar(NodeId),
     ExpectedBytes(NodeId),
     ExpectedArray(NodeId),
     DivideByZero,
@@ -60,6 +62,7 @@ pub enum EvalError {
     InvalidArray,
     Raised(NodeId),
     InvalidStablePtr,
+    InvalidMVar,
 }
 
 impl fmt::Display for EvalError {
@@ -74,6 +77,7 @@ impl fmt::Display for EvalError {
             Self::ExpectedThreadId(id) => write!(f, "expected ThreadId at node {id:?}"),
             Self::ExpectedPointer(id) => write!(f, "expected pointer-like node {id:?}"),
             Self::ExpectedWeak(id) => write!(f, "expected Weak pointer at node {id:?}"),
+            Self::ExpectedMVar(id) => write!(f, "expected MVar at node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
             Self::ExpectedArray(id) => write!(f, "expected Array at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
@@ -83,6 +87,7 @@ impl fmt::Display for EvalError {
             Self::InvalidArray => write!(f, "invalid Array operation"),
             Self::Raised(id) => write!(f, "uncaught exception at node {id:?}"),
             Self::InvalidStablePtr => write!(f, "invalid StablePtr operation"),
+            Self::InvalidMVar => write!(f, "invalid MVar operation"),
         }
     }
 }
@@ -253,6 +258,51 @@ impl Program {
                 self.eval_thread_id(args[0])?;
                 let status = self.push_node(Node::Int(0));
                 Some((2, self.pair(status, args[1])))
+            }
+            "IO.newmvar" if !args.is_empty() => {
+                let mvar = self.push_node(Node::MVar(None));
+                Some((1, self.pair(mvar, args[0])))
+            }
+            "IO.takemvar" if args.len() >= 2 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                let value = self.take_mvar(mvar)?.ok_or(EvalError::InvalidMVar)?;
+                Some((2, self.pair(value, args[1])))
+            }
+            "IO.readmvar" if args.len() >= 2 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                let value = self.read_mvar(mvar)?.ok_or(EvalError::InvalidMVar)?;
+                Some((2, self.pair(value, args[1])))
+            }
+            "IO.putmvar" if args.len() >= 3 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                self.put_mvar(mvar, args[1])?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
+            }
+            "IO.trytakemvar" if args.len() >= 2 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                let value = match self.take_mvar(mvar)? {
+                    Some(value) => self.just(value),
+                    None => self.nothing(),
+                };
+                Some((2, self.pair(value, args[1])))
+            }
+            "IO.tryreadmvar" if args.len() >= 2 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                let value = match self.read_mvar(mvar)? {
+                    Some(value) => self.just(value),
+                    None => self.nothing(),
+                };
+                Some((2, self.pair(value, args[1])))
+            }
+            "IO.tryputmvar" if args.len() >= 3 => {
+                let mvar = self.eval_mvar_id(args[0])?;
+                let value = if self.try_put_mvar(mvar, args[1])? {
+                    self.prim("A")
+                } else {
+                    self.prim("K")
+                };
+                Some((3, self.pair(value, args[2])))
             }
             "catch" if args.len() >= 3 => {
                 let action = self.app(args[0], args[2]);
@@ -1405,6 +1455,47 @@ impl Program {
         Ok(())
     }
 
+    fn eval_mvar_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        let id = self.resolve(root)?;
+        match self.nodes[id.0] {
+            Node::MVar(_) => Ok(id),
+            _ => Err(EvalError::ExpectedMVar(root)),
+        }
+    }
+
+    fn read_mvar(&self, id: NodeId) -> Result<Option<NodeId>, EvalError> {
+        match self.nodes[id.0] {
+            Node::MVar(value) => Ok(value),
+            _ => Err(EvalError::ExpectedMVar(id)),
+        }
+    }
+
+    fn take_mvar(&mut self, id: NodeId) -> Result<Option<NodeId>, EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::MVar(value) => Ok(value.take()),
+            _ => Err(EvalError::ExpectedMVar(id)),
+        }
+    }
+
+    fn put_mvar(&mut self, id: NodeId, value: NodeId) -> Result<(), EvalError> {
+        if !self.try_put_mvar(id, value)? {
+            return Err(EvalError::InvalidMVar);
+        }
+        Ok(())
+    }
+
+    fn try_put_mvar(&mut self, id: NodeId, new_value: NodeId) -> Result<bool, EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::MVar(value) if value.is_none() => {
+                *value = Some(new_value);
+                Ok(true)
+            }
+            Node::MVar(_) => Ok(false),
+            _ => Err(EvalError::ExpectedMVar(id)),
+        }
+    }
+
     fn int_list(&mut self, values: impl IntoIterator<Item = i64>) -> NodeId {
         let values: Vec<_> = values.into_iter().collect();
         let mut list = self.prim("K");
@@ -1506,6 +1597,10 @@ impl Program {
             }
             Node::Weak { .. } => {
                 out.push_str("Weak#");
+                out.push_str(&id.0.to_string());
+            }
+            Node::MVar(_) => {
+                out.push_str("MVar#");
                 out.push_str(&id.0.to_string());
             }
             Node::BigInt(bytes) => {
@@ -2404,6 +2499,26 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n1\nseq Wkfinal Wknew #0 @ #42 @ :0 @ @ IO.performIO Wkderef _0 @ @ #0 @ I @ @ }"),
             "42"
+        );
+    }
+
+    #[test]
+    fn reduces_mvar_primitives() {
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.lazyBind IO.newmvar @ IO.trytakemvar @ @ #0 @ I @ }"),
+            "0"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq IO.performIO IO.newmvar @ :0 @ IO.performIO IO.>> IO.putmvar _0 @ #42 @ @ IO.takemvar _0 @ @ @ @ }"),
+            "42"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq IO.performIO IO.newmvar @ :0 @ IO.performIO IO.>> IO.putmvar _0 @ #42 @ @ IO.readmvar _0 @ @ @ @ }"),
+            "42"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq IO.performIO IO.newmvar @ :0 @ IO.performIO IO.tryputmvar _0 @ #42 @ @ @ }"),
+            "A"
         );
     }
 

@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -253,6 +253,17 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
             expr = format!("toInt toPtr {expr} @ @");
         }
         return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("mvar-chain:") {
+        let size = parse_scenario_size("mvar-chain", size)?;
+        let mut expr = String::from("#0");
+        for idx in 0..size {
+            expr = format!("O #{idx} @ {expr} @");
+        }
+        return Ok(format!(
+            "v8.4\n0\nIO.performIO IO.lazyBind IO.newmvar @ IO.trytakemvar @ @ {expr} @ I @ }}\n"
+        )
+        .into_bytes());
     }
     if let Some(size) = scenario.strip_prefix("rnf-chain:") {
         let size = parse_scenario_size("rnf-chain", size)?;
