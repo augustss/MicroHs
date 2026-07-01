@@ -106,12 +106,17 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 # mhseval, compiled with emscripten. Use in the browser!
 #EMCC=emcc
 #EMCCFLAGS=-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
-EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_mhs_invoke_int,_mhs_wrapper_invoke,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
+EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
 EMCCLIBS= $(MHSGMPCCLIBS) -lm
 EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
 	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
+
+# Same, with the dynamic JavaScript FFI compiled in (see doc/javascript-ffi.md).
+jsffi:	generated/mhseval-jsffi.js
+generated/mhseval-jsffi.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
+	$(EMCCEVAL) -DWANT_JSFFI=1 $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval-jsffi.js
 
 bin/mhs.js:	mhs.js
 	@mkdir -p bin
