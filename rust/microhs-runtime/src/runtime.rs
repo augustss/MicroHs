@@ -1472,20 +1472,66 @@ impl Program {
         name: &str,
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
-        let arity = match name {
-            "islinux" | "ismacos" | "iswindows" => 0,
-            _ => return Err(EvalError::UnknownFfi(name.to_owned())),
-        };
+        let arity = ffi_arity(name).ok_or_else(|| EvalError::UnknownFfi(name.to_owned()))?;
         if args.len() < arity + 1 {
             return Ok(None);
         }
 
         let result = match name {
-            "islinux" => self.push_node(Node::Int(i64::from(cfg!(target_os = "linux")))),
-            "ismacos" => self.push_node(Node::Int(i64::from(cfg!(target_os = "macos")))),
-            "iswindows" => self.push_node(Node::Int(i64::from(cfg!(target_os = "windows")))),
+            "islinux" => Node::Int(i64::from(cfg!(target_os = "linux"))),
+            "ismacos" => Node::Int(i64::from(cfg!(target_os = "macos"))),
+            "iswindows" => Node::Int(i64::from(cfg!(target_os = "windows"))),
+            "acos" => Node::Float64(self.eval_float64(args[0])?.acos()),
+            "asin" => Node::Float64(self.eval_float64(args[0])?.asin()),
+            "atan" => Node::Float64(self.eval_float64(args[0])?.atan()),
+            "cos" => Node::Float64(self.eval_float64(args[0])?.cos()),
+            "exp" => Node::Float64(self.eval_float64(args[0])?.exp()),
+            "log" => Node::Float64(self.eval_float64(args[0])?.ln()),
+            "sin" => Node::Float64(self.eval_float64(args[0])?.sin()),
+            "sqrt" => Node::Float64(self.eval_float64(args[0])?.sqrt()),
+            "tan" => Node::Float64(self.eval_float64(args[0])?.tan()),
+            "atan2" => {
+                let x = self.eval_float64(args[0])?;
+                let y = self.eval_float64(args[1])?;
+                Node::Float64(x.atan2(y))
+            }
+            "pow" => {
+                let x = self.eval_float64(args[0])?;
+                let y = self.eval_float64(args[1])?;
+                Node::Float64(x.powf(y))
+            }
+            "scalbn" => {
+                let x = self.eval_float64(args[0])?;
+                let n = int_to_i32(self.eval_int(args[1])?)?;
+                Node::Float64(x * 2.0f64.powi(n))
+            }
+            "acosf" => Node::Float32(self.eval_float32(args[0])?.acos()),
+            "asinf" => Node::Float32(self.eval_float32(args[0])?.asin()),
+            "atanf" => Node::Float32(self.eval_float32(args[0])?.atan()),
+            "cosf" => Node::Float32(self.eval_float32(args[0])?.cos()),
+            "expf" => Node::Float32(self.eval_float32(args[0])?.exp()),
+            "logf" => Node::Float32(self.eval_float32(args[0])?.ln()),
+            "sinf" => Node::Float32(self.eval_float32(args[0])?.sin()),
+            "sqrtf" => Node::Float32(self.eval_float32(args[0])?.sqrt()),
+            "tanf" => Node::Float32(self.eval_float32(args[0])?.tan()),
+            "atan2f" => {
+                let x = self.eval_float32(args[0])?;
+                let y = self.eval_float32(args[1])?;
+                Node::Float32(x.atan2(y))
+            }
+            "powf" => {
+                let x = self.eval_float32(args[0])?;
+                let y = self.eval_float32(args[1])?;
+                Node::Float32(x.powf(y))
+            }
+            "scalbnf" => {
+                let x = self.eval_float32(args[0])?;
+                let n = int_to_i32(self.eval_int(args[1])?)?;
+                Node::Float32(x * 2.0f32.powi(n))
+            }
             _ => unreachable!("checked FFI symbol"),
         };
+        let result = self.push_node(result);
         Ok(Some((arity + 1, self.pair(result, args[arity]))))
     }
 
@@ -2769,6 +2815,20 @@ fn int_to_usize(n: i64) -> Result<usize, EvalError> {
     usize::try_from(n).map_err(|_| EvalError::InvalidByteString)
 }
 
+fn int_to_i32(n: i64) -> Result<i32, EvalError> {
+    i32::try_from(n).map_err(|_| EvalError::Overflow)
+}
+
+fn ffi_arity(name: &str) -> Option<usize> {
+    Some(match name {
+        "islinux" | "ismacos" | "iswindows" => 0,
+        "acos" | "asin" | "atan" | "cos" | "exp" | "log" | "sin" | "sqrt" | "tan" | "acosf"
+        | "asinf" | "atanf" | "cosf" | "expf" | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
+        "atan2" | "pow" | "scalbn" | "atan2f" | "powf" | "scalbnf" => 2,
+        _ => return None,
+    })
+}
+
 fn std_handle(name: &str) -> Option<StdHandle> {
     Some(match name {
         "IO.stdin" => StdHandle::Stdin,
@@ -3299,6 +3359,19 @@ mod tests {
             program.reduce_whnf(100),
             Err(EvalError::UnknownFfi(name)) if name == "does_not_exist"
         ));
+    }
+
+    #[test]
+    fn reduces_math_ffi_calls() {
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^sqrt &9 @ @ }"), "3");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^pow &2 @ &8 @ @ }"), "256");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^scalbn &1.5 @ #2 @ @ }"), "6");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^sqrtf &&9 @ @ }"), "3f");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^powf &&2 @ &&8 @ @ }"), "256f");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO ^scalbnf &&1.5 @ #2 @ @ }"),
+            "6f"
+        );
     }
 
     #[test]
