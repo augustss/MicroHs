@@ -126,10 +126,15 @@ toStringP ae =
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
     -- A `foreign import javascript` becomes a token  ~<tags> "<jsbody>"  that the
     -- interpreter registers and dispatches dynamically (T_IO_JSCALL in eval.c).
-    Lit (LForImp _ (ImpJS jsbody) _ (CType ty)) ->
-      let (as, rio) = getArrows ty
-          tags      = jsRetTag (dropIO rio) : map jsArgTag as
-      in  (('~' : tags ++ " ") ++) . (quoteString (utf8encode jsbody) ++) . (' ' :)
+    -- The special body "wrapper" turns a Haskell closure into a JS function
+    -- (`(a -> .. -> IO r) -> IO JSVal`); it emits `<cbtags> (T_IO_JSWRAP), the
+    -- callback's tags, no body.
+    Lit (LForImp _ (ImpJS jsbody) _ (CType ty))
+      | jsbody == "wrapper" -> (('`' : jsWrapperTags ty ++ " ") ++)
+      | otherwise ->
+        let (as, rio) = getArrows ty
+            tags      = jsRetTag (dropIO rio) : map jsArgTag as
+        in  (('~' : tags ++ " ") ++) . (quoteString (utf8encode jsbody) ++) . (' ' :)
     Lit l -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
@@ -197,6 +202,21 @@ jsScalarTag t = jsTagErr t
 
 jsTagErr :: EType -> a
 jsTagErr t = errorMessage (getSLoc t) $ "unsupported JavaScript FFI type: " ++ showEType t
+
+-- A `foreign import javascript "wrapper"` has type `(a -> .. -> IO r) -> IO JSVal`.
+-- The serialized tags describe the callback (its result then its arguments), so
+-- the runtime knows how to marshal when JS later calls the function.
+jsWrapperTags :: EType -> String
+jsWrapperTags ty =
+  case getArrows ty of
+    -- wrapper result must be `IO JSVal`, callback result must be `IO r` (the
+    -- runtime always performIO's the callback, so a pure callback is rejected).
+    ([cbty], EApp (EVar io1) rv)
+      | io1 == identIO, jsScalarTag rv == 'J'
+      , (cas, EApp (EVar io2) cr) <- getArrows cbty, io2 == identIO ->
+          jsRetTag cr : map jsArgTag cas
+    _ -> errorMessage (getSLoc ty) $
+           "foreign import javascript \"wrapper\" must have type (.. -> IO r) -> IO JSVal: " ++ showEType ty
 
 -- BaseStrings are encoded without quotations,
 -- using a length and raw data instead.
