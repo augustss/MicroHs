@@ -170,8 +170,8 @@ dropIO (EApp (EVar io) t) | io == identIO = t
 dropIO t = t
 
 -- Single-character tags naming JS FFI marshalling types; must agree with the
--- decoder for T_IO_JSCALL in src/runtime/eval.c.  `()` is only valid as a
--- return type (V), never as an argument.
+-- decoder for T_IO_JSCALL in src/runtime/eval.c.  I=Int/Word/Char D=Double
+-- F=Float P=Ptr B=Bool J=JSVal, and V=() only as a return type, never an argument.
 jsRetTag :: EType -> Char
 jsRetTag (EVar i) | i == identUnit = 'V'
 jsRetTag t = jsScalarTag t
@@ -181,12 +181,18 @@ jsArgTag = jsScalarTag
 
 jsScalarTag :: EType -> Char
 jsScalarTag (EApp (EVar p) _) | p == identPtr = 'P'
+-- JSVal is a newtype over `ForeignPtr JSValRep`, and newtypes are transparent,
+-- so the type reaches us as its representation.  The JSValRep phantom marks it.
+jsScalarTag (EApp (EVar fp) (EVar m))
+  | unIdent fp == "Primitives.ForeignPtr" && unIdent m == "Mhs.JavaScript.JSValRep" = 'J'
 jsScalarTag t@(EVar i) =
   case unIdent i of
-    "Primitives.Int"    -> 'I'
-    "Primitives.Double" -> 'D'
-    "Primitives.Float"  -> 'F'
-    _                   -> jsTagErr t
+    "Primitives.Int"        -> 'I'
+    "Primitives.Word"       -> 'I'   -- also Char's representation (a codepoint)
+    "Primitives.Double"     -> 'D'
+    "Primitives.Float"      -> 'F'
+    "Data.Bool_Type.Bool"   -> 'B'
+    _                       -> jsTagErr t
 jsScalarTag t = jsTagErr t
 
 jsTagErr :: EType -> a
