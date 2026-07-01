@@ -217,6 +217,19 @@ impl Program {
             return Ok(None);
         };
 
+        if name == "IO.>>" && args.len() >= 3 && budget >= 2 {
+            let k = self.prim("K");
+            let then = self.app(k, args[1]);
+            let action = self.app(args[0], args[2]);
+            let mut node = self.app(action, then);
+            let in_place = self.apply_remaining_spine(&mut node, &args[3..], &apps[3..]);
+            return Ok(Some(StepResult {
+                node,
+                in_place,
+                reductions: 2,
+            }));
+        }
+
         let rewrite = match name.as_str() {
             "I" | "ord" | "chr" if !args.is_empty() => Some((1, args[0])),
             "K" if args.len() >= 2 => Some((2, args[0])),
