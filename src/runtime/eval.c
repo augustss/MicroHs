@@ -3738,9 +3738,6 @@ EM_JS(void, mhs_js_setup, (void), {
    * guards builds that don't export them (e.g. the compiler). */
   if (typeof UTF8ToString !== 'undefined')    globalThis.UTF8ToString    = UTF8ToString;
   if (typeof stringToNewUTF8 !== 'undefined') globalThis.stringToNewUTF8 = stringToNewUTF8;
-  /* invoke(sp,v) drives a Haskell StablePtr (Int -> IO ()) from a JS event. */
-  if (!m.invoke && typeof _mhs_invoke_int !== 'undefined')
-    m.invoke = function(sp, v) { return _mhs_invoke_int(sp, v); };
 });
 
 EM_JS(int, mhs_js_register, (const char *bodyp, int arity), {
@@ -7669,26 +7666,6 @@ apply_sp(uvalue_t sp, void *arg)
   void *r = evalptr(TOP(0));
   POP(1);
   return r;
-}
-
-/* mhs_invoke_int :: StablePtr (Int -> IO ()) -> Int -> IO ()
- * Run a Haskell callback (handed to JS as a StablePtr, e.g. via __mhs.invoke)
- * with event argument `v`.  Runs as a FRESH thread via start_exec so it has a
- * live scheduler and its own error boundary, letting JS events drive Haskell
- * after `main` returned.  The interpreter is not reentrant, so a call while the
- * evaluator is active (main_thread != 0) is dropped (returns 0; 1 means it ran). */
-int
-mhs_invoke_int(uvalue_t sp, value_t v)
-{
-  if (main_thread)
-    return 0;                   /* evaluator active — drop this event */
-  GCCHECK(2);
-  NODEPTR f = deref_stableptr(sp);
-  NODEPTR act = new_ap(f, mkInt(v));    /* f v :: IO () */
-  PUSH(act);                            /* root across start_exec's allocation */
-  start_exec(act);                      /* applies combWorld and runs to completion */
-  CLEARSTK();                           /* back to the idle state */
-  return 1;
 }
 
 #if defined(__EMSCRIPTEN__)
