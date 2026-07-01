@@ -239,6 +239,20 @@ impl Program {
                 let n = self.app(args[0], yy);
                 Some((1, n))
             }
+            name if args.len() >= 2 && tag_index(name).is_some() => {
+                let tag = self.push_node(Node::Int(tag_index(name).expect("checked tag") as i64));
+                let ytag = self.app(args[1], tag);
+                let n = self.app(ytag, args[0]);
+                Some((2, n))
+            }
+            name if tuple_fields(name).is_some_and(|fields| args.len() > fields) => {
+                let fields = tuple_fields(name).expect("checked tuple constructor");
+                let mut n = args[fields];
+                for arg in &args[..fields] {
+                    n = self.app(n, *arg);
+                }
+                Some((fields + 1, n))
+            }
             name if args.len() >= 2 => self.int_binop(name, &args)?,
             name if !args.is_empty() => self.int_unop(name, &args)?,
             _ => None,
@@ -567,6 +581,16 @@ fn shift(n: i64) -> Result<u32, EvalError> {
     Ok(n as u32)
 }
 
+fn tag_index(name: &str) -> Option<usize> {
+    let tag = name.strip_prefix("TAG")?.parse().ok()?;
+    (tag <= 32).then_some(tag)
+}
+
+fn tuple_fields(name: &str) -> Option<usize> {
+    let fields = name.strip_prefix('T')?.parse().ok()?;
+    (3..=16).contains(&fields).then_some(fields)
+}
+
 fn render_bytes(bytes: &[u8], out: &mut String) {
     out.push('"');
     for &byte in bytes {
@@ -638,6 +662,14 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\nK2 #1 @ #2 @ }"), "(K 1)");
         assert_eq!(whnf(b"v8.4\n0\nK3 #1 @ #2 @ #3 @ }"), "(K 1)");
         assert_eq!(whnf(b"v8.4\n0\nC'B K @ I @ #9 @ }"), "((B (K 9)) I)");
+    }
+
+    #[test]
+    fn reduces_constructor_tags_and_tuples() {
+        assert_eq!(whnf(b"v8.4\n0\nTAG3 #99 @ K @ }"), "3");
+        assert_eq!(whnf(b"v8.4\n0\nTAG10 #99 @ A @ }"), "99");
+        assert_eq!(whnf(b"v8.4\n0\nT3 #1 @ #2 @ #3 @ K3 @ #0 @ }"), "1");
+        assert_eq!(whnf(b"v8.4\n0\nT4 #1 @ #2 @ #3 @ #4 @ K4 @ #0 @ }"), "1");
     }
 
     #[test]

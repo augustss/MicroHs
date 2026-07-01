@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|zoo-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -173,6 +173,20 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
                 8 => format!("R #0 @ K @ {expr} @"),
                 9 => format!("O {expr} @ #0 @ #1 @ K @"),
                 _ => format!("C'B K @ K @ {expr} @ #0 @"),
+            };
+        }
+        return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("data-chain:") {
+        let size = parse_scenario_size("data-chain", size)?;
+        let mut expr = String::from("#1");
+        for idx in 0..size {
+            expr = if idx % 3 == 0 {
+                format!("TAG{} {expr} @ A @", idx % 33)
+            } else if idx % 3 == 1 {
+                format!("T3 {expr} @ #0 @ #1 @ K3 @ #0 @")
+            } else {
+                format!("T4 {expr} @ #0 @ #1 @ #2 @ K4 @ #0 @")
             };
         }
         return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
