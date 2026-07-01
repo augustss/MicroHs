@@ -245,6 +245,19 @@ impl Program {
                 let stats = self.pair(alloc, reductions);
                 Some((1, self.pair(stats, args[0])))
             }
+            "IO.pp" if args.len() >= 2 => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let rendered = self.render(args[0]);
+                    eprintln!("{rendered}");
+                }
+                let unit = self.prim("I");
+                Some((2, self.pair(unit, args[1])))
+            }
+            "IO.getArgRef" if !args.is_empty() => {
+                let arg_array = self.push_node(Node::Array(Vec::new()));
+                Some((1, self.pair(arg_array, args[0])))
+            }
             "IO.thid" if !args.is_empty() => {
                 let thread = self.push_node(Node::ThreadId(1));
                 Some((1, self.pair(thread, args[0])))
