@@ -120,6 +120,17 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
    exception (at least on the async path; the sync path matches GHC's fatal one).
 5. **Avoid `unsafe-eval`** — precompile bodies or use a CSP nonce, for sites
    that forbid `new Function`.
+6. **Eager `freeJSVal` / `finalizeForeignPtr`** — GHC has `freeJSVal :: JSVal ->
+   IO ()` (eager, idempotent release; using a freed handle panics).  We only free a
+   `JSVal`'s slot on GC.  Doing it eagerly needs to *run a `ForeignPtr`'s finalizer
+   on demand*, which MicroHs currently can't: `finalizeForeignPtr` is commented out
+   in `lib/Foreign/ForeignPtr.hs`, and the runtime only runs finalizers in the GC
+   scan — the forptr primitives (`fpnew`/`fpfin`=add-finalizer/`fp2p`) have no
+   "run + clear finalizer".  So this is a **runtime-primitive** change (a new tag
+   that runs `fin->final(fin->arg)` then clears `final` so GC won't re-run it —
+   idempotent), best added as the general `finalizeForeignPtr` with `freeJSVal`
+   layered on top; an optional use-after-free panic would invalidate the handle and
+   check it on the `J`-arg path.  Deferred.
 
 ## Version note for reviewers
 
