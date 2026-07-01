@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MicroHs: compile &amp; run Haskell in the browser (pixi.js)</title>
+  <style>
+    body { margin: 0; background: #0b0b16; color: #e8e8f0; font-family: monospace; }
+    #log { padding: 10px; white-space: pre-wrap; }
+    #stage { display: flex; justify-content: center; padding: 12px; }
+    pre { margin: 0 10px; padding: 8px; background: #15152a; border-radius: 6px; overflow:auto; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+  <script src="mhs-compile.js"></script>
+  <script src="mhseval-web.js"></script>
+</head>
+<body>
+  <div id="log">loading…</div>
+  <pre id="src"></pre>
+  <div id="stage"></div>
+  <script>
+  // The Haskell program — compiled to combinators IN THE BROWSER, then run.
+  const HS = [
+    'module Main(main) where',
+    '',
+    'foreign import javascript "return pixiObjs.push(globalThis.__pixiApp) - 1" getApp :: IO Int',
+    '',
+    'foreign import javascript "var app=pixiObjs[$0]; var g=new PIXI.Graphics(); g.beginFill($1); g.drawRect(-60,-60,120,120); g.endFill(); g.x=app.renderer.width/2; g.y=app.renderer.height/2; app.stage.addChild(g); return pixiObjs.push(g)-1" addBox :: Int -> Int -> IO Int',
+    '',
+    'foreign import javascript "var app=pixiObjs[$0]; var o=pixiObjs[$1]; app.ticker.add(function(d){ o.rotation += 0.03*d; })" spin :: Int -> Int -> IO ()',
+    '',
+    'main :: IO ()',
+    'main = do',
+    '  putStrLn "compiled in the browser!"',
+    '  app <- getApp',
+    '  box <- addBox app 0x66ccff',
+    '  spin app box',
+    '  putStrLn "running: box spinning"',
+    ''
+  ].join('\n');
+
+  (async () => {
+    const logEl = document.getElementById('log');
+    const log = (m) => { logEl.textContent = m; console.log(m); };
+    document.getElementById('src').textContent = HS;
+    try {
+      // 1. Load the MicroHs COMPILER (compiled to WASM) and compile the program in-browser.
+      log('loading compiler…');
+      const C = await MhsCompile({ noInitialRun: true,
+        print: t => console.log('[mhsc] ' + t), printErr: t => console.error('[mhsc] ' + t) });
+      C.FS.writeFile('/Main.hs', HS);
+      log('compiling in the browser…');
+      C.callMain(['/Main.hs', '-o/prog.comb']);
+      const comb = C.FS.readFile('/prog.comb');           // Uint8Array (binary!)
+      log('compiled ' + comb.length + ' bytes in-browser; setting up pixi…');
+
+      // 2. Set up pixi.js.
+      const app = new PIXI.Application({ width: 480, height: 360, background: 0x111133, antialias: true });
+      document.getElementById('stage').appendChild(app.view);
+      globalThis.__pixiApp = app;
+      globalThis.pixiObjs = [];       // userland object-handle registry for the program
+
+      // 3. Load the MicroHs RUNTIME and run the freshly compiled program.
+      const R = await MhsEval({ noInitialRun: true,
+        print: t => console.log('[mhs] ' + t), printErr: t => console.error('[mhs] ' + t) });
+      R.FS.writeFile('/prog.comb', comb);
+      R.callMain(['+RTS', '-r/prog.comb', '-RTS']);
+
+      log('Compiled AND ran in the browser. The box was created & is spun from Haskell.');
+      globalThis.__ready = true;
+    } catch (e) {
+      log('ERROR: ' + (e && e.stack || e));
+      globalThis.__error = String(e);
+    }
+  })();
+  </script>
+</body>
+</html>
