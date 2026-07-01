@@ -46,7 +46,7 @@ impl CBenchMode {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|foreignptr-slice:N|cstring-pack:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|argref-chain:N|stdio-chain:N|ffi-chain:N|ffi-math-chain:N|ffi-const-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|foreignptr-slice:N|cstring-pack:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|argref-chain:N|stdio-chain:N|ffi-chain:N|ffi-math-chain:N|ffi-const-chain:N|ffi-mem-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--warmup-iters N]\n\
                                   [--c-mhseval PATH] [--c-mhsbench PATH] [--c-mhsbench-mode whnf|main]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
@@ -368,6 +368,15 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
         let mut expr = String::from("^sizeof_int");
         for _ in 1..size {
             expr = format!("IO.>> {expr} @ ^sizeof_int @");
+        }
+        return Ok(format!("v8.4\n0\nIO.performIO {expr} @ }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("ffi-mem-chain:") {
+        let size = parse_scenario_size("ffi-mem-chain", size)?;
+        let action = "IO.lazyBind ^calloc #1 @ #1 @ @ ^peek_uint8 @";
+        let mut expr = action.to_owned();
+        for _ in 1..size {
+            expr = format!("IO.>> {expr} @ {action} @");
         }
         return Ok(format!("v8.4\n0\nIO.performIO {expr} @ }}\n").into_bytes());
     }

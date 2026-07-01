@@ -54,6 +54,9 @@ enum StdHandle {
     Stderr,
 }
 
+const ALLOCATION_PTR_BASE: i64 = -(1_i64 << 62);
+const ALLOCATION_PTR_STRIDE: i64 = 1_i64 << 32;
+
 #[derive(Debug)]
 pub enum EvalError {
     StepLimit { limit: usize },
@@ -123,6 +126,7 @@ pub struct Program {
     root: NodeId,
     labels: HashMap<usize, NodeId>,
     stable_ptrs: Vec<Option<NodeId>>,
+    allocations: Vec<Option<Vec<u8>>>,
     masking_state: i64,
     reductions: usize,
 }
@@ -146,6 +150,7 @@ impl Program {
             root,
             labels,
             stable_ptrs: vec![None],
+            allocations: Vec::new(),
             masking_state: 0,
             reductions: 0,
         }
@@ -1504,6 +1509,49 @@ impl Program {
             "sizeof_size_t" => Node::Int(size_of_i64::<usize>()),
             "want_gmp" => Node::Int(0),
             "want_imath" => Node::Int(1),
+            "malloc" => {
+                let size = int_to_usize(self.eval_int(args[0])?)?;
+                Node::Ptr(self.alloc_memory(size)?)
+            }
+            "calloc" => {
+                let count = int_to_usize(self.eval_int(args[0])?)?;
+                let size = int_to_usize(self.eval_int(args[1])?)?;
+                Node::Ptr(self.calloc_memory(count, size)?)
+            }
+            "realloc" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let size = int_to_usize(self.eval_int(args[1])?)?;
+                Node::Ptr(self.realloc_memory(ptr, size)?)
+            }
+            "free" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                self.free_memory(ptr)?;
+                Node::Prim("I".to_owned())
+            }
+            "memcpy" | "memmove" => {
+                let dst = self.eval_pointer_value(args[0])?;
+                let src = self.eval_pointer_value(args[1])?;
+                let len = int_to_usize(self.eval_int(args[2])?)?;
+                let bytes = self.read_pointer_bytes(src, len)?;
+                self.write_pointer_bytes(dst, &bytes)?;
+                Node::Prim("I".to_owned())
+            }
+            "strlen" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let len = self.read_c_string(ptr)?.len();
+                Node::Int(i64::try_from(len).map_err(|_| EvalError::Overflow)?)
+            }
+            "peek_uint8" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let bytes = self.read_pointer_bytes(ptr, 1)?;
+                Node::Int(i64::from(bytes[0]))
+            }
+            "poke_uint8" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.write_pointer_bytes(ptr, &[(value & 0xff) as u8])?;
+                Node::Prim("I".to_owned())
+            }
             "acos" => Node::Float64(self.eval_float64(args[0])?.acos()),
             "asin" => Node::Float64(self.eval_float64(args[0])?.asin()),
             "atan" => Node::Float64(self.eval_float64(args[0])?.atan()),
@@ -1757,6 +1805,59 @@ impl Program {
         Ok(())
     }
 
+    fn alloc_memory(&mut self, size: usize) -> Result<i64, EvalError> {
+        let bytes = vec![0; size];
+        let slot = if let Some(slot) = self.allocations.iter().position(Option::is_none) {
+            self.allocations[slot] = Some(bytes);
+            slot
+        } else {
+            self.allocations.push(Some(bytes));
+            self.allocations.len() - 1
+        };
+        self.pointer_for_allocation(slot, 0)
+    }
+
+    fn calloc_memory(&mut self, count: usize, size: usize) -> Result<i64, EvalError> {
+        let len = count.checked_mul(size).ok_or(EvalError::Overflow)?;
+        self.alloc_memory(len)
+    }
+
+    fn realloc_memory(&mut self, ptr: i64, size: usize) -> Result<i64, EvalError> {
+        if ptr == 0 {
+            return self.alloc_memory(size);
+        }
+        let (slot, offset) = self.decode_allocation_pointer(ptr)?;
+        if offset != 0 {
+            return Err(EvalError::InvalidByteString);
+        }
+        let bytes = self
+            .allocations
+            .get_mut(slot)
+            .and_then(Option::as_mut)
+            .ok_or(EvalError::InvalidByteString)?;
+        bytes.resize(size, 0);
+        self.pointer_for_allocation(slot, 0)
+    }
+
+    fn free_memory(&mut self, ptr: i64) -> Result<(), EvalError> {
+        if ptr == 0 {
+            return Ok(());
+        }
+        let (slot, offset) = self.decode_allocation_pointer(ptr)?;
+        if offset != 0 {
+            return Err(EvalError::InvalidByteString);
+        }
+        let slot = self
+            .allocations
+            .get_mut(slot)
+            .ok_or(EvalError::InvalidByteString)?;
+        if slot.is_none() {
+            return Err(EvalError::InvalidByteString);
+        }
+        *slot = None;
+        Ok(())
+    }
+
     fn pointer_for_node(&self, id: NodeId, offset: usize) -> Result<i64, EvalError> {
         let base = i64::try_from(id.0).map_err(|_| EvalError::Overflow)?;
         let offset = i64::try_from(offset).map_err(|_| EvalError::Overflow)?;
@@ -1766,6 +1867,25 @@ impl Program {
         base.checked_shl(32)
             .and_then(|base| base.checked_add(offset))
             .ok_or(EvalError::Overflow)
+    }
+
+    fn pointer_for_allocation(&self, slot: usize, offset: usize) -> Result<i64, EvalError> {
+        let slot = i64::try_from(slot).map_err(|_| EvalError::Overflow)?;
+        let offset = i64::try_from(offset).map_err(|_| EvalError::Overflow)?;
+        if offset >= ALLOCATION_PTR_STRIDE {
+            return Err(EvalError::Overflow);
+        }
+        let ptr = ALLOCATION_PTR_BASE
+            .checked_add(
+                slot.checked_mul(ALLOCATION_PTR_STRIDE)
+                    .and_then(|raw| raw.checked_add(offset))
+                    .ok_or(EvalError::Overflow)?,
+            )
+            .ok_or(EvalError::Overflow)?;
+        if ptr >= 0 {
+            return Err(EvalError::Overflow);
+        }
+        Ok(ptr)
     }
 
     fn decode_pointer(&self, ptr: i64) -> Result<(usize, usize), EvalError> {
@@ -1778,7 +1898,58 @@ impl Program {
         Ok((block, offset))
     }
 
+    fn decode_allocation_pointer(&self, ptr: i64) -> Result<(usize, usize), EvalError> {
+        if ptr < ALLOCATION_PTR_BASE || ptr >= 0 {
+            return Err(EvalError::InvalidByteString);
+        }
+        let raw = ptr
+            .checked_sub(ALLOCATION_PTR_BASE)
+            .ok_or(EvalError::Overflow)?;
+        let slot = usize::try_from(raw / ALLOCATION_PTR_STRIDE)
+            .map_err(|_| EvalError::InvalidByteString)?;
+        let offset = usize::try_from(raw % ALLOCATION_PTR_STRIDE)
+            .map_err(|_| EvalError::InvalidByteString)?;
+        let bytes = self
+            .allocations
+            .get(slot)
+            .and_then(Option::as_ref)
+            .ok_or(EvalError::InvalidByteString)?;
+        if offset > bytes.len() {
+            return Err(EvalError::InvalidByteString);
+        }
+        Ok((slot, offset))
+    }
+
+    fn allocation_bytes(&self, ptr: i64) -> Result<Option<&[u8]>, EvalError> {
+        if ptr < ALLOCATION_PTR_BASE || ptr >= 0 {
+            return Ok(None);
+        }
+        let (slot, offset) = self.decode_allocation_pointer(ptr)?;
+        let bytes = self
+            .allocations
+            .get(slot)
+            .and_then(Option::as_ref)
+            .ok_or(EvalError::InvalidByteString)?;
+        Ok(Some(&bytes[offset..]))
+    }
+
+    fn allocation_bytes_mut(&mut self, ptr: i64) -> Result<Option<&mut [u8]>, EvalError> {
+        if ptr < ALLOCATION_PTR_BASE || ptr >= 0 {
+            return Ok(None);
+        }
+        let (slot, offset) = self.decode_allocation_pointer(ptr)?;
+        let bytes = self
+            .allocations
+            .get_mut(slot)
+            .and_then(Option::as_mut)
+            .ok_or(EvalError::InvalidByteString)?;
+        Ok(Some(&mut bytes[offset..]))
+    }
+
     fn pointer_bytes(&self, ptr: i64) -> Result<&[u8], EvalError> {
+        if let Some(bytes) = self.allocation_bytes(ptr)? {
+            return Ok(bytes);
+        }
         let (base, offset) = self.decode_pointer(ptr)?;
         let bytes = match self.nodes.get(base).ok_or(EvalError::InvalidByteString)? {
             Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => bytes,
@@ -1798,6 +1969,17 @@ impl Program {
             return Err(EvalError::InvalidByteString);
         }
         Ok(&bytes[offset..])
+    }
+
+    fn write_pointer_bytes(&mut self, ptr: i64, bytes: &[u8]) -> Result<(), EvalError> {
+        if let Some(dst) = self.allocation_bytes_mut(ptr)? {
+            let dst = dst
+                .get_mut(..bytes.len())
+                .ok_or(EvalError::InvalidByteString)?;
+            dst.copy_from_slice(bytes);
+            return Ok(());
+        }
+        Err(EvalError::InvalidByteString)
     }
 
     fn read_pointer_bytes(&self, ptr: i64, len: usize) -> Result<Vec<u8>, EvalError> {
@@ -2867,9 +3049,12 @@ fn ffi_arity(name: &str) -> Option<usize> {
         "GETRAW" | "GETTIMEMICRO" | "islinux" | "ismacos" | "iswindows" | "sizeof_char"
         | "sizeof_short" | "sizeof_int" | "sizeof_long" | "sizeof_llong" | "sizeof_size_t"
         | "want_gmp" | "want_imath" => 0,
-        "acos" | "asin" | "atan" | "cos" | "exp" | "log" | "sin" | "sqrt" | "tan" | "acosf"
-        | "asinf" | "atanf" | "cosf" | "expf" | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
-        "atan2" | "pow" | "scalbn" | "atan2f" | "powf" | "scalbnf" => 2,
+        "malloc" | "free" | "strlen" | "peek_uint8" | "acos" | "asin" | "atan" | "cos" | "exp"
+        | "log" | "sin" | "sqrt" | "tan" | "acosf" | "asinf" | "atanf" | "cosf" | "expf"
+        | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
+        "calloc" | "realloc" | "poke_uint8" | "atan2" | "pow" | "scalbn" | "atan2f" | "powf"
+        | "scalbnf" => 2,
+        "memcpy" | "memmove" => 3,
         _ => return None,
     })
 }
