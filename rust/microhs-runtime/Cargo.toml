@@ -1,0 +1,13 @@
+[package]
+name = "microhs-runtime"
+version = "0.0.0"
+edition = "2024"
+license = "BSD-3-Clause"
+
+[lib]
+name = "microhs_runtime"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mhs-rust"
+path = "src/main.rs"
