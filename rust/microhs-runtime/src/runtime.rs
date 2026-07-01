@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -28,6 +29,7 @@ pub enum EvalError {
     StepLimit { limit: usize },
     DanglingIndirection(NodeId),
     ExpectedInt(NodeId),
+    ExpectedInt64(NodeId),
     DivideByZero,
     Overflow,
     InvalidShift(i64),
@@ -39,6 +41,7 @@ impl fmt::Display for EvalError {
             Self::StepLimit { limit } => write!(f, "reduction step limit reached ({limit})"),
             Self::DanglingIndirection(id) => write!(f, "dangling shared reference at node {id:?}"),
             Self::ExpectedInt(id) => write!(f, "expected Int at node {id:?}"),
+            Self::ExpectedInt64(id) => write!(f, "expected Int64 at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
             Self::Overflow => write!(f, "integer overflow"),
             Self::InvalidShift(n) => write!(f, "invalid shift amount {n}"),
@@ -253,8 +256,13 @@ impl Program {
                 }
                 Some((fields + 1, n))
             }
-            name if args.len() >= 2 => self.int_binop(name, &args)?,
-            name if !args.is_empty() => self.int_unop(name, &args)?,
+            name if args.len() >= 2 => self
+                .int64_binop(name, &args)?
+                .or(self.int_binop(name, &args)?),
+            name if !args.is_empty() => self
+                .int64_unop(name, &args)?
+                .or(self.int_conversion(name, &args)?)
+                .or(self.int_unop(name, &args)?),
             _ => None,
         };
 
@@ -286,6 +294,15 @@ impl Program {
         self.push_node(Node::Prim(name.to_owned()))
     }
 
+    fn ordering(&mut self, ord: Ordering) -> NodeId {
+        let name = match ord {
+            Ordering::Less => "K2",
+            Ordering::Equal => "KK",
+            Ordering::Greater => "KA",
+        };
+        self.prim(name)
+    }
+
     fn int_binop(
         &mut self,
         name: &str,
@@ -299,6 +316,7 @@ impl Program {
         let node = match op.apply(x, y)? {
             IntResult::Int(n) => self.push_node(Node::Int(n)),
             IntResult::Bool(b) => self.prim(if b { "A" } else { "K" }),
+            IntResult::Ordering(ord) => self.ordering(ord),
         };
         Ok(Some((2, node)))
     }
@@ -316,11 +334,76 @@ impl Program {
         Ok(Some((1, node)))
     }
 
+    fn int64_binop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Int64BinOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_int64(args[0])?;
+        let y = if op.rhs_is_shift() {
+            self.eval_int(args[1])?
+        } else {
+            self.eval_int64(args[1])?
+        };
+        let node = match op.apply(x, y)? {
+            Int64Result::Int64(n) => self.push_node(Node::Int64(n)),
+            Int64Result::Bool(b) => self.prim(if b { "A" } else { "K" }),
+            Int64Result::Ordering(ord) => self.ordering(ord),
+        };
+        Ok(Some((2, node)))
+    }
+
+    fn int64_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Int64UnOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_int64(args[0])?;
+        let node = match op.apply(x)? {
+            Int64UnResult::Int64(n) => self.push_node(Node::Int64(n)),
+            Int64UnResult::Int(n) => self.push_node(Node::Int(n)),
+        };
+        Ok(Some((1, node)))
+    }
+
+    fn int_conversion(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "itoI" | "utoU" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Int64(n))
+            }
+            "Itoi" | "Utou" => {
+                let n = self.eval_int64(args[0])?;
+                self.push_node(Node::Int(n))
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn eval_int(&mut self, id: NodeId) -> Result<i64, EvalError> {
         let root = self.reduce_node_whnf(id, 10_000)?;
         match self.nodes[self.resolve(root)?.0] {
             Node::Int(n) => Ok(n),
             _ => Err(EvalError::ExpectedInt(root)),
+        }
+    }
+
+    fn eval_int64(&mut self, id: NodeId) -> Result<i64, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match self.nodes[self.resolve(root)?.0] {
+            Node::Int64(n) => Ok(n),
+            _ => Err(EvalError::ExpectedInt64(root)),
         }
     }
 
@@ -413,6 +496,7 @@ impl Program {
 enum IntResult {
     Int(i64),
     Bool(bool),
+    Ordering(Ordering),
 }
 
 #[derive(Clone, Copy)]
@@ -445,6 +529,8 @@ enum IntBinOp {
     Ule,
     Ugt,
     Uge,
+    ICmp,
+    UCmp,
 }
 
 impl IntBinOp {
@@ -478,6 +564,8 @@ impl IntBinOp {
             "u<=" => Self::Ule,
             "u>" => Self::Ugt,
             "u>=" => Self::Uge,
+            "icmp" => Self::ICmp,
+            "ucmp" => Self::UCmp,
             _ => return None,
         })
     }
@@ -534,8 +622,191 @@ impl IntBinOp {
             Self::Ule => return Ok(IntResult::Bool(xu <= yu)),
             Self::Ugt => return Ok(IntResult::Bool(xu > yu)),
             Self::Uge => return Ok(IntResult::Bool(xu >= yu)),
+            Self::ICmp => return Ok(IntResult::Ordering(x.cmp(&y))),
+            Self::UCmp => return Ok(IntResult::Ordering(xu.cmp(&yu))),
         };
         Ok(IntResult::Int(n))
+    }
+}
+
+enum Int64Result {
+    Int64(i64),
+    Bool(bool),
+    Ordering(Ordering),
+}
+
+#[derive(Clone, Copy)]
+enum Int64BinOp {
+    Add,
+    Sub,
+    Mul,
+    Quot,
+    Rem,
+    SubR,
+    UAdd,
+    USub,
+    UMul,
+    UQuot,
+    URem,
+    USubR,
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
+    Ashr,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Ult,
+    Ule,
+    Ugt,
+    Uge,
+    ICmp,
+    UCmp,
+}
+
+impl Int64BinOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "I+" => Self::Add,
+            "I-" => Self::Sub,
+            "I*" => Self::Mul,
+            "Iquot" => Self::Quot,
+            "Irem" => Self::Rem,
+            "Isubtract" => Self::SubR,
+            "Iu+" => Self::UAdd,
+            "Iu-" => Self::USub,
+            "Iu*" => Self::UMul,
+            "Iuquot" => Self::UQuot,
+            "Iurem" => Self::URem,
+            "Iusubtract" => Self::USubR,
+            "Iand" => Self::And,
+            "Ior" => Self::Or,
+            "Ixor" => Self::Xor,
+            "Ishl" => Self::Shl,
+            "Ishr" => Self::Shr,
+            "Iashr" => Self::Ashr,
+            "I==" => Self::Eq,
+            "I/=" => Self::Ne,
+            "I<" => Self::Lt,
+            "I<=" => Self::Le,
+            "I>" => Self::Gt,
+            "I>=" => Self::Ge,
+            "Iu<" => Self::Ult,
+            "Iu<=" => Self::Ule,
+            "Iu>" => Self::Ugt,
+            "Iu>=" => Self::Uge,
+            "Iicmp" => Self::ICmp,
+            "Iucmp" => Self::UCmp,
+            _ => return None,
+        })
+    }
+
+    fn rhs_is_shift(self) -> bool {
+        matches!(self, Self::Shl | Self::Shr | Self::Ashr)
+    }
+
+    fn apply(self, x: i64, y: i64) -> Result<Int64Result, EvalError> {
+        let xu = x as u64;
+        let yu = y as u64;
+        let n = match self {
+            Self::Add => x.checked_add(y).ok_or(EvalError::Overflow)?,
+            Self::Sub => x.checked_sub(y).ok_or(EvalError::Overflow)?,
+            Self::Mul => x.checked_mul(y).ok_or(EvalError::Overflow)?,
+            Self::Quot => {
+                if y == 0 {
+                    return Err(EvalError::DivideByZero);
+                }
+                x.checked_div(y).ok_or(EvalError::Overflow)?
+            }
+            Self::Rem => {
+                if y == 0 {
+                    return Err(EvalError::DivideByZero);
+                }
+                x.checked_rem(y).ok_or(EvalError::Overflow)?
+            }
+            Self::SubR => y.checked_sub(x).ok_or(EvalError::Overflow)?,
+            Self::UAdd => xu.wrapping_add(yu) as i64,
+            Self::USub => xu.wrapping_sub(yu) as i64,
+            Self::UMul => xu.wrapping_mul(yu) as i64,
+            Self::UQuot => {
+                if yu == 0 {
+                    return Err(EvalError::DivideByZero);
+                }
+                (xu / yu) as i64
+            }
+            Self::URem => {
+                if yu == 0 {
+                    return Err(EvalError::DivideByZero);
+                }
+                (xu % yu) as i64
+            }
+            Self::USubR => yu.wrapping_sub(xu) as i64,
+            Self::And => (xu & yu) as i64,
+            Self::Or => (xu | yu) as i64,
+            Self::Xor => (xu ^ yu) as i64,
+            Self::Shl => (xu.wrapping_shl(shift(y)?)) as i64,
+            Self::Shr => (xu.wrapping_shr(shift(y)?)) as i64,
+            Self::Ashr => x.wrapping_shr(shift(y)?),
+            Self::Eq => return Ok(Int64Result::Bool(xu == yu)),
+            Self::Ne => return Ok(Int64Result::Bool(xu != yu)),
+            Self::Lt => return Ok(Int64Result::Bool(x < y)),
+            Self::Le => return Ok(Int64Result::Bool(x <= y)),
+            Self::Gt => return Ok(Int64Result::Bool(x > y)),
+            Self::Ge => return Ok(Int64Result::Bool(x >= y)),
+            Self::Ult => return Ok(Int64Result::Bool(xu < yu)),
+            Self::Ule => return Ok(Int64Result::Bool(xu <= yu)),
+            Self::Ugt => return Ok(Int64Result::Bool(xu > yu)),
+            Self::Uge => return Ok(Int64Result::Bool(xu >= yu)),
+            Self::ICmp => return Ok(Int64Result::Ordering(x.cmp(&y))),
+            Self::UCmp => return Ok(Int64Result::Ordering(xu.cmp(&yu))),
+        };
+        Ok(Int64Result::Int64(n))
+    }
+}
+
+enum Int64UnResult {
+    Int64(i64),
+    Int(i64),
+}
+
+#[derive(Clone, Copy)]
+enum Int64UnOp {
+    Neg,
+    UNeg,
+    Inv,
+    PopCount,
+    Clz,
+    Ctz,
+}
+
+impl Int64UnOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "Ineg" => Self::Neg,
+            "Iuneg" => Self::UNeg,
+            "Iinv" => Self::Inv,
+            "Ipopcount" => Self::PopCount,
+            "Iclz" => Self::Clz,
+            "Ictz" => Self::Ctz,
+            _ => return None,
+        })
+    }
+
+    fn apply(self, x: i64) -> Result<Int64UnResult, EvalError> {
+        let xu = x as u64;
+        Ok(match self {
+            Self::Neg => Int64UnResult::Int64(x.checked_neg().ok_or(EvalError::Overflow)?),
+            Self::UNeg => Int64UnResult::Int64((0u64.wrapping_sub(xu)) as i64),
+            Self::Inv => Int64UnResult::Int64(!xu as i64),
+            Self::PopCount => Int64UnResult::Int(xu.count_ones() as i64),
+            Self::Clz => Int64UnResult::Int(xu.leading_zeros() as i64),
+            Self::Ctz => Int64UnResult::Int(xu.trailing_zeros() as i64),
+        })
     }
 }
 
@@ -698,5 +969,23 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\n== #2 @ #2 @ }"), "A");
         assert_eq!(whnf(b"v8.4\n0\n< #2 @ #1 @ }"), "K");
         assert_eq!(whnf(b"v8.4\n0\nu> #-1 @ #1 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nicmp #1 @ #2 @ }"), "K2");
+        assert_eq!(whnf(b"v8.4\n0\nucmp #-1 @ #1 @ }"), "KA");
+    }
+
+    #[test]
+    fn reduces_int64_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nI+ ##40 @ ##2 @ }"), "42i64");
+        assert_eq!(whnf(b"v8.4\n0\nIsubtract ##10 @ ##3 @ }"), "-7i64");
+        assert_eq!(whnf(b"v8.4\n0\nIquot ##22 @ ##5 @ }"), "4i64");
+        assert_eq!(whnf(b"v8.4\n0\nIand ##6 @ ##3 @ }"), "2i64");
+        assert_eq!(whnf(b"v8.4\n0\nIshl ##3 @ #2 @ }"), "12i64");
+        assert_eq!(whnf(b"v8.4\n0\nIpopcount ##7 @ }"), "3");
+        assert_eq!(whnf(b"v8.4\n0\nI== ##2 @ ##2 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nIu> ##-1 @ ##1 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nIicmp ##1 @ ##2 @ }"), "K2");
+        assert_eq!(whnf(b"v8.4\n0\nIucmp ##-1 @ ##1 @ }"), "KA");
+        assert_eq!(whnf(b"v8.4\n0\nitoI #7 @ }"), "7i64");
+        assert_eq!(whnf(b"v8.4\n0\nItoi ##7 @ }"), "7");
     }
 }
