@@ -20,21 +20,23 @@ can drive Haskell.
   self-describing token `~<tags> "<body>"`; at load time the runtime compiles
   the body with `new Function` into an append-only registry
   (`globalThis.__mhs.reg`), and a `T_IO_JSCALL` node dispatches it by tags.
-  Marshalling is scalar: `I`nt / `D`ouble / `F`loat / `P`tr / `V`oid(unit).
+  Marshalling: `I`nt (also `Word`/`Char`) / `D`ouble / `F`loat / `P`tr / `B`ool /
+  `J`SVal / `V`oid (unit, return only).
 - **JS→Haskell event-pump.** `mhs_invoke_int` (exposed to JS as
   `globalThis.__mhs.invoke(sp, v)`) runs a Haskell `StablePtr (Int -> IO ())`
   callback as a *fresh* evaluator thread. A page hands a callback to JS by
   `newStablePtr`+`castStablePtrToPtr` and installs a listener whose body calls
   `__mhs.invoke`. See `PixiEvents.hs` — a canvas click rotates the box from
   Haskell, long after `main` returned.
-- **GC-managed object handles (`JSVal`).** A `JSVal` (`JSVal.hs`) is a
-  `ForeignPtr` wrapping a handle into `globalThis.__mhs.obj`; a JS body allocates
-  a handle with `__mhs.intern(value)` and returns it, `newJSVal` attaches a
-  finalizer (`mhs_js_obj_free`) that frees the slot when the `JSVal` is collected.
-  So JS values are released on GC instead of leaking, and the handle array is
-  bounded by the peak number of simultaneously-live `JSVal`s (freed slots are
-  reused via a freelist). This reuses MicroHs's existing ForeignPtr/finalizer
-  machinery — the same path as `closeb`/`free`.
+- **First-class `JSVal` (GC-managed object handles).** A body can take and return
+  `JSVal` (`Mhs.JavaScript`) directly: on return the runtime interns the JS value
+  into `globalThis.__mhs.obj` and wraps the handle in a `ForeignPtr` whose
+  finalizer (`mhs_js_obj_free`) frees the slot on GC; as an argument it derefs the
+  handle back to the JS value. So the type is opaque and runtime-owned (no raw
+  handle to mismanage, no double-wrap), JS values are released on GC instead of
+  leaking, and the handle array is bounded by the peak number of live `JSVal`s
+  (freed slots reused via a freelist). This reuses MicroHs's existing
+  ForeignPtr/finalizer machinery.
 
 ## What it deliberately does NOT do (vs GHC's wasm JSFFI)
 
@@ -42,8 +44,8 @@ can drive Haskell.
 |---|---|---|
 | Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **no** — `main` runs to completion synchronously; no yielding to the event loop |
 | `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | only the narrow `Int -> IO ()` event-pump; no general export |
-| `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — `JSVal` (ForeignPtr + finalizer) frees the JS slot on GC (`JSVal.hs`); not yet a first-class *marshallable* FFI type (wrap/unwrap manually via `newJSVal`/`withJSVal`) |
-| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | scalars only; strings via manual `Ptr`+UTF8 helpers; no Bool/Char/Int64/JSVal |
+| `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — first-class `JSVal` (`Mhs.JavaScript`), runtime-owned ForeignPtr + finalizer, freed on GC; take/return directly in a body |
+| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int/Word/Char, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet; `Word`≥2³¹ rides the signed `I` path (unsigned `U` tag deferred) |
 | Catchable JS exceptions | async path → `JSException` in Haskell | fatal (sets `__mhs.err`, `ERR`s) — this *matches* GHC's *sync* path |
 
 **Deployment caveat (CSP).** The dynamic bridge uses `new Function` at load
@@ -69,12 +71,10 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
 
 ## Roadmap (in rough order of value/effort)
 
-1. **Richer marshalling** — `Bool`/`Char`, typed callback ABIs beyond `Int`, and
-   making `JSVal` a first-class *marshallable* FFI type (a body can take/return a
-   `JSVal` directly, rather than the handle `Int` + manual `newJSVal`/`withJSVal`).
-   *(Done: the GC-managed object handle itself — `JSVal` frees the JS slot on
-   collection, reusing the ForeignPtr/finalizer machinery — so handles no longer
-   leak.)*
+1. **Richer marshalling** — ~~`Bool`/`Char`, first-class `JSVal`~~ *(done: `Bool`
+   via the real `K`/`A` combinators, `Char` via the `Word`/`I` path, and
+   runtime-owned first-class `JSVal`)*. Remaining: `Int64`/`Word64` → `bigint`,
+   an unsigned `U` tag for honest `Word`≥2³¹, and typed callback ABIs beyond `Int`.
 2. **General `foreign export javascript`** — a first-class export path (the
    `ffe_*`/`apply_sp` machinery already re-enters the evaluator) rather than the
    single hand-rolled `Int -> IO ()` pump.
