@@ -288,7 +288,15 @@ impl Program {
                 .or(self.float64_binop(name, &args)?)
                 .or(self.float32_binop(name, &args)?)
                 .or(self.int64_binop(name, &args)?)
-                .or(self.int_binop(name, &args)?),
+                .or(self.int_binop(name, &args)?)
+                .or(self.array_unop(name, &args)?)
+                .or(self.bytes_unop(name, &args)?)
+                .or(self.float64_unop(name, &args)?)
+                .or(self.float32_unop(name, &args)?)
+                .or(self.float_conversion(name, &args)?)
+                .or(self.int64_unop(name, &args)?)
+                .or(self.int_conversion(name, &args)?)
+                .or(self.int_unop(name, &args)?),
             name if !args.is_empty() => self
                 .array_unop(name, &args)?
                 .or(self.bytes_unop(name, &args)?)
@@ -702,6 +710,16 @@ impl Program {
                 let (_, offset) = head_utf8(&bytes)?;
                 self.push_node(Node::Bytes(bytes[offset..].to_vec()))
             }
+            "bsunpack" => {
+                let bytes = self.eval_bytes(args[0])?;
+                let values = bytes.into_iter().map(i64::from);
+                self.int_list(values)
+            }
+            "fromUTF8" => {
+                let bytes = self.eval_bytes(args[0])?;
+                let values = decode_utf8_bytes(&bytes)?;
+                self.int_list(values.into_iter().map(i64::from))
+            }
             _ => return Ok(None),
         };
         Ok(Some((1, node)))
@@ -768,6 +786,18 @@ impl Program {
             Node::Array(items) => Ok(items),
             _ => Err(EvalError::ExpectedArray(id)),
         }
+    }
+
+    fn int_list(&mut self, values: impl IntoIterator<Item = i64>) -> NodeId {
+        let values: Vec<_> = values.into_iter().collect();
+        let mut list = self.prim("K");
+        for value in values.into_iter().rev() {
+            let cons = self.prim("O");
+            let value = self.push_node(Node::Int(value));
+            let head = self.app(cons, value);
+            list = self.app(head, list);
+        }
+        list
     }
 
     fn reduce_node_whnf(&mut self, mut root: NodeId, limit: usize) -> Result<NodeId, EvalError> {
@@ -1408,6 +1438,16 @@ fn head_utf8(bytes: &[u8]) -> Result<(u32, usize), EvalError> {
     Err(EvalError::InvalidByteString)
 }
 
+fn decode_utf8_bytes(mut bytes: &[u8]) -> Result<Vec<u32>, EvalError> {
+    let mut values = Vec::new();
+    while !bytes.is_empty() {
+        let (value, offset) = head_utf8(bytes)?;
+        values.push(value);
+        bytes = &bytes[offset..];
+    }
+    Ok(values)
+}
+
 fn render_bytes(bytes: &[u8], out: &mut String) {
     out.push('"');
     for &byte in bytes {
@@ -1580,6 +1620,16 @@ mod tests {
         );
         assert_eq!(whnf(b"v8.4\n0\nheadUTF8 $2 \xc3\xa5 @ }"), "229");
         assert_eq!(whnf(b"v8.4\n0\ntailUTF8 $3 \xc3\xa5x @ }"), "\"x\"");
+        assert_eq!(whnf(b"v8.4\n0\nbsunpack \"AB\" @ #0 @ K @ }"), "65");
+        assert_eq!(
+            whnf(b"v8.4\n0\nbsunpack \"AB\" @ #0 @ A @ #0 @ K @ }"),
+            "66"
+        );
+        assert_eq!(whnf(b"v8.4\n0\nfromUTF8 $3 \xc3\xa5x @ #0 @ K @ }"), "229");
+        assert_eq!(
+            whnf(b"v8.4\n0\nfromUTF8 $3 \xc3\xa5x @ #0 @ A @ #0 @ K @ }"),
+            "120"
+        );
     }
 
     #[test]

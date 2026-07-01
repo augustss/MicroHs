@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|array-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -190,6 +190,14 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
         }
         return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
     }
+    if let Some(size) = scenario.strip_prefix("unpack-chain:") {
+        let bytes = ascii_payload("unpack-chain", size)?;
+        return Ok(format!("v8.4\n0\nbsunpack \"{bytes}\" @ #0 @ K @ }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("fromutf8-chain:") {
+        let bytes = ascii_payload("fromutf8-chain", size)?;
+        return Ok(format!("v8.4\n0\nfromUTF8 \"{bytes}\" @ #0 @ K @ }}\n").into_bytes());
+    }
     if let Some(size) = scenario.strip_prefix("array-chain:") {
         let size = parse_scenario_size("array-chain", size)?;
         let last = size - 1;
@@ -247,6 +255,15 @@ fn parse_scenario_size(name: &str, size: &str) -> Result<usize, String> {
         return Err(format!("{name} size must be greater than zero"));
     }
     Ok(size)
+}
+
+fn ascii_payload(name: &str, size: &str) -> Result<String, String> {
+    let size = parse_scenario_size(name, size)?;
+    let mut bytes = String::with_capacity(size);
+    for idx in 0..size {
+        bytes.push((b'a' + (idx % 26) as u8) as char);
+    }
+    Ok(bytes)
 }
 
 struct ParseBench {
