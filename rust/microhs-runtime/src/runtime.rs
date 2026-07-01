@@ -15,6 +15,8 @@ pub enum Node {
     Float64(f64),
     Float32(f32),
     ThreadId(i64),
+    Ptr(i64),
+    RawFunPtr(i64),
     BigInt(Vec<u8>),
     Bytes(Vec<u8>),
     MutableBytes { bytes: Vec<u8>, capacity: usize },
@@ -35,6 +37,7 @@ pub enum EvalError {
     ExpectedFloat64(NodeId),
     ExpectedFloat32(NodeId),
     ExpectedThreadId(NodeId),
+    ExpectedPointer(NodeId),
     ExpectedBytes(NodeId),
     ExpectedArray(NodeId),
     DivideByZero,
@@ -56,6 +59,7 @@ impl fmt::Display for EvalError {
             Self::ExpectedFloat64(id) => write!(f, "expected Float64 at node {id:?}"),
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
             Self::ExpectedThreadId(id) => write!(f, "expected ThreadId at node {id:?}"),
+            Self::ExpectedPointer(id) => write!(f, "expected pointer-like node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
             Self::ExpectedArray(id) => write!(f, "expected Array at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
@@ -409,6 +413,7 @@ impl Program {
                 .or(self.bytes_unop(name, &args)?)
                 .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
+                .or(self.pointer_conversion(name, &args)?)
                 .or(self.float_conversion(name, &args)?)
                 .or(self.int64_unop(name, &args)?)
                 .or(self.int_conversion(name, &args)?)
@@ -419,6 +424,7 @@ impl Program {
                 .or(self.bytes_unop(name, &args)?)
                 .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
+                .or(self.pointer_conversion(name, &args)?)
                 .or(self.float_conversion(name, &args)?)
                 .or(self.int64_unop(name, &args)?)
                 .or(self.int_conversion(name, &args)?)
@@ -714,6 +720,20 @@ impl Program {
             _ => return Ok(None),
         };
         Ok(Some((1, node)))
+    }
+
+    fn pointer_conversion(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let value = match name {
+            "toInt" => Node::Int(self.eval_pointer_value(args[0])?),
+            "toPtr" => Node::Ptr(self.eval_pointer_value(args[0])?),
+            "toFunPtr" => Node::RawFunPtr(self.eval_pointer_value(args[0])?),
+            _ => return Ok(None),
+        };
+        Ok(Some((1, self.push_node(value))))
     }
 
     fn array_op(
@@ -1109,6 +1129,14 @@ impl Program {
         }
     }
 
+    fn eval_pointer_value(&mut self, id: NodeId) -> Result<i64, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match &self.nodes[self.resolve(root)?.0] {
+            Node::Int(n) | Node::Ptr(n) | Node::RawFunPtr(n) | Node::ThreadId(n) => Ok(*n),
+            _ => Err(EvalError::ExpectedPointer(root)),
+        }
+    }
+
     fn eval_bytes(&mut self, id: NodeId) -> Result<Vec<u8>, EvalError> {
         let id = self.eval_bytes_id(id)?;
         Ok(self.bytes(id)?.to_vec())
@@ -1345,6 +1373,14 @@ impl Program {
             }
             Node::ThreadId(n) => {
                 out.push_str("ThreadId#");
+                out.push_str(&n.to_string());
+            }
+            Node::Ptr(n) => {
+                out.push_str("Ptr#");
+                out.push_str(&n.to_string());
+            }
+            Node::RawFunPtr(n) => {
+                out.push_str("FunPtr#");
                 out.push_str(&n.to_string());
             }
             Node::BigInt(bytes) => {
@@ -2223,6 +2259,15 @@ mod tests {
             whnf(b"v8.4\n0\nIO.performIO SPderef SPnew #42 @ @ @ }"),
             "42"
         );
+    }
+
+    #[test]
+    fn reduces_pointer_conversion_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\ntoPtr #42 @ }"), "Ptr#42");
+        assert_eq!(whnf(b"v8.4\n0\ntoInt toPtr #42 @ @ }"), "42");
+        assert_eq!(whnf(b"v8.4\n0\ntoFunPtr #7 @ }"), "FunPtr#7");
+        assert_eq!(whnf(b"v8.4\n0\ntoInt toFunPtr #7 @ @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\ntoInt toPtr toFunPtr #9 @ @ @ }"), "9");
     }
 
     #[test]
