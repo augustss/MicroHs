@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::mem::size_of;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NodeId(pub usize);
@@ -1543,13 +1544,222 @@ impl Program {
             }
             "peek_uint8" => {
                 let ptr = self.eval_pointer_value(args[0])?;
-                let bytes = self.read_pointer_bytes(ptr, 1)?;
-                Node::Int(i64::from(bytes[0]))
+                Node::Int(self.peek_unsigned(ptr, 1)? as i64)
             }
             "poke_uint8" => {
                 let ptr = self.eval_pointer_value(args[0])?;
                 let value = self.eval_int(args[1])?;
-                self.write_pointer_bytes(ptr, &[(value & 0xff) as u8])?;
+                self.poke_unsigned(ptr, 1, value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_uint16" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, 2)? as i64)
+            }
+            "poke_uint16" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, 2, value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_uint32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, 4)? as i64)
+            }
+            "poke_uint32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, 4, value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_uint64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int64(self.peek_unsigned(ptr, 8)? as i64)
+            }
+            "poke_uint64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int64(args[1])?;
+                self.poke_unsigned(ptr, 8, value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_int8" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, 1)?)
+            }
+            "poke_int8" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, 1, value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_int16" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, 2)?)
+            }
+            "poke_int16" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, 2, value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_int32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, 4)?)
+            }
+            "poke_int32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, 4, value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_int64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int64(self.peek_signed(ptr, 8)?)
+            }
+            "poke_int64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int64(args[1])?;
+                self.poke_signed(ptr, 8, value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_char" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_c_char(ptr)?)
+            }
+            "poke_char" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_c_char(ptr, value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_schar" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, size_of::<std::os::raw::c_schar>())?)
+            }
+            "poke_schar" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, size_of::<std::os::raw::c_schar>(), value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_uchar" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<std::os::raw::c_uchar>())? as i64)
+            }
+            "poke_uchar" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<std::os::raw::c_uchar>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_short" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, size_of::<std::os::raw::c_short>())?)
+            }
+            "poke_short" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, size_of::<std::os::raw::c_short>(), value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_ushort" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<std::os::raw::c_ushort>())? as i64)
+            }
+            "poke_ushort" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<std::os::raw::c_ushort>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_int" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, size_of::<std::os::raw::c_int>())?)
+            }
+            "poke_int" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, size_of::<std::os::raw::c_int>(), value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_uint" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<std::os::raw::c_uint>())? as i64)
+            }
+            "poke_uint" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<std::os::raw::c_uint>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_long" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, size_of::<std::os::raw::c_long>())?)
+            }
+            "poke_long" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, size_of::<std::os::raw::c_long>(), value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_ulong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<std::os::raw::c_ulong>())? as i64)
+            }
+            "poke_ulong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<std::os::raw::c_ulong>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_llong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_signed(ptr, size_of::<std::os::raw::c_longlong>())?)
+            }
+            "poke_llong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_signed(ptr, size_of::<std::os::raw::c_longlong>(), value)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_ullong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<std::os::raw::c_ulonglong>())? as i64)
+            }
+            "poke_ullong" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<std::os::raw::c_ulonglong>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_size_t" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Int(self.peek_unsigned(ptr, size_of::<usize>())? as i64)
+            }
+            "poke_size_t" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_int(args[1])?;
+                self.poke_unsigned(ptr, size_of::<usize>(), value as u64)?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_flt32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Float32(f32::from_ne_bytes(self.peek_array(ptr)?))
+            }
+            "poke_flt32" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_float32(args[1])?;
+                self.write_pointer_bytes(ptr, &value.to_ne_bytes())?;
+                Node::Prim("I".to_owned())
+            }
+            "peek_flt64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                Node::Float64(f64::from_ne_bytes(self.peek_array(ptr)?))
+            }
+            "poke_flt64" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let value = self.eval_float64(args[1])?;
+                self.write_pointer_bytes(ptr, &value.to_ne_bytes())?;
                 Node::Prim("I".to_owned())
             }
             "acos" => Node::Float64(self.eval_float64(args[0])?.acos()),
@@ -1980,6 +2190,74 @@ impl Program {
             return Ok(());
         }
         Err(EvalError::InvalidByteString)
+    }
+
+    fn peek_array<const N: usize>(&self, ptr: i64) -> Result<[u8; N], EvalError> {
+        self.read_pointer_bytes(ptr, N)?
+            .try_into()
+            .map_err(|_| EvalError::InvalidByteString)
+    }
+
+    fn peek_unsigned(&self, ptr: i64, size: usize) -> Result<u64, EvalError> {
+        if size == 0 || size > 8 {
+            return Err(EvalError::Overflow);
+        }
+        let bytes = self.read_pointer_bytes(ptr, size)?;
+        let mut wide = [0; 8];
+        if cfg!(target_endian = "little") {
+            wide[..size].copy_from_slice(&bytes);
+        } else {
+            wide[8 - size..].copy_from_slice(&bytes);
+        }
+        Ok(u64::from_ne_bytes(wide))
+    }
+
+    fn poke_unsigned(&mut self, ptr: i64, size: usize, value: u64) -> Result<(), EvalError> {
+        if size == 0 || size > 8 {
+            return Err(EvalError::Overflow);
+        }
+        let wide = value.to_ne_bytes();
+        let bytes = if cfg!(target_endian = "little") {
+            &wide[..size]
+        } else {
+            &wide[8 - size..]
+        };
+        self.write_pointer_bytes(ptr, bytes)
+    }
+
+    fn peek_signed(&self, ptr: i64, size: usize) -> Result<i64, EvalError> {
+        let unsigned = self.peek_unsigned(ptr, size)?;
+        let shift = (8 - size) * 8;
+        Ok(((unsigned << shift) as i64) >> shift)
+    }
+
+    fn poke_signed(&mut self, ptr: i64, size: usize, value: i64) -> Result<(), EvalError> {
+        if size == 0 || size > 8 {
+            return Err(EvalError::Overflow);
+        }
+        let wide = value.to_ne_bytes();
+        let bytes = if cfg!(target_endian = "little") {
+            &wide[..size]
+        } else {
+            &wide[8 - size..]
+        };
+        self.write_pointer_bytes(ptr, bytes)
+    }
+
+    fn peek_c_char(&self, ptr: i64) -> Result<i64, EvalError> {
+        if std::os::raw::c_char::MIN < 0 {
+            self.peek_signed(ptr, size_of::<std::os::raw::c_char>())
+        } else {
+            Ok(self.peek_unsigned(ptr, size_of::<std::os::raw::c_char>())? as i64)
+        }
+    }
+
+    fn poke_c_char(&mut self, ptr: i64, value: i64) -> Result<(), EvalError> {
+        if std::os::raw::c_char::MIN < 0 {
+            self.poke_signed(ptr, size_of::<std::os::raw::c_char>(), value)
+        } else {
+            self.poke_unsigned(ptr, size_of::<std::os::raw::c_char>(), value as u64)
+        }
     }
 
     fn read_pointer_bytes(&self, ptr: i64, len: usize) -> Result<Vec<u8>, EvalError> {
@@ -3049,11 +3327,18 @@ fn ffi_arity(name: &str) -> Option<usize> {
         "GETRAW" | "GETTIMEMICRO" | "islinux" | "ismacos" | "iswindows" | "sizeof_char"
         | "sizeof_short" | "sizeof_int" | "sizeof_long" | "sizeof_llong" | "sizeof_size_t"
         | "want_gmp" | "want_imath" => 0,
-        "malloc" | "free" | "strlen" | "peek_uint8" | "acos" | "asin" | "atan" | "cos" | "exp"
-        | "log" | "sin" | "sqrt" | "tan" | "acosf" | "asinf" | "atanf" | "cosf" | "expf"
-        | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
-        "calloc" | "realloc" | "poke_uint8" | "atan2" | "pow" | "scalbn" | "atan2f" | "powf"
-        | "scalbnf" => 2,
+        "malloc" | "free" | "strlen" | "peek_uint8" | "peek_uint16" | "peek_uint32"
+        | "peek_uint64" | "peek_int8" | "peek_int16" | "peek_int32" | "peek_int64"
+        | "peek_char" | "peek_schar" | "peek_uchar" | "peek_short" | "peek_ushort" | "peek_int"
+        | "peek_uint" | "peek_long" | "peek_ulong" | "peek_llong" | "peek_ullong"
+        | "peek_size_t" | "peek_flt32" | "peek_flt64" | "acos" | "asin" | "atan" | "cos"
+        | "exp" | "log" | "sin" | "sqrt" | "tan" | "acosf" | "asinf" | "atanf" | "cosf"
+        | "expf" | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
+        "calloc" | "realloc" | "poke_uint8" | "poke_uint16" | "poke_uint32" | "poke_uint64"
+        | "poke_int8" | "poke_int16" | "poke_int32" | "poke_int64" | "poke_char" | "poke_schar"
+        | "poke_uchar" | "poke_short" | "poke_ushort" | "poke_int" | "poke_uint" | "poke_long"
+        | "poke_ulong" | "poke_llong" | "poke_ullong" | "poke_size_t" | "poke_flt32"
+        | "poke_flt64" | "atan2" | "pow" | "scalbn" | "atan2f" | "powf" | "scalbnf" => 2,
         "memcpy" | "memmove" => 3,
         _ => return None,
     })
