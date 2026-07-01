@@ -3729,6 +3729,7 @@ EM_JS(void, mhs_js_setup, (void), {
   var m = globalThis.__mhs;
   if (!m.reg)                      m.reg = [];
   if (!m.argbuf)                   m.argbuf = [];
+  if (!m.wargs)                    m.wargs = [];
   if (!('err' in m))               m.err = null;
   if (!m.obj || m.obj[0] !== null) m.obj = [null];
   if (!m.objfree)                  m.objfree = [];
@@ -3776,12 +3777,17 @@ EM_JS(int,    mhs_js_call_obj,  (int idx),   { try { return globalThis.__mhs.int
 EM_JS(void,   mhs_js_push_str,  (const char *p, int len), { globalThis.__mhs.argbuf.push(UTF8ToString(p, len, true)); });
 EM_JS(char *, mhs_js_call_str,  (int idx),   { try { var s = String(globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf)); globalThis.__mhs.slen = lengthBytesUTF8(s); return stringToNewUTF8(s); } catch (e) { globalThis.__mhs.err = String(e); globalThis.__mhs.slen = 0; return stringToNewUTF8(""); } });
 EM_JS(int,    mhs_js_slen,      (void),      { return globalThis.__mhs.slen; });
-/* `foreign import javascript "wrapper"`: JS reads the callback's arguments from
- * argbuf, and the Haskell result is handed back through the single `wres` slot. */
-EM_JS(int,    mhs_js_arg_int,   (int i),     { return globalThis.__mhs.argbuf[i]; });
-EM_JS(double, mhs_js_arg_dbl,   (int i),     { return globalThis.__mhs.argbuf[i]; });
-EM_JS(int,    mhs_js_arg_obj,   (int i),     { return globalThis.__mhs.intern(globalThis.__mhs.argbuf[i]); });
-EM_JS(char *, mhs_js_arg_str,   (int i),     { var s = String(globalThis.__mhs.argbuf[i]); globalThis.__mhs.slen = lengthBytesUTF8(s); return stringToNewUTF8(s); });
+/* `foreign import javascript "wrapper"` argument readers.  Each callback invocation
+ * pushes its args as a fresh frame on __mhs.wargs (a stack, kept separate from the
+ * `~`-import argbuf so a callback that re-enters a JS import can't clobber the args
+ * still being read); the Haskell result is handed back through the single `wres`
+ * slot.  Each coercion is guarded: a pathological argument (throwing valueOf/toString)
+ * must not throw a JS exception up through the C wrapper, which would unwind past the
+ * ffe stack cleanup and corrupt the runtime — it degrades to 0 / "" instead. */
+EM_JS(int,    mhs_js_arg_int,   (int i),     { try { var a = globalThis.__mhs.wargs; return a[a.length - 1][i] | 0; } catch (e) { return 0; } });
+EM_JS(double, mhs_js_arg_dbl,   (int i),     { try { var a = globalThis.__mhs.wargs; return +a[a.length - 1][i]; } catch (e) { return 0; } });
+EM_JS(int,    mhs_js_arg_obj,   (int i),     { try { var a = globalThis.__mhs.wargs; return globalThis.__mhs.intern(a[a.length - 1][i]); } catch (e) { return 0; } });
+EM_JS(char *, mhs_js_arg_str,   (int i),     { try { var a = globalThis.__mhs.wargs, s = String(a[a.length - 1][i]); globalThis.__mhs.slen = lengthBytesUTF8(s); return stringToNewUTF8(s); } catch (e) { globalThis.__mhs.slen = 0; return stringToNewUTF8(""); } });
 EM_JS(void,   mhs_js_set_res_num,  (double v),{ globalThis.__mhs.wres = v; });
 EM_JS(void,   mhs_js_set_res_obj,  (int h),   { globalThis.__mhs.wres = globalThis.__mhs.obj[h]; });
 EM_JS(void,   mhs_js_set_res_str,  (const char *p, int len), { globalThis.__mhs.wres = UTF8ToString(p, len, true); });
@@ -3792,9 +3798,9 @@ EM_JS(void,   mhs_js_set_res_undef, (void),   { globalThis.__mhs.wres = undefine
 EM_JS(int, mhs_js_make_wrapper, (int sp, int widx), {
   var m = globalThis.__mhs;
   var f = function() {
-    m.argbuf = Array.prototype.slice.call(arguments);
-    _mhs_wrapper_invoke(sp, widx);   /* always sets wres (last write wins under nesting) */
-    return m.wres;
+    m.wargs.push(Array.prototype.slice.call(arguments));   /* own frame; isolated from argbuf + re-entrancy */
+    try { _mhs_wrapper_invoke(sp, widx); return m.wres; }  /* always sets wres (last write wins under nesting) */
+    finally { m.wargs.pop(); }
   };
   return m.intern(f);
 });
@@ -7687,11 +7693,12 @@ mhs_invoke_int(uvalue_t sp, value_t v)
 
 #if defined(__EMSCRIPTEN__)
 /* Called from JS when a "wrapper" function is invoked (see mhs_js_make_wrapper).
- * Marshal the callback's arguments out of __mhs.argbuf into an application of the
- * closure `sp`, run it (a fresh thread post-main, or the current stack if
+ * Marshal the callback's arguments out of its __mhs.wargs frame into an application
+ * of the closure `sp`, run it (a fresh thread post-main, or the current stack if
  * re-entered during evaluation — see ffe_eval), and hand the result back through
  * __mhs.wres.  Arguments are read into Haskell nodes before running, since the
- * body may reuse argbuf.  Mirrors the generated `foreign export` C wrappers. */
+ * callback may itself re-enter the runtime.  Mirrors the generated `foreign export`
+ * C wrappers. */
 void
 mhs_wrapper_invoke(int sp, int widx)
 {
