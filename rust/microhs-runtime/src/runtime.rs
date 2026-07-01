@@ -136,6 +136,55 @@ impl Program {
                 let n = self.app(args[1], args[0]);
                 Some((2, n))
             }
+            "IO.performIO" if !args.is_empty() => {
+                let world = self.world();
+                let k = self.prim("K");
+                let action = self.app(args[0], world);
+                let n = self.app(action, k);
+                Some((1, n))
+            }
+            "IO.atomic" if args.len() >= 2 => {
+                let k = self.prim("K");
+                let action = self.app(args[0], args[1]);
+                let result = self.app(action, k);
+                let pair = self.prim("P");
+                let result_pair = self.app(pair, result);
+                let n = self.app(result_pair, args[1]);
+                Some((2, n))
+            }
+            "IO.>>=" if args.len() >= 3 => {
+                let action = self.app(args[0], args[2]);
+                let n = self.app(action, args[1]);
+                Some((3, n))
+            }
+            "IO.>>" if args.len() >= 2 => {
+                let bind = self.prim("IO.>>=");
+                let bind_action = self.app(bind, args[0]);
+                let k = self.prim("K");
+                let then = self.app(k, args[1]);
+                let n = self.app(bind_action, then);
+                Some((2, n))
+            }
+            "IO.return" if args.len() >= 3 => {
+                let kx = self.app(args[2], args[0]);
+                let n = self.app(kx, args[1]);
+                Some((3, n))
+            }
+            "IO.lazyBind" if args.len() >= 3 => {
+                let world_result = self.app(args[0], args[2]);
+                let fst = self.fst();
+                let snd = self.snd();
+                let result = self.app(fst, world_result);
+                let world = self.app(snd, world_result);
+                let next = self.app(args[1], result);
+                let n = self.app(next, world);
+                Some((3, n))
+            }
+            "IO.strict" if args.len() >= 2 => {
+                self.reduce_node_whnf(args[1], 10_000)?;
+                let n = self.app(args[0], args[1]);
+                Some((2, n))
+            }
             "seq" if args.len() >= 2 => {
                 self.reduce_node_whnf(args[0], 10_000)?;
                 Some((2, args[1]))
@@ -335,6 +384,22 @@ impl Program {
 
     fn prim(&mut self, name: &str) -> NodeId {
         self.push_node(Node::Prim(name.to_owned()))
+    }
+
+    fn world(&mut self) -> NodeId {
+        self.push_node(Node::Int(99_999))
+    }
+
+    fn fst(&mut self) -> NodeId {
+        let u = self.prim("U");
+        let k = self.prim("K");
+        self.app(u, k)
+    }
+
+    fn snd(&mut self) -> NodeId {
+        let u = self.prim("U");
+        let a = self.prim("A");
+        self.app(u, a)
     }
 
     fn ordering(&mut self, ord: Ordering) -> NodeId {
@@ -1660,6 +1725,31 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n1\nseq A.write A.alloc #3 @ #0 @ :0 @ #1 @ #42 @ @ A.read _0 @ #1 @ @ }"),
             "42"
+        );
+    }
+
+    #[test]
+    fn reduces_io_control_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO IO.return #5 @ @ }"), "5");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.>> IO.return #1 @ @ IO.return #7 @ @ @ }"),
+            "7"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.>>= IO.return #1 @ @ K IO.return #7 @ @ @ @ }"),
+            "7"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.lazyBind IO.return #3 @ @ IO.return @ @ }"),
+            "3"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.strict IO.return #4 @ @ @ }"),
+            "4"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.atomic IO.return #6 @ @ @ }"),
+            "6"
         );
     }
 }
