@@ -14,6 +14,7 @@ pub enum Node {
     Int64(i64),
     Float64(f64),
     Float32(f32),
+    ThreadId(i64),
     BigInt(Vec<u8>),
     Bytes(Vec<u8>),
     MutableBytes { bytes: Vec<u8>, capacity: usize },
@@ -33,6 +34,7 @@ pub enum EvalError {
     ExpectedInt64(NodeId),
     ExpectedFloat64(NodeId),
     ExpectedFloat32(NodeId),
+    ExpectedThreadId(NodeId),
     ExpectedBytes(NodeId),
     ExpectedArray(NodeId),
     DivideByZero,
@@ -53,6 +55,7 @@ impl fmt::Display for EvalError {
             Self::ExpectedInt64(id) => write!(f, "expected Int64 at node {id:?}"),
             Self::ExpectedFloat64(id) => write!(f, "expected Float64 at node {id:?}"),
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
+            Self::ExpectedThreadId(id) => write!(f, "expected ThreadId at node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
             Self::ExpectedArray(id) => write!(f, "expected Array at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
@@ -74,6 +77,8 @@ pub struct Program {
     root: NodeId,
     labels: HashMap<usize, NodeId>,
     stable_ptrs: Vec<Option<NodeId>>,
+    masking_state: i64,
+    reductions: usize,
 }
 
 impl Program {
@@ -83,6 +88,8 @@ impl Program {
             root,
             labels,
             stable_ptrs: vec![None],
+            masking_state: 0,
+            reductions: 0,
         }
     }
 
@@ -123,6 +130,7 @@ impl Program {
                 self.root = current;
                 return Ok((current, steps));
             };
+            self.reductions += 1;
             self.nodes[current.0] = Node::Indir(Some(next));
             root = next;
         }
@@ -192,6 +200,42 @@ impl Program {
                 let n = self.app(args[0], args[1]);
                 Some((2, n))
             }
+            "IO.gc" if args.len() >= 2 => {
+                let unit = self.prim("I");
+                Some((2, self.pair(unit, args[1])))
+            }
+            "IO.stats" if !args.is_empty() => {
+                let alloc = self.push_node(Node::Int(
+                    i64::try_from(self.nodes.len()).unwrap_or(i64::MAX),
+                ));
+                let reductions = self.push_node(Node::Int(
+                    i64::try_from(self.reductions).unwrap_or(i64::MAX),
+                ));
+                let stats = self.pair(alloc, reductions);
+                Some((1, self.pair(stats, args[0])))
+            }
+            "IO.thid" if !args.is_empty() => {
+                let thread = self.push_node(Node::ThreadId(1));
+                Some((1, self.pair(thread, args[0])))
+            }
+            "IO.yield" if !args.is_empty() => {
+                let unit = self.prim("I");
+                Some((1, self.pair(unit, args[0])))
+            }
+            "IO.getmaskingstate" if !args.is_empty() => {
+                let state = self.push_node(Node::Int(self.masking_state));
+                Some((1, self.pair(state, args[0])))
+            }
+            "IO.setmaskingstate" if args.len() >= 2 => {
+                self.masking_state = self.eval_int(args[0])?;
+                let unit = self.prim("I");
+                Some((2, self.pair(unit, args[1])))
+            }
+            "IO.threadstatus" if args.len() >= 2 => {
+                self.eval_thread_id(args[0])?;
+                let status = self.push_node(Node::Int(0));
+                Some((2, self.pair(status, args[1])))
+            }
             "catch" if args.len() >= 3 => {
                 let action = self.app(args[0], args[2]);
                 Some((3, self.catch_result(action, args[1], args[2])?))
@@ -214,6 +258,10 @@ impl Program {
                     _ => -1,
                 };
                 Some((1, self.push_node(Node::Int(n))))
+            }
+            "thnum" if !args.is_empty() => {
+                let thread = self.eval_thread_id(args[0])?;
+                Some((1, self.push_node(Node::Int(thread))))
             }
             "S" if args.len() >= 3 => {
                 let x = args[2];
@@ -1053,6 +1101,14 @@ impl Program {
         }
     }
 
+    fn eval_thread_id(&mut self, id: NodeId) -> Result<i64, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match self.nodes[self.resolve(root)?.0] {
+            Node::ThreadId(n) => Ok(n),
+            _ => Err(EvalError::ExpectedThreadId(root)),
+        }
+    }
+
     fn eval_bytes(&mut self, id: NodeId) -> Result<Vec<u8>, EvalError> {
         let id = self.eval_bytes_id(id)?;
         Ok(self.bytes(id)?.to_vec())
@@ -1218,6 +1274,7 @@ impl Program {
             let Some(next) = self.step(current)? else {
                 return Ok(current);
             };
+            self.reductions += 1;
             self.nodes[current.0] = Node::Indir(Some(next));
             root = next;
         }
@@ -1285,6 +1342,10 @@ impl Program {
             Node::Float32(n) => {
                 out.push_str(&n.to_string());
                 out.push('f');
+            }
+            Node::ThreadId(n) => {
+                out.push_str("ThreadId#");
+                out.push_str(&n.to_string());
             }
             Node::BigInt(bytes) => {
                 out.push('%');
@@ -2208,6 +2269,18 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n0\nIO.performIO IO.atomic IO.return #6 @ @ @ }"),
             "6"
+        );
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO IO.gc #0 @ @ }"), "I");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO IO.yield @ }"), "I");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO IO.getmaskingstate @ }"), "0");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.>> IO.setmaskingstate #2 @ @ IO.getmaskingstate @ @ }"),
+            "2"
+        );
+        assert_eq!(whnf(b"v8.4\n0\nthnum IO.performIO IO.thid @ @ }"), "1");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.threadstatus IO.performIO IO.thid @ @ @ }"),
+            "0"
         );
     }
 

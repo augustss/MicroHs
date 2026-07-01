@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|rnf-chain:N|stableptr-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|rnf-chain:N|stableptr-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -237,6 +237,14 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
             "v8.4\n1\nIO.performIO IO.>> bswrite \"{bytes}\" :0 @ #{last} @ #42 @ @ bsread _0 @ #{last} @ @ @ }}\n"
         )
         .into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("io-control-chain:") {
+        let size = parse_scenario_size("io-control-chain", size)?;
+        let mut expr = String::from("IO.getmaskingstate");
+        for idx in 0..size {
+            expr = format!("IO.>> IO.setmaskingstate #{} @ @ {expr} @", idx % 3);
+        }
+        return Ok(format!("v8.4\n0\nIO.performIO {expr} @ }}\n").into_bytes());
     }
     if let Some(size) = scenario.strip_prefix("rnf-chain:") {
         let size = parse_scenario_size("rnf-chain", size)?;
