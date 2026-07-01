@@ -874,7 +874,7 @@ impl Program {
             "bs2fp" => {
                 let bytes_id = self.eval_bytes_id(args[0])?;
                 let bytes = self.bytes(bytes_id)?.to_vec();
-                let ptr = self.synthetic_ptr(bytes_id, 0)?;
+                let ptr = self.pointer_for_node(bytes_id, 0)?;
                 self.push_node(Node::ForeignPtr {
                     bytes: Some(bytes),
                     offset: 0,
@@ -1127,6 +1127,44 @@ impl Program {
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
         let rewrite = match name {
+            "packCString" if args.len() >= 2 => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let bytes = self.read_c_string(ptr)?;
+                let bytes = self.push_node(Node::Bytes(bytes));
+                Some((2, self.pair(bytes, args[1])))
+            }
+            "packCStringLen" if args.len() >= 3 => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let bytes = self.read_pointer_bytes(ptr, len)?;
+                let bytes = self.push_node(Node::Bytes(bytes));
+                Some((3, self.pair(bytes, args[2])))
+            }
+            "packCStringLen" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let bytes = self.read_pointer_bytes(ptr, len)?;
+                Some((2, self.push_node(Node::Bytes(bytes))))
+            }
+            "bsgrab" if args.len() >= 2 => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let bytes = self.read_c_string(ptr)?;
+                let bytes = self.push_node(Node::Bytes(bytes));
+                Some((2, self.pair(bytes, args[1])))
+            }
+            "bsgrablen" if args.len() >= 3 => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let bytes = self.read_pointer_bytes(ptr, len)?;
+                let bytes = self.push_node(Node::Bytes(bytes));
+                Some((3, self.pair(bytes, args[2])))
+            }
+            "bsgrablen" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let bytes = self.read_pointer_bytes(ptr, len)?;
+                Some((2, self.push_node(Node::Bytes(bytes))))
+            }
             "bsnew" if args.len() >= 3 => {
                 let size = int_to_usize(self.eval_int(args[0])?)?;
                 let capacity = int_to_usize(self.eval_int(args[1])?)?;
@@ -1273,6 +1311,16 @@ impl Program {
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
         let node = match name {
+            "packCString" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let bytes = self.read_c_string(ptr)?;
+                self.push_node(Node::Bytes(bytes))
+            }
+            "bsgrab" => {
+                let ptr = self.eval_pointer_value(args[0])?;
+                let bytes = self.read_c_string(ptr)?;
+                self.push_node(Node::Bytes(bytes))
+            }
             "bslength" => {
                 let len = i64::try_from(self.eval_bytes(args[0])?.len())
                     .map_err(|_| EvalError::Overflow)?;
@@ -1466,6 +1514,64 @@ impl Program {
         Ok(())
     }
 
+    fn pointer_for_node(&self, id: NodeId, offset: usize) -> Result<i64, EvalError> {
+        let base = i64::try_from(id.0).map_err(|_| EvalError::Overflow)?;
+        let offset = i64::try_from(offset).map_err(|_| EvalError::Overflow)?;
+        if offset >= (1_i64 << 32) {
+            return Err(EvalError::Overflow);
+        }
+        base.checked_shl(32)
+            .and_then(|base| base.checked_add(offset))
+            .ok_or(EvalError::Overflow)
+    }
+
+    fn decode_pointer(&self, ptr: i64) -> Result<(usize, usize), EvalError> {
+        if ptr <= 0 {
+            return Err(EvalError::InvalidByteString);
+        }
+        let block = usize::try_from(ptr >> 32).map_err(|_| EvalError::InvalidByteString)?;
+        let offset =
+            usize::try_from(ptr & 0xffff_ffff).map_err(|_| EvalError::InvalidByteString)?;
+        Ok((block, offset))
+    }
+
+    fn pointer_bytes(&self, ptr: i64) -> Result<&[u8], EvalError> {
+        let (base, offset) = self.decode_pointer(ptr)?;
+        let bytes = match self.nodes.get(base).ok_or(EvalError::InvalidByteString)? {
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => bytes,
+            Node::ForeignPtr {
+                bytes: Some(bytes),
+                offset: foreign_offset,
+                ..
+            } => {
+                let offset = foreign_offset
+                    .checked_add(offset)
+                    .ok_or(EvalError::Overflow)?;
+                return bytes.get(offset..).ok_or(EvalError::InvalidByteString);
+            }
+            _ => return Err(EvalError::InvalidByteString),
+        };
+        if offset > bytes.len() {
+            return Err(EvalError::InvalidByteString);
+        }
+        Ok(&bytes[offset..])
+    }
+
+    fn read_pointer_bytes(&self, ptr: i64, len: usize) -> Result<Vec<u8>, EvalError> {
+        let bytes = self.pointer_bytes(ptr)?;
+        let bytes = bytes.get(..len).ok_or(EvalError::InvalidByteString)?;
+        Ok(bytes.to_vec())
+    }
+
+    fn read_c_string(&self, ptr: i64) -> Result<Vec<u8>, EvalError> {
+        let bytes = self.pointer_bytes(ptr)?;
+        let len = bytes
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(bytes.len());
+        Ok(bytes[..len].to_vec())
+    }
+
     fn new_stable_ptr(&mut self, value: NodeId) -> Result<NodeId, EvalError> {
         let slot = self
             .stable_ptrs
@@ -1510,14 +1616,6 @@ impl Program {
         Ok(())
     }
 
-    fn synthetic_ptr(&self, id: NodeId, offset: usize) -> Result<i64, EvalError> {
-        let base = i64::try_from(id.0).map_err(|_| EvalError::Overflow)?;
-        let offset = i64::try_from(offset).map_err(|_| EvalError::Overflow)?;
-        base.checked_shl(32)
-            .and_then(|base| base.checked_add(offset))
-            .ok_or(EvalError::Overflow)
-    }
-
     fn offset_foreign_ptr(&mut self, id: NodeId, by: usize) -> Result<NodeId, EvalError> {
         let (bytes, offset, ptr, finalizer) = match &self.nodes[id.0] {
             Node::ForeignPtr {
@@ -1541,20 +1639,22 @@ impl Program {
     }
 
     fn foreign_ptr_to_bytes(&mut self, id: NodeId, len: usize) -> Result<NodeId, EvalError> {
-        let (bytes, offset) = match &self.nodes[id.0] {
+        let bytes = match &self.nodes[id.0] {
             Node::ForeignPtr {
                 bytes: Some(bytes),
                 offset,
                 ..
-            } => (bytes, *offset),
-            Node::ForeignPtr { .. } => return Err(EvalError::InvalidByteString),
+            } => {
+                let end = offset
+                    .checked_add(len)
+                    .filter(|end| *end <= bytes.len())
+                    .ok_or(EvalError::InvalidByteString)?;
+                bytes[*offset..end].to_vec()
+            }
+            Node::ForeignPtr { ptr, .. } => self.read_pointer_bytes(*ptr, len)?,
             _ => return Err(EvalError::ExpectedForeignPtr(id)),
         };
-        let end = offset
-            .checked_add(len)
-            .filter(|end| *end <= bytes.len())
-            .ok_or(EvalError::InvalidByteString)?;
-        Ok(self.push_node(Node::Bytes(bytes[offset..end].to_vec())))
+        Ok(self.push_node(Node::Bytes(bytes)))
     }
 
     fn foreign_ptr_value(&self, id: NodeId) -> Result<i64, EvalError> {
