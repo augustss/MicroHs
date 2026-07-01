@@ -30,6 +30,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario int64-chain:200 --iters 1
 cargo run --release --bin mhs-rust-bench -- --scenario float64-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario float32-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario bytes-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario cstring-pack:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario unpack-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario fromutf8-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario foreignptr-slice:200 --iters 1000
@@ -38,6 +39,8 @@ cargo run --release --bin mhs-rust-bench -- --scenario io-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-array-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-bytes-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-control-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario argref-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario stdio-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario mvar-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario ptr-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario rnf-chain:200 --iters 1000
@@ -48,13 +51,17 @@ cargo run --release --bin mhs-rust-bench -- --scenario data-chain:300 --iters 10
 cargo run --release --bin mhs-rust-bench -- --input path/to/file.comb --iters 100
 cargo run --release --bin mhs-rust-bench -- --scenario identity-chain:1000 --iters 100 \
   --c-mhseval ./bin/mhseval
+make bin/mhsbench
+cargo run --release --bin mhs-rust-bench -- --scenario identity-chain:1000 --iters 100 \
+  --c-mhsbench ./bin/mhsbench
 ```
 
 With `--c-mhseval`, the benchmark runs the C evaluator on the same `.comb`
 input using `+RTS -rFILE -o/dev/null -RTS`. That measures C process
-parse/load/serialize wall time; it is useful as an early baseline, but it is not
-yet an in-process C reduction benchmark. Rust `reduce_steps` currently counts
-outer WHNF rewrites; strict primitive argument evaluation is included in elapsed
-time but not counted as separate steps. Later tiers should add C-runtime oracle
-comparisons on the same `.comb` inputs, then native and wasm timing once those
-runtime surfaces exist.
+parse/load/serialize wall time; keep it only as a legacy baseline. With
+`--c-mhsbench`, the benchmark runs `bin/mhsbench` once and the C runtime loops
+over parse, execute, and serialize in-process, so the reported
+`c_parse_reduce_serialize_ns_per_iter` is the comparable C number for Rust
+`reduce_ns_per_iter`. Rust `reduce_steps` currently counts outer WHNF rewrites;
+strict primitive argument evaluation is included in elapsed time but not counted
+as separate steps.

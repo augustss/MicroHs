@@ -15,12 +15,13 @@ struct Config {
     name: String,
     iters: usize,
     c_mhseval: Option<String>,
+    c_mhsbench: Option<String>,
 }
 
 fn usage() {
     eprintln!(
         "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|foreignptr-slice:N|cstring-pack:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|argref-chain:N|stdio-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
-                                  [--c-mhseval PATH]\n\
+                                  [--c-mhseval PATH] [--c-mhsbench PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
 }
@@ -82,6 +83,19 @@ fn main() -> ExitCode {
         }
     }
 
+    if let Some(c_mhsbench) = &config.c_mhsbench {
+        match bench_c_mhsbench(&config.input, c_mhsbench, config.iters) {
+            Ok(c) => {
+                println!("c_mhsbench: {c_mhsbench}");
+                println!("c_parse_reduce_serialize_ns_per_iter: {:.1}", c.ns_per_iter);
+            }
+            Err(err) => {
+                eprintln!("C mhsbench benchmark failed: {err}");
+                return ExitCode::from(1);
+            }
+        }
+    }
+
     ExitCode::SUCCESS
 }
 
@@ -90,6 +104,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
     let mut input = None;
     let mut name = None;
     let mut c_mhseval = None;
+    let mut c_mhsbench = None;
     let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
@@ -117,6 +132,9 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
             "--c-mhseval" => {
                 c_mhseval = Some(args.next().ok_or("--c-mhseval requires a path")?);
             }
+            "--c-mhsbench" => {
+                c_mhsbench = Some(args.next().ok_or("--c-mhsbench requires a path")?);
+            }
             "-h" | "--help" => return Err(String::new()),
             _ => return Err(format!("unknown argument: {arg}")),
         }
@@ -136,6 +154,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
         name,
         iters,
         c_mhseval,
+        c_mhsbench,
     })
 }
 
@@ -420,6 +439,10 @@ struct CBench {
     elapsed: Duration,
 }
 
+struct CInProcessBench {
+    ns_per_iter: f64,
+}
+
 fn bench_c_mhseval(input: &[u8], c_mhseval: &str, iters: usize) -> Result<CBench, String> {
     let file = env::temp_dir().join(format!("mhs-rust-bench-{}.comb", std::process::id()));
     fs::write(&file, input).map_err(|err| format!("{}: {err}", file.display()))?;
@@ -439,6 +462,37 @@ fn bench_c_mhseval(input: &[u8], c_mhseval: &str, iters: usize) -> Result<CBench
     let elapsed = started.elapsed();
     let _ = fs::remove_file(&file);
     Ok(CBench { elapsed })
+}
+
+fn bench_c_mhsbench(
+    input: &[u8],
+    c_mhsbench: &str,
+    iters: usize,
+) -> Result<CInProcessBench, String> {
+    let file = env::temp_dir().join(format!("mhs-rust-bench-{}.comb", std::process::id()));
+    fs::write(&file, input).map_err(|err| format!("{}: {err}", file.display()))?;
+    let iters_arg = iters.to_string();
+    let file_arg = file.to_str().ok_or("non-utf8 temp file")?;
+    let output = Command::new(c_mhsbench)
+        .args(["--iters", &iters_arg, file_arg])
+        .output()
+        .map_err(|err| format!("{c_mhsbench}: {err}"))?;
+    let _ = fs::remove_file(&file);
+    if !output.status.success() {
+        return Err(format!(
+            "{c_mhsbench} exited with {}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout).map_err(|_| "non-utf8 mhsbench output")?;
+    let ns_per_iter = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("c_parse_reduce_serialize_ns_per_iter: "))
+        .ok_or_else(|| format!("missing timing in mhsbench output:\n{stdout}"))?
+        .parse()
+        .map_err(|_| format!("invalid timing in mhsbench output:\n{stdout}"))?;
+    Ok(CInProcessBench { ns_per_iter })
 }
 
 fn millis(duration: Duration) -> f64 {

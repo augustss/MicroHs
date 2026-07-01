@@ -94,6 +94,10 @@ bin/mhseval:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	$(CCEVAL) $(RTS)/comb.c $(CCLIBS) -o bin/mhseval
 	size bin/mhseval
 
+bin/mhsbench:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
+	@mkdir -p bin
+	$(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(RTS)/mhsbench.c $(CCLIBS) -o bin/mhsbench
+
 bin/mhsevalgdb:	$(RTS)/*.c $(RTS)/*/*.h
 	@mkdir -p bin
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) $(RTSINC) -g $(RTS)/eval.c $(RTS)/comb.c $(MAINC) $(CCLIBS) -o bin/mhsevalgdb
@@ -415,5 +419,4 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
-
 
