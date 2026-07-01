@@ -47,6 +47,13 @@ pub enum Node {
     Tick(Vec<u8>),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StdHandle {
+    Stdin,
+    Stdout,
+    Stderr,
+}
+
 #[derive(Debug)]
 pub enum EvalError {
     StepLimit { limit: usize },
@@ -70,6 +77,8 @@ pub enum EvalError {
     Raised(NodeId),
     InvalidStablePtr,
     InvalidMVar,
+    InvalidHandle,
+    UnsupportedSerialization(NodeId),
 }
 
 impl fmt::Display for EvalError {
@@ -96,6 +105,10 @@ impl fmt::Display for EvalError {
             Self::Raised(id) => write!(f, "uncaught exception at node {id:?}"),
             Self::InvalidStablePtr => write!(f, "invalid StablePtr operation"),
             Self::InvalidMVar => write!(f, "invalid MVar operation"),
+            Self::InvalidHandle => write!(f, "invalid IO handle operation"),
+            Self::UnsupportedSerialization(id) => {
+                write!(f, "cannot serialize node {id:?}")
+            }
         }
     }
 }
@@ -253,6 +266,22 @@ impl Program {
                 }
                 let unit = self.prim("I");
                 Some((2, self.pair(unit, args[1])))
+            }
+            "IO.print" if args.len() >= 3 => {
+                let handle = self.eval_io_handle(args[0])?;
+                let value = self.reduce_node_whnf(args[1], 10_000)?;
+                let rendered = self.render(value);
+                self.write_io_handle(handle, &format!("{rendered}\n"))?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
+            }
+            "IO.serialize" if args.len() >= 3 => {
+                let handle = self.eval_io_handle(args[0])?;
+                let value = self.reduce_node_whnf(args[1], 10_000)?;
+                let serialized = self.serialize_program(value)?;
+                self.write_io_handle(handle, &serialized)?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
             }
             "IO.getArgRef" if !args.is_empty() => {
                 let arg_array = self.push_node(Node::Array(Vec::new()));
@@ -1411,6 +1440,7 @@ impl Program {
         let root = self.reduce_node_whnf(id, 10_000)?;
         match &self.nodes[self.resolve(root)?.0] {
             Node::Int(n) | Node::Ptr(n) | Node::RawFunPtr(n) | Node::ThreadId(n) => Ok(*n),
+            Node::Prim(name) => std_handle_ptr(name).ok_or(EvalError::ExpectedPointer(root)),
             _ => Err(EvalError::ExpectedPointer(root)),
         }
     }
@@ -1418,8 +1448,9 @@ impl Program {
     fn eval_foreign_ptr_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
         let root = self.reduce_node_whnf(id, 10_000)?;
         let id = self.resolve(root)?;
-        match self.nodes[id.0] {
+        match &self.nodes[id.0] {
             Node::ForeignPtr { .. } => Ok(id),
+            Node::Prim(name) if std_handle(name).is_some() => Ok(id),
             _ => Err(EvalError::ExpectedForeignPtr(root)),
         }
     }
@@ -1585,6 +1616,160 @@ impl Program {
         Ok(bytes[..len].to_vec())
     }
 
+    fn eval_io_handle(&mut self, id: NodeId) -> Result<StdHandle, EvalError> {
+        let ptr = self.eval_pointer_value(id)?;
+        handle_from_ptr(ptr).ok_or(EvalError::InvalidHandle)
+    }
+
+    fn write_io_handle(&self, handle: StdHandle, text: &str) -> Result<(), EvalError> {
+        if handle == StdHandle::Stdin {
+            return Err(EvalError::InvalidHandle);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::io::Write as _;
+
+            match handle {
+                StdHandle::Stdout => {
+                    let mut stdout = std::io::stdout().lock();
+                    stdout
+                        .write_all(text.as_bytes())
+                        .map_err(|_| EvalError::InvalidHandle)?;
+                    stdout.flush().map_err(|_| EvalError::InvalidHandle)?;
+                }
+                StdHandle::Stderr => {
+                    let mut stderr = std::io::stderr().lock();
+                    stderr
+                        .write_all(text.as_bytes())
+                        .map_err(|_| EvalError::InvalidHandle)?;
+                    stderr.flush().map_err(|_| EvalError::InvalidHandle)?;
+                }
+                StdHandle::Stdin => unreachable!("checked above"),
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = text;
+        }
+        Ok(())
+    }
+
+    fn serialize_program(&self, root: NodeId) -> Result<String, EvalError> {
+        let mut out = String::from("v8.4\n0\n");
+        self.serialize_comb_into(root, 0, &mut out)?;
+        out.push_str(" }\n");
+        Ok(out)
+    }
+
+    fn serialize_comb_into(
+        &self,
+        id: NodeId,
+        depth: usize,
+        out: &mut String,
+    ) -> Result<(), EvalError> {
+        if depth > 10_000 {
+            return Err(EvalError::StepLimit { limit: depth });
+        }
+        let id = self.resolve(id)?;
+        match &self.nodes[id.0] {
+            Node::App(fun, arg) => {
+                self.serialize_comb_into(*fun, depth + 1, out)?;
+                out.push(' ');
+                self.serialize_comb_into(*arg, depth + 1, out)?;
+                out.push_str(" @");
+            }
+            Node::Indir(_) => return Err(EvalError::DanglingIndirection(id)),
+            Node::Prim(name) => out.push_str(name),
+            Node::Int(n) => {
+                out.push('#');
+                out.push_str(&n.to_string());
+            }
+            Node::Int64(n) => {
+                out.push_str("##");
+                out.push_str(&n.to_string());
+            }
+            Node::Float64(n) => {
+                out.push('&');
+                out.push_str(&n.to_string());
+            }
+            Node::Float32(n) => {
+                out.push_str("&&");
+                out.push_str(&n.to_string());
+            }
+            Node::ThreadId(_) | Node::Weak { .. } | Node::MVar(_) => {
+                return Err(EvalError::UnsupportedSerialization(id));
+            }
+            Node::Ptr(ptr) => serialize_ptr(*ptr, out),
+            Node::RawFunPtr(ptr) => {
+                out.push_str("toFunPtr #");
+                out.push_str(&ptr.to_string());
+                out.push_str(" @");
+            }
+            Node::ForeignPtr {
+                bytes, offset, ptr, ..
+            } => {
+                if let Some(bytes) = bytes {
+                    if *offset == 0 {
+                        out.push_str("bs2fp ");
+                        serialize_bytes_comb(bytes, out);
+                        out.push_str(" @");
+                    } else {
+                        out.push_str("fp+ bs2fp ");
+                        serialize_bytes_comb(bytes, out);
+                        out.push_str(" @ #");
+                        out.push_str(&offset.to_string());
+                        out.push_str(" @");
+                    }
+                } else {
+                    out.push_str("fpnew ");
+                    serialize_ptr(*ptr, out);
+                    out.push_str(" @");
+                }
+            }
+            Node::BigInt(bytes) => {
+                out.push('%');
+                serialize_bytes_comb(bytes, out);
+            }
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => {
+                serialize_bytes_comb(bytes, out);
+            }
+            Node::Array(items) => {
+                for item in items {
+                    self.serialize_comb_into(*item, depth + 1, out)?;
+                    out.push(' ');
+                }
+                out.push('[');
+                out.push_str(&items.len().to_string());
+                out.push(']');
+            }
+            Node::Ffi(name) => {
+                out.push('^');
+                out.push_str(name);
+            }
+            Node::JsCall { tags, body } => {
+                out.push('~');
+                out.push_str(tags);
+                out.push(' ');
+                serialize_bytes_comb(body, out);
+            }
+            Node::JsWrap { tags } => {
+                out.push('`');
+                out.push_str(tags);
+                out.push(' ');
+            }
+            Node::FunPtr(name) => {
+                out.push(';');
+                out.push_str(name);
+                out.push(' ');
+            }
+            Node::Tick(name) => {
+                out.push('!');
+                serialize_bytes_comb(name, out);
+            }
+        }
+        Ok(())
+    }
+
     fn new_stable_ptr(&mut self, value: NodeId) -> Result<NodeId, EvalError> {
         let slot = self
             .stable_ptrs
@@ -1671,8 +1856,9 @@ impl Program {
     }
 
     fn foreign_ptr_value(&self, id: NodeId) -> Result<i64, EvalError> {
-        match self.nodes[id.0] {
-            Node::ForeignPtr { ptr, .. } => Ok(ptr),
+        match &self.nodes[id.0] {
+            Node::ForeignPtr { ptr, .. } => Ok(*ptr),
+            Node::Prim(name) => std_handle_ptr(name).ok_or(EvalError::ExpectedForeignPtr(id)),
             _ => Err(EvalError::ExpectedForeignPtr(id)),
         }
     }
@@ -2443,6 +2629,74 @@ fn tuple_fields(name: &str) -> Option<usize> {
 
 fn int_to_usize(n: i64) -> Result<usize, EvalError> {
     usize::try_from(n).map_err(|_| EvalError::InvalidByteString)
+}
+
+fn std_handle(name: &str) -> Option<StdHandle> {
+    Some(match name {
+        "IO.stdin" => StdHandle::Stdin,
+        "IO.stdout" => StdHandle::Stdout,
+        "IO.stderr" => StdHandle::Stderr,
+        _ => return None,
+    })
+}
+
+fn std_handle_ptr(name: &str) -> Option<i64> {
+    Some(match std_handle(name)? {
+        StdHandle::Stdin => -1,
+        StdHandle::Stdout => -2,
+        StdHandle::Stderr => -3,
+    })
+}
+
+fn handle_from_ptr(ptr: i64) -> Option<StdHandle> {
+    Some(match ptr {
+        -1 => StdHandle::Stdin,
+        -2 => StdHandle::Stdout,
+        -3 => StdHandle::Stderr,
+        _ => return None,
+    })
+}
+
+fn serialize_ptr(ptr: i64, out: &mut String) {
+    match ptr {
+        -1 => out.push_str("fp2p IO.stdin @"),
+        -2 => out.push_str("fp2p IO.stdout @"),
+        -3 => out.push_str("fp2p IO.stderr @"),
+        _ => {
+            out.push_str("toPtr #");
+            out.push_str(&ptr.to_string());
+            out.push_str(" @");
+        }
+    }
+}
+
+fn serialize_bytes_comb(bytes: &[u8], out: &mut String) {
+    out.push('"');
+    for &byte in bytes {
+        match byte {
+            b'"' | b'\\' => {
+                out.push('\\');
+                out.push(byte as char);
+            }
+            b'?' => out.push_str("\\?"),
+            0xff => out.push_str("\\_"),
+            0x20..=0x7e => out.push(byte as char),
+            0x00..=0x1f => {
+                out.push('^');
+                out.push((byte | 0x20) as char);
+            }
+            0x7f => out.push_str("\\?"),
+            0x80..=0x9f => {
+                out.push('^');
+                out.push((byte & 0x1f | 0x40) as char);
+            }
+            0xa0..=0xfe => {
+                out.push('|');
+                out.push((byte & 0x7f) as char);
+            }
+        }
+    }
+    out.push('"');
 }
 
 fn head_utf8(bytes: &[u8]) -> Result<(u32, usize), EvalError> {
