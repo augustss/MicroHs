@@ -41,6 +41,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario io-bytes-chain:200 --iter
 cargo run --release --bin mhs-rust-bench -- --scenario io-control-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario argref-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario stdio-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario ffi-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario mvar-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario ptr-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario rnf-chain:200 --iters 1000

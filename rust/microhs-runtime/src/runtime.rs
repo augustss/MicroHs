@@ -78,6 +78,7 @@ pub enum EvalError {
     InvalidStablePtr,
     InvalidMVar,
     InvalidHandle,
+    UnknownFfi(String),
     UnsupportedSerialization(NodeId),
 }
 
@@ -106,6 +107,7 @@ impl fmt::Display for EvalError {
             Self::InvalidStablePtr => write!(f, "invalid StablePtr operation"),
             Self::InvalidMVar => write!(f, "invalid MVar operation"),
             Self::InvalidHandle => write!(f, "invalid IO handle operation"),
+            Self::UnknownFfi(name) => write!(f, "unknown FFI symbol {name}"),
             Self::UnsupportedSerialization(id) => {
                 write!(f, "cannot serialize node {id:?}")
             }
@@ -199,6 +201,18 @@ impl Program {
 
     fn step(&mut self, root: NodeId, budget: usize) -> Result<Option<StepResult>, EvalError> {
         let Spine { head, args, apps } = self.spine(root)?;
+        if let Node::Ffi(name) = self.nodes[head.0].clone() {
+            let Some((used, mut node)) = self.ffi_call(&name, &args)? else {
+                return Ok(None);
+            };
+            let in_place = self.apply_remaining_spine(&mut node, &args[used..], &apps[used..]);
+            return Ok(Some(StepResult {
+                node,
+                in_place,
+                reductions: 1,
+            }));
+        }
+
         let Node::Prim(name) = self.nodes[head.0].clone() else {
             return Ok(None);
         };
@@ -319,6 +333,10 @@ impl Program {
                 self.masking_state = self.eval_int(args[0])?;
                 let unit = self.prim("I");
                 Some((2, self.pair(unit, args[1])))
+            }
+            "dynsym" if !args.is_empty() => {
+                let name = self.eval_ffi_name(args[0])?;
+                Some((1, self.push_node(Node::Ffi(name))))
             }
             "IO.threadstatus" if args.len() >= 2 => {
                 self.eval_thread_id(args[0])?;
@@ -1447,6 +1465,65 @@ impl Program {
             _ => return Ok(None),
         };
         Ok(Some((1, node)))
+    }
+
+    fn ffi_call(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let arity = match name {
+            "islinux" | "ismacos" | "iswindows" => 0,
+            _ => return Err(EvalError::UnknownFfi(name.to_owned())),
+        };
+        if args.len() < arity + 1 {
+            return Ok(None);
+        }
+
+        let result = match name {
+            "islinux" => self.push_node(Node::Int(i64::from(cfg!(target_os = "linux")))),
+            "ismacos" => self.push_node(Node::Int(i64::from(cfg!(target_os = "macos")))),
+            "iswindows" => self.push_node(Node::Int(i64::from(cfg!(target_os = "windows")))),
+            _ => unreachable!("checked FFI symbol"),
+        };
+        Ok(Some((arity + 1, self.pair(result, args[arity]))))
+    }
+
+    fn eval_ffi_name(&mut self, id: NodeId) -> Result<String, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        let root = self.resolve(root)?;
+        let bytes = match self.nodes[root.0].clone() {
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => bytes,
+            _ => self.eval_char_list(root)?,
+        };
+        String::from_utf8(bytes).map_err(|_| EvalError::InvalidByteString)
+    }
+
+    fn eval_char_list(&mut self, mut id: NodeId) -> Result<Vec<u8>, EvalError> {
+        let mut out = Vec::new();
+        for _ in 0..10_000 {
+            let root = self.reduce_node_whnf(id, 10_000)?;
+            let root = self.resolve(root)?;
+            match self.nodes[root.0].clone() {
+                Node::Prim(name) if name == "K" => return Ok(out),
+                Node::App(fun, tail) => {
+                    let fun = self.resolve(fun)?;
+                    let Node::App(cons, head) = self.nodes[fun.0].clone() else {
+                        return Err(EvalError::InvalidByteString);
+                    };
+                    let cons = self.resolve(cons)?;
+                    match &self.nodes[cons.0] {
+                        Node::Prim(name) if name == "O" => {
+                            out.extend(modified_utf8(self.eval_int(head)?)?);
+                            id = tail;
+                        }
+                        _ => return Err(EvalError::InvalidByteString),
+                    }
+                }
+                _ => return Err(EvalError::InvalidByteString),
+            }
+        }
+        Err(EvalError::StepLimit { limit: 10_000 })
     }
 
     fn eval_int(&mut self, id: NodeId) -> Result<i64, EvalError> {
@@ -3202,6 +3279,26 @@ mod tests {
             whnf(b"v8.4\n0\nIO.performIO IO.threadstatus IO.performIO IO.thid @ @ @ }"),
             "0"
         );
+    }
+
+    #[test]
+    fn reduces_builtin_ffi_calls() {
+        let is_linux = if cfg!(target_os = "linux") { "1" } else { "0" };
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^islinux @ }"), is_linux);
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO dynsym \"islinux\" @ @ }"),
+            is_linux
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO dynsym O #105 @ O #115 @ O #108 @ O #105 @ O #110 @ O #117 @ O #120 @ K @ @ @ @ @ @ @ @ @ }"),
+            is_linux
+        );
+
+        let mut program = parse_program(b"v8.4\n0\nIO.performIO ^does_not_exist @ }").unwrap();
+        assert!(matches!(
+            program.reduce_whnf(100),
+            Err(EvalError::UnknownFfi(name)) if name == "does_not_exist"
+        ));
     }
 
     #[test]
