@@ -547,6 +547,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_JSCALL,            /* dynamic `foreign import javascript`, see js_dyn_* below */
+                T_IO_JSWRAP,            /* `foreign import javascript "wrapper"`: closure -> JS function */
                 T_IO_GC, T_IO_STATS,
                 T_IO_LAZYBIND, T_IO_STRICT,
                 T_DYNSYM,
@@ -3709,6 +3710,11 @@ struct js_dyn_entry { int arity; char *tags; struct bytestring body; }; /* body 
 static struct js_dyn_entry *js_dyn_table = NULL;
 static int js_dyn_count = 0;
 static int js_dyn_cap = 0;
+/* `foreign import javascript "wrapper"` (T_IO_JSWRAP): the callback tag strings,
+ * indexed by the node value.  See mhs_wrapper_invoke. */
+static char **js_wrap_tags = NULL;
+static int js_wrap_count = 0;
+static int js_wrap_cap = 0;
 #endif
 
 /* EM_JS (full JS bodies) not EM_ASM (which mishandles object literals).
@@ -3760,6 +3766,26 @@ EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m &
 EM_JS(void,   mhs_js_push_obj,  (int h),     { globalThis.__mhs.argbuf.push(globalThis.__mhs.obj[h]); });
 EM_JS(int,    mhs_js_call_bool, (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf) ? 1 : 0; } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
 EM_JS(int,    mhs_js_call_obj,  (int idx),   { try { return globalThis.__mhs.intern(globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf)); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+/* `foreign import javascript "wrapper"`: JS reads the callback's arguments from
+ * argbuf, and the Haskell result is handed back through the single `wres` slot. */
+EM_JS(int,    mhs_js_arg_int,   (int i),     { return globalThis.__mhs.argbuf[i]; });
+EM_JS(double, mhs_js_arg_dbl,   (int i),     { return globalThis.__mhs.argbuf[i]; });
+EM_JS(int,    mhs_js_arg_obj,   (int i),     { return globalThis.__mhs.intern(globalThis.__mhs.argbuf[i]); });
+EM_JS(void,   mhs_js_set_res_num,  (double v),{ globalThis.__mhs.wres = v; });
+EM_JS(void,   mhs_js_set_res_obj,  (int h),   { globalThis.__mhs.wres = globalThis.__mhs.obj[h]; });
+EM_JS(void,   mhs_js_set_res_undef, (void),   { globalThis.__mhs.wres = undefined; });
+/* Build a JS function that marshals its arguments through argbuf, invokes the
+ * Haskell closure `sp` with the callback tags `widx`, and returns wres.  Interned
+ * as a JSVal handle. */
+EM_JS(int, mhs_js_make_wrapper, (int sp, int widx), {
+  var m = globalThis.__mhs;
+  var f = function() {
+    m.argbuf = Array.prototype.slice.call(arguments);
+    _mhs_wrapper_invoke(sp, widx);   /* always sets wres (last write wins under nesting) */
+    return m.wres;
+  };
+  return m.intern(f);
+});
 #endif  /* __EMSCRIPTEN__ */
 
 /* GC finalizer for a JSVal (a ForeignPtr whose "pointer" is the object handle),
@@ -3817,6 +3843,25 @@ js_dyn_register(const char *tags, struct bytestring body)
   if (idx >= js_dyn_count)
     js_dyn_count = idx + 1;
   return idx;
+}
+
+/* Record a `foreign import javascript "wrapper"` callback's tags (tags[0] is the
+ * result, tags[1..] the arguments), returning its index.  Append-only. */
+static int
+js_wrap_register(const char *tags)
+{
+  int arity = (int)strlen(tags) - 1;
+  if (!js_dyn_tags_ok(tags, arity))
+    ERR("JavaScript FFI: malformed wrapper descriptor");
+  mhs_js_setup();                               /* idempotent: create __mhs once */
+  if (js_wrap_count >= js_wrap_cap) {
+    js_wrap_cap = js_wrap_cap ? js_wrap_cap * 2 : 8;
+    js_wrap_tags = js_wrap_tags ? mrealloc(js_wrap_tags, js_wrap_cap * sizeof(char *))
+                                : mmalloc(js_wrap_cap * sizeof(char *));
+  }
+  js_wrap_tags[js_wrap_count] = mmalloc(strlen(tags) + 1);
+  strcpy(js_wrap_tags[js_wrap_count], tags);
+  return js_wrap_count++;
 }
 #endif  /* __EMSCRIPTEN__ */
 
@@ -4069,6 +4114,22 @@ parse(BFILE *f)
         ERR("JavaScript FFI is only supported in the emscripten runtime");
 #endif
       }
+      break;
+    case '`':
+      /* `foreign import javascript "wrapper"`: `<cbtags>  (see js_wrap_* above) */
+      for (j = 0; j + 1 < sizeof(buf); j++) {
+        int tc = getNT(f);
+        if (!tc) break;
+        buf[j] = tc;
+      }
+      buf[j] = 0;
+#if defined(__EMSCRIPTEN__)
+      r = alloc_node(T_IO_JSWRAP);
+      SETVALUE(r, js_wrap_register(buf));
+      PUSH(r);
+#else
+      ERR("JavaScript FFI is only supported in the emscripten runtime");
+#endif
       break;
     case ';':
       /* <name is a C function pointer to name */
@@ -4471,6 +4532,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #if defined(__EMSCRIPTEN__)
   case T_IO_JSCALL: { struct js_dyn_entry *je = &js_dyn_table[GETVALUE(n)];
                       putb('~', f); putsb(je->tags, f); putb(' ', f); print_string(f, je->body); break; }
+  case T_IO_JSWRAP: putb('`', f); putsb(js_wrap_tags[GETVALUE(n)], f); putb(' ', f); break;
 #endif
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
 #if WANT_TICK
@@ -6206,6 +6268,36 @@ evali(NODEPTR an)
 #endif
     }
 
+  case T_IO_JSWRAP:
+    /* `mkCB f :: IO JSVal` — turn the Haskell closure f into a JS function.
+     * Keep f alive with a StablePtr (leaks until exit; see mhs_wrapper_invoke),
+     * build a JS function that marshals via the callback tags, and return it as
+     * a JSVal.  The JS function outliving this JSVal is fine (it holds the
+     * StablePtr, not the registry slot). */
+    {
+#if defined(__EMSCRIPTEN__)
+      GCCHECK(2);
+      int widx = (int)GETVALUE(n);
+      if (widx < 0 || widx >= js_wrap_count)
+        ERR("JavaScript FFI: bad wrapper index");
+      CHECK(1);
+      PUSH(mkPtr(0));            /* placeholder for the result JSVal */
+      {
+        uvalue_t sp = new_stableptr(ARG(TOP(1)));       /* the closure argument */
+        int h = mhs_js_make_wrapper((int)sp, widx);
+        struct forptr *fp = mkForPtrP((void *)(intptr_t)h);
+        fp->finalizer->final = (HsFunPtr)mhs_js_obj_free;
+        SETFORPTR(TOP(0), fp);
+      }
+      x = POPTOP();              /* the result JSVal */
+      POP(1);                    /* pop the closure argument */
+      n = POPTOP();              /* node to update */
+      GOPAIR(x);
+#else
+      ERR("JavaScript FFI is only supported in the emscripten runtime");
+#endif
+    }
+
   case T_PACKCSTRING:
     {
       CHKARG2NP;                  /* sets x, y, n */
@@ -7571,6 +7663,53 @@ mhs_invoke_int(uvalue_t sp, value_t v)
   CLEARSTK();                           /* back to the idle state */
   return 1;
 }
+
+#if defined(__EMSCRIPTEN__)
+/* Called from JS when a "wrapper" function is invoked (see mhs_js_make_wrapper).
+ * Marshal the callback's arguments out of __mhs.argbuf into an application of the
+ * closure `sp`, run it (a fresh thread post-main, or the current stack if
+ * re-entered during evaluation — see ffe_eval), and hand the result back through
+ * __mhs.wres.  Arguments are read into Haskell nodes before running, since the
+ * body may reuse argbuf.  Mirrors the generated `foreign export` C wrappers. */
+void
+mhs_wrapper_invoke(int sp, int widx)
+{
+  if (widx < 0 || widx >= js_wrap_count)   /* exported: guard against bad JS calls */
+    ERR("JavaScript FFI: bad wrapper index");
+  const char *tags = js_wrap_tags[widx];
+  int arity = (int)strlen(tags) - 1;
+  GCCHECK(2 * arity + 4);
+  ffe_push(deref_stableptr((uvalue_t)sp));
+  for (int i = 0; i < arity; i++) {
+    switch (tags[i + 1]) {
+    case 'D': mhs_from_Double(ffe_alloc(), 0, mhs_js_arg_dbl(i)); ffe_apply(); break;
+    case 'F': mhs_from_Float(ffe_alloc(), 0, (flt32_t)mhs_js_arg_dbl(i)); ffe_apply(); break;
+    case 'B': mhs_from_Bool(ffe_alloc(), 0, mhs_js_arg_int(i)); ffe_apply(); break;
+    case 'P': mhs_from_Ptr(ffe_alloc(), 0, (void *)(intptr_t)mhs_js_arg_int(i)); ffe_apply(); break;
+    case 'J': {                                        /* intern the JS value + wrap as a JSVal */
+      int h = mhs_js_arg_obj(i);
+      ffe_alloc();
+      struct forptr *fp = mkForPtrP((void *)(intptr_t)h);
+      fp->finalizer->final = (HsFunPtr)mhs_js_obj_free;
+      SETFORPTR(TOP(0), fp);
+      ffe_apply();
+    } break;
+    default:  mhs_from_Int(ffe_alloc(), 0, mhs_js_arg_int(i)); ffe_apply(); break;  /* I/Word/Char */
+    }
+  }
+  stackptr_t r = ffe_exec();            /* performIO (f a b ...); force to the result */
+  switch (tags[0]) {
+  case 'V': mhs_js_set_res_undef();                            break;  /* IO (): outer writes last */
+  case 'D': mhs_js_set_res_num(mhs_to_Double(r, -1));           break;
+  case 'F': mhs_js_set_res_num((double)mhs_to_Float(r, -1));    break;
+  case 'B': mhs_js_set_res_num(mhs_to_Bool(r, -1));             break;
+  case 'P': mhs_js_set_res_num((double)(intptr_t)mhs_to_Ptr(r, -1)); break;
+  case 'J': mhs_js_set_res_obj((int)(intptr_t)evalforptr(ARG(TOP(0)))->payload.bs_array); break;
+  default:  mhs_js_set_res_num((double)mhs_to_Int(r, -1));      break;  /* I/Word/Char */
+  }
+  ffe_pop();
+}
+#endif  /* __EMSCRIPTEN__ */
 
 /*********************/
 /* FFI adapters      */
