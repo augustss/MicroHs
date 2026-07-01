@@ -56,3 +56,30 @@ cd web-mhs && python3 -m http.server 8000
 Note: the compiled `.comb` must be loaded into the WASM filesystem as **binary**
 (`fetch(...).arrayBuffer()` / `FS.readFile`), never as text — it contains raw
 bytes that a UTF-8 text decode would corrupt.
+
+## Driving the runtime blob from Node (headless)
+
+The runtime blob from step 2 (`mhseval-web.js` — `MODULARIZE`, `EXPORT_NAME=MhsEval`,
+`SINGLE_FILE`) runs **unmodified under Node** — no browser — which is how a headless
+CI / oracle / benchmark harness drives it. Instantiate it once, load a `.comb` into the
+in-memory FS, and `callMain`; because the blob is built with no `-sEXIT_RUNTIME`, the
+instance stays alive after `main` returns, so a `StablePtr` callback can be re-entered
+via `globalThis.__mhs.invoke(sp, v)` for each later event (instantiate once, reduce
+many times). By contrast `generated/mhseval-node.js` is a separate non-`MODULARIZE`,
+auto-running `NODERAWFS` build that reads a host-path `.comb` (`+RTS -rFILE -RTS`) —
+handy for a one-shot run, awkward to drive repeatedly.
+
+```js
+// drive.mjs — run:  node drive.mjs prog.comb
+import { createRequire } from 'node:module';
+import { readFileSync }  from 'node:fs';
+const require = createRequire(import.meta.url);
+const MhsEval = require('./mhseval-web.js');            // the MODULARIZE blob (step 2)
+
+const out = [];
+const m = await MhsEval({ noInitialRun: true, print: s => out.push(s) });
+m.FS.writeFile('/prog.comb', readFileSync(process.argv[2]));  // .comb as raw bytes
+m.callMain(['+RTS', '-r/prog.comb', '-RTS']);                 // runs main; then returns
+console.log(out.join('\n'));
+// the instance is still live here — e.g. globalThis.__mhs.invoke(sp, v) to re-enter.
+```
