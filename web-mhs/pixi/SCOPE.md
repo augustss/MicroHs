@@ -28,6 +28,16 @@ can drive Haskell.
   `newStablePtr`+`castStablePtrToPtr` and installs a listener whose body calls
   `__mhs.invoke`. See `PixiEvents.hs` — a canvas click rotates the box from
   Haskell, long after `main` returned.
+- **`foreign import javascript "wrapper"` (typed JS→Haskell functions).** Turns a
+  Haskell closure into a JS function value: `mkCB :: (a -> .. -> IO r) -> IO JSVal`
+  interns a JS function (returned as a `JSVal`) that marshals its arguments (by the
+  Phase A tags), runs the closure, and returns the result — multi-arg and
+  result-returning, unlike the fixed `Int -> IO ()` pump.  Synchronous: the call
+  runs to completion (on a fresh thread post-`main`, or the current stack if
+  re-entered during evaluation).  The closure's `StablePtr` lives until exit (JS
+  may retain the function after the `JSVal` is collected), so there is no auto-free
+  yet.  This is the interpreter-model analogue of a static `foreign export
+  javascript` (which MicroHs can't do without per-program `emcc`).
 - **First-class `JSVal` (GC-managed object handles).** A body can take and return
   `JSVal` (`Mhs.JavaScript`) directly: on return the runtime interns the JS value
   into `globalThis.__mhs.obj` and wraps the handle in a `ForeignPtr` whose
@@ -43,7 +53,7 @@ can drive Haskell.
 | Capability | GHC wasm | This bridge |
 |---|---|---|
 | Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **no** — `main` runs to completion synchronously; no yielding to the event loop |
-| `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | only the narrow `Int -> IO ()` event-pump; no general export |
+| `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | **`"wrapper"` done** — typed, multi-arg, result-returning closures→JS functions (sync only); static named `foreign export` not done (needs per-program `emcc`) |
 | `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — first-class `JSVal` (`Mhs.JavaScript`), runtime-owned ForeignPtr + finalizer, freed on GC; take/return directly in a body |
 | Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int/Word/Char, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet; `Word`≥2³¹ rides the signed `I` path (unsigned `U` tag deferred) |
 | Catchable JS exceptions | async path → `JSException` in Haskell | fatal (sets `__mhs.err`, `ERR`s) — this *matches* GHC's *sync* path |
@@ -75,17 +85,20 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
    via the real `K`/`A` combinators, `Char` via the `Word`/`I` path, and
    runtime-owned first-class `JSVal`)*. Remaining: `Int64`/`Word64` → `bigint`,
    an unsigned `U` tag for honest `Word`≥2³¹, and typed callback ABIs beyond `Int`.
-2. **General `foreign export javascript`** — a first-class export path (the
-   `ffe_*`/`apply_sp` machinery already re-enters the evaluator) rather than the
-   single hand-rolled `Int -> IO ()` pump.
-3. **Result-returning / multi-arg callbacks** — generalise `mhs_invoke_int`
-   beyond a single `Int` and fire-and-forget.
-4. **Async** (the hard one) — let `IO` `await` a Promise. Either instrument the
+2. ~~**General JS→Haskell exports**, **result-returning / multi-arg callbacks**~~
+   *(done: `foreign import javascript "wrapper"` — typed, multi-arg,
+   result-returning closures→JS functions, via the `ffe_*` machinery).*  Still
+   open: static named `foreign export javascript` (needs per-program `emcc`, so
+   incompatible with the in-browser interpreter), and freeing a wrapper's
+   `StablePtr` (needs JS-side finalization or an explicit `freeJSVal`).
+3. **Async** (the hard one) — let `IO` `await` a Promise. Either instrument the
    interpreter with emscripten Asyncify (or target JSPI) so a reduction can
    yield, or make the evaluator continuation-based and yield at `T_IO_JSCALL`,
    plus a JS-side scheduler and a sync/async tag distinction. This changes the
    "`main` runs to completion" contract and inherits continuation capture, async
    exceptions, and GC-while-suspended.
+4. **Catchable JS exceptions** — map a JS exception to a catchable Haskell
+   exception (at least on the async path; the sync path matches GHC's fatal one).
 5. **Avoid `unsafe-eval`** — precompile bodies or use a CSP nonce, for sites
    that forbid `new Function`.
 
