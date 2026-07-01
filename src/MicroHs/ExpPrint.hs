@@ -124,10 +124,8 @@ toStringP ae =
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
-    -- A `foreign import javascript` is serialized as a self-describing token
-    --   ~<tags> "<jsbody>"
-    -- so the interpreter runtime can register and dispatch it dynamically,
-    -- with no per-program C compilation.  See T_IO_JSCALL in src/runtime/eval.c.
+    -- A `foreign import javascript` becomes a token  ~<tags> "<jsbody>"  that the
+    -- interpreter registers and dispatches dynamically (T_IO_JSCALL in eval.c).
     Lit (LForImp _ (ImpJS jsbody) _ (CType ty)) ->
       let (as, rio) = getArrows ty
           tags      = jsRetTag (dropIO rio) : map jsArgTag as

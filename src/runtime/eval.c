@@ -3695,73 +3695,42 @@ find_label(heapoffs_t label)
   }
 }
 
-/* ---- Dynamic JavaScript FFI (emscripten only) --------------------------- *
- * A `foreign import javascript "body"` is serialized by the compiler (see
- * MicroHs.ExpPrint) as a self-describing combinator token
- *     ~<tags> "<jsbody>"
- * where <tags> is the return tag followed by one tag per argument
- * (I=Int, D=Double, F=Float, P=Ptr, V=void/unit).  At parse time the body is
- * compiled to a JS function kept in a registry (globalThis.__mhs); the parsed
- * node (T_IO_JSCALL) just holds the registry index, and dispatch marshals
- * arguments/results by the stored tags.  This lets arbitrary JS imports run in
- * the interpreter with no per-program C compilation.
- * The registry is append-only for the life of the runtime: parse_top is also
- * re-entered by IO.deserialize, so resetting it there would invalidate live
- * nodes.  Every index therefore stays valid; the cost is that per-import
- * allocations are not reclaimed (matching the runtime's other never-freed
- * parse allocations). */
+/* Dynamic JavaScript FFI (emscripten only).  The compiler serializes a
+ * `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
+ * the return tag, tags[1..] the args: I=Int D=Double F=Float P=Ptr V=unit).  At
+ * parse time the body is compiled to a JS function in globalThis.__mhs and the
+ * T_IO_JSCALL node holds its index; dispatch marshals by the tags.  The registry
+ * is append-only: parse_top is re-entered by IO.deserialize, so resetting it
+ * would invalidate live nodes. */
 #define JS_MAX_ARGS 32
-/* tags[0] is the return tag, tags[1..arity] the argument tags; `body` is kept
- * so the node can be re-serialized (printb). */
-struct js_dyn_entry { int arity; char *tags; struct bytestring body; };
+struct js_dyn_entry { int arity; char *tags; struct bytestring body; }; /* body kept for printb */
 static struct js_dyn_entry *js_dyn_table = NULL;
 static int js_dyn_count = 0;
 #if defined(__EMSCRIPTEN__)
 static int js_dyn_cap = 0;
 #endif
 
-/* The JS glue is written with EM_JS (full JS function bodies) rather than
- * EM_ASM, because EM_ASM's inline-block parser mishandles object literals and
- * nested braces.  globalThis.__mhs holds the per-program state:
- *   reg    - registered JS functions (index === T_IO_JSCALL node value)
- *   argbuf - scratch argument buffer for the current call
- *   err    - last JS exception message, or null
- *   obj    - object-handle registry backing JSVal (obj[0] null; handles >= 1),
- *            with objfree/intern for allocation and mhs_js_obj_free for freeing */
+/* EM_JS (full JS bodies) not EM_ASM (which mishandles object literals).
+ * globalThis.__mhs holds: reg (registered JS functions, indexed by the
+ * T_IO_JSCALL value), argbuf (scratch args), err (last exception) and obj (the
+ * JSVal object-handle registry, obj[0] null / handles >= 1). */
 #if defined(__EMSCRIPTEN__)
 EM_JS(void, mhs_js_setup, (void), {
-  /* Initialize each field defensively: __mhs lives on globalThis and may be
-   * shared with (or partially set by) another wasm module on the same page. */
+  /* Fields set independently: __mhs is on globalThis and may be shared with
+   * another wasm module on the page. */
   if (!globalThis.__mhs) globalThis.__mhs = {};
   var m = globalThis.__mhs;
-  if (!m.reg)          m.reg = [];
-  if (!m.argbuf)       m.argbuf = [];
-  if (!('err' in m))   m.err = null;
-  /* obj is the runtime-owned object-handle registry backing JSVal: obj[0] is a
-   * null sentinel, real handles are >= 1.  m.intern(v) allocates a handle
-   * (reusing freed slots from m.objfree so the array stays bounded by peak-live);
-   * a JSVal's finalizer frees its slot (mhs_js_obj_free) so both the handle and
-   * the underlying JS value are reclaimed when no Haskell JSVal holds it.  Each
-   * field is initialised independently (like reg/argbuf/err). */
+  if (!m.reg)                      m.reg = [];
+  if (!m.argbuf)                   m.argbuf = [];
+  if (!('err' in m))               m.err = null;
   if (!m.obj || m.obj[0] !== null) m.obj = [null];
   if (!m.objfree)                  m.objfree = [];
-  if (!m.intern)
-    m.intern = function(v) {
-      var i = m.objfree.length ? m.objfree.pop() : m.obj.length;
-      if (i < 1) i = m.obj.length;   /* never overwrite the null sentinel */
-      m.obj[i] = v;
-      return i;
-    };
-  /* Publish the emscripten string helpers globally so JS bodies compiled with
-   * `new Function` (which run in global scope) can use the same
-   * UTF8ToString/stringToNewUTF8 names as the EM_ASM-based FFI path.  Guarded
-   * with typeof so builds that do not export them still run without a
-   * ReferenceError. */
+  if (!m.intern)                   m.intern = function(v) { var i = m.objfree.length ? m.objfree.pop() : m.obj.length; m.obj[i] = v; return i; };
+  /* JS bodies run in global scope, so publish the string helpers there; typeof
+   * guards builds that don't export them (e.g. the compiler). */
   if (typeof UTF8ToString !== 'undefined')    globalThis.UTF8ToString    = UTF8ToString;
   if (typeof stringToNewUTF8 !== 'undefined') globalThis.stringToNewUTF8 = stringToNewUTF8;
-  /* __mhs.invoke(sp, v) drives a Haskell `StablePtr (Int -> IO ())` callback
-   * from a JS event handler (onclick, ticker, ...).  Requires the runtime to be
-   * built with `_mhs_invoke_int` exported and without EXIT_RUNTIME. */
+  /* invoke(sp,v) drives a Haskell StablePtr (Int -> IO ()) from a JS event. */
   if (!m.invoke && typeof _mhs_invoke_int !== 'undefined')
     m.invoke = function(sp, v) { return _mhs_invoke_int(sp, v); };
 });
@@ -3789,11 +3758,9 @@ EM_JS(void,   mhs_js_logerr,    (void),      { console.error('MicroHs JavaScript
 EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m && m.obj && h >= 1 && m.obj[h] !== undefined) { m.obj[h] = undefined; m.objfree.push(h); } });
 #endif  /* __EMSCRIPTEN__ */
 
-/* FinalizerPtr for a JSVal (a ForeignPtr whose "pointer" is the JS object
- * handle): clear the JS-side registry slot so the underlying JS value can be
- * collected once no Haskell JSVal references it.  Reached from Haskell via
- * `foreign import ccall "&mhs_js_obj_free" :: FinalizerPtr a` (see the ';name'
- * funptr cases in parse/printb).  A no-op off emscripten. */
+/* FinalizerPtr for a JSVal (a ForeignPtr whose "pointer" is the object handle):
+ * free the registry slot so the JS value can be collected.  Reached from Haskell
+ * via `foreign import ccall "&mhs_js_obj_free"`.  A no-op off emscripten. */
 void
 mhs_js_obj_free(void *p)
 {
@@ -3820,12 +3787,9 @@ js_dyn_tags_ok(const char *tags, int arity)
   return 1;
 }
 
-/* Compile <body> into a JS function, register it, and record the tags and body
- * (the body is used for re-serialization).  Takes ownership of body.bs_array.
- * Returns the registry index.  The registry is append-only and never reset: a
- * T_IO_JSCALL node's index stays valid for the life of the runtime, so nodes
- * that survive across IO.deserialize (which re-enters parse_top) keep working.
- * The small per-import allocations live until process exit. */
+/* Compile <body> into a JS function, register it, record the tags and body
+ * (body is kept for re-serialization; takes ownership of body.bs_array), and
+ * return the registry index.  Append-only: never reset (see the header note). */
 static int
 js_dyn_register(const char *tags, struct bytestring body)
 {
@@ -6190,10 +6154,8 @@ evali(NODEPTR an)
       int arity = e->arity;
       CHECK(arity);
       PUSH(mkPtr(0));             /* placeholder for result, protected from GC */
-      /* Evaluate every argument FIRST into C locals.  Forcing an argument may
-       * itself run a JS FFI call that reuses the shared argbuf, so we must not
-       * interleave evaluation with pushing.  (arity <= JS_MAX_ARGS is enforced
-       * at registration.) */
+      /* Evaluate all args into C locals FIRST: forcing an arg may run a nested
+       * JS call that reuses argbuf, so we must not interleave eval with pushing. */
       {
         double  dvals[JS_MAX_ARGS];
         value_t ivals[JS_MAX_ARGS];
@@ -7579,18 +7541,11 @@ apply_sp(uvalue_t sp, void *arg)
 }
 
 /* mhs_invoke_int :: StablePtr (Int -> IO ()) -> Int -> IO ()
- *
- * Run a Haskell callback (previously handed to JS as a StablePtr, e.g. via
- * globalThis.__mhs.invoke) with the integer event argument `v`.  Unlike
- * apply_sp, this runs the action as a FRESH top-level thread via start_exec, so
- * it gets a live scheduler and its own setjmp/error boundary — an uncaught
- * exception cleanly EXITs the runtime instead of longjmp-ing into a stack frame
- * that returned when `main` finished.  This is what makes JS-event-driven
- * Haskell (onclick, ticker, ...) safe after `main` has returned.
- *
- * The interpreter is not reentrant, so if the evaluator is already active
- * (main_thread != 0 — either main is still running, or we are already inside a
- * callback) the event is dropped and 0 is returned; 1 means it ran. */
+ * Run a Haskell callback (handed to JS as a StablePtr, e.g. via __mhs.invoke)
+ * with event argument `v`.  Runs as a FRESH thread via start_exec so it has a
+ * live scheduler and its own error boundary, letting JS events drive Haskell
+ * after `main` returned.  The interpreter is not reentrant, so a call while the
+ * evaluator is active (main_thread != 0) is dropped (returns 0; 1 means it ran). */
 int
 mhs_invoke_int(uvalue_t sp, value_t v)
 {
