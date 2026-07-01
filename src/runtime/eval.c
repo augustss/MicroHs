@@ -3698,7 +3698,7 @@ find_label(heapoffs_t label)
 
 /* Dynamic JavaScript FFI (emscripten only).  The compiler serializes a
  * `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
- * the return tag, tags[1..] the args: I=Int/Word/Char D=Double F=Float P=Ptr
+ * the return tag, tags[1..] the args: I=Int U=Word/Char D=Double F=Float P=Ptr
  * B=Bool J=JSVal V=unit(return only)).  At
  * parse time the body is compiled to a JS function in globalThis.__mhs and the
  * T_IO_JSCALL node holds its index; dispatch marshals by the tags.  The registry
@@ -3755,6 +3755,7 @@ EM_JS(int, mhs_js_register, (const char *bodyp, int arity), {
 
 EM_JS(void,   mhs_js_argreset,  (void),      { globalThis.__mhs.argbuf.length = 0; globalThis.__mhs.err = null; });
 EM_JS(void,   mhs_js_push_int,  (int v),     { globalThis.__mhs.argbuf.push(v); });
+EM_JS(void,   mhs_js_push_uint, (int v),     { globalThis.__mhs.argbuf.push(v >>> 0); });  /* Word/Char: unsigned */
 EM_JS(void,   mhs_js_push_dbl,  (double v),  { globalThis.__mhs.argbuf.push(v); });
 EM_JS(int,    mhs_js_call_int,  (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
 EM_JS(double, mhs_js_call_dbl,  (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
@@ -3803,7 +3804,8 @@ mhs_js_obj_free(void *p)
 
 #if defined(__EMSCRIPTEN__)
 /* Validate the tag string of a JS import: tags[0] is the return tag (may be V
- * for unit), tags[1..] are argument tags (I/D/F/P only). */
+ * for unit), tags[1..] are argument tags.  I=Int U=Word/Char D=Double F=Float
+ * P=Ptr B=Bool J=JSVal. */
 static int
 js_dyn_tags_ok(const char *tags, int arity)
 {
@@ -3811,7 +3813,7 @@ js_dyn_tags_ok(const char *tags, int arity)
     return 0;
   for (int i = 0; tags[i]; i++) {
     char t = tags[i];
-    if (!(t == 'I' || t == 'D' || t == 'F' || t == 'P' || t == 'B' || t == 'J' ||
+    if (!(t == 'I' || t == 'U' || t == 'D' || t == 'F' || t == 'P' || t == 'B' || t == 'J' ||
           (i == 0 && t == 'V')))
       return 0;
   }
@@ -6230,14 +6232,15 @@ evali(NODEPTR an)
           else if (t == 'F') dvals[i] = (double)mhs_to_Float(stk, i);
           else if (t == 'B') ivals[i] = mhs_to_Bool(stk, i);
           else if (t == 'J') ivals[i] = (value_t)(intptr_t)evalforptr(ARG(TOP(i + 1)))->payload.bs_array;
-          else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);  /* I, Word/Char */
+          else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);  /* I/U or P */
         }
         mhs_js_argreset();
         for (int i = 0; i < arity; i++) {
           char t = e->tags[i + 1];
           if      (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
           else if (t == 'J')             mhs_js_push_obj((int)ivals[i]);
-          else                           mhs_js_push_int((int)ivals[i]);  /* I, Word/Char, B, P */
+          else if (t == 'U')             mhs_js_push_uint((int)ivals[i]); /* Word/Char: unsigned */
+          else                           mhs_js_push_int((int)ivals[i]);  /* I, B, P */
         }
       }
       switch (e->tags[0]) {
@@ -6251,7 +6254,7 @@ evali(NODEPTR an)
         fp->finalizer->final = (HsFunPtr)mhs_js_obj_free;               /* free the slot on GC */
         SETFORPTR(TOP(0), fp);
       } break;
-      default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* 'I', Word/Char */
+      default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* I/U: bit-preserved */
       }
       if (mhs_js_haserr()) {
         mhs_js_logerr();
@@ -7694,7 +7697,7 @@ mhs_wrapper_invoke(int sp, int widx)
       SETFORPTR(TOP(0), fp);
       ffe_apply();
     } break;
-    default:  mhs_from_Int(ffe_alloc(), 0, mhs_js_arg_int(i)); ffe_apply(); break;  /* I/Word/Char */
+    default:  mhs_from_Int(ffe_alloc(), 0, mhs_js_arg_int(i)); ffe_apply(); break;  /* I/U: bit-preserved */
     }
   }
   stackptr_t r = ffe_exec();            /* performIO (f a b ...); force to the result */
@@ -7705,7 +7708,8 @@ mhs_wrapper_invoke(int sp, int widx)
   case 'B': mhs_js_set_res_num(mhs_to_Bool(r, -1));             break;
   case 'P': mhs_js_set_res_num((double)(intptr_t)mhs_to_Ptr(r, -1)); break;
   case 'J': mhs_js_set_res_obj((int)(intptr_t)evalforptr(ARG(TOP(0)))->payload.bs_array); break;
-  default:  mhs_js_set_res_num((double)mhs_to_Int(r, -1));      break;  /* I/Word/Char */
+  case 'U': mhs_js_set_res_num((double)(uvalue_t)mhs_to_Int(r, -1)); break;  /* Word/Char: unsigned */
+  default:  mhs_js_set_res_num((double)mhs_to_Int(r, -1));      break;  /* I */
   }
   ffe_pop();
 }
