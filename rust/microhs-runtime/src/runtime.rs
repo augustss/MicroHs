@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -40,6 +40,7 @@ pub enum EvalError {
     InvalidShift(i64),
     InvalidByteString,
     InvalidArray,
+    Raised(NodeId),
 }
 
 impl fmt::Display for EvalError {
@@ -58,6 +59,7 @@ impl fmt::Display for EvalError {
             Self::InvalidShift(n) => write!(f, "invalid shift amount {n}"),
             Self::InvalidByteString => write!(f, "invalid ByteString operation"),
             Self::InvalidArray => write!(f, "invalid Array operation"),
+            Self::Raised(id) => write!(f, "uncaught exception at node {id:?}"),
         }
     }
 }
@@ -185,6 +187,17 @@ impl Program {
                 self.reduce_node_whnf(args[1], 10_000)?;
                 let n = self.app(args[0], args[1]);
                 Some((2, n))
+            }
+            "catch" if args.len() >= 3 => {
+                let action = self.app(args[0], args[2]);
+                Some((3, self.catch_result(action, args[1], args[2])?))
+            }
+            "catchr" if args.len() >= 3 => Some((3, self.catch_result(args[0], args[1], args[2])?)),
+            "raise" if !args.is_empty() => return Err(EvalError::Raised(args[0])),
+            "rnf" if args.len() >= 2 => {
+                let noerr = self.eval_int(args[0])? != 0;
+                self.rnf(noerr, args[1])?;
+                Some((2, self.prim("I")))
             }
             "seq" if args.len() >= 2 => {
                 self.reduce_node_whnf(args[0], 10_000)?;
@@ -407,6 +420,22 @@ impl Program {
         let pair = self.prim("P");
         let result_pair = self.app(pair, result);
         self.app(result_pair, world)
+    }
+
+    fn catch_result(
+        &mut self,
+        action: NodeId,
+        handler: NodeId,
+        world: NodeId,
+    ) -> Result<NodeId, EvalError> {
+        match self.reduce_node_whnf(action, 10_000) {
+            Ok(result) => Ok(result),
+            Err(EvalError::Raised(exn)) => {
+                let handled = self.app(handler, exn);
+                Ok(self.app(handled, world))
+            }
+            Err(err) => Err(err),
+        }
     }
 
     fn ordering(&mut self, ord: Ordering) -> NodeId {
@@ -1096,6 +1125,33 @@ impl Program {
             root = next;
         }
         Err(EvalError::StepLimit { limit })
+    }
+
+    fn rnf(&mut self, noerr: bool, root: NodeId) -> Result<(), EvalError> {
+        let mut seen = HashSet::new();
+        self.rnf_rec(noerr, root, &mut seen)
+    }
+
+    fn rnf_rec(
+        &mut self,
+        noerr: bool,
+        root: NodeId,
+        seen: &mut HashSet<NodeId>,
+    ) -> Result<(), EvalError> {
+        let root = self.resolve(root)?;
+        if !seen.insert(root) {
+            return Ok(());
+        }
+        let root = match self.reduce_node_whnf(root, 10_000) {
+            Ok(root) => self.resolve(root)?,
+            Err(EvalError::Raised(_)) if noerr => return Ok(()),
+            Err(err) => return Err(err),
+        };
+        if let Node::App(fun, arg) = self.nodes[root.0] {
+            self.rnf_rec(noerr, fun, seen)?;
+            self.rnf_rec(noerr, arg, seen)?;
+        }
+        Ok(())
     }
 
     pub fn render(&self, root: NodeId) -> String {
@@ -1791,7 +1847,7 @@ fn nibble(n: u8) -> char {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse_program;
+    use crate::{EvalError, parse_program};
 
     fn whnf(input: &[u8]) -> String {
         let mut program = parse_program(input).unwrap();
@@ -1973,6 +2029,27 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\nseq + #1 @ #2 @ @ #9 @ }"), "9");
         assert_eq!(whnf(b"v8.4\n0\nisint #7 @ }"), "7");
         assert_eq!(whnf(b"v8.4\n0\nisint \"x\" @ }"), "-1");
+    }
+
+    #[test]
+    fn reduces_rnf_and_exception_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nrnf #0 @ O #1 @ #2 @ @ }"), "I");
+        assert_eq!(whnf(b"v8.4\n0\nrnf #1 @ raise #7 @ @ }"), "I");
+
+        let mut program = parse_program(b"v8.4\n0\nraise #7 @ }").unwrap();
+        assert!(matches!(
+            program.reduce_whnf(100),
+            Err(EvalError::Raised(_))
+        ));
+
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO catch IO.return #5 @ @ K IO.return #42 @ @ @ @ }"),
+            "5"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO catch raise #7 @ @ K IO.return #42 @ @ @ @ }"),
+            "42"
+        );
     }
 
     #[test]
