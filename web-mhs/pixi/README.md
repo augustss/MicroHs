@@ -33,7 +33,7 @@ make newmhs
 # 2. the runtime, as a browser WASM module (EXPORT_NAME=MhsEval).
 #    _mhs_invoke_int is exported for the JS->Haskell event-pump (events.html);
 #    there is no -sEXIT_RUNTIME, so the instance stays alive for post-main callbacks.
-emcc -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_mhs_invoke_int,_main \
+emcc -O3 -sEXPORTED_FUNCTIONS=_mhs_invoke_int,_mhs_wrapper_invoke,_main \
      -sEXPORTED_RUNTIME_METHODS=FS,callMain,stringToNewUTF8,UTF8ToString \
      -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE \
      -sMODULARIZE=1 -sEXPORT_NAME=MhsEval -Wno-address-of-packed-member \
