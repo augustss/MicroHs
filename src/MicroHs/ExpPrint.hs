@@ -175,7 +175,7 @@ dropIO (EApp (EVar io) t) | io == identIO = t
 dropIO t = t
 
 -- Single-character tags naming JS FFI marshalling types; must agree with the
--- decoder for T_IO_JSCALL in src/runtime/eval.c.  I=Int/Word/Char D=Double
+-- decoder for T_IO_JSCALL in src/runtime/eval.c.  I=Int U=Word/Char D=Double
 -- F=Float P=Ptr B=Bool J=JSVal, and V=() only as a return type, never an argument.
 jsRetTag :: EType -> Char
 jsRetTag (EVar i) | i == identUnit = 'V'
@@ -193,7 +193,7 @@ jsScalarTag (EApp (EVar fp) (EVar m))
 jsScalarTag t@(EVar i) =
   case unIdent i of
     "Primitives.Int"        -> 'I'
-    "Primitives.Word"       -> 'I'   -- also Char's representation (a codepoint)
+    "Primitives.Word"       -> 'U'   -- unsigned; also Char's representation (a codepoint)
     "Primitives.Double"     -> 'D'
     "Primitives.Float"      -> 'F'
     "Data.Bool_Type.Bool"   -> 'B'
