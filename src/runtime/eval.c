@@ -6258,9 +6258,9 @@ evali(NODEPTR an)
           char t = e->tags[i + 1];
           if      (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
           else if (t == 'J')             mhs_js_push_obj((int)ivals[i]);
-          else if (t == 'U')             mhs_js_push_uint((int)ivals[i]); /* Word/Char: unsigned */
+          else if (t == 'U' || t == 'P') mhs_js_push_uint((int)ivals[i]); /* Word/Char/Ptr: unsigned (a wasm32 address >= 2^31 must not go negative) */
           else if (t == 'S')             mhs_js_push_str(svals[i]->payload.bs_array, (int)svals[i]->payload.bs_size);
-          else                           mhs_js_push_int((int)ivals[i]);  /* I, B, P */
+          else                           mhs_js_push_int((int)ivals[i]);  /* I, B */
         }
       }
       switch (e->tags[0]) {
@@ -7738,7 +7738,7 @@ mhs_wrapper_invoke(int sp, int widx)
   case 'D': mhs_js_set_res_num(mhs_to_Double(r, -1));           break;
   case 'F': mhs_js_set_res_num((double)mhs_to_Float(r, -1));    break;
   case 'B': mhs_js_set_res_num(mhs_to_Bool(r, -1));             break;
-  case 'P': mhs_js_set_res_num((double)(intptr_t)mhs_to_Ptr(r, -1)); break;
+  case 'P': mhs_js_set_res_num((double)(uintptr_t)mhs_to_Ptr(r, -1)); break;  /* unsigned: address >= 2^31 must not go negative */
   case 'J': mhs_js_set_res_obj((int)(intptr_t)evalforptr(ARG(TOP(0)))->payload.bs_array); break;
   case 'S': { struct forptr *fp = evalbstr(ARG(TOP(0))); mhs_js_set_res_str(fp->payload.bs_array, (int)fp->payload.bs_size); } break;
   case 'U': mhs_js_set_res_num((double)(uvalue_t)mhs_to_Int(r, -1)); break;  /* Word/Char: unsigned */
