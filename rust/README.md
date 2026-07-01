@@ -46,6 +46,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario ffi-math-chain:200 --iter
 cargo run --release --bin mhs-rust-bench -- --scenario ffi-const-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario ffi-mem-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario ffi-wide-mem-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario ffi-strcpy-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario mvar-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario ptr-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario rnf-chain:200 --iters 1000

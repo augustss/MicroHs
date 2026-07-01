@@ -1537,6 +1537,14 @@ impl Program {
                 self.write_pointer_bytes(dst, &bytes)?;
                 Node::Prim("I".to_owned())
             }
+            "strcpy" => {
+                let dst = self.eval_pointer_value(args[0])?;
+                let src = self.eval_pointer_value(args[1])?;
+                let mut bytes = self.read_c_string(src)?;
+                bytes.push(0);
+                self.write_pointer_bytes(dst, &bytes)?;
+                Node::Prim("I".to_owned())
+            }
             "strlen" => {
                 let ptr = self.eval_pointer_value(args[0])?;
                 let len = self.read_c_string(ptr)?.len();
@@ -3334,11 +3342,12 @@ fn ffi_arity(name: &str) -> Option<usize> {
         | "peek_size_t" | "peek_flt32" | "peek_flt64" | "acos" | "asin" | "atan" | "cos"
         | "exp" | "log" | "sin" | "sqrt" | "tan" | "acosf" | "asinf" | "atanf" | "cosf"
         | "expf" | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
-        "calloc" | "realloc" | "poke_uint8" | "poke_uint16" | "poke_uint32" | "poke_uint64"
-        | "poke_int8" | "poke_int16" | "poke_int32" | "poke_int64" | "poke_char" | "poke_schar"
-        | "poke_uchar" | "poke_short" | "poke_ushort" | "poke_int" | "poke_uint" | "poke_long"
-        | "poke_ulong" | "poke_llong" | "poke_ullong" | "poke_size_t" | "poke_flt32"
-        | "poke_flt64" | "atan2" | "pow" | "scalbn" | "atan2f" | "powf" | "scalbnf" => 2,
+        "calloc" | "realloc" | "strcpy" | "poke_uint8" | "poke_uint16" | "poke_uint32"
+        | "poke_uint64" | "poke_int8" | "poke_int16" | "poke_int32" | "poke_int64"
+        | "poke_char" | "poke_schar" | "poke_uchar" | "poke_short" | "poke_ushort" | "poke_int"
+        | "poke_uint" | "poke_long" | "poke_ulong" | "poke_llong" | "poke_ullong"
+        | "poke_size_t" | "poke_flt32" | "poke_flt64" | "atan2" | "pow" | "scalbn" | "atan2f"
+        | "powf" | "scalbnf" => 2,
         "memcpy" | "memmove" => 3,
         _ => return None,
     })
