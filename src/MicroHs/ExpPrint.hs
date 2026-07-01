@@ -8,8 +8,10 @@ import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
-import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
+import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType(..), ImpEnt(..),
+                    Expr(EVar, EApp), EType, showEType, getArrows)
+import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc, unIdent)
+import MicroHs.Names(identIO, identPtr, identUnit)
 import MicroHs.List(groupSort)
 import MicroHs.State
 import MicroHs.TypeCheck(isInstId)
@@ -122,6 +124,14 @@ toStringP ae =
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
+    -- A `foreign import javascript` is serialized as a self-describing token
+    --   ~<tags> "<jsbody>"
+    -- so the interpreter runtime can register and dispatch it dynamically,
+    -- with no per-program C compilation.  See T_IO_JSCALL in src/runtime/eval.c.
+    Lit (LForImp _ (ImpJS jsbody) _ (CType ty)) ->
+      let (as, rio) = getArrows ty
+          tags      = jsRetTag (dropIO rio) : map jsArgTag as
+      in  (('~' : tags ++ " ") ++) . (quoteString (utf8encode jsbody) ++) . (' ' :)
     Lit l -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
@@ -155,6 +165,34 @@ quoteString s =
       | c < '\xff'             = ['|', chr (ord c - 0x80)]
       | otherwise              = "\\_"
   in  '"' : concatMap (\c -> achar (chr (ord c `rem` 256))) s ++ ['"']
+
+-- The result type of a `foreign import javascript` is `IO t`; strip the `IO`.
+dropIO :: EType -> EType
+dropIO (EApp (EVar io) t) | io == identIO = t
+dropIO t = t
+
+-- Single-character tags naming JS FFI marshalling types; must agree with the
+-- decoder for T_IO_JSCALL in src/runtime/eval.c.  `()` is only valid as a
+-- return type (V), never as an argument.
+jsRetTag :: EType -> Char
+jsRetTag (EVar i) | i == identUnit = 'V'
+jsRetTag t = jsScalarTag t
+
+jsArgTag :: EType -> Char
+jsArgTag = jsScalarTag
+
+jsScalarTag :: EType -> Char
+jsScalarTag (EApp (EVar p) _) | p == identPtr = 'P'
+jsScalarTag t@(EVar i) =
+  case unIdent i of
+    "Primitives.Int"    -> 'I'
+    "Primitives.Double" -> 'D'
+    "Primitives.Float"  -> 'F'
+    _                   -> jsTagErr t
+jsScalarTag t = jsTagErr t
+
+jsTagErr :: EType -> a
+jsTagErr t = errorMessage (getSLoc t) $ "unsupported JavaScript FFI type: " ++ showEType t
 
 -- BaseStrings are encoded without quotations,
 -- using a length and raw data instead.

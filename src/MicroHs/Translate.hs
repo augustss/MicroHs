@@ -62,6 +62,11 @@ trans r ae =
     Lit (LBStr s) -> unsafeCoerce s
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
+    -- `foreign import javascript` is resolved dynamically from the combinator
+    -- file at runtime (see T_IO_JSCALL); it has no meaning in this GHC-hosted
+    -- interpreter, so reject it clearly rather than emitting a broken dynsym.
+    Lit (LForImp _ (ImpJS _) _ _) ->
+      error "trans: foreign import javascript is not supported in the interpreter; compile to a combinator file"
     Lit f@(LForImp _ _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
     _ -> error $ "trans: impossible: " ++ prettyShow ae
 
