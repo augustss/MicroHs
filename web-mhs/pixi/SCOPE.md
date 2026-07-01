@@ -52,7 +52,7 @@ can drive Haskell.
 
 | Capability | GHC wasm | This bridge |
 |---|---|---|
-| Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **no** — `main` runs to completion synchronously; no yielding to the event loop |
+| Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **not on this runtime** — `main` runs to completion synchronously.  Planned as an opt-in `-sASYNCIFY` runtime on a separate branch (`EM_ASYNC_JS` + an async token); kept off the default because Asyncify measured ~2x FFI slowdown, and the await must unwind the whole eval loop |
 | `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | **`"wrapper"` done** — typed, multi-arg, result-returning closures→JS functions (sync only); static named `foreign export` not done (needs per-program `emcc`) |
 | `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — first-class `JSVal` (`Mhs.JavaScript`), runtime-owned ForeignPtr + finalizer, freed on GC; take/return directly in a body |
 | Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int/Word/Char, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet; `Word`≥2³¹ rides the signed `I` path (unsigned `U` tag deferred) |
@@ -91,12 +91,14 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
    open: static named `foreign export javascript` (needs per-program `emcc`, so
    incompatible with the in-browser interpreter), and freeing a wrapper's
    `StablePtr` (needs JS-side finalization or an explicit `freeJSVal`).
-3. **Async** (the hard one) — let `IO` `await` a Promise. Either instrument the
-   interpreter with emscripten Asyncify (or target JSPI) so a reduction can
-   yield, or make the evaluator continuation-based and yield at `T_IO_JSCALL`,
-   plus a JS-side scheduler and a sync/async tag distinction. This changes the
-   "`main` runs to completion" contract and inherits continuation capture, async
-   exceptions, and GC-while-suspended.
+3. **Async** (the hard one, *on a separate branch*) — let `IO` `await` a Promise.
+   The plan: an opt-in `-sASYNCIFY` runtime (`mheval-async.js`) *alongside* the
+   fast default, with an async JS-FFI token and an `EM_ASYNC_JS` helper that
+   suspends the C stack across the `await`.  Kept off the default because Asyncify
+   measured ~2x on FFI-heavy work and +6% size, and the await must unwind the
+   whole eval loop (so `ASYNCIFY_ONLY` can't spare the hot path).  Needs a
+   no-reentry-while-suspended rule (browser events can fire mid-await).  JSPI is a
+   future alternative (lower overhead, but still experimental / less portable).
 4. **Catchable JS exceptions** — map a JS exception to a catchable Haskell
    exception (at least on the async path; the sync path matches GHC's fatal one).
 5. **Avoid `unsafe-eval`** — precompile bodies or use a CSP nonce, for sites
