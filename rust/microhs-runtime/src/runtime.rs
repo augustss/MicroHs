@@ -17,13 +17,25 @@ pub enum Node {
     ThreadId(i64),
     Ptr(i64),
     RawFunPtr(i64),
+    Weak {
+        value: Option<NodeId>,
+        finalizer: Option<NodeId>,
+    },
     BigInt(Vec<u8>),
     Bytes(Vec<u8>),
-    MutableBytes { bytes: Vec<u8>, capacity: usize },
+    MutableBytes {
+        bytes: Vec<u8>,
+        capacity: usize,
+    },
     Array(Vec<NodeId>),
     Ffi(String),
-    JsCall { tags: String, body: Vec<u8> },
-    JsWrap { tags: String },
+    JsCall {
+        tags: String,
+        body: Vec<u8>,
+    },
+    JsWrap {
+        tags: String,
+    },
     FunPtr(String),
     Tick(Vec<u8>),
 }
@@ -38,6 +50,7 @@ pub enum EvalError {
     ExpectedFloat32(NodeId),
     ExpectedThreadId(NodeId),
     ExpectedPointer(NodeId),
+    ExpectedWeak(NodeId),
     ExpectedBytes(NodeId),
     ExpectedArray(NodeId),
     DivideByZero,
@@ -60,6 +73,7 @@ impl fmt::Display for EvalError {
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
             Self::ExpectedThreadId(id) => write!(f, "expected ThreadId at node {id:?}"),
             Self::ExpectedPointer(id) => write!(f, "expected pointer-like node {id:?}"),
+            Self::ExpectedWeak(id) => write!(f, "expected Weak pointer at node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
             Self::ExpectedArray(id) => write!(f, "expected Array at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
@@ -404,6 +418,7 @@ impl Program {
             name if args.len() >= 2 => self
                 .array_op(name, &args)?
                 .or(self.stable_ptr_op(name, &args)?)
+                .or(self.weak_ptr_op(name, &args)?)
                 .or(self.bytes_op(name, &args)?)
                 .or(self.float64_binop(name, &args)?)
                 .or(self.float32_binop(name, &args)?)
@@ -421,6 +436,7 @@ impl Program {
             name if !args.is_empty() => self
                 .array_unop(name, &args)?
                 .or(self.stable_ptr_unop(name, &args)?)
+                .or(self.weak_ptr_unop(name, &args)?)
                 .or(self.bytes_unop(name, &args)?)
                 .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
@@ -480,6 +496,17 @@ impl Program {
         let pair = self.prim("P");
         let result_pair = self.app(pair, result);
         self.app(result_pair, world)
+    }
+
+    fn just(&mut self, value: NodeId) -> NodeId {
+        let z = self.prim("Z");
+        let u = self.prim("U");
+        let just = self.app(z, u);
+        self.app(just, value)
+    }
+
+    fn nothing(&mut self) -> NodeId {
+        self.prim("K")
     }
 
     fn catch_result(
@@ -904,6 +931,58 @@ impl Program {
         Ok(Some((1, node)))
     }
 
+    fn weak_ptr_op(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let rewrite = match name {
+            "Wknewfin" if args.len() >= 4 => {
+                let weak = self.new_weak_ptr(args[1], Some(args[2]));
+                Some((4, self.pair(weak, args[3])))
+            }
+            "Wknewfin" if args.len() >= 3 => {
+                let weak = self.new_weak_ptr(args[1], Some(args[2]));
+                Some((3, weak))
+            }
+            "Wknew" if args.len() >= 3 => {
+                let weak = self.new_weak_ptr(args[1], None);
+                Some((3, self.pair(weak, args[2])))
+            }
+            "Wknew" if args.len() >= 2 => {
+                let weak = self.new_weak_ptr(args[1], None);
+                Some((2, weak))
+            }
+            "Wkderef" if args.len() >= 2 => {
+                let value = self.deref_weak_ptr(args[0])?;
+                Some((2, self.pair(value, args[1])))
+            }
+            "Wkfinal" if args.len() >= 2 => {
+                self.finalize_weak_ptr(args[0])?;
+                let unit = self.prim("I");
+                Some((2, self.pair(unit, args[1])))
+            }
+            _ => None,
+        };
+        Ok(rewrite)
+    }
+
+    fn weak_ptr_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "Wkderef" => self.deref_weak_ptr(args[0])?,
+            "Wkfinal" => {
+                self.finalize_weak_ptr(args[0])?;
+                self.prim("I")
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn bytes_op(
         &mut self,
         name: &str,
@@ -1284,6 +1363,48 @@ impl Program {
         Ok(())
     }
 
+    fn new_weak_ptr(&mut self, value: NodeId, finalizer: Option<NodeId>) -> NodeId {
+        self.push_node(Node::Weak {
+            value: Some(value),
+            finalizer,
+        })
+    }
+
+    fn eval_weak_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        let id = self.resolve(root)?;
+        match self.nodes[id.0] {
+            Node::Weak { .. } => Ok(id),
+            _ => Err(EvalError::ExpectedWeak(root)),
+        }
+    }
+
+    fn deref_weak_ptr(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let id = self.eval_weak_id(id)?;
+        let value = match self.nodes[id.0] {
+            Node::Weak { value, .. } => value,
+            _ => unreachable!(),
+        };
+        Ok(match value {
+            Some(value) => self.just(value),
+            None => self.nothing(),
+        })
+    }
+
+    fn finalize_weak_ptr(&mut self, id: NodeId) -> Result<(), EvalError> {
+        let id = self.eval_weak_id(id)?;
+        let finalizer = match &mut self.nodes[id.0] {
+            Node::Weak { finalizer, .. } => finalizer.take(),
+            _ => unreachable!(),
+        };
+        if let Some(finalizer) = finalizer {
+            let world = self.world();
+            let action = self.app(finalizer, world);
+            self.reduce_node_whnf(action, 10_000)?;
+        }
+        Ok(())
+    }
+
     fn int_list(&mut self, values: impl IntoIterator<Item = i64>) -> NodeId {
         let values: Vec<_> = values.into_iter().collect();
         let mut list = self.prim("K");
@@ -1382,6 +1503,10 @@ impl Program {
             Node::RawFunPtr(n) => {
                 out.push_str("FunPtr#");
                 out.push_str(&n.to_string());
+            }
+            Node::Weak { .. } => {
+                out.push_str("Weak#");
+                out.push_str(&id.0.to_string());
             }
             Node::BigInt(bytes) => {
                 out.push('%');
@@ -2268,6 +2393,18 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\ntoFunPtr #7 @ }"), "FunPtr#7");
         assert_eq!(whnf(b"v8.4\n0\ntoInt toFunPtr #7 @ @ }"), "7");
         assert_eq!(whnf(b"v8.4\n0\ntoInt toPtr toFunPtr #9 @ @ @ }"), "9");
+    }
+
+    #[test]
+    fn reduces_weak_pointer_primitives() {
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO IO.lazyBind Wknew #0 @ #42 @ @ Wkderef @ @ #0 @ I @ }"),
+            "42"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq Wkfinal Wknew #0 @ #42 @ :0 @ @ IO.performIO Wkderef _0 @ @ #0 @ I @ @ }"),
+            "42"
+        );
     }
 
     #[test]

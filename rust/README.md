@@ -40,6 +40,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario io-control-chain:200 --it
 cargo run --release --bin mhs-rust-bench -- --scenario ptr-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario rnf-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario stableptr-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario weak-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario zoo-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario data-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --input path/to/file.comb --iters 100
