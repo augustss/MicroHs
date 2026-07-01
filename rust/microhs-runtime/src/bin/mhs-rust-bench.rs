@@ -8,12 +8,14 @@ use std::time::{Duration, Instant};
 use microhs_runtime::parse_program;
 
 const DEFAULT_ITERS: usize = 1_000;
+const DEFAULT_WARMUP_ITERS: usize = 0;
 const DEFAULT_SCENARIO: &str = "identity-chain:1000";
 
 struct Config {
     input: Vec<u8>,
     name: String,
     iters: usize,
+    warmup_iters: usize,
     c_mhseval: Option<String>,
     c_mhsbench: Option<String>,
     c_mhsbench_mode: CBenchMode,
@@ -45,6 +47,7 @@ impl CBenchMode {
 fn usage() {
     eprintln!(
         "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|foreignptr-slice:N|cstring-pack:N|unpack-chain:N|fromutf8-chain:N|array-chain:N|io-chain:N|io-array-chain:N|io-bytes-chain:N|io-control-chain:N|argref-chain:N|stdio-chain:N|ffi-chain:N|ffi-math-chain:N|ffi-const-chain:N|mvar-chain:N|ptr-chain:N|rnf-chain:N|stableptr-chain:N|weak-chain:N|zoo-chain:N|data-chain:N]\n\
+                                  [--warmup-iters N]\n\
                                   [--c-mhseval PATH] [--c-mhsbench PATH] [--c-mhsbench-mode whnf|main]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -60,13 +63,14 @@ fn main() -> ExitCode {
         }
     };
 
-    let parse = bench_parse(&config.input, config.iters);
-    let eval = bench_eval(&config.input, config.iters);
+    let parse = bench_parse(&config.input, config.warmup_iters, config.iters);
+    let eval = bench_eval(&config.input, config.warmup_iters, config.iters);
     let bytes = config.input.len();
 
     println!("input: {}", config.name);
     println!("bytes: {bytes}");
     println!("iters: {}", config.iters);
+    println!("warmup_iters: {}", config.warmup_iters);
     println!("parse_total_ms: {:.3}", millis(parse.elapsed));
     println!(
         "parse_ns_per_iter: {:.1}",
@@ -89,6 +93,7 @@ fn main() -> ExitCode {
         "whnf_steps_per_s: {:.1}",
         eval.steps as f64 / eval.elapsed.as_secs_f64()
     );
+    println!("render_sink: {}", eval.render_sink);
 
     if let Some(c_mhseval) = &config.c_mhseval {
         match bench_c_mhseval(&config.input, c_mhseval, config.iters) {
@@ -112,12 +117,14 @@ fn main() -> ExitCode {
             &config.input,
             c_mhsbench,
             config.c_mhsbench_mode,
+            config.warmup_iters,
             config.iters,
         ) {
             Ok(c) => {
                 println!("c_mhsbench: {c_mhsbench}");
                 println!("c_mhsbench_mode: {}", c.mode.as_str());
                 println!("c_parse_eval_serialize_ns_per_iter: {:.1}", c.ns_per_iter);
+                println!("c_bench_sink: {}", c.sink);
             }
             Err(err) => {
                 eprintln!("C mhsbench benchmark failed: {err}");
@@ -131,6 +138,7 @@ fn main() -> ExitCode {
 
 fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
     let mut iters = DEFAULT_ITERS;
+    let mut warmup_iters = DEFAULT_WARMUP_ITERS;
     let mut input = None;
     let mut name = None;
     let mut c_mhseval = None;
@@ -148,6 +156,12 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
                 if iters == 0 {
                     return Err("--iters must be greater than zero".to_owned());
                 }
+            }
+            "--warmup-iters" => {
+                let value = args.next().ok_or("--warmup-iters requires a value")?;
+                warmup_iters = value
+                    .parse()
+                    .map_err(|_| format!("invalid --warmup-iters value: {value}"))?;
             }
             "--input" => {
                 let file = args.next().ok_or("--input requires a file")?;
@@ -188,6 +202,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Config, String> {
         input,
         name,
         iters,
+        warmup_iters,
         c_mhseval,
         c_mhsbench,
         c_mhsbench_mode,
@@ -462,37 +477,69 @@ struct ParseBench {
     elapsed: Duration,
 }
 
-fn bench_parse(input: &[u8], iters: usize) -> ParseBench {
+fn bench_parse(input: &[u8], warmup_iters: usize, iters: usize) -> ParseBench {
+    for _ in 0..warmup_iters {
+        black_box(parse_once(input));
+    }
+
     let started = Instant::now();
     for _ in 0..iters {
-        let program = parse_program(black_box(input)).expect("parse benchmark input");
-        black_box(program.nodes().len());
+        black_box(parse_once(input));
     }
     ParseBench {
         elapsed: started.elapsed(),
     }
 }
 
+fn parse_once(input: &[u8]) -> usize {
+    let program = parse_program(black_box(input)).expect("parse benchmark input");
+    program.nodes().len()
+}
+
 struct EvalBench {
     elapsed: Duration,
     steps: usize,
+    render_sink: usize,
 }
 
-fn bench_eval(input: &[u8], iters: usize) -> EvalBench {
+fn bench_eval(input: &[u8], warmup_iters: usize, iters: usize) -> EvalBench {
+    for _ in 0..warmup_iters {
+        black_box(eval_once(input));
+    }
+
     let started = Instant::now();
     let mut steps = 0;
+    let mut render_sink = 0usize;
     for _ in 0..iters {
-        let mut program = parse_program(black_box(input)).expect("reduce benchmark input");
-        let (root, n) = program
-            .reduce_whnf(usize::MAX)
-            .expect("reduce benchmark input");
-        black_box(program.render(root));
+        let (n, sink) = eval_once(input);
         steps += n;
+        render_sink = render_sink.wrapping_add(sink);
     }
+    black_box(render_sink);
     EvalBench {
         elapsed: started.elapsed(),
         steps,
+        render_sink,
     }
+}
+
+fn eval_once(input: &[u8]) -> (usize, usize) {
+    let mut program = parse_program(black_box(input)).expect("reduce benchmark input");
+    let (root, steps) = program
+        .reduce_whnf(usize::MAX)
+        .expect("reduce benchmark input");
+    let rendered = program.render(root);
+    let sink = bytes_sink(rendered.as_bytes());
+    black_box(&rendered);
+    (steps, sink)
+}
+
+fn bytes_sink(bytes: &[u8]) -> usize {
+    let mut sink = bytes.len();
+    if let Some(first) = bytes.first() {
+        sink = sink.wrapping_add(*first as usize);
+    }
+    sink
 }
 
 struct CBench {
@@ -502,6 +549,7 @@ struct CBench {
 struct CInProcessBench {
     mode: CBenchMode,
     ns_per_iter: f64,
+    sink: usize,
 }
 
 fn bench_c_mhseval(input: &[u8], c_mhseval: &str, iters: usize) -> Result<CBench, String> {
@@ -529,14 +577,25 @@ fn bench_c_mhsbench(
     input: &[u8],
     c_mhsbench: &str,
     mode: CBenchMode,
+    warmup_iters: usize,
     iters: usize,
 ) -> Result<CInProcessBench, String> {
     let file = env::temp_dir().join(format!("mhs-rust-bench-{}.comb", std::process::id()));
     fs::write(&file, input).map_err(|err| format!("{}: {err}", file.display()))?;
     let iters_arg = iters.to_string();
+    let warmup_iters_arg = warmup_iters.to_string();
     let file_arg = file.to_str().ok_or("non-utf8 temp file")?;
-    let output = Command::new(c_mhsbench)
-        .args(["--mode", mode.as_str(), "--iters", &iters_arg, file_arg])
+    let mut command = Command::new(c_mhsbench);
+    command.args([
+        "--mode",
+        mode.as_str(),
+        "--warmup-iters",
+        &warmup_iters_arg,
+        "--iters",
+        &iters_arg,
+        file_arg,
+    ]);
+    let output = command
         .output()
         .map_err(|err| format!("{c_mhsbench}: {err}"))?;
     let _ = fs::remove_file(&file);
@@ -557,7 +616,17 @@ fn bench_c_mhsbench(
         .ok_or_else(|| format!("missing timing in mhsbench output:\n{stdout}"))?
         .parse()
         .map_err(|_| format!("invalid timing in mhsbench output:\n{stdout}"))?;
-    Ok(CInProcessBench { mode, ns_per_iter })
+    let sink = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("c_bench_sink: "))
+        .ok_or_else(|| format!("missing sink in mhsbench output:\n{stdout}"))?
+        .parse()
+        .map_err(|_| format!("invalid sink in mhsbench output:\n{stdout}"))?;
+    Ok(CInProcessBench {
+        mode,
+        ns_per_iter,
+        sink,
+    })
 }
 
 fn millis(duration: Duration) -> f64 {

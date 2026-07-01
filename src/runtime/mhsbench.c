@@ -164,7 +164,7 @@ bench_once(const uint8_t *input, size_t len, enum bench_mode mode)
 static void
 usage(void)
 {
-  fprintf(stderr, "usage: mhsbench [--mode whnf|main] --iters N FILE\n");
+  fprintf(stderr, "usage: mhsbench [--mode whnf|main] [--warmup-iters N] --iters N FILE\n");
 }
 
 static const char *
@@ -191,6 +191,7 @@ int
 main(int argc, char **argv)
 {
   int iters = 0;
+  int warmup_iters = 0;
   const char *path = NULL;
   enum bench_mode mode = BENCH_WHNF;
   uint8_t *input;
@@ -201,6 +202,8 @@ main(int argc, char **argv)
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--iters") == 0 && i + 1 < argc) {
       iters = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--warmup-iters") == 0 && i + 1 < argc) {
+      warmup_iters = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--mode") == 0 && i + 1 < argc) {
       if (!parse_mode(argv[++i], &mode)) {
         usage();
@@ -213,7 +216,7 @@ main(int argc, char **argv)
       return 2;
     }
   }
-  if (iters <= 0 || !path) {
+  if (iters <= 0 || warmup_iters < 0 || !path) {
     usage();
     return 2;
   }
@@ -221,12 +224,17 @@ main(int argc, char **argv)
   input = read_file(path, &len);
   init_runtime();
 
+  for (int i = 0; i < warmup_iters; i++)
+    bench_once(input, len, mode);
+  bench_sink = 0;
+
   start = monotonic_ns();
   for (int i = 0; i < iters; i++)
     bench_once(input, len, mode);
   elapsed = monotonic_ns() - start;
 
   printf("iters: %d\n", iters);
+  printf("warmup_iters: %d\n", warmup_iters);
   printf("c_bench_mode: %s\n", mode_name(mode));
   printf("c_parse_eval_serialize_total_ms: %.3f\n", (double)elapsed / 1000000.0);
   printf("c_parse_eval_serialize_ns_per_iter: %.1f\n", (double)elapsed / (double)iters);

@@ -56,7 +56,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario identity-chain:1000 --ite
   --c-mhseval ./bin/mhseval
 make bin/mhsbench
 cargo run --release --bin mhs-rust-bench -- --scenario identity-chain:1000 --iters 100 \
-  --c-mhsbench ./bin/mhsbench
+  --warmup-iters 100 --c-mhsbench ./bin/mhsbench
 ```
 
 With `--c-mhseval`, the benchmark runs the C evaluator on the same `.comb`
@@ -71,3 +71,9 @@ is `c_parse_eval_serialize_ns_per_iter`; the comparable Rust number is
 `parse_reduce_render_ns_per_iter`. Rust `whnf_steps` currently counts outer WHNF
 rewrites; strict primitive argument evaluation is included in elapsed time but
 not counted as separate steps.
+
+Treat `parse_ns_per_iter` as a parser diagnostic, not as a clean component of
+`parse_reduce_render_ns_per_iter`. The reduce path mutates the graph before
+Rust drops it, while parse-only drops the original graph, so the two rows can
+have different destruction costs. Use repeated runs, matching `--warmup-iters`,
+and the `render_sink` / `c_bench_sink` rows when judging C/Rust ratios.
