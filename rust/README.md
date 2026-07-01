@@ -27,6 +27,8 @@ Every tier should carry benchmarks alongside correctness checks. Tier 0 includes
 cargo run --release --bin mhs-rust-bench -- --scenario identity-chain:1000 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario arith-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario int64-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario float64-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario float32-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario zoo-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario data-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --input path/to/file.comb --iters 100

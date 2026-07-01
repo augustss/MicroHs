@@ -30,6 +30,8 @@ pub enum EvalError {
     DanglingIndirection(NodeId),
     ExpectedInt(NodeId),
     ExpectedInt64(NodeId),
+    ExpectedFloat64(NodeId),
+    ExpectedFloat32(NodeId),
     DivideByZero,
     Overflow,
     InvalidShift(i64),
@@ -42,6 +44,8 @@ impl fmt::Display for EvalError {
             Self::DanglingIndirection(id) => write!(f, "dangling shared reference at node {id:?}"),
             Self::ExpectedInt(id) => write!(f, "expected Int at node {id:?}"),
             Self::ExpectedInt64(id) => write!(f, "expected Int64 at node {id:?}"),
+            Self::ExpectedFloat64(id) => write!(f, "expected Float64 at node {id:?}"),
+            Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
             Self::Overflow => write!(f, "integer overflow"),
             Self::InvalidShift(n) => write!(f, "invalid shift amount {n}"),
@@ -257,10 +261,15 @@ impl Program {
                 Some((fields + 1, n))
             }
             name if args.len() >= 2 => self
-                .int64_binop(name, &args)?
+                .float64_binop(name, &args)?
+                .or(self.float32_binop(name, &args)?)
+                .or(self.int64_binop(name, &args)?)
                 .or(self.int_binop(name, &args)?),
             name if !args.is_empty() => self
-                .int64_unop(name, &args)?
+                .float64_unop(name, &args)?
+                .or(self.float32_unop(name, &args)?)
+                .or(self.float_conversion(name, &args)?)
+                .or(self.int64_unop(name, &args)?)
                 .or(self.int_conversion(name, &args)?)
                 .or(self.int_unop(name, &args)?),
             _ => None,
@@ -391,6 +400,133 @@ impl Program {
         Ok(Some((1, node)))
     }
 
+    fn float64_binop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Float64BinOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_float64(args[0])?;
+        let y = self.eval_float64(args[1])?;
+        let node = match op.apply(x, y) {
+            Float64Result::Float(n) => self.push_node(Node::Float64(n)),
+            Float64Result::Bool(b) => self.prim(if b { "A" } else { "K" }),
+        };
+        Ok(Some((2, node)))
+    }
+
+    fn float64_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Float64UnOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_float64(args[0])?;
+        let node = self.push_node(Node::Float64(op.apply(x)));
+        Ok(Some((1, node)))
+    }
+
+    fn float32_binop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Float32BinOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_float32(args[0])?;
+        let y = self.eval_float32(args[1])?;
+        let node = match op.apply(x, y) {
+            Float32Result::Float(n) => self.push_node(Node::Float32(n)),
+            Float32Result::Bool(b) => self.prim(if b { "A" } else { "K" }),
+        };
+        Ok(Some((2, node)))
+    }
+
+    fn float32_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let Some(op) = Float32UnOp::from_prim(name) else {
+            return Ok(None);
+        };
+        let x = self.eval_float32(args[0])?;
+        let node = self.push_node(Node::Float32(op.apply(x)));
+        Ok(Some((1, node)))
+    }
+
+    fn float_conversion(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "itod" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Float64(n as f64))
+            }
+            "utod" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Float64((n as u64) as f64))
+            }
+            "Itod" => {
+                let n = self.eval_int64(args[0])?;
+                self.push_node(Node::Float64(n as f64))
+            }
+            "dtoi" => {
+                let n = self.eval_float64(args[0])?;
+                self.push_node(Node::Int(n as i64))
+            }
+            "itof" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Float32(n as f32))
+            }
+            "utof" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Float32((n as u64) as f32))
+            }
+            "Itof" => {
+                let n = self.eval_int64(args[0])?;
+                self.push_node(Node::Float32(n as f32))
+            }
+            "ftoi" => {
+                let n = self.eval_float32(args[0])?;
+                self.push_node(Node::Int(n as i64))
+            }
+            "dtof" => {
+                let n = self.eval_float64(args[0])?;
+                self.push_node(Node::Float32(n as f32))
+            }
+            "ftod" => {
+                let n = self.eval_float32(args[0])?;
+                self.push_node(Node::Float64(n as f64))
+            }
+            "toDbl" => {
+                let n = self.eval_int64(args[0])?;
+                self.push_node(Node::Float64(f64::from_bits(n as u64)))
+            }
+            "fromDbl" => {
+                let n = self.eval_float64(args[0])?;
+                self.push_node(Node::Int64(n.to_bits() as i64))
+            }
+            "toFlt" => {
+                let n = self.eval_int(args[0])?;
+                self.push_node(Node::Float32(f32::from_bits(n as u32)))
+            }
+            "fromFlt" => {
+                let n = self.eval_float32(args[0])?;
+                self.push_node(Node::Int((n.to_bits() as i32) as i64))
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn eval_int(&mut self, id: NodeId) -> Result<i64, EvalError> {
         let root = self.reduce_node_whnf(id, 10_000)?;
         match self.nodes[self.resolve(root)?.0] {
@@ -404,6 +540,22 @@ impl Program {
         match self.nodes[self.resolve(root)?.0] {
             Node::Int64(n) => Ok(n),
             _ => Err(EvalError::ExpectedInt64(root)),
+        }
+    }
+
+    fn eval_float64(&mut self, id: NodeId) -> Result<f64, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match self.nodes[self.resolve(root)?.0] {
+            Node::Float64(n) => Ok(n),
+            _ => Err(EvalError::ExpectedFloat64(root)),
+        }
+    }
+
+    fn eval_float32(&mut self, id: NodeId) -> Result<f32, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        match self.nodes[self.resolve(root)?.0] {
+            Node::Float32(n) => Ok(n),
+            _ => Err(EvalError::ExpectedFloat32(root)),
         }
     }
 
@@ -810,6 +962,150 @@ impl Int64UnOp {
     }
 }
 
+enum Float64Result {
+    Float(f64),
+    Bool(bool),
+}
+
+#[derive(Clone, Copy)]
+enum Float64BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+impl Float64BinOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "d+" => Self::Add,
+            "d-" => Self::Sub,
+            "d*" => Self::Mul,
+            "d/" => Self::Div,
+            "d==" => Self::Eq,
+            "d/=" => Self::Ne,
+            "d<" => Self::Lt,
+            "d<=" => Self::Le,
+            "d>" => Self::Gt,
+            "d>=" => Self::Ge,
+            _ => return None,
+        })
+    }
+
+    fn apply(self, x: f64, y: f64) -> Float64Result {
+        match self {
+            Self::Add => Float64Result::Float(x + y),
+            Self::Sub => Float64Result::Float(x - y),
+            Self::Mul => Float64Result::Float(x * y),
+            Self::Div => Float64Result::Float(x / y),
+            Self::Eq => Float64Result::Bool(x == y),
+            Self::Ne => Float64Result::Bool(x != y),
+            Self::Lt => Float64Result::Bool(x < y),
+            Self::Le => Float64Result::Bool(x <= y),
+            Self::Gt => Float64Result::Bool(x > y),
+            Self::Ge => Float64Result::Bool(x >= y),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Float64UnOp {
+    Neg,
+}
+
+impl Float64UnOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "dneg" => Self::Neg,
+            _ => return None,
+        })
+    }
+
+    fn apply(self, x: f64) -> f64 {
+        match self {
+            Self::Neg => -x,
+        }
+    }
+}
+
+enum Float32Result {
+    Float(f32),
+    Bool(bool),
+}
+
+#[derive(Clone, Copy)]
+enum Float32BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+impl Float32BinOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "f+" => Self::Add,
+            "f-" => Self::Sub,
+            "f*" => Self::Mul,
+            "f/" => Self::Div,
+            "f==" => Self::Eq,
+            "f/=" => Self::Ne,
+            "f<" => Self::Lt,
+            "f<=" => Self::Le,
+            "f>" => Self::Gt,
+            "f>=" => Self::Ge,
+            _ => return None,
+        })
+    }
+
+    fn apply(self, x: f32, y: f32) -> Float32Result {
+        match self {
+            Self::Add => Float32Result::Float(x + y),
+            Self::Sub => Float32Result::Float(x - y),
+            Self::Mul => Float32Result::Float(x * y),
+            Self::Div => Float32Result::Float(x / y),
+            Self::Eq => Float32Result::Bool(x == y),
+            Self::Ne => Float32Result::Bool(x != y),
+            Self::Lt => Float32Result::Bool(x < y),
+            Self::Le => Float32Result::Bool(x <= y),
+            Self::Gt => Float32Result::Bool(x > y),
+            Self::Ge => Float32Result::Bool(x >= y),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Float32UnOp {
+    Neg,
+}
+
+impl Float32UnOp {
+    fn from_prim(name: &str) -> Option<Self> {
+        Some(match name {
+            "fneg" => Self::Neg,
+            _ => return None,
+        })
+    }
+
+    fn apply(self, x: f32) -> f32 {
+        match self {
+            Self::Neg => -x,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum IntUnOp {
     Neg,
@@ -987,5 +1283,34 @@ mod tests {
         assert_eq!(whnf(b"v8.4\n0\nIucmp ##-1 @ ##1 @ }"), "KA");
         assert_eq!(whnf(b"v8.4\n0\nitoI #7 @ }"), "7i64");
         assert_eq!(whnf(b"v8.4\n0\nItoi ##7 @ }"), "7");
+    }
+
+    #[test]
+    fn reduces_float64_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nd+ &1.5 @ &2.25 @ }"), "3.75");
+        assert_eq!(whnf(b"v8.4\n0\nd* &3 @ &2.5 @ }"), "7.5");
+        assert_eq!(whnf(b"v8.4\n0\ndneg &1.5 @ }"), "-1.5");
+        assert_eq!(whnf(b"v8.4\n0\nd< &1.5 @ &2.25 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nd== &1.5 @ &2.25 @ }"), "K");
+        assert_eq!(whnf(b"v8.4\n0\nitod #7 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\nItod ##7 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\ndtoi &7.75 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\nd> utod #-1 @ @ &1000 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\ntoDbl fromDbl &1.5 @ @ }"), "1.5");
+    }
+
+    #[test]
+    fn reduces_float32_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nf+ &&1.5 @ &&2.25 @ }"), "3.75f");
+        assert_eq!(whnf(b"v8.4\n0\nf* &&3 @ &&2.5 @ }"), "7.5f");
+        assert_eq!(whnf(b"v8.4\n0\nfneg &&1.5 @ }"), "-1.5f");
+        assert_eq!(whnf(b"v8.4\n0\nf< &&1.5 @ &&2.25 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nf== &&1.5 @ &&2.25 @ }"), "K");
+        assert_eq!(whnf(b"v8.4\n0\nitof #7 @ }"), "7f");
+        assert_eq!(whnf(b"v8.4\n0\nItof ##7 @ }"), "7f");
+        assert_eq!(whnf(b"v8.4\n0\nftoi &&7.75 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\nf> utof #-1 @ @ &&1000 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n0\nftod dtof &1.5 @ @ }"), "1.5");
+        assert_eq!(whnf(b"v8.4\n0\ntoFlt fromFlt &&1.5 @ @ }"), "1.5f");
     }
 }
