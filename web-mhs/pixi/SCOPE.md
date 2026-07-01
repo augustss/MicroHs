@@ -55,7 +55,7 @@ can drive Haskell.
 | Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **not on this runtime** — `main` runs to completion synchronously.  Planned as an opt-in `-sASYNCIFY` runtime on a separate branch (`EM_ASYNC_JS` + an async token); kept off the default because Asyncify measured ~2x FFI slowdown, and the await must unwind the whole eval loop |
 | `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | **`"wrapper"` done** — typed, multi-arg, result-returning closures→JS functions (sync only); static named `foreign export` not done (needs per-program `emcc`) |
 | `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — first-class `JSVal` (`Mhs.JavaScript`), runtime-owned ForeignPtr + finalizer, freed on GC; take/return directly in a body |
-| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int/Word/Char, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet; `Word`≥2³¹ rides the signed `I` path (unsigned `U` tag deferred) |
+| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int (`I`), **Word/Char (unsigned `U`)**, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet (boxed on wasm32; they error at compile) |
 | Catchable JS exceptions | async path → `JSException` in Haskell | fatal (sets `__mhs.err`, `ERR`s) — this *matches* GHC's *sync* path |
 
 **Deployment caveat (CSP).** The dynamic bridge uses `new Function` at load
@@ -81,10 +81,10 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
 
 ## Roadmap (in rough order of value/effort)
 
-1. **Richer marshalling** — ~~`Bool`/`Char`, first-class `JSVal`~~ *(done: `Bool`
-   via the real `K`/`A` combinators, `Char` via the `Word`/`I` path, and
-   runtime-owned first-class `JSVal`)*. Remaining: `Int64`/`Word64` → `bigint`,
-   an unsigned `U` tag for honest `Word`≥2³¹, and typed callback ABIs beyond `Int`.
+1. **Richer marshalling** — ~~`Bool`/`Char`, first-class `JSVal`, unsigned
+   `Word`~~ *(done: `Bool` via the real `K`/`A` combinators, runtime-owned
+   first-class `JSVal`, and an unsigned `U` tag so `Word`/`Char` marshal honestly
+   for `Word`≥2³¹)*. Remaining: `Int64`/`Word64` → `bigint` (boxed on wasm32).
 2. ~~**General JS→Haskell exports**, **result-returning / multi-arg callbacks**~~
    *(done: `foreign import javascript "wrapper"` — typed, multi-arg,
    result-returning closures→JS functions, via the `ffe_*` machinery).*  Still
