@@ -35,6 +35,7 @@ cargo run --release --bin mhs-rust-bench -- --scenario fromutf8-chain:200 --iter
 cargo run --release --bin mhs-rust-bench -- --scenario array-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario io-array-chain:200 --iters 1000
+cargo run --release --bin mhs-rust-bench -- --scenario io-bytes-chain:200 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario zoo-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --scenario data-chain:300 --iters 1000
 cargo run --release --bin mhs-rust-bench -- --input path/to/file.comb --iters 100

@@ -16,6 +16,7 @@ pub enum Node {
     Float32(f32),
     BigInt(Vec<u8>),
     Bytes(Vec<u8>),
+    MutableBytes { bytes: Vec<u8>, capacity: usize },
     Array(Vec<NodeId>),
     Ffi(String),
     JsCall { tags: String, body: Vec<u8> },
@@ -758,21 +759,107 @@ impl Program {
         name: &str,
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
-        let node = match name {
+        let rewrite = match name {
+            "bsnew" if args.len() >= 3 => {
+                let size = int_to_usize(self.eval_int(args[0])?)?;
+                let capacity = int_to_usize(self.eval_int(args[1])?)?;
+                let bytes = self.new_mutable_bytes(size, capacity)?;
+                Some((3, self.pair(bytes, args[2])))
+            }
+            "bsnew" => {
+                let size = int_to_usize(self.eval_int(args[0])?)?;
+                let capacity = int_to_usize(self.eval_int(args[1])?)?;
+                Some((2, self.new_mutable_bytes(size, capacity)?))
+            }
+            "bsread" if args.len() >= 3 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let byte = self
+                    .bytes(bytes)?
+                    .get(index)
+                    .copied()
+                    .ok_or(EvalError::InvalidByteString)?;
+                let byte = self.push_node(Node::Int(byte as i64));
+                Some((3, self.pair(byte, args[2])))
+            }
+            "bsread" => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let byte = self
+                    .bytes(bytes)?
+                    .get(index)
+                    .copied()
+                    .ok_or(EvalError::InvalidByteString)?;
+                Some((2, self.push_node(Node::Int(byte as i64))))
+            }
+            "bswrite" if args.len() >= 4 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let byte = self.eval_int(args[2])? as u8;
+                let slot = self
+                    .bytes_mut(bytes)?
+                    .get_mut(index)
+                    .ok_or(EvalError::InvalidByteString)?;
+                *slot = byte;
+                let unit = self.prim("I");
+                Some((4, self.pair(unit, args[3])))
+            }
+            "bswrite" if args.len() >= 3 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let byte = self.eval_int(args[2])? as u8;
+                let slot = self
+                    .bytes_mut(bytes)?
+                    .get_mut(index)
+                    .ok_or(EvalError::InvalidByteString)?;
+                *slot = byte;
+                Some((3, self.prim("I")))
+            }
+            "bsfreeze" if args.len() >= 2 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let bytes = self.freeze_bytes(bytes)?;
+                Some((2, self.pair(bytes, args[1])))
+            }
+            "bsappbyte" if args.len() >= 3 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let byte = self.eval_int(args[1])? as u8;
+                self.append_byte(bytes, byte)?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
+            }
+            "bsappbyte" => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let byte = self.eval_int(args[1])? as u8;
+                self.append_byte(bytes, byte)?;
+                Some((2, self.prim("I")))
+            }
+            "bsappchar" if args.len() >= 3 => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let encoded = modified_utf8(self.eval_int(args[1])?)?;
+                self.append_bytes(bytes, &encoded)?;
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
+            }
+            "bsappchar" => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                let encoded = modified_utf8(self.eval_int(args[1])?)?;
+                self.append_bytes(bytes, &encoded)?;
+                Some((2, self.prim("I")))
+            }
             "bs++" => {
                 let mut bytes = self.eval_bytes(args[0])?;
                 bytes.extend(self.eval_bytes(args[1])?);
-                self.push_node(Node::Bytes(bytes))
+                Some((2, self.push_node(Node::Bytes(bytes))))
             }
             "bs++." => {
                 let mut bytes = self.eval_bytes(args[0])?;
                 bytes.push(b'.');
                 bytes.extend(self.eval_bytes(args[1])?);
-                self.push_node(Node::Bytes(bytes))
+                Some((2, self.push_node(Node::Bytes(bytes))))
             }
             "bs==" | "bs/=" | "bs<" | "bs<=" | "bs>" | "bs>=" | "bscmp" => {
                 let cmp = self.eval_bytes(args[0])?.cmp(&self.eval_bytes(args[1])?);
-                match name {
+                let node = match name {
                     "bs==" => self.prim(if cmp == Ordering::Equal { "A" } else { "K" }),
                     "bs/=" => self.prim(if cmp != Ordering::Equal { "A" } else { "K" }),
                     "bs<" => self.prim(if cmp == Ordering::Less { "A" } else { "K" }),
@@ -781,12 +868,13 @@ impl Program {
                     "bs>=" => self.prim(if cmp != Ordering::Less { "A" } else { "K" }),
                     "bscmp" => self.ordering(cmp),
                     _ => unreachable!(),
-                }
+                };
+                Some((2, node))
             }
             "bsreplicate" => {
                 let len = int_to_usize(self.eval_int(args[0])?)?;
                 let byte = self.eval_int(args[1])? as u8;
-                self.push_node(Node::Bytes(vec![byte; len]))
+                Some((2, self.push_node(Node::Bytes(vec![byte; len]))))
             }
             "bsindex" => {
                 let bytes = self.eval_bytes(args[0])?;
@@ -795,7 +883,7 @@ impl Program {
                     .get(index)
                     .copied()
                     .ok_or(EvalError::InvalidByteString)?;
-                self.push_node(Node::Int(byte as i64))
+                Some((2, self.push_node(Node::Int(byte as i64))))
             }
             "bssubstr" if args.len() >= 3 => {
                 let bytes = self.eval_bytes(args[0])?;
@@ -805,12 +893,11 @@ impl Program {
                     .checked_add(len)
                     .filter(|end| *end <= bytes.len())
                     .ok_or(EvalError::InvalidByteString)?;
-                self.push_node(Node::Bytes(bytes[offset..end].to_vec()))
+                Some((3, self.push_node(Node::Bytes(bytes[offset..end].to_vec()))))
             }
-            _ => return Ok(None),
+            _ => None,
         };
-        let used = if name == "bssubstr" { 3 } else { 2 };
-        Ok(Some((used, node)))
+        Ok(rewrite)
     }
 
     fn bytes_unop(
@@ -842,6 +929,10 @@ impl Program {
                 let bytes = self.eval_bytes(args[0])?;
                 let values = decode_utf8_bytes(&bytes)?;
                 self.int_list(values.into_iter().map(i64::from))
+            }
+            "bsfreeze" => {
+                let bytes = self.eval_bytes_id(args[0])?;
+                self.freeze_bytes(bytes)?
             }
             _ => return Ok(None),
         };
@@ -881,9 +972,15 @@ impl Program {
     }
 
     fn eval_bytes(&mut self, id: NodeId) -> Result<Vec<u8>, EvalError> {
+        let id = self.eval_bytes_id(id)?;
+        Ok(self.bytes(id)?.to_vec())
+    }
+
+    fn eval_bytes_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
         let root = self.reduce_node_whnf(id, 10_000)?;
-        match &self.nodes[self.resolve(root)?.0] {
-            Node::Bytes(bytes) => Ok(bytes.clone()),
+        let id = self.resolve(root)?;
+        match self.nodes[id.0] {
+            Node::Bytes(_) | Node::MutableBytes { .. } => Ok(id),
             _ => Err(EvalError::ExpectedBytes(root)),
         }
     }
@@ -909,6 +1006,72 @@ impl Program {
             Node::Array(items) => Ok(items),
             _ => Err(EvalError::ExpectedArray(id)),
         }
+    }
+
+    fn bytes(&self, id: NodeId) -> Result<&[u8], EvalError> {
+        match &self.nodes[id.0] {
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => Ok(bytes),
+            _ => Err(EvalError::ExpectedBytes(id)),
+        }
+    }
+
+    fn bytes_mut(&mut self, id: NodeId) -> Result<&mut Vec<u8>, EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => Ok(bytes),
+            _ => Err(EvalError::ExpectedBytes(id)),
+        }
+    }
+
+    fn new_mutable_bytes(&mut self, size: usize, capacity: usize) -> Result<NodeId, EvalError> {
+        if size > capacity {
+            return Err(EvalError::InvalidByteString);
+        }
+        let mut bytes = Vec::with_capacity(capacity);
+        bytes.resize(size, 0);
+        Ok(self.push_node(Node::MutableBytes { bytes, capacity }))
+    }
+
+    fn freeze_bytes(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let frozen = match &mut self.nodes[id.0] {
+            Node::Bytes(_) => return Ok(id),
+            Node::MutableBytes { bytes, .. } => std::mem::take(bytes),
+            _ => return Err(EvalError::ExpectedBytes(id)),
+        };
+        self.nodes[id.0] = Node::Bytes(frozen);
+        Ok(id)
+    }
+
+    fn append_byte(&mut self, id: NodeId, byte: u8) -> Result<(), EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::Bytes(bytes) => {
+                bytes.push(byte);
+                Ok(())
+            }
+            Node::MutableBytes { bytes, capacity } => {
+                if bytes.len() >= *capacity {
+                    *capacity = (*capacity)
+                        .checked_add(*capacity / 2)
+                        .and_then(|capacity| capacity.checked_add(2))
+                        .ok_or(EvalError::Overflow)?;
+                    if *capacity < bytes.len() {
+                        return Err(EvalError::Overflow);
+                    }
+                    if *capacity > bytes.capacity() {
+                        bytes.reserve(*capacity - bytes.capacity());
+                    }
+                }
+                bytes.push(byte);
+                Ok(())
+            }
+            _ => Err(EvalError::ExpectedBytes(id)),
+        }
+    }
+
+    fn append_bytes(&mut self, id: NodeId, bytes: &[u8]) -> Result<(), EvalError> {
+        for &byte in bytes {
+            self.append_byte(id, byte)?;
+        }
+        Ok(())
     }
 
     fn int_list(&mut self, values: impl IntoIterator<Item = i64>) -> NodeId {
@@ -974,7 +1137,7 @@ impl Program {
                 out.push('%');
                 render_bytes(bytes, out);
             }
-            Node::Bytes(bytes) => render_bytes(bytes, out),
+            Node::Bytes(bytes) | Node::MutableBytes { bytes, .. } => render_bytes(bytes, out),
             Node::Array(items) => {
                 out.push('[');
                 for (idx, item) in items.iter().enumerate() {
@@ -1571,6 +1734,33 @@ fn decode_utf8_bytes(mut bytes: &[u8]) -> Result<Vec<u32>, EvalError> {
     Ok(values)
 }
 
+fn modified_utf8(n: i64) -> Result<Vec<u8>, EvalError> {
+    let mut c = u32::try_from(n).map_err(|_| EvalError::InvalidByteString)?;
+    if c & 0x1ff800 == 0xd800 {
+        c = 0xfffd;
+    }
+    if c > 0 && c < 0x80 {
+        Ok(vec![c as u8])
+    } else if c < 0x800 {
+        Ok(vec![0xc0 | (c >> 6) as u8, 0x80 | (c & 0x3f) as u8])
+    } else if c < 0x10000 {
+        Ok(vec![
+            0xe0 | (c >> 12) as u8,
+            0x80 | ((c >> 6) & 0x3f) as u8,
+            0x80 | (c & 0x3f) as u8,
+        ])
+    } else if c < 0x110000 {
+        Ok(vec![
+            0xf0 | (c >> 18) as u8,
+            0x80 | ((c >> 12) & 0x3f) as u8,
+            0x80 | ((c >> 6) & 0x3f) as u8,
+            0x80 | (c & 0x3f) as u8,
+        ])
+    } else {
+        Err(EvalError::InvalidByteString)
+    }
+}
+
 fn render_bytes(bytes: &[u8], out: &mut String) {
     out.push('"');
     for &byte in bytes {
@@ -1756,6 +1946,27 @@ mod tests {
     }
 
     #[test]
+    fn reduces_mutable_bytestring_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nbsnew #2 @ #4 @ }"), "\"\\x00\\x00\"");
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq bswrite bsnew #2 @ #4 @ :0 @ #1 @ #65 @ @ bsread _0 @ #1 @ @ }"),
+            "65"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq bsappbyte bsnew #0 @ #0 @ :0 @ #65 @ @ bsfreeze _0 @ @ }"),
+            "\"A\""
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq bsappchar bsnew #0 @ #0 @ :0 @ #229 @ @ bsfreeze _0 @ @ }"),
+            "\"\\xc3\\xa5\""
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq bswrite \"abc\" :0 @ #1 @ #88 @ @ bsread _0 @ #1 @ @ }"),
+            "88"
+        );
+    }
+
+    #[test]
     fn reduces_strict_alias_and_probe_primitives() {
         assert_eq!(whnf(b"v8.4\n0\nord #65 @ }"), "65");
         assert_eq!(whnf(b"v8.4\n0\nchr #65 @ }"), "65");
@@ -1822,6 +2033,22 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n1\nIO.performIO IO.>> A.write #0 #0 #0 [3] :0 @ #1 @ #42 @ @ A.read _0 @ #1 @ @ @ }"),
             "42"
+        );
+    }
+
+    #[test]
+    fn reduces_mutable_bytestring_primitives_as_io_actions() {
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO bsnew #2 @ #4 @ @ }"),
+            "\"\\x00\\x00\""
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nIO.performIO IO.>> bswrite bsnew #2 @ #4 @ :0 @ #1 @ #65 @ @ bsread _0 @ #1 @ @ @ }"),
+            "65"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nIO.performIO IO.>> bsappbyte bsnew #0 @ #0 @ :0 @ #65 @ @ bsfreeze _0 @ @ @ }"),
+            "\"A\""
         );
     }
 }
