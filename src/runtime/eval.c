@@ -3699,7 +3699,7 @@ find_label(heapoffs_t label)
 /* Dynamic JavaScript FFI (emscripten only).  The compiler serializes a
  * `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
  * the return tag, tags[1..] the args: I=Int U=Word/Char D=Double F=Float P=Ptr
- * B=Bool J=JSVal V=unit(return only)).  At
+ * B=Bool J=JSVal S=ByteString V=unit(return only)).  At
  * parse time the body is compiled to a JS function in globalThis.__mhs and the
  * T_IO_JSCALL node holds its index; dispatch marshals by the tags.  The registry
  * is append-only: parse_top is re-entered by IO.deserialize, so resetting it
@@ -3767,13 +3767,24 @@ EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m &
 EM_JS(void,   mhs_js_push_obj,  (int h),     { globalThis.__mhs.argbuf.push(globalThis.__mhs.obj[h]); });
 EM_JS(int,    mhs_js_call_bool, (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf) ? 1 : 0; } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
 EM_JS(int,    mhs_js_call_obj,  (int idx),   { try { return globalThis.__mhs.intern(globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf)); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+/* ByteString marshalling (packed, no per-char allocation): a Haskell ByteString's
+ * bytes (evalbstr) are decoded to a JS string; a JS string result is encoded into
+ * wasm memory (stringToNewUTF8) and wrapped as a ByteString whose ForeignPtr owns that
+ * buffer (freed on GC).  UTF8ToString/lengthBytesUTF8 use the exact byte length (the
+ * `true` = ignore-NUL) so embedded U+0000 round-trips; the byte length of a JS-string
+ * result is stashed in __mhs.slen for the C side to read (strlen would stop at a NUL). */
+EM_JS(void,   mhs_js_push_str,  (const char *p, int len), { globalThis.__mhs.argbuf.push(UTF8ToString(p, len, true)); });
+EM_JS(char *, mhs_js_call_str,  (int idx),   { try { var s = String(globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf)); globalThis.__mhs.slen = lengthBytesUTF8(s); return stringToNewUTF8(s); } catch (e) { globalThis.__mhs.err = String(e); globalThis.__mhs.slen = 0; return stringToNewUTF8(""); } });
+EM_JS(int,    mhs_js_slen,      (void),      { return globalThis.__mhs.slen; });
 /* `foreign import javascript "wrapper"`: JS reads the callback's arguments from
  * argbuf, and the Haskell result is handed back through the single `wres` slot. */
 EM_JS(int,    mhs_js_arg_int,   (int i),     { return globalThis.__mhs.argbuf[i]; });
 EM_JS(double, mhs_js_arg_dbl,   (int i),     { return globalThis.__mhs.argbuf[i]; });
 EM_JS(int,    mhs_js_arg_obj,   (int i),     { return globalThis.__mhs.intern(globalThis.__mhs.argbuf[i]); });
+EM_JS(char *, mhs_js_arg_str,   (int i),     { var s = String(globalThis.__mhs.argbuf[i]); globalThis.__mhs.slen = lengthBytesUTF8(s); return stringToNewUTF8(s); });
 EM_JS(void,   mhs_js_set_res_num,  (double v),{ globalThis.__mhs.wres = v; });
 EM_JS(void,   mhs_js_set_res_obj,  (int h),   { globalThis.__mhs.wres = globalThis.__mhs.obj[h]; });
+EM_JS(void,   mhs_js_set_res_str,  (const char *p, int len), { globalThis.__mhs.wres = UTF8ToString(p, len, true); });
 EM_JS(void,   mhs_js_set_res_undef, (void),   { globalThis.__mhs.wres = undefined; });
 /* Build a JS function that marshals its arguments through argbuf, invokes the
  * Haskell closure `sp` with the callback tags `widx`, and returns wres.  Interned
@@ -3805,7 +3816,7 @@ mhs_js_obj_free(void *p)
 #if defined(__EMSCRIPTEN__)
 /* Validate the tag string of a JS import: tags[0] is the return tag (may be V
  * for unit), tags[1..] are argument tags.  I=Int U=Word/Char D=Double F=Float
- * P=Ptr B=Bool J=JSVal. */
+ * P=Ptr B=Bool J=JSVal S=ByteString. */
 static int
 js_dyn_tags_ok(const char *tags, int arity)
 {
@@ -3813,7 +3824,7 @@ js_dyn_tags_ok(const char *tags, int arity)
     return 0;
   for (int i = 0; tags[i]; i++) {
     char t = tags[i];
-    if (!(t == 'I' || t == 'U' || t == 'D' || t == 'F' || t == 'P' || t == 'B' || t == 'J' ||
+    if (!(t == 'I' || t == 'U' || t == 'D' || t == 'F' || t == 'P' || t == 'B' || t == 'J' || t == 'S' ||
           (i == 0 && t == 'V')))
       return 0;
   }
@@ -6224,14 +6235,16 @@ evali(NODEPTR an)
       /* Evaluate all args into C locals FIRST: forcing an arg may run a nested
        * JS call that reuses argbuf, so we must not interleave eval with pushing. */
       {
-        double  dvals[JS_MAX_ARGS];
-        value_t ivals[JS_MAX_ARGS];
+        double         dvals[JS_MAX_ARGS];
+        value_t        ivals[JS_MAX_ARGS];
+        struct forptr *svals[JS_MAX_ARGS];
         for (int i = 0; i < arity; i++) {
           char t = e->tags[i + 1];
           if      (t == 'D') dvals[i] = mhs_to_Double(stk, i);
           else if (t == 'F') dvals[i] = (double)mhs_to_Float(stk, i);
           else if (t == 'B') ivals[i] = mhs_to_Bool(stk, i);
           else if (t == 'J') ivals[i] = (value_t)(intptr_t)evalforptr(ARG(TOP(i + 1)))->payload.bs_array;
+          else if (t == 'S') svals[i] = evalbstr(ARG(TOP(i + 1)));   /* ByteString: packed bytes, owned by the arg */
           else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);  /* I/U or P */
         }
         mhs_js_argreset();
@@ -6240,6 +6253,7 @@ evali(NODEPTR an)
           if      (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
           else if (t == 'J')             mhs_js_push_obj((int)ivals[i]);
           else if (t == 'U')             mhs_js_push_uint((int)ivals[i]); /* Word/Char: unsigned */
+          else if (t == 'S')             mhs_js_push_str(svals[i]->payload.bs_array, (int)svals[i]->payload.bs_size);
           else                           mhs_js_push_int((int)ivals[i]);  /* I, B, P */
         }
       }
@@ -6253,6 +6267,10 @@ evali(NODEPTR an)
         struct forptr *fp = mkForPtrP((void *)(intptr_t)mhs_js_call_obj(idx));
         fp->finalizer->final = (HsFunPtr)mhs_js_obj_free;               /* free the slot on GC */
         SETFORPTR(TOP(0), fp);
+      } break;
+      case 'S': {                                                       /* JS string -> ByteString (owns the buffer) */
+        char *cs = mhs_js_call_str(idx);
+        SETBSTR(TOP(0), mkForPtrFree(mk_ro_bytestring((size_t)mhs_js_slen(), cs)));
       } break;
       default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* I/U: bit-preserved */
       }
@@ -7697,6 +7715,13 @@ mhs_wrapper_invoke(int sp, int widx)
       SETFORPTR(TOP(0), fp);
       ffe_apply();
     } break;
+    case 'S': {                                        /* JS string -> ByteString (owns the buffer) */
+      char *cs = mhs_js_arg_str(i);
+      size_t len = (size_t)mhs_js_slen();
+      ffe_alloc();
+      SETBSTR(TOP(0), mkForPtrFree(mk_ro_bytestring(len, cs)));
+      ffe_apply();
+    } break;
     default:  mhs_from_Int(ffe_alloc(), 0, mhs_js_arg_int(i)); ffe_apply(); break;  /* I/U: bit-preserved */
     }
   }
@@ -7708,6 +7733,7 @@ mhs_wrapper_invoke(int sp, int widx)
   case 'B': mhs_js_set_res_num(mhs_to_Bool(r, -1));             break;
   case 'P': mhs_js_set_res_num((double)(intptr_t)mhs_to_Ptr(r, -1)); break;
   case 'J': mhs_js_set_res_obj((int)(intptr_t)evalforptr(ARG(TOP(0)))->payload.bs_array); break;
+  case 'S': { struct forptr *fp = evalbstr(ARG(TOP(0))); mhs_js_set_res_str(fp->payload.bs_array, (int)fp->payload.bs_size); } break;
   case 'U': mhs_js_set_res_num((double)(uvalue_t)mhs_to_Int(r, -1)); break;  /* Word/Char: unsigned */
   default:  mhs_js_set_res_num((double)mhs_to_Int(r, -1));      break;  /* I */
   }
