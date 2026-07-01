@@ -402,6 +402,12 @@ impl Program {
         self.app(u, a)
     }
 
+    fn pair(&mut self, result: NodeId, world: NodeId) -> NodeId {
+        let pair = self.prim("P");
+        let result_pair = self.app(pair, result);
+        self.app(result_pair, world)
+    }
+
     fn ordering(&mut self, ord: Ordering) -> NodeId {
         let name = match ord {
             Ordering::Less => "K2",
@@ -632,9 +638,23 @@ impl Program {
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
         let rewrite = match name {
+            "A.alloc" if args.len() >= 3 => {
+                let len = int_to_usize(self.eval_int(args[0])?)?;
+                let array = self.push_node(Node::Array(vec![args[1]; len]));
+                Some((3, self.pair(array, args[2])))
+            }
             "A.alloc" => {
                 let len = int_to_usize(self.eval_int(args[0])?)?;
                 Some((2, self.push_node(Node::Array(vec![args[1]; len]))))
+            }
+            "A.read" if args.len() >= 3 => {
+                let array = self.eval_array_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let item = *self
+                    .array(array)?
+                    .get(index)
+                    .ok_or(EvalError::InvalidArray)?;
+                Some((3, self.pair(item, args[2])))
             }
             "A.read" if args.len() >= 2 => {
                 let array = self.eval_array_id(args[0])?;
@@ -645,6 +665,15 @@ impl Program {
                     .ok_or(EvalError::InvalidArray)?;
                 Some((2, item))
             }
+            "A.write" if args.len() >= 4 => {
+                let array = self.eval_array_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let items = self.array_mut(array)?;
+                let slot = items.get_mut(index).ok_or(EvalError::InvalidArray)?;
+                *slot = args[2];
+                let unit = self.prim("I");
+                Some((4, self.pair(unit, args[3])))
+            }
             "A.write" if args.len() >= 3 => {
                 let array = self.eval_array_id(args[0])?;
                 let index = int_to_usize(self.eval_int(args[1])?)?;
@@ -652,6 +681,17 @@ impl Program {
                 let slot = items.get_mut(index).ok_or(EvalError::InvalidArray)?;
                 *slot = args[2];
                 Some((3, self.prim("I")))
+            }
+            "A.trunc" if args.len() >= 3 => {
+                let array = self.eval_array_id(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let items = self.array_mut(array)?;
+                if len >= items.len() {
+                    return Err(EvalError::InvalidArray);
+                }
+                items.truncate(len);
+                let unit = self.prim("I");
+                Some((3, self.pair(unit, args[2])))
             }
             "A.trunc" if args.len() >= 2 => {
                 let array = self.eval_array_id(args[0])?;
@@ -679,10 +719,23 @@ impl Program {
         args: &[NodeId],
     ) -> Result<Option<(usize, NodeId)>, EvalError> {
         let node = match name {
+            "A.copy" if args.len() >= 2 => {
+                let array = self.eval_array_id(args[0])?;
+                let items = self.array(array)?.to_vec();
+                let copy = self.push_node(Node::Array(items));
+                self.pair(copy, args[1])
+            }
             "A.copy" => {
                 let array = self.eval_array_id(args[0])?;
                 let items = self.array(array)?.to_vec();
                 self.push_node(Node::Array(items))
+            }
+            "A.size" if args.len() >= 2 => {
+                let array = self.eval_array_id(args[0])?;
+                let len =
+                    i64::try_from(self.array(array)?.len()).map_err(|_| EvalError::Overflow)?;
+                let size = self.push_node(Node::Int(len));
+                self.pair(size, args[1])
             }
             "A.size" => {
                 let array = self.eval_array_id(args[0])?;
@@ -692,7 +745,12 @@ impl Program {
             }
             _ => return Ok(None),
         };
-        Ok(Some((1, node)))
+        let used = if matches!(name, "A.copy" | "A.size") && args.len() >= 2 {
+            2
+        } else {
+            1
+        };
+        Ok(Some((used, node)))
     }
 
     fn bytes_op(
@@ -1750,6 +1808,20 @@ mod tests {
         assert_eq!(
             whnf(b"v8.4\n0\nIO.performIO IO.atomic IO.return #6 @ @ @ }"),
             "6"
+        );
+    }
+
+    #[test]
+    fn reduces_array_primitives_as_io_actions() {
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO A.alloc #3 @ #7 @ @ }"),
+            "[7, 7, 7]"
+        );
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO A.size #0 #0 [2] @ @ }"), "2");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO A.copy #0 [1] @ @ }"), "[0]");
+        assert_eq!(
+            whnf(b"v8.4\n1\nIO.performIO IO.>> A.write #0 #0 #0 [3] :0 @ #1 @ #42 @ @ A.read _0 @ #1 @ @ @ }"),
+            "42"
         );
     }
 }
