@@ -3726,8 +3726,8 @@ static int js_dyn_cap = 0;
  *   reg    - registered JS functions (index === T_IO_JSCALL node value)
  *   argbuf - scratch argument buffer for the current call
  *   err    - last JS exception message, or null
- * Any object-handle registry a binding needs (e.g. for DOM/pixi objects) is the
- * binding's own userland concern, not part of the runtime. */
+ *   obj    - object-handle registry backing JSVal (obj[0] null; handles >= 1),
+ *            with objfree/intern for allocation and mhs_js_obj_free for freeing */
 #if defined(__EMSCRIPTEN__)
 EM_JS(void, mhs_js_setup, (void), {
   /* Initialize each field defensively: __mhs lives on globalThis and may be
@@ -3737,6 +3737,21 @@ EM_JS(void, mhs_js_setup, (void), {
   if (!m.reg)          m.reg = [];
   if (!m.argbuf)       m.argbuf = [];
   if (!('err' in m))   m.err = null;
+  /* obj is the runtime-owned object-handle registry backing JSVal: obj[0] is a
+   * null sentinel, real handles are >= 1.  m.intern(v) allocates a handle
+   * (reusing freed slots from m.objfree so the array stays bounded by peak-live);
+   * a JSVal's finalizer frees its slot (mhs_js_obj_free) so both the handle and
+   * the underlying JS value are reclaimed when no Haskell JSVal holds it.  Each
+   * field is initialised independently (like reg/argbuf/err). */
+  if (!m.obj || m.obj[0] !== null) m.obj = [null];
+  if (!m.objfree)                  m.objfree = [];
+  if (!m.intern)
+    m.intern = function(v) {
+      var i = m.objfree.length ? m.objfree.pop() : m.obj.length;
+      if (i < 1) i = m.obj.length;   /* never overwrite the null sentinel */
+      m.obj[i] = v;
+      return i;
+    };
   /* Publish the emscripten string helpers globally so JS bodies compiled with
    * `new Function` (which run in global scope) can use the same
    * UTF8ToString/stringToNewUTF8 names as the EM_ASM-based FFI path.  Guarded
@@ -3771,7 +3786,23 @@ EM_JS(void *, mhs_js_call_ptr,  (int idx),   { try { return globalThis.__mhs.reg
 EM_JS(void,   mhs_js_call_void, (int idx),   { try { globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); } });
 EM_JS(int,    mhs_js_haserr,    (void),      { return globalThis.__mhs.err ? 1 : 0; });
 EM_JS(void,   mhs_js_logerr,    (void),      { console.error('MicroHs JavaScript FFI exception:', globalThis.__mhs.err); });
+EM_JS(void,   mhs_js_obj_free_slot, (int h), { var m = globalThis.__mhs; if (m && m.obj && h >= 1 && m.obj[h] !== undefined) { m.obj[h] = undefined; m.objfree.push(h); } });
 #endif  /* __EMSCRIPTEN__ */
+
+/* FinalizerPtr for a JSVal (a ForeignPtr whose "pointer" is the JS object
+ * handle): clear the JS-side registry slot so the underlying JS value can be
+ * collected once no Haskell JSVal references it.  Reached from Haskell via
+ * `foreign import ccall "&mhs_js_obj_free" :: FinalizerPtr a` (see the ';name'
+ * funptr cases in parse/printb).  A no-op off emscripten. */
+void
+mhs_js_obj_free(void *p)
+{
+#if defined(__EMSCRIPTEN__)
+  mhs_js_obj_free_slot((int)(intptr_t)p);
+#else
+  (void)p;
+#endif
+}
 
 #if defined(__EMSCRIPTEN__)
 /* Validate the tag string of a JS import: tags[0] is the return tag (may be V
@@ -4078,6 +4109,8 @@ parse(BFILE *f)
         PUSH(mkFunPtr((HsFunPtr)0));
       } else if (strcmp(buf, "closeb") == 0) {
         PUSH(mkFunPtr((HsFunPtr)closeb));
+      } else if (strcmp(buf, "mhs_js_obj_free") == 0) {
+        PUSH(mkFunPtr((HsFunPtr)mhs_js_obj_free));
       } else {
         ERR1("unknown funptr '%s'", buf);
       }
@@ -4412,6 +4445,8 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putsb(";0 ", f);
     } else if (FUNPTR(n) == (HsFunPtr)closeb) {
       putsb(";closeb ", f);
+    } else if (FUNPTR(n) == (HsFunPtr)mhs_js_obj_free) {
+      putsb(";mhs_js_obj_free ", f);
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>", FUNPTR(n));
       putsb(prbuf, f);
@@ -7775,6 +7810,7 @@ from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), 
 from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
+from_t mhs_addr_mhs_js_obj_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&mhs_js_obj_free); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
@@ -8143,6 +8179,7 @@ const struct ffi_entry ffi_table[] = {
   { "realloc", 2, mhs_realloc},
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
+  { "&mhs_js_obj_free", 0, mhs_addr_mhs_js_obj_free},
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},
