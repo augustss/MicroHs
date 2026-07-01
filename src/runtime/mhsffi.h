@@ -108,3 +108,4 @@ stackptr_t ffe_exec(void);
 void       gc_check(size_t);
 
 void *     apply_sp(uvalue_t, void *);
+int        mhs_invoke_int(uvalue_t, value_t);
