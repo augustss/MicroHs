@@ -41,6 +41,7 @@ pub enum EvalError {
     InvalidByteString,
     InvalidArray,
     Raised(NodeId),
+    InvalidStablePtr,
 }
 
 impl fmt::Display for EvalError {
@@ -60,6 +61,7 @@ impl fmt::Display for EvalError {
             Self::InvalidByteString => write!(f, "invalid ByteString operation"),
             Self::InvalidArray => write!(f, "invalid Array operation"),
             Self::Raised(id) => write!(f, "uncaught exception at node {id:?}"),
+            Self::InvalidStablePtr => write!(f, "invalid StablePtr operation"),
         }
     }
 }
@@ -71,6 +73,7 @@ pub struct Program {
     nodes: Vec<Node>,
     root: NodeId,
     labels: HashMap<usize, NodeId>,
+    stable_ptrs: Vec<Option<NodeId>>,
 }
 
 impl Program {
@@ -79,6 +82,7 @@ impl Program {
             nodes,
             root,
             labels,
+            stable_ptrs: vec![None],
         }
     }
 
@@ -347,6 +351,7 @@ impl Program {
             }
             name if args.len() >= 2 => self
                 .array_op(name, &args)?
+                .or(self.stable_ptr_op(name, &args)?)
                 .or(self.bytes_op(name, &args)?)
                 .or(self.float64_binop(name, &args)?)
                 .or(self.float32_binop(name, &args)?)
@@ -362,6 +367,7 @@ impl Program {
                 .or(self.int_unop(name, &args)?),
             name if !args.is_empty() => self
                 .array_unop(name, &args)?
+                .or(self.stable_ptr_unop(name, &args)?)
                 .or(self.bytes_unop(name, &args)?)
                 .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
@@ -783,6 +789,53 @@ impl Program {
         Ok(Some((used, node)))
     }
 
+    fn stable_ptr_op(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let rewrite = match name {
+            "SPnew" if args.len() >= 2 => {
+                let handle = self.new_stable_ptr(args[0])?;
+                Some((2, self.pair(handle, args[1])))
+            }
+            "SPderef" if args.len() >= 2 => {
+                let handle = self.stable_ptr_handle(args[0])?;
+                let value = self.deref_stable_ptr(handle)?;
+                Some((2, self.pair(value, args[1])))
+            }
+            "SPfree" if args.len() >= 2 => {
+                let handle = self.stable_ptr_handle(args[0])?;
+                self.free_stable_ptr(handle)?;
+                let unit = self.prim("I");
+                Some((2, self.pair(unit, args[1])))
+            }
+            _ => None,
+        };
+        Ok(rewrite)
+    }
+
+    fn stable_ptr_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "SPnew" => self.new_stable_ptr(args[0])?,
+            "SPderef" => {
+                let handle = self.stable_ptr_handle(args[0])?;
+                self.deref_stable_ptr(handle)?
+            }
+            "SPfree" => {
+                let handle = self.stable_ptr_handle(args[0])?;
+                self.free_stable_ptr(handle)?;
+                self.prim("I")
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn bytes_op(
         &mut self,
         name: &str,
@@ -1100,6 +1153,50 @@ impl Program {
         for &byte in bytes {
             self.append_byte(id, byte)?;
         }
+        Ok(())
+    }
+
+    fn new_stable_ptr(&mut self, value: NodeId) -> Result<NodeId, EvalError> {
+        let slot = self
+            .stable_ptrs
+            .iter()
+            .enumerate()
+            .skip(1)
+            .find_map(|(slot, value)| value.is_none().then_some(slot));
+        let slot = match slot {
+            Some(slot) => {
+                self.stable_ptrs[slot] = Some(value);
+                slot
+            }
+            None => {
+                self.stable_ptrs.push(Some(value));
+                self.stable_ptrs.len() - 1
+            }
+        };
+        let handle = i64::try_from(slot).map_err(|_| EvalError::Overflow)?;
+        Ok(self.push_node(Node::Int(handle)))
+    }
+
+    fn stable_ptr_handle(&mut self, id: NodeId) -> Result<usize, EvalError> {
+        usize::try_from(self.eval_int(id)?).map_err(|_| EvalError::InvalidStablePtr)
+    }
+
+    fn deref_stable_ptr(&self, handle: usize) -> Result<NodeId, EvalError> {
+        self.stable_ptrs
+            .get(handle)
+            .and_then(|value| *value)
+            .ok_or(EvalError::InvalidStablePtr)
+    }
+
+    fn free_stable_ptr(&mut self, handle: usize) -> Result<(), EvalError> {
+        let slot = self
+            .stable_ptrs
+            .get_mut(handle)
+            .ok_or(EvalError::InvalidStablePtr)?;
+        if slot.is_none() {
+            return Err(EvalError::InvalidStablePtr);
+        }
+        *slot = None;
         Ok(())
     }
 
@@ -2048,6 +2145,21 @@ mod tests {
         );
         assert_eq!(
             whnf(b"v8.4\n0\nIO.performIO catch raise #7 @ @ K IO.return #42 @ @ @ @ }"),
+            "42"
+        );
+    }
+
+    #[test]
+    fn reduces_stable_pointer_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nSPnew #42 @ }"), "1");
+        assert_eq!(whnf(b"v8.4\n0\nSPderef SPnew #42 @ @ }"), "42");
+        assert_eq!(
+            whnf(b"v8.4\n2\nseq SPfree SPnew #1 @ :0 @ @ SPnew #2 @ :1 @ }"),
+            "1"
+        );
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO SPnew #42 @ @ }"), "1");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO SPderef SPnew #42 @ @ @ }"),
             "42"
         );
     }
