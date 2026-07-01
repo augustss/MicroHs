@@ -47,6 +47,19 @@ can drive Haskell.
   leaking, and the handle array is bounded by the peak number of live `JSVal`s
   (freed slots reused via a freelist). This reuses MicroHs's existing
   ForeignPtr/finalizer machinery.
+- **`ByteString` strings (`S` tag).** A body/callback can take and return a
+  `Data.ByteString.ByteString` directly (`reduce :: ByteString -> IO ByteString`),
+  marshalled to/from a **JS string** (UTF-8).  `ByteString` is a *packed*,
+  `ForeignPtr`-backed buffer, so this is an O(1) pointer+length handoff — no
+  per-character heap allocation (unlike a `String`/`[Char]` cons-list, which would
+  cost ~3 nodes per char).  On the way out the bytes are decoded to a JS string; a
+  JS-string result is encoded (`stringToNewUTF8`) into a buffer the new
+  `ByteString`'s `ForeignPtr` owns (freed on GC).  Byte length comes from
+  `lengthBytesUTF8` and decode uses the ignore-NUL path, so embedded `U+0000`
+  round-trips.  It transcodes UTF-8 ⟷ JS string, so this is a **text** bridge —
+  non-UTF-8 byte sequences are lossy; a raw `ByteString`⟷`Uint8Array` tag is future
+  work.  This replaces the filesystem side-channel some consumers used to pass
+  serialized terms across the boundary.
 
 ## What it deliberately does NOT do (vs GHC's wasm JSFFI)
 
@@ -55,7 +68,7 @@ can drive Haskell.
 | Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **not on this runtime** — `main` runs to completion synchronously.  Planned as an opt-in `-sASYNCIFY` runtime on a separate branch (`EM_ASYNC_JS` + an async token); kept off the default because Asyncify measured ~2x FFI slowdown, and the await must unwind the whole eval loop |
 | `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | **`"wrapper"` done** — typed, multi-arg, result-returning closures→JS functions (sync only); static named `foreign export` not done (needs per-program `emcc`) |
 | `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — first-class `JSVal` (`Mhs.JavaScript`), runtime-owned ForeignPtr + finalizer, freed on GC; take/return directly in a body |
-| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int (`I`), **Word/Char (unsigned `U`)**, Double, Float, Ptr, **Bool**, **JSVal**; strings via manual `Ptr`+UTF8 helpers. No Int64/Word64 (→`bigint`) yet (boxed on wasm32; they error at compile) |
+| Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | Int (`I`), **Word/Char (unsigned `U`)**, Double, Float, Ptr, **Bool**, **JSVal**, **`ByteString` (`S`, ⟷ JS string, UTF-8)**. No Int64/Word64 (→`bigint`) yet (boxed on wasm32; they error at compile) |
 | Catchable JS exceptions | async path → `JSException` in Haskell | fatal (sets `__mhs.err`, `ERR`s) — this *matches* GHC's *sync* path |
 
 **Deployment caveat (CSP).** The dynamic bridge uses `new Function` at load
