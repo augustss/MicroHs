@@ -24,6 +24,14 @@
 #define WANT_SOCKET 0
 #endif /* defined(WANT_SOCKET) */
 
+/* Dynamic JavaScript FFI (foreign import javascript); needs emscripten. */
+#if !defined(WANT_JSFFI)
+#define WANT_JSFFI 0
+#endif /* defined(WANT_JSFFI) */
+#if WANT_JSFFI && !defined(__EMSCRIPTEN__)
+#error WANT_JSFFI requires emscripten
+#endif
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -3696,17 +3704,17 @@ find_label(heapoffs_t label)
   }
 }
 
-/* Dynamic JavaScript FFI (emscripten only).  The compiler serializes a
- * `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
+/* Dynamic JavaScript FFI (WANT_JSFFI, emscripten only).  The compiler serializes
+ * a `foreign import javascript "body"` as a token  ~<tags> "<body>"  (tags[0] is
  * the return tag, tags[1..] the args: I=Int U=Word/Char D=Double F=Float P=Ptr
  * B=Bool J=JSVal S=ByteString V=unit(return only)).  At
  * parse time the body is compiled to a JS function in globalThis.__mhs and the
  * T_IO_JSCALL node holds its index; dispatch marshals by the tags.  The registry
  * is append-only: parse_top is re-entered by IO.deserialize, so resetting it
  * would invalidate live nodes. */
+#if WANT_JSFFI
 #define JS_MAX_ARGS 32
 struct js_dyn_entry { int arity; char *tags; struct bytestring body; }; /* body kept for printb */
-#if defined(__EMSCRIPTEN__)
 static struct js_dyn_entry *js_dyn_table = NULL;
 static int js_dyn_count = 0;
 static int js_dyn_cap = 0;
@@ -3715,13 +3723,11 @@ static int js_dyn_cap = 0;
 static char **js_wrap_tags = NULL;
 static int js_wrap_count = 0;
 static int js_wrap_cap = 0;
-#endif
 
 /* EM_JS (full JS bodies) not EM_ASM (which mishandles object literals).
  * globalThis.__mhs holds: reg (registered JS functions, indexed by the
  * T_IO_JSCALL value), argbuf (scratch args), err (last exception) and obj (the
  * JSVal object-handle registry, obj[0] null / handles >= 1). */
-#if defined(__EMSCRIPTEN__)
 EM_JS(void, mhs_js_setup, (void), {
   /* Fields set independently: __mhs is on globalThis and may be shared with
    * another wasm module on the page. */
@@ -3801,22 +3807,16 @@ EM_JS(int, mhs_js_make_wrapper, (int sp, int widx), {
   };
   return m.intern(f);
 });
-#endif  /* __EMSCRIPTEN__ */
 
 /* GC finalizer for a JSVal (a ForeignPtr whose "pointer" is the object handle),
  * set on the forptr by the J return path: free the registry slot so the JS value
- * can be collected.  A no-op off emscripten. */
-void
+ * can be collected. */
+static void
 mhs_js_obj_free(void *p)
 {
-#if defined(__EMSCRIPTEN__)
   mhs_js_obj_free_slot((int)(intptr_t)p);
-#else
-  (void)p;
-#endif
 }
 
-#if defined(__EMSCRIPTEN__)
 /* Validate the tag string of a JS import: tags[0] is the return tag (may be V
  * for unit), tags[1..] are argument tags.  I=Int U=Word/Char D=Double F=Float
  * P=Ptr B=Bool J=JSVal S=ByteString. */
@@ -3879,7 +3879,7 @@ js_wrap_register(const char *tags)
   strcpy(js_wrap_tags[js_wrap_count], tags);
   return js_wrap_count++;
 }
-#endif  /* __EMSCRIPTEN__ */
+#endif  /* WANT_JSFFI */
 
 /* The memory allocated here is never freed.
  * This could be fixed by using a forptr and a
@@ -4121,13 +4121,13 @@ parse(BFILE *f)
         ERR("parse ~ (JS FFI): malformed descriptor");
       {
         struct bytestring body = parse_string(f);
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
         r = alloc_node(T_IO_JSCALL);
         SETVALUE(r, js_dyn_register(buf, body));  /* takes ownership of body */
         PUSH(r);
 #else
         FREE(body.bs_array);
-        ERR("JavaScript FFI is only supported in the emscripten runtime");
+        ERR("JavaScript FFI is not supported in this runtime");
 #endif
       }
       break;
@@ -4139,12 +4139,12 @@ parse(BFILE *f)
         buf[j] = tc;
       }
       buf[j] = 0;
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
       r = alloc_node(T_IO_JSWRAP);
       SETVALUE(r, js_wrap_register(buf));
       PUSH(r);
 #else
-      ERR("JavaScript FFI is only supported in the emscripten runtime");
+      ERR("JavaScript FFI is not supported in this runtime");
 #endif
       break;
     case ';':
@@ -4545,11 +4545,11 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
   case T_IO_JSCALL: { struct js_dyn_entry *je = &js_dyn_table[GETVALUE(n)];
                       putb('~', f); putsb(je->tags, f); putb(' ', f); print_string(f, je->body); break; }
   case T_IO_JSWRAP: putb('`', f); putsb(js_wrap_tags[GETVALUE(n)], f); putb(' ', f); break;
-#endif
+#endif  /* WANT_JSFFI */
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
 #if WANT_TICK
   case T_TICK:
@@ -6226,7 +6226,7 @@ evali(NODEPTR an)
      * (see js_dyn_* above).  Arguments are marshalled into globalThis.__mhs.argbuf
      * by tag, the function is applied, and the result is marshalled back. */
     {
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
       GCCHECK(1);
       int idx = (int)GETVALUE(n);
       if (idx < 0 || idx >= js_dyn_count)
@@ -6288,7 +6288,7 @@ evali(NODEPTR an)
       n = POPTOP();              /* node to update */
       GOPAIR(x);                 /* and this is the result */
 #else
-      ERR("JavaScript FFI is only supported in the emscripten runtime");
+      ERR("JavaScript FFI is not supported in this runtime");
 #endif
     }
 
@@ -6299,7 +6299,7 @@ evali(NODEPTR an)
      * a JSVal.  The JS function outliving this JSVal is fine (it holds the
      * StablePtr, not the registry slot). */
     {
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
       GCCHECK(2);
       int widx = (int)GETVALUE(n);
       if (widx < 0 || widx >= js_wrap_count)
@@ -6318,7 +6318,7 @@ evali(NODEPTR an)
       n = POPTOP();              /* node to update */
       GOPAIR(x);
 #else
-      ERR("JavaScript FFI is only supported in the emscripten runtime");
+      ERR("JavaScript FFI is not supported in this runtime");
 #endif
     }
 
@@ -7668,15 +7668,15 @@ apply_sp(uvalue_t sp, void *arg)
   return r;
 }
 
-#if defined(__EMSCRIPTEN__)
+#if WANT_JSFFI
 /* Called from JS when a "wrapper" function is invoked (see mhs_js_make_wrapper).
  * Marshal the callback's arguments out of its __mhs.wargs frame into an application
  * of the closure `sp`, run it (a fresh thread post-main, or the current stack if
  * re-entered during evaluation — see ffe_eval), and hand the result back through
  * __mhs.wres.  Arguments are read into Haskell nodes before running, since the
  * callback may itself re-enter the runtime.  Mirrors the generated `foreign export`
- * C wrappers. */
-void
+ * C wrappers.  KEEPALIVE makes it a wasm export whenever the feature is compiled in. */
+EMSCRIPTEN_KEEPALIVE void
 mhs_wrapper_invoke(int sp, int widx)
 {
   if (widx < 0 || widx >= js_wrap_count)   /* exported: guard against bad JS calls */
@@ -7723,7 +7723,7 @@ mhs_wrapper_invoke(int sp, int widx)
   }
   ffe_pop();
 }
-#endif  /* __EMSCRIPTEN__ */
+#endif  /* WANT_JSFFI */
 
 /*********************/
 /* FFI adapters      */

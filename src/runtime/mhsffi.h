@@ -110,4 +110,4 @@ stackptr_t ffe_exec(void);
 void       gc_check(size_t);
 
 void *     apply_sp(uvalue_t, void *);
-void       mhs_wrapper_invoke(int, int);
+void       mhs_wrapper_invoke(int, int); /* JS FFI (WANT_JSFFI): called from JS */
