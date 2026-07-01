@@ -33,10 +33,12 @@ pub enum EvalError {
     ExpectedFloat64(NodeId),
     ExpectedFloat32(NodeId),
     ExpectedBytes(NodeId),
+    ExpectedArray(NodeId),
     DivideByZero,
     Overflow,
     InvalidShift(i64),
     InvalidByteString,
+    InvalidArray,
 }
 
 impl fmt::Display for EvalError {
@@ -49,10 +51,12 @@ impl fmt::Display for EvalError {
             Self::ExpectedFloat64(id) => write!(f, "expected Float64 at node {id:?}"),
             Self::ExpectedFloat32(id) => write!(f, "expected Float32 at node {id:?}"),
             Self::ExpectedBytes(id) => write!(f, "expected ByteString at node {id:?}"),
+            Self::ExpectedArray(id) => write!(f, "expected Array at node {id:?}"),
             Self::DivideByZero => write!(f, "integer division by zero"),
             Self::Overflow => write!(f, "integer overflow"),
             Self::InvalidShift(n) => write!(f, "invalid shift amount {n}"),
             Self::InvalidByteString => write!(f, "invalid ByteString operation"),
+            Self::InvalidArray => write!(f, "invalid Array operation"),
         }
     }
 }
@@ -123,12 +127,24 @@ impl Program {
         };
 
         let rewrite = match name.as_str() {
-            "I" if !args.is_empty() => Some((1, args[0])),
+            "I" | "ord" | "chr" if !args.is_empty() => Some((1, args[0])),
             "K" if args.len() >= 2 => Some((2, args[0])),
             "A" if args.len() >= 2 => Some((2, args[1])),
             "U" if args.len() >= 2 => {
                 let n = self.app(args[1], args[0]);
                 Some((2, n))
+            }
+            "seq" if args.len() >= 2 => {
+                self.reduce_node_whnf(args[0], 10_000)?;
+                Some((2, args[1]))
+            }
+            "isint" if !args.is_empty() => {
+                let root = self.reduce_node_whnf(args[0], 10_000)?;
+                let n = match self.nodes[self.resolve(root)?.0] {
+                    Node::Int(n) => n,
+                    _ => -1,
+                };
+                Some((1, self.push_node(Node::Int(n))))
             }
             "S" if args.len() >= 3 => {
                 let x = args[2];
@@ -265,13 +281,15 @@ impl Program {
                 Some((fields + 1, n))
             }
             name if args.len() >= 2 => self
-                .bytes_op(name, &args)?
+                .array_op(name, &args)?
+                .or(self.bytes_op(name, &args)?)
                 .or(self.float64_binop(name, &args)?)
                 .or(self.float32_binop(name, &args)?)
                 .or(self.int64_binop(name, &args)?)
                 .or(self.int_binop(name, &args)?),
             name if !args.is_empty() => self
-                .bytes_unop(name, &args)?
+                .array_unop(name, &args)?
+                .or(self.bytes_unop(name, &args)?)
                 .or(self.float64_unop(name, &args)?)
                 .or(self.float32_unop(name, &args)?)
                 .or(self.float_conversion(name, &args)?)
@@ -533,6 +551,75 @@ impl Program {
         Ok(Some((1, node)))
     }
 
+    fn array_op(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let rewrite = match name {
+            "A.alloc" => {
+                let len = int_to_usize(self.eval_int(args[0])?)?;
+                Some((2, self.push_node(Node::Array(vec![args[1]; len]))))
+            }
+            "A.read" if args.len() >= 2 => {
+                let array = self.eval_array_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let item = *self
+                    .array(array)?
+                    .get(index)
+                    .ok_or(EvalError::InvalidArray)?;
+                Some((2, item))
+            }
+            "A.write" if args.len() >= 3 => {
+                let array = self.eval_array_id(args[0])?;
+                let index = int_to_usize(self.eval_int(args[1])?)?;
+                let items = self.array_mut(array)?;
+                let slot = items.get_mut(index).ok_or(EvalError::InvalidArray)?;
+                *slot = args[2];
+                Some((3, self.prim("I")))
+            }
+            "A.trunc" if args.len() >= 2 => {
+                let array = self.eval_array_id(args[0])?;
+                let len = int_to_usize(self.eval_int(args[1])?)?;
+                let items = self.array_mut(array)?;
+                if len >= items.len() {
+                    return Err(EvalError::InvalidArray);
+                }
+                items.truncate(len);
+                Some((2, self.prim("I")))
+            }
+            "A.==" => {
+                let x = self.eval_array_id(args[0])?;
+                let y = self.eval_array_id(args[1])?;
+                Some((2, self.prim(if x == y { "A" } else { "K" })))
+            }
+            _ => None,
+        };
+        Ok(rewrite)
+    }
+
+    fn array_unop(
+        &mut self,
+        name: &str,
+        args: &[NodeId],
+    ) -> Result<Option<(usize, NodeId)>, EvalError> {
+        let node = match name {
+            "A.copy" => {
+                let array = self.eval_array_id(args[0])?;
+                let items = self.array(array)?.to_vec();
+                self.push_node(Node::Array(items))
+            }
+            "A.size" => {
+                let array = self.eval_array_id(args[0])?;
+                let len =
+                    i64::try_from(self.array(array)?.len()).map_err(|_| EvalError::Overflow)?;
+                self.push_node(Node::Int(len))
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some((1, node)))
+    }
+
     fn bytes_op(
         &mut self,
         name: &str,
@@ -655,6 +742,29 @@ impl Program {
         match &self.nodes[self.resolve(root)?.0] {
             Node::Bytes(bytes) => Ok(bytes.clone()),
             _ => Err(EvalError::ExpectedBytes(root)),
+        }
+    }
+
+    fn eval_array_id(&mut self, id: NodeId) -> Result<NodeId, EvalError> {
+        let root = self.reduce_node_whnf(id, 10_000)?;
+        let id = self.resolve(root)?;
+        match self.nodes[id.0] {
+            Node::Array(_) => Ok(id),
+            _ => Err(EvalError::ExpectedArray(root)),
+        }
+    }
+
+    fn array(&self, id: NodeId) -> Result<&[NodeId], EvalError> {
+        match &self.nodes[id.0] {
+            Node::Array(items) => Ok(items),
+            _ => Err(EvalError::ExpectedArray(id)),
+        }
+    }
+
+    fn array_mut(&mut self, id: NodeId) -> Result<&mut Vec<NodeId>, EvalError> {
+        match &mut self.nodes[id.0] {
+            Node::Array(items) => Ok(items),
+            _ => Err(EvalError::ExpectedArray(id)),
         }
     }
 
@@ -1466,5 +1576,31 @@ mod tests {
         );
         assert_eq!(whnf(b"v8.4\n0\nheadUTF8 $2 \xc3\xa5 @ }"), "229");
         assert_eq!(whnf(b"v8.4\n0\ntailUTF8 $3 \xc3\xa5x @ }"), "\"x\"");
+    }
+
+    #[test]
+    fn reduces_strict_alias_and_probe_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nord #65 @ }"), "65");
+        assert_eq!(whnf(b"v8.4\n0\nchr #65 @ }"), "65");
+        assert_eq!(whnf(b"v8.4\n0\nseq + #1 @ #2 @ @ #9 @ }"), "9");
+        assert_eq!(whnf(b"v8.4\n0\nisint #7 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n0\nisint \"x\" @ }"), "-1");
+    }
+
+    #[test]
+    fn reduces_array_primitives() {
+        assert_eq!(whnf(b"v8.4\n0\nA.alloc #3 @ #7 @ }"), "[7, 7, 7]");
+        assert_eq!(whnf(b"v8.4\n0\nA.size A.alloc #3 @ #7 @ @ }"), "3");
+        assert_eq!(whnf(b"v8.4\n0\nA.read A.alloc #3 @ #7 @ @ #1 @ }"), "7");
+        assert_eq!(whnf(b"v8.4\n1\nA.== #0 [1] :0 @ _0 @ }"), "A");
+        assert_eq!(whnf(b"v8.4\n1\nA.== #0 [1] :0 @ A.copy _0 @ @ }"), "K");
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq A.write #0 #0 #0 [3] :0 @ #1 @ #42 @ @ A.read _0 @ #1 @ @ }"),
+            "42"
+        );
+        assert_eq!(
+            whnf(b"v8.4\n1\nseq A.trunc #0 #0 #0 [3] :0 @ #1 @ @ A.size _0 @ @ }"),
+            "1"
+        );
     }
 }

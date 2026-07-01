@@ -19,7 +19,7 @@ struct Config {
 
 fn usage() {
     eprintln!(
-        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|zoo-chain:N|data-chain:N]\n\
+        "usage: mhs-rust-bench [--iters N] [--input FILE | --scenario identity-chain:N|arith-chain:N|int64-chain:N|float64-chain:N|float32-chain:N|bytes-chain:N|array-chain:N|zoo-chain:N|data-chain:N]\n\
                                   [--c-mhseval PATH]\n\
          default: --scenario {DEFAULT_SCENARIO} --iters {DEFAULT_ITERS}"
     );
@@ -189,6 +189,18 @@ fn make_scenario(scenario: &str) -> Result<Vec<u8>, String> {
             expr = format!("bs++ {expr} @ \"{byte}\" @");
         }
         return Ok(format!("v8.4\n0\n{expr} }}\n").into_bytes());
+    }
+    if let Some(size) = scenario.strip_prefix("array-chain:") {
+        let size = parse_scenario_size("array-chain", size)?;
+        let last = size - 1;
+        let mut items = String::new();
+        for _ in 0..size {
+            items.push_str("#0 ");
+        }
+        return Ok(format!(
+            "v8.4\n1\nseq A.write {items}[{size}] :0 @ #{last} @ #42 @ @ A.read _0 @ #{last} @ @ }}\n"
+        )
+        .into_bytes());
     }
     if let Some(size) = scenario.strip_prefix("zoo-chain:") {
         let size = parse_scenario_size("zoo-chain", size)?;
