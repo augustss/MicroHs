@@ -546,6 +546,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
+                T_IO_JSCALL,            /* dynamic `foreign import javascript`, see js_dyn_* below */
                 T_IO_GC, T_IO_STATS,
                 T_IO_LAZYBIND, T_IO_STRICT,
                 T_DYNSYM,
@@ -3694,6 +3695,126 @@ find_label(heapoffs_t label)
   }
 }
 
+/* ---- Dynamic JavaScript FFI (emscripten only) --------------------------- *
+ * A `foreign import javascript "body"` is serialized by the compiler (see
+ * MicroHs.ExpPrint) as a self-describing combinator token
+ *     ~<tags> "<jsbody>"
+ * where <tags> is the return tag followed by one tag per argument
+ * (I=Int, D=Double, F=Float, P=Ptr, V=void/unit).  At parse time the body is
+ * compiled to a JS function kept in a registry (globalThis.__mhs); the parsed
+ * node (T_IO_JSCALL) just holds the registry index, and dispatch marshals
+ * arguments/results by the stored tags.  This lets arbitrary JS imports run in
+ * the interpreter with no per-program C compilation.
+ * The registry is append-only for the life of the runtime: parse_top is also
+ * re-entered by IO.deserialize, so resetting it there would invalidate live
+ * nodes.  Every index therefore stays valid; the cost is that per-import
+ * allocations are not reclaimed (matching the runtime's other never-freed
+ * parse allocations). */
+#define JS_MAX_ARGS 32
+/* tags[0] is the return tag, tags[1..arity] the argument tags; `body` is kept
+ * so the node can be re-serialized (printb). */
+struct js_dyn_entry { int arity; char *tags; struct bytestring body; };
+static struct js_dyn_entry *js_dyn_table = NULL;
+static int js_dyn_count = 0;
+#if defined(__EMSCRIPTEN__)
+static int js_dyn_cap = 0;
+#endif
+
+/* The JS glue is written with EM_JS (full JS function bodies) rather than
+ * EM_ASM, because EM_ASM's inline-block parser mishandles object literals and
+ * nested braces.  globalThis.__mhs holds the per-program state:
+ *   reg    - registered JS functions (index === T_IO_JSCALL node value)
+ *   argbuf - scratch argument buffer for the current call
+ *   err    - last JS exception message, or null
+ * Any object-handle registry a binding needs (e.g. for DOM/pixi objects) is the
+ * binding's own userland concern, not part of the runtime. */
+#if defined(__EMSCRIPTEN__)
+EM_JS(void, mhs_js_setup, (void), {
+  /* Initialize each field defensively: __mhs lives on globalThis and may be
+   * shared with (or partially set by) another wasm module on the same page. */
+  if (!globalThis.__mhs) globalThis.__mhs = {};
+  var m = globalThis.__mhs;
+  if (!m.reg)          m.reg = [];
+  if (!m.argbuf)       m.argbuf = [];
+  if (!('err' in m))   m.err = null;
+  /* Publish the emscripten string helpers globally so JS bodies compiled with
+   * `new Function` (which run in global scope) can use the same
+   * UTF8ToString/stringToNewUTF8 names as the EM_ASM-based FFI path.  Guarded
+   * with typeof so builds that do not export them still run without a
+   * ReferenceError. */
+  if (typeof UTF8ToString !== 'undefined')    globalThis.UTF8ToString    = UTF8ToString;
+  if (typeof stringToNewUTF8 !== 'undefined') globalThis.stringToNewUTF8 = stringToNewUTF8;
+});
+
+EM_JS(int, mhs_js_register, (const char *bodyp, int arity), {
+  var body = UTF8ToString(bodyp);
+  var names = [];
+  for (var k = 0; k < arity; k++) names.push('$' + k);
+  names.push(body);
+  var f;
+  try { f = Function.apply(null, names); }
+  catch (e) { var msg = String(e); f = function(){ throw new Error(msg); }; }
+  return globalThis.__mhs.reg.push(f) - 1;
+});
+
+EM_JS(void,   mhs_js_argreset,  (void),      { globalThis.__mhs.argbuf.length = 0; globalThis.__mhs.err = null; });
+EM_JS(void,   mhs_js_push_int,  (int v),     { globalThis.__mhs.argbuf.push(v); });
+EM_JS(void,   mhs_js_push_dbl,  (double v),  { globalThis.__mhs.argbuf.push(v); });
+EM_JS(int,    mhs_js_call_int,  (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+EM_JS(double, mhs_js_call_dbl,  (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+EM_JS(void *, mhs_js_call_ptr,  (int idx),   { try { return globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); return 0; } });
+EM_JS(void,   mhs_js_call_void, (int idx),   { try { globalThis.__mhs.reg[idx].apply(null, globalThis.__mhs.argbuf); } catch (e) { globalThis.__mhs.err = String(e); } });
+EM_JS(int,    mhs_js_haserr,    (void),      { return globalThis.__mhs.err ? 1 : 0; });
+EM_JS(void,   mhs_js_logerr,    (void),      { console.error('MicroHs JavaScript FFI exception:', globalThis.__mhs.err); });
+#endif  /* __EMSCRIPTEN__ */
+
+#if defined(__EMSCRIPTEN__)
+/* Validate the tag string of a JS import: tags[0] is the return tag (may be V
+ * for unit), tags[1..] are argument tags (I/D/F/P only). */
+static int
+js_dyn_tags_ok(const char *tags, int arity)
+{
+  if (arity < 0 || arity > JS_MAX_ARGS)
+    return 0;
+  for (int i = 0; tags[i]; i++) {
+    char t = tags[i];
+    if (!(t == 'I' || t == 'D' || t == 'F' || t == 'P' || (i == 0 && t == 'V')))
+      return 0;
+  }
+  return 1;
+}
+
+/* Compile <body> into a JS function, register it, and record the tags and body
+ * (the body is used for re-serialization).  Takes ownership of body.bs_array.
+ * Returns the registry index.  The registry is append-only and never reset: a
+ * T_IO_JSCALL node's index stays valid for the life of the runtime, so nodes
+ * that survive across IO.deserialize (which re-enters parse_top) keep working.
+ * The small per-import allocations live until process exit. */
+static int
+js_dyn_register(const char *tags, struct bytestring body)
+{
+  int arity = (int)strlen(tags) - 1;
+  if (!js_dyn_tags_ok(tags, arity)) {
+    FREE(body.bs_array);
+    ERR("JavaScript FFI: malformed import descriptor");
+  }
+  mhs_js_setup();                               /* idempotent: create __mhs once */
+  int idx = mhs_js_register((const char *)body.bs_array, arity);
+  if (idx >= js_dyn_cap) {
+    js_dyn_cap = idx < 16 ? 16 : idx * 2;
+    js_dyn_table = js_dyn_table ? mrealloc(js_dyn_table, js_dyn_cap * sizeof(struct js_dyn_entry))
+                                : mmalloc(js_dyn_cap * sizeof(struct js_dyn_entry));
+  }
+  js_dyn_table[idx].arity = arity;
+  js_dyn_table[idx].tags = mmalloc(strlen(tags) + 1);
+  strcpy(js_dyn_table[idx].tags, tags);
+  js_dyn_table[idx].body = body;                /* take ownership */
+  if (idx >= js_dyn_count)
+    js_dyn_count = idx + 1;
+  return idx;
+}
+#endif  /* __EMSCRIPTEN__ */
+
 /* The memory allocated here is never freed.
  * This could be fixed by using a forptr and a
  * finalizer for read UTF-8 strings.
@@ -3921,6 +4042,28 @@ parse(BFILE *f)
         ;
       r = ffiNode(buf);
       PUSH(r);
+      break;
+    case '~':
+      /* Dynamic JavaScript FFI: ~<tags> "<jsbody>"  (see js_dyn_* above) */
+      for (j = 0; j + 1 < sizeof(buf); j++) {   /* read the tag string (bounded) */
+        int tc = getNT(f);
+        if (!tc) break;
+        buf[j] = tc;
+      }
+      buf[j] = 0;
+      if (!gobble(f, '"'))
+        ERR("parse ~ (JS FFI): malformed descriptor");
+      {
+        struct bytestring body = parse_string(f);
+#if defined(__EMSCRIPTEN__)
+        r = alloc_node(T_IO_JSCALL);
+        SETVALUE(r, js_dyn_register(buf, body));  /* takes ownership of body */
+        PUSH(r);
+#else
+        FREE(body.bs_array);
+        ERR("JavaScript FFI is only supported in the emscripten runtime");
+#endif
+      }
       break;
     case ';':
       /* <name is a C function pointer to name */
@@ -4320,6 +4463,8 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
+  case T_IO_JSCALL: { struct js_dyn_entry *je = &js_dyn_table[GETVALUE(n)];
+                      putb('~', f); putsb(je->tags, f); putb(' ', f); print_string(f, je->body); break; }
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
 #if WANT_TICK
   case T_TICK:
@@ -5989,6 +6134,62 @@ evali(NODEPTR an)
         ERR("CCALL POP");
       n = POPTOP();               /* node to update */
       GOPAIR(x);                  /* and this is the result */
+    }
+
+  case T_IO_JSCALL:
+    /* Like T_IO_CCALL, but the target is a dynamically-registered JS function
+     * (see js_dyn_* above).  Arguments are marshalled into globalThis.__mhs.argbuf
+     * by tag, the function is applied, and the result is marshalled back. */
+    {
+#if defined(__EMSCRIPTEN__)
+      GCCHECK(1);
+      int idx = (int)GETVALUE(n);
+      if (idx < 0 || idx >= js_dyn_count)
+        ERR("JavaScript FFI: bad registry index");
+      struct js_dyn_entry *e = &js_dyn_table[idx];
+      int arity = e->arity;
+      CHECK(arity);
+      PUSH(mkPtr(0));             /* placeholder for result, protected from GC */
+      /* Evaluate every argument FIRST into C locals.  Forcing an argument may
+       * itself run a JS FFI call that reuses the shared argbuf, so we must not
+       * interleave evaluation with pushing.  (arity <= JS_MAX_ARGS is enforced
+       * at registration.) */
+      {
+        double  dvals[JS_MAX_ARGS];
+        value_t ivals[JS_MAX_ARGS];
+        for (int i = 0; i < arity; i++) {
+          char t = e->tags[i + 1];
+          if      (t == 'D') dvals[i] = mhs_to_Double(stk, i);
+          else if (t == 'F') dvals[i] = (double)mhs_to_Float(stk, i);
+          else               ivals[i] = (t == 'P') ? (value_t)mhs_to_Ptr(stk, i) : mhs_to_Int(stk, i);
+        }
+        mhs_js_argreset();
+        for (int i = 0; i < arity; i++) {
+          char t = e->tags[i + 1];
+          if (t == 'D' || t == 'F') mhs_js_push_dbl(dvals[i]);
+          else                      mhs_js_push_int((int)ivals[i]);
+        }
+      }
+      switch (e->tags[0]) {
+      case 'V': mhs_js_call_void(idx);                          mhs_from_Unit(stk, arity);           break;
+      case 'D': mhs_from_Double(stk, arity, mhs_js_call_dbl(idx));                                    break;
+      case 'F': mhs_from_Float(stk, arity, (flt32_t)mhs_js_call_dbl(idx));                            break;
+      case 'P': mhs_from_Ptr(stk, arity, mhs_js_call_ptr(idx));                                       break;
+      default:  mhs_from_Int(stk, arity, mhs_js_call_int(idx));                                       break;  /* 'I' */
+      }
+      if (mhs_js_haserr()) {
+        mhs_js_logerr();
+        ERR("JavaScript FFI call threw an exception (see console)");
+      }
+      x = POPTOP();              /* pop actual result */
+      POP(arity);                /* pop the pushed arguments */
+      if (stack_ptr < 0)
+        ERR("JSCALL POP");
+      n = POPTOP();              /* node to update */
+      GOPAIR(x);                 /* and this is the result */
+#else
+      ERR("JavaScript FFI is only supported in the emscripten runtime");
+#endif
     }
 
   case T_PACKCSTRING:
