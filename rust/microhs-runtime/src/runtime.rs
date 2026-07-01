@@ -125,6 +125,18 @@ pub struct Program {
     reductions: usize,
 }
 
+struct Spine {
+    head: NodeId,
+    args: Vec<NodeId>,
+    apps: Vec<NodeId>,
+}
+
+struct StepResult {
+    node: NodeId,
+    in_place: bool,
+    reductions: usize,
+}
+
 impl Program {
     pub fn new(nodes: Vec<Node>, root: NodeId, labels: HashMap<usize, NodeId>) -> Self {
         Self {
@@ -168,21 +180,25 @@ impl Program {
 
     pub fn reduce_whnf(&mut self, limit: usize) -> Result<(NodeId, usize), EvalError> {
         let mut root = self.root;
-        for steps in 0..limit {
+        let mut steps = 0;
+        while steps < limit {
             let current = self.resolve(root)?;
-            let Some(next) = self.step(current)? else {
+            let Some(step) = self.step(current, limit - steps)? else {
                 self.root = current;
                 return Ok((current, steps));
             };
-            self.reductions += 1;
-            self.nodes[current.0] = Node::Indir(Some(next));
-            root = next;
+            steps += step.reductions;
+            self.reductions += step.reductions;
+            if !step.in_place {
+                self.nodes[current.0] = Node::Indir(Some(step.node));
+            }
+            root = step.node;
         }
         Err(EvalError::StepLimit { limit })
     }
 
-    fn step(&mut self, root: NodeId) -> Result<Option<NodeId>, EvalError> {
-        let (head, args) = self.spine(root)?;
+    fn step(&mut self, root: NodeId, budget: usize) -> Result<Option<StepResult>, EvalError> {
+        let Spine { head, args, apps } = self.spine(root)?;
         let Node::Prim(name) = self.nodes[head.0].clone() else {
             return Ok(None);
         };
@@ -550,24 +566,61 @@ impl Program {
             _ => None,
         };
 
-        let Some((used, mut node)) = rewrite else {
+        let Some((mut used, mut node)) = rewrite else {
             return Ok(None);
         };
-        for arg in &args[used..] {
-            node = self.app(node, *arg);
+        let mut reductions = 1;
+        if is_identity_alias(&name) {
+            while reductions < budget && used < args.len() && self.is_identity_alias_node(node)? {
+                node = args[used];
+                used += 1;
+                reductions += 1;
+            }
         }
-        Ok(Some(node))
+        let in_place = self.apply_remaining_spine(&mut node, &args[used..], &apps[used..]);
+        Ok(Some(StepResult {
+            node,
+            in_place,
+            reductions,
+        }))
     }
 
-    fn spine(&self, root: NodeId) -> Result<(NodeId, Vec<NodeId>), EvalError> {
+    fn spine(&self, root: NodeId) -> Result<Spine, EvalError> {
         let mut node = self.resolve(root)?;
         let mut args = Vec::new();
+        let mut apps = Vec::new();
         while let Node::App(fun, arg) = self.nodes[node.0] {
             args.push(self.resolve(arg)?);
+            apps.push(node);
             node = self.resolve(fun)?;
         }
         args.reverse();
-        Ok((node, args))
+        apps.reverse();
+        Ok(Spine {
+            head: node,
+            args,
+            apps,
+        })
+    }
+
+    fn apply_remaining_spine(
+        &mut self,
+        node: &mut NodeId,
+        args: &[NodeId],
+        apps: &[NodeId],
+    ) -> bool {
+        let mut in_place = false;
+        for (arg, app) in args.iter().zip(apps) {
+            self.nodes[app.0] = Node::App(*node, *arg);
+            *node = *app;
+            in_place = true;
+        }
+        in_place
+    }
+
+    fn is_identity_alias_node(&self, id: NodeId) -> Result<bool, EvalError> {
+        let id = self.resolve(id)?;
+        Ok(matches!(&self.nodes[id.0], Node::Prim(name) if is_identity_alias(name)))
     }
 
     fn app(&mut self, fun: NodeId, arg: NodeId) -> NodeId {
@@ -1975,14 +2028,18 @@ impl Program {
     }
 
     fn reduce_node_whnf(&mut self, mut root: NodeId, limit: usize) -> Result<NodeId, EvalError> {
-        for _ in 0..limit {
+        let mut steps = 0;
+        while steps < limit {
             let current = self.resolve(root)?;
-            let Some(next) = self.step(current)? else {
+            let Some(step) = self.step(current, limit - steps)? else {
                 return Ok(current);
             };
-            self.reductions += 1;
-            self.nodes[current.0] = Node::Indir(Some(next));
-            root = next;
+            steps += step.reductions;
+            self.reductions += step.reductions;
+            if !step.in_place {
+                self.nodes[current.0] = Node::Indir(Some(step.node));
+            }
+            root = step.node;
         }
         Err(EvalError::StepLimit { limit })
     }
@@ -2620,6 +2677,10 @@ fn shift(n: i64) -> Result<u32, EvalError> {
 fn tag_index(name: &str) -> Option<usize> {
     let tag = name.strip_prefix("TAG")?.parse().ok()?;
     (tag <= 32).then_some(tag)
+}
+
+fn is_identity_alias(name: &str) -> bool {
+    matches!(name, "I" | "ord" | "chr")
 }
 
 fn tuple_fields(name: &str) -> Option<usize> {
