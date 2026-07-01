@@ -14,6 +14,9 @@ per-program C compilation.
   `globalThis.__mhs.invoke`) that rotates the box — long after `main` returned.
 - `PixiDemo.hs` — the example program (create a box, add it to the stage, spin it).
 - `PixiEvents.hs` — the event-driven example (click → Haskell rotates the box).
+- `JSVal.hs` — a GC-managed reference to a JS value (`ForeignPtr` + finalizer);
+  the underlying JS object is freed when the `JSVal` is collected, instead of
+  the raw-int-handle leak.
 
 See [`SCOPE.md`](SCOPE.md) for exactly what this FFI does and, deliberately,
 what it does not (vs GHC's wasm JSFFI) — read it before assuming parity.

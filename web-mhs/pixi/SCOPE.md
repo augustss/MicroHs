@@ -27,6 +27,14 @@ can drive Haskell.
   `newStablePtr`+`castStablePtrToPtr` and installs a listener whose body calls
   `__mhs.invoke`. See `PixiEvents.hs` — a canvas click rotates the box from
   Haskell, long after `main` returned.
+- **GC-managed object handles (`JSVal`).** A `JSVal` (`JSVal.hs`) is a
+  `ForeignPtr` wrapping a handle into `globalThis.__mhs.obj`; a JS body allocates
+  a handle with `__mhs.intern(value)` and returns it, `newJSVal` attaches a
+  finalizer (`mhs_js_obj_free`) that frees the slot when the `JSVal` is collected.
+  So JS values are released on GC instead of leaking, and the handle array is
+  bounded by the peak number of simultaneously-live `JSVal`s (freed slots are
+  reused via a freelist). This reuses MicroHs's existing ForeignPtr/finalizer
+  machinery — the same path as `closeb`/`free`.
 
 ## What it deliberately does NOT do (vs GHC's wasm JSFFI)
 
@@ -34,7 +42,7 @@ can drive Haskell.
 |---|---|---|
 | Async / `await` a JS Promise | yes — forcing a thunk suspends the *thread*, other threads + GC continue | **no** — `main` runs to completion synchronously; no yielding to the event loop |
 | `foreign export javascript` (general JS→HS) | yes (async default, `sync` opt-in, `"wrapper"`) | only the narrow `Int -> IO ()` event-pump; no general export |
-| `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | raw `int` handles in a userland array, **never freed** |
+| `JSVal` with GC lifetime | GC-managed, `FinalizationRegistry` frees the JS slot | **done** — `JSVal` (ForeignPtr + finalizer) frees the JS slot on GC (`JSVal.hs`); not yet a first-class *marshallable* FFI type (wrap/unwrap manually via `newJSVal`/`withJSVal`) |
 | Marshalling breadth | Bool, Char, all Int/Word incl **Int64→`bigint`**, Ptr/FunPtr/StablePtr, JSVal, ByteArray# | scalars only; strings via manual `Ptr`+UTF8 helpers; no Bool/Char/Int64/JSVal |
 | Catchable JS exceptions | async path → `JSException` in Haskell | fatal (sets `__mhs.err`, `ERR`s) — this *matches* GHC's *sync* path |
 
@@ -62,9 +70,11 @@ time, which requires Content-Security-Policy `unsafe-eval`. Sites that forbid
 ## Roadmap (in rough order of value/effort)
 
 1. **Richer marshalling** — `Bool`/`Char`, typed callback ABIs beyond `Int`, and
-   a `JSVal`-like GC-managed handle that reuses the existing `forptr`/weak/
-   finalizer machinery (which today just isn't wired across the JS boundary), so
-   object handles stop leaking.
+   making `JSVal` a first-class *marshallable* FFI type (a body can take/return a
+   `JSVal` directly, rather than the handle `Int` + manual `newJSVal`/`withJSVal`).
+   *(Done: the GC-managed object handle itself — `JSVal` frees the JS slot on
+   collection, reusing the ForeignPtr/finalizer machinery — so handles no longer
+   leak.)*
 2. **General `foreign export javascript`** — a first-class export path (the
    `ffe_*`/`apply_sp` machinery already re-enters the evaluator) rather than the
    single hand-rolled `Int -> IO ()` pump.
