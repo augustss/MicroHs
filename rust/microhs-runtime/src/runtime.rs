@@ -1491,9 +1491,19 @@ impl Program {
         }
 
         let result = match name {
+            "GETRAW" => Node::Int(-1),
+            "GETTIMEMICRO" => Node::Int(current_time_micro()),
             "islinux" => Node::Int(i64::from(cfg!(target_os = "linux"))),
             "ismacos" => Node::Int(i64::from(cfg!(target_os = "macos"))),
             "iswindows" => Node::Int(i64::from(cfg!(target_os = "windows"))),
+            "sizeof_char" => Node::Int(size_of_i64::<std::os::raw::c_char>()),
+            "sizeof_short" => Node::Int(size_of_i64::<std::os::raw::c_short>()),
+            "sizeof_int" => Node::Int(size_of_i64::<std::os::raw::c_int>()),
+            "sizeof_long" => Node::Int(size_of_i64::<std::os::raw::c_long>()),
+            "sizeof_llong" => Node::Int(size_of_i64::<std::os::raw::c_longlong>()),
+            "sizeof_size_t" => Node::Int(size_of_i64::<usize>()),
+            "want_gmp" => Node::Int(0),
+            "want_imath" => Node::Int(1),
             "acos" => Node::Float64(self.eval_float64(args[0])?.acos()),
             "asin" => Node::Float64(self.eval_float64(args[0])?.asin()),
             "atan" => Node::Float64(self.eval_float64(args[0])?.atan()),
@@ -2832,9 +2842,31 @@ fn int_to_i32(n: i64) -> Result<i32, EvalError> {
     i32::try_from(n).map_err(|_| EvalError::Overflow)
 }
 
+fn size_of_i64<T>() -> i64 {
+    std::mem::size_of::<T>() as i64
+}
+
+fn current_time_micro() -> i64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let Ok(duration) = SystemTime::now().duration_since(UNIX_EPOCH) else {
+            return 0;
+        };
+        i64::try_from(duration.as_micros()).unwrap_or(i64::MAX)
+    }
+}
+
 fn ffi_arity(name: &str) -> Option<usize> {
     Some(match name {
-        "islinux" | "ismacos" | "iswindows" => 0,
+        "GETRAW" | "GETTIMEMICRO" | "islinux" | "ismacos" | "iswindows" | "sizeof_char"
+        | "sizeof_short" | "sizeof_int" | "sizeof_long" | "sizeof_llong" | "sizeof_size_t"
+        | "want_gmp" | "want_imath" => 0,
         "acos" | "asin" | "atan" | "cos" | "exp" | "log" | "sin" | "sqrt" | "tan" | "acosf"
         | "asinf" | "atanf" | "cosf" | "expf" | "logf" | "sinf" | "sqrtf" | "tanf" => 1,
         "atan2" | "pow" | "scalbn" | "atan2f" | "powf" | "scalbnf" => 2,
@@ -3010,7 +3042,7 @@ fn nibble(n: u8) -> char {
 
 #[cfg(test)]
 mod tests {
-    use crate::{EvalError, parse_program};
+    use crate::{EvalError, Node, parse_program};
 
     fn whnf(input: &[u8]) -> String {
         let mut program = parse_program(input).unwrap();
@@ -3358,6 +3390,14 @@ mod tests {
     fn reduces_builtin_ffi_calls() {
         let is_linux = if cfg!(target_os = "linux") { "1" } else { "0" };
         assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^islinux @ }"), is_linux);
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^GETRAW @ }"), "-1");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^sizeof_char @ }"), "1");
+        assert_eq!(
+            whnf(b"v8.4\n0\nIO.performIO ^sizeof_int @ }"),
+            std::mem::size_of::<std::os::raw::c_int>().to_string()
+        );
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^want_gmp @ }"), "0");
+        assert_eq!(whnf(b"v8.4\n0\nIO.performIO ^want_imath @ }"), "1");
         assert_eq!(
             whnf(b"v8.4\n0\nIO.performIO dynsym \"islinux\" @ @ }"),
             is_linux
@@ -3372,6 +3412,14 @@ mod tests {
             program.reduce_whnf(100),
             Err(EvalError::UnknownFfi(name)) if name == "does_not_exist"
         ));
+
+        let mut program = parse_program(b"v8.4\n0\nIO.performIO ^GETTIMEMICRO @ }").unwrap();
+        let (root, _) = program.reduce_whnf(100).unwrap();
+        let root = program.resolve(root).unwrap();
+        match program.nodes()[root.0] {
+            Node::Int(n) => assert!(n >= 0),
+            _ => panic!("GETTIMEMICRO did not return an Int"),
+        }
     }
 
     #[test]
