@@ -79,7 +79,7 @@ instance Applicative Dual where
 ---------------------
 
 newtype Max a = Max { getMax :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance Ord a => Semigroup (Max a) where
   Max a <> Max b = Max (a `max` b)
@@ -98,7 +98,7 @@ instance Applicative Max where
 ---------------------
 
 newtype Min a = Min { getMin :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance Ord a => Semigroup (Min a) where
   Min a <> Min b = Min (a `min` b)
