@@ -44,7 +44,7 @@ encConstrStrict k ss =
       strict _          _      e = e
   in  lams xs $ strict ss xs $ apps (cCon k n) (map Var xs)
 
--- Constructor k out of m
+-- Constructor k, with n arguments
 encConstrLazy :: Int -> Int -> Exp
 encConstrLazy k n = cCon k n
 
@@ -56,7 +56,7 @@ encList :: [Exp] -> Exp
 encList = foldr (app2 cCons) cNil
 
 cNil :: Exp
-cNil = encConstrLazy 0 2
+cNil = encConstrLazy 0 0
 
 cCons :: Exp
 cCons = encConstrLazy 1 2
