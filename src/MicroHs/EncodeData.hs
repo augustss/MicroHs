@@ -61,9 +61,8 @@ cNil = encConstrLazy 0 0
 cCons :: Exp
 cCons = encConstrLazy 1 2
 
--- XXX get rid of replicate
 encTuple :: [Exp] -> Exp
-encTuple es = apps (encConstrLazy 0 1) es
+encTuple es = apps (encConstrLazy 0 (length es)) es
 
 encTupleSel :: Int -> Int -> Exp -> Exp
 encTupleSel m n tup =
