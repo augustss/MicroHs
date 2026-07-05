@@ -55,7 +55,7 @@ import System.IO.Unsafe
 
 -- This is the function called by the runtime.
 -- It compiles to
---    (U (U (K2 A)))
+--    ((C D_1) (U (K2 A)))
 displaySomeException :: SomeException -> String
 displaySomeException = displayException
 
@@ -169,4 +169,3 @@ instance Exception AssertionFailed
 
 instance Show AssertionFailed where
   showsPrec _ (AssertionFailed err) = showString err
-    
