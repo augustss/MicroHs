@@ -2572,11 +2572,14 @@ init_nodes(void)
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
   {
-    /* The displaySomeException compiles to (U (U (K2 A))) */
-    NODEPTR x;
-    NEWAP(x, combK2, combTrue);        /* (K2 A) */
-    NEWAP(x, combU, x);                /* (U (K2 A)) */
-    NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
+    /* The displaySomeException compiles to ((C D_1) (U (K2 A))) */
+    NODEPTR x, y;
+    NEWAP(x, combK2, combA);       /* (K2 A) */
+    NEWAP(x, combU, x);            /* (U (K2 A)) */
+    NEW(y, MK_CASE(1));            /* D_1 */
+    NEWAP(y, combC, y);            /* (C D_1) */
+    
+    NEWAP(combShowExn, y, x);      /* ((C D_1) (U (K2 A))) */
   }
   NEW(combFalse, MK_CONSTR(0, 0));
   NEW(combTrue, MK_CONSTR(1, 0));
@@ -4957,9 +4960,9 @@ evalstring(NODEPTR n)
     PUSH(n);                    /* protect the list from GC */
     n = evali(n);
     POP(1);
-    if (GETTAG(n) == T_K)       /* Nil */
+    if (GETTAG(n) == MK_CONSTR(0, 0))       /* Nil */
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == MK_CONSTR(1, 2)) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
       n = POPTOP();
@@ -6453,6 +6456,7 @@ evali(NODEPTR an)
       int m;
       CASE_SIZE(rtag, m);
       NODEPTR l = alloc_node(MK_LOOK(m));
+      //fprintf(stderr, "CASE_%d n=%p x=%p l=%p\n", (int)m, n, indir(&x), l);
       GOAP(x, l);
     }
   case T_LOOK:
@@ -6461,8 +6465,10 @@ evali(NODEPTR an)
     {
       int k, m, nn;
       CONSTR_NO(rtag, k, nn);
+      //fprintf(stderr, "CONSTR_%d_%d\n", (int)k, (int)nn);
       CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
       NODEPTR p = ARG(TOP(nn));  /* The LOOK_m */
+      //fprintf(stderr, "  n=%p p=%p\n", n, p);
       tag_t ltag = GETRAWTAG(p);
       if (TAGOF(ltag) != T_LOOK) {
         ERR("constr no LOOK");
@@ -6940,8 +6946,6 @@ die_exn(NODEPTR exn)
   NODEPTR x;
   char *msg;
 
-  fprintf(stderr, "die_exn\n");
-  exit(1);
   in_raise = true;
 
   if (GETTAG(exn) == T_INT) {
@@ -6961,8 +6965,8 @@ die_exn(NODEPTR exn)
     /* just overwrite the top stack element, we don't need it */
     CLEARSTK();
     GCCHECK(1);
-    PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
-    x = evali(TOP(0));             /* evaluate it */
+    PUSH(new_ap(combShowExn, exn));  /* TOP(0) = (combShowExn exn) */
+    x = evali(TOP(0));               /* evaluate it */
     msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
