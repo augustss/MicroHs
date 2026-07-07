@@ -635,6 +635,7 @@ typedef struct PACKED node {
 #define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
 #define CASE_SIZE(tag, m) ((m) = (tag) >> (TAG_BITS + TAG_SHIFT))
 #define CONSTR_NO(tag, k, n) ((n) = (tag) >> (TAG_BITS + TAG_SHIFT + 10), (k) = ((tag) >> (TAG_BITS + TAG_SHIFT)) & 0x3ff)
+#define MK_CONSTR_TAG(k, n) ((MK_CONSTR(k, n) << TAG_SHIFT) | BIT_TG)
 
 static INLINE tag_t GETRAWTAG(NODEPTR p)
 {
@@ -1129,7 +1130,7 @@ NODEPTR combNothing, combJust;
 NODEPTR combUnit;
 NODEPTR combNil, combCons;
 NODEPTR combPair;
-NODEPTR combFst, combSnd;
+NODEPTR combPFst, combPSnd;
 NODEPTR combLT, combEQ, combGT;
 NODEPTR combPUnit;
 NODEPTR combWorld;
@@ -2510,6 +2511,7 @@ init_nodes(void)
     SETTAG(n, t);
     switch (t) {
     case T_K: combK = n; break;
+    case T_A: combA = n; break;
     case T_I: combI = n; break;
     case T_P: combP = n; break;
     case T_CC: combCC = n; break;
@@ -2589,17 +2591,13 @@ init_nodes(void)
   NEW(combNil, MK_CONSTR(0, 0));
   NEW(combCons, MK_CONSTR(1, 2));
   NEW(combPair, MK_CONSTR(0, 2));
-  {
-    NODEPTR d_1; NEW(d_1, MK_CASE(1));
-    NODEPTR x;
-    NEWAP(x, combC, d_1);
-    NEWAP(combFst, x, combK);
-    NEWAP(combSnd, x, combA);
-  }
   NEW(combLT, MK_CONSTR(0, 0));
   NEW(combEQ, MK_CONSTR(1, 0));
   NEW(combGT, MK_CONSTR(2, 0));
+  /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
   NEWAP(combPUnit, combP, combUnit);
+  NEWAP(combPFst, combU, combK); /* fst for pairs constructed with P */
+  NEWAP(combPSnd, combU, combA); /* snd for pairs constructed with P */
   MKINT(combWorld, 99999);
 #undef NEW
 #undef NEWAP
@@ -4960,9 +4958,9 @@ evalstring(NODEPTR n)
     PUSH(n);                    /* protect the list from GC */
     n = evali(n);
     POP(1);
-    if (GETTAG(n) == MK_CONSTR(0, 0))       /* Nil */
+    if (GETRAWTAG(n) == MK_CONSTR_TAG(0, 0))       /* Nil */
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == MK_CONSTR(1, 2)) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETRAWTAG(indir(&FUN(x))) == MK_CONSTR_TAG(1, 2)) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
       n = POPTOP();
@@ -5946,8 +5944,7 @@ evali(NODEPTR an)
     GCCHECK(4);
     CHKARG3;
     w = new_ap(x, z);
-    abort();
-    GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
+    GOAP2(y, new_ap(combPFst, w), new_ap(combPSnd, w));
   case T_IO_STRICT:
     CHKARG2;
     /* Force the world argument before executing the IO.
