@@ -2598,7 +2598,7 @@ init_nodes(void)
   }
   NEW(combLT, MK_CONSTR(0, 0));
   NEW(combEQ, MK_CONSTR(1, 0));
-  NEW(combEQ, MK_CONSTR(2, 0));
+  NEW(combGT, MK_CONSTR(2, 0));
   NEWAP(combPUnit, combP, combUnit);
   MKINT(combWorld, 99999);
 #undef NEW
