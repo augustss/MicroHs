@@ -5098,6 +5098,8 @@ evali(NODEPTR an)
   int hdr;
 #endif  /* WANT_STDIO */
 
+  //fprintf(stderr, "evali enter stk=%d\n", (int)stk);
+
 #if MAXSTACKDEPTH
   counter_t old_cur_c_stack = cur_c_stack;
   if (++cur_c_stack > max_c_stack)
@@ -6536,7 +6538,6 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binint:
-/* if we don't need Int64 implementation, just make Int and Int64 the same */
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto binint;
       case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
@@ -6930,6 +6931,7 @@ evali(NODEPTR an)
 #if MAXSTACKDEPTH
   cur_c_stack = old_cur_c_stack; /* reset rather than counting down, in case of longjump */
 #endif
+  //fprintf(stderr, "evali exit stack_ptr=%d\n", (int)stack_ptr);
   return n;
 }
 
