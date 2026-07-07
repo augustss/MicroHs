@@ -144,7 +144,7 @@ int num_ffi;
 #endif
 
 
-#define VERSION "v8.4\n"
+#define VERSION "v9.0\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
