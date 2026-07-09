@@ -23,6 +23,8 @@ import MicroHs.Ident
 data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
 
+-- The exact point where we switch from dense to sparse case isn't critical.
+-- It's roughly the same around the current point.
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
   let m = length cs                    -- number of constructors
@@ -32,7 +34,7 @@ encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
                 head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                        [ lams (replicate k dummyIdent) dflt ]
 
-  in  if m > 5 && 3*m `quot` 4 > a then  -- more than 5 constructors and less than 75% filled
+  in  if m > 4 && 3*m > 4*a then  -- more than 4 constructors and less than 75% (=3/4) filled
         encCaseSparse var pes dflt
       else
         encCaseDense
