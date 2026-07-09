@@ -7,6 +7,8 @@ type  Typeable :: forall k . k -> Constraint
 class Typeable a where
   typeRep :: forall proxy . proxy a -> TypeRep
 
+instance (Typeable f, Typeable a) => Typeable (f a)
+
 data TypeRep
 
 _mkTyCon :: forall a . String -> String -> a -> TypeRep

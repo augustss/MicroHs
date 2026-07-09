@@ -32,7 +32,7 @@ newtype First a = First { getFirst :: a }
            , Ord      -- ^ @since 4.9.0.0
            , Show     -- ^ @since 4.9.0.0
            , Read     -- ^ @since 4.9.0.0
---           , Data     -- ^ @since 4.9.0.0
+           , Data     -- ^ @since 4.9.0.0
 --           , Generic  -- ^ @since 4.9.0.0
 --           , Generic1 -- ^ @since 4.9.0.0
            )
@@ -87,7 +87,7 @@ newtype Last a = Last { getLast :: a }
            , Ord      -- ^ @since 4.9.0.0
            , Show     -- ^ @since 4.9.0.0
            , Read     -- ^ @since 4.9.0.0
---           , Data     -- ^ @since 4.9.0.0
+           , Data     -- ^ @since 4.9.0.0
 --           , Generic  -- ^ @since 4.9.0.0
 --           , Generic1 -- ^ @since 4.9.0.0
            )
@@ -150,7 +150,7 @@ newtype WrappedMonoid m = WrapMonoid { unwrapMonoid :: m }
            , Ord      -- ^ @since 4.9.0.0
            , Show     -- ^ @since 4.9.0.0
            , Read     -- ^ @since 4.9.0.0
---           , Data     -- ^ @since 4.9.0.0
+           , Data     -- ^ @since 4.9.0.0
 --           , Generic  -- ^ @since 4.9.0.0
 --           , Generic1 -- ^ @since 4.9.0.0
            )
