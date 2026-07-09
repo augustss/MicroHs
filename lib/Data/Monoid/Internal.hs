@@ -95,6 +95,8 @@ instance Applicative Max where
   pure = Max
   (<*>) = coerce
 
+-- Foldable and Traversable in their respective modules
+
 ---------------------
 
 newtype Min a = Min { getMin :: a }
@@ -114,6 +116,8 @@ instance Applicative Min where
   pure = Min
   (<*>) = coerce
 
+-- Foldable and Traversable in their respective modules
+
 ---------------------
 
 newtype Sum a = Sum { getSum :: a }
@@ -132,6 +136,8 @@ instance Applicative Sum where
   pure = Sum
   (<*>) = coerce
 
+-- Foldable and Traversable in their respective modules
+
 ---------------------
 
 newtype Product a = Product { getProduct :: a }
@@ -149,6 +155,8 @@ instance Functor Product where
 instance Applicative Product where
   pure = Product
   (<*>) = coerce
+
+-- Foldable and Traversable in their respective modules
 
 ---------------------
 

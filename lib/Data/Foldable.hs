@@ -59,6 +59,7 @@ import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
 import Data.Monoid.Internal hiding (Max(..), Min(..))
+import qualified Data.Monoid.Internal as Monoid
 import Data.Num
 import Data.Ord
 import Data.Proxy
@@ -223,6 +224,44 @@ instance Foldable Dual where
     product            = getDual
     sum                = getDual
     toList (Dual x)    = [x]
+
+-- | @since 4.8.0.0
+instance Foldable Monoid.Min where
+    foldMap            = coerce
+
+    elem               = (. Monoid.getMin) . (==)
+    foldl              = coerce
+    foldl'             = coerce
+    foldl1 _           = Monoid.getMin
+    foldr f z (Monoid.Min x)  = f x z
+    foldr'             = foldr
+    foldr1 _           = Monoid.getMin
+    length _           = 1
+    maximum            = Monoid.getMin
+    minimum            = Monoid.getMin
+    null _             = False
+    product            = Monoid.getMin
+    sum                = Monoid.getMin
+    toList (Monoid.Min x)     = [x]
+
+-- | @since 4.8.0.0
+instance Foldable Monoid.Max where
+    foldMap            = coerce
+
+    elem               = (. Monoid.getMax) . (==)
+    foldl              = coerce
+    foldl'             = coerce
+    foldl1 _           = Monoid.getMax
+    foldr f z (Monoid.Max x)  = f x z
+    foldr'             = foldr
+    foldr1 _           = Monoid.getMax
+    length _           = 1
+    maximum            = Monoid.getMax
+    minimum            = Monoid.getMax
+    null _             = False
+    product            = Monoid.getMax
+    sum                = Monoid.getMax
+    toList (Monoid.Max x)     = [x]
 
 -- | @since 4.8.0.0
 instance Foldable Sum where
