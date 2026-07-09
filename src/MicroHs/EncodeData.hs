@@ -9,9 +9,12 @@ module MicroHs.EncodeData(
   encTupleSel,
   ) where
 import qualified Prelude(); import MHSPrelude
+import Data.Ord(comparing)
+import Data.List(sortBy)
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..), impossible)
 import MicroHs.Ident
+import Debug.Trace
 
 --
 -- Encoding of constructors and case
@@ -23,11 +26,25 @@ data SPat = SPat Con [Ident]    -- simple pattern
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
   let m = length cs                    -- number of constructors
-      arm (c, k) =
-          head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
-                 [ lams (replicate k dummyIdent) dflt ]
-  in  apps (cCase m) (var : map arm cs)
+      a = length pes                   -- number of present arms
+      encCaseDense = apps (cCaseD m) (var : map arm cs)
+        where arm (c, k) =
+                head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
+                       [ lams (replicate k dummyIdent) dflt ]
+        
+  in  if m > 5 && 3*m `quot` 4 > a then  -- more than 5 constructors and less than 75% filled
+        encCaseSparse var pes dflt
+      else
+        encCaseDense
 encCase _ _ _ = impossible
+
+encCaseSparse :: Exp -> [(SPat, Exp)] -> Exp -> Exp
+encCaseSparse var pes dflt =
+  --trace ("sparse " ++ show (m, a)) encCaseDense
+  let pes' = sortBy (comparing fst) [(conNo c, lams xs e) | (SPat c xs, e) <- pes]
+      arm (i, e) = App (Lit (LInt i)) e
+  in  apps (cCaseS (length pes)) (var : dflt : map arm pes')
+
 
 -- constructor k out of m
 encConstr :: Int -> Int -> [Bool] -> Exp
@@ -50,7 +67,7 @@ encConstrLazy k n = cCon k n
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
-encIf c t e = apps (cCase 2) [c, e, t]
+encIf c t e = apps (cCaseD 2) [c, e, t]
 
 encList :: [Exp] -> Exp
 encList = foldr (app2 cCons) cNil
@@ -67,10 +84,17 @@ encTuple es = apps (encConstrLazy 0 (length es)) es
 encTupleSel :: Int -> Int -> Exp -> Exp
 encTupleSel m n tup =
   let xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in  apps (cCase 1) [tup, foldr Lam (Var (xs !! m)) xs]
+  in  apps (cCaseD 1) [tup, foldr Lam (Var (xs !! m)) xs]
 
-cCase :: Int -> Exp
-cCase m = Lit $ LPrim $ "D_" ++ show m
+cCaseD :: Int -> Exp
+cCaseD m = Lit $ LPrim $ "D_" ++ show m
+
+cCaseS :: Int -> Exp
+cCaseS m = Lit $ LPrim $ "E_" ++ show m
 
 cCon :: Int -> Int -> Exp
 cCon k n = Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
+
+conNo :: Con -> Int
+conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
+conNo _ = undefined
