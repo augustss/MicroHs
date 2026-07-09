@@ -6561,6 +6561,8 @@ evali(NODEPTR an)
           int ki, ni;
           CONSTR_NO(GETRAWTAG(FUN(a)), ki, ni);
           if (ki == k) {
+            if (ni != nn)
+              ERR("LOOKS ni");
             GCCHECK(nn);
             d = ARG(a);
             for (int j = 0; j < nn; j++) {
