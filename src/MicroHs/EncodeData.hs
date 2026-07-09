@@ -31,7 +31,7 @@ encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
         where arm (c, k) =
                 head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                        [ lams (replicate k dummyIdent) dflt ]
-        
+
   in  if m > 5 && 3*m `quot` 4 > a then  -- more than 5 constructors and less than 75% filled
         encCaseSparse var pes dflt
       else
@@ -41,8 +41,8 @@ encCase _ _ _ = impossible
 encCaseSparse :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseSparse var pes dflt =
   --trace ("sparse " ++ show (m, a)) encCaseDense
-  let pes' = sortBy (comparing fst) [(conNo c, lams xs e) | (SPat c xs, e) <- pes]
-      arm (i, e) = App (Lit (LInt i)) e
+  let pes' = sortBy (comparing fst) [(conNo c, (xs, e)) | (SPat c xs, e) <- pes]
+      arm (k, (xs, e)) = App (cArm k (length xs)) (lams xs e)
   in  apps (cCaseS (length pes)) (var : dflt : map arm pes')
 
 
@@ -94,6 +94,9 @@ cCaseS m = Lit $ LPrim $ "E_" ++ show m
 
 cCon :: Int -> Int -> Exp
 cCon k n = Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
+
+cArm :: Int -> Int -> Exp
+cArm k n = Lit $ LPrim $ "A_" ++ show k ++ "_" ++ show n
 
 conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
