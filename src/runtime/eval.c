@@ -566,7 +566,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
-                T_CASE, T_LOOK, T_CONSTR,
+                T_CASED, T_LOOKD,
+                T_CASES, T_LOOKS,
+                T_CONSTR,
                 T_LAST_TAG,
                 T_XXX = 0x7fffffff
 };
@@ -630,8 +632,10 @@ typedef struct PACKED node {
 #define TAG_BITS  10        /* Allow 4096 primops */
 #define TAG_MASK  ((1 << TAG_BITS) - 1)
 
-#define MK_CASE(m) ((T_CASE | ((m) << TAG_BITS)))
-#define MK_LOOK(m) ((T_LOOK | ((m) << TAG_BITS)))
+#define MK_CASED(m) ((T_CASED | ((m) << TAG_BITS)))
+#define MK_LOOKD(m) ((T_LOOKD | ((m) << TAG_BITS)))
+#define MK_CASES(m) ((T_CASES | ((m) << TAG_BITS)))
+#define MK_LOOKS(m) ((T_LOOKS | ((m) << TAG_BITS)))
 #define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
 #define CASE_SIZE(tag, m) ((m) = (tag) >> (TAG_BITS + TAG_SHIFT))
 #define CONSTR_NO(tag, k, n) ((n) = (tag) >> (TAG_BITS + TAG_SHIFT + 10), (k) = ((tag) >> (TAG_BITS + TAG_SHIFT)) & 0x3ff)
@@ -795,6 +799,7 @@ counter_t num_stable_alloc = 0;
 counter_t num_stable_free = 0;
 counter_t num_new_weak = 0;
 counter_t num_gc_weak = 0;
+counter_t num_look = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -2406,8 +2411,10 @@ struct {
   { "Utou", T_U64TOU },
 #endif  /* WANT_INT64 */
   { "tick", T_TICK },           /* fake op */
-  { "D_", T_CASE },
-  { "L_", T_LOOK },
+  { "D_", T_CASED },
+  { "L_", T_LOOKD },
+  { "E_", T_CASES },
+  { "M_", T_LOOKS },
   { "C_", T_CONSTR },
 };
 
@@ -2578,7 +2585,7 @@ init_nodes(void)
     NODEPTR x, y;
     NEWAP(x, combK2, combA);       /* (K2 A) */
     NEWAP(x, combU, x);            /* (U (K2 A)) */
-    NEW(y, MK_CASE(1));            /* D_1 */
+    NEW(y, MK_CASED(1));            /* D_1 */
     NEWAP(y, combC, y);            /* (C D_1) */
     
     NEWAP(combShowExn, y, x);      /* ((C D_1) (U (K2 A))) */
@@ -3983,7 +3990,7 @@ parse(BFILE *f)
     case 'D':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASE(m));
+        r = alloc_node(MK_CASED(m));
         PUSH(r);
         break;
       } else {
@@ -3992,7 +3999,25 @@ parse(BFILE *f)
     case 'L':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_LOOK(m));
+        r = alloc_node(MK_LOOKD(m));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }      
+    case 'E':
+      if (gobble(f, '_')) {
+        int m = parse_int(f);
+        r = alloc_node(MK_CASES(m));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }      
+    case 'M':
+      if (gobble(f, '_')) {
+        int m = parse_int(f);
+        r = alloc_node(MK_LOOKS(m));
         PUSH(r);
         break;
       } else {
@@ -4392,10 +4417,18 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
 #endif
-  case T_CASE:
-  case T_LOOK:
+  case T_CASED:
+  case T_LOOKD:
+  case T_CASES:
+  case T_LOOKS:
     {
-      putb(tag == T_CASE ? 'D' : 'L', f);
+      switch(tag) {
+      case T_CASED: putb('D', f); break;
+      case T_LOOKD: putb('L', f); break;
+      case T_CASES: putb('E', f); break;
+      case T_LOOKS: putb('M', f); break;
+      default: abort();
+      }
       putb('_', f);
       tag_t rtag = GETRAWTAG(n);
       int m;
@@ -6447,18 +6480,21 @@ evali(NODEPTR an)
     GOIND(x);
 #endif
 
-  case T_CASE:
+  case T_CASED:
+  case T_CASES:
     {
-      /* CASE_m e ...  -->  e LOOK_m ... */
+      /* CASEx_m e ...  -->  e LOOKx_m ... */
       GCCHECK(1);
       CHKARG1;
       int m;
       CASE_SIZE(rtag, m);
-      NODEPTR l = alloc_node(MK_LOOK(m));
+      num_look++;
+      NODEPTR l = alloc_node(tag == T_CASED ? MK_LOOKD(m) : MK_LOOKS(m));
       //fprintf(stderr, "CASE_%d n=%p x=%p l=%p\n", (int)m, n, indir(&x), l);
       GOAP(x, l);
     }
-  case T_LOOK:
+  case T_LOOKD:
+  case T_LOOKS:
     RET;                        /* this should never happen */
   case T_CONSTR:
     {
@@ -6466,23 +6502,44 @@ evali(NODEPTR an)
       CONSTR_NO(rtag, k, nn);
       //fprintf(stderr, "CONSTR_%d_%d\n", (int)k, (int)nn);
       CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
-      NODEPTR p = ARG(TOP(nn));  /* The LOOK_m */
+      NODEPTR p = ARG(TOP(nn));  /* The LOOKx_m */
       //fprintf(stderr, "  n=%p p=%p\n", n, p);
       tag_t ltag = GETRAWTAG(p);
-      if (TAGOF(ltag) != T_LOOK) {
-        ERR("constr no LOOK");
-      }
       CASE_SIZE(ltag, m);
-      /* CONSTR_k_n e1 ... en LOOK_m f0 ... f{m-1}  -->  fk e1 ... en */
       GCCHECK(nn);
-      /* XXX should sanity check stack depth */
-      NODEPTR fk = ARG(TOP(nn + 1 + k));
-      for (int i=0; i < nn; i++) {
-        fk = new_ap(fk, ARG(TOP(i)));
+      if (TAGOF(ltag) == T_LOOKD) {
+        /* CONSTR_k_n e1 ... en LOOKD_m f0 ... f{m-1}  -->  fk e1 ... en */
+        /* XXX should sanity check stack depth */
+        NODEPTR fk = ARG(TOP(nn + 1 + k));
+        for (int i=0; i < nn; i++) {
+          fk = new_ap(fk, ARG(TOP(i)));
+        }
+        POP(nn + 1 + m);
+        n = TOP(-1);
+        GOIND(fk);
+      } else if (TAGOF(ltag) == T_LOOKS) {
+        /* CONSTR_k_n e1 ... en LOOKS_m d (k0 f0) (k fk) (km f{m-1})  -->  fk e1 ... en
+         * CONSTR_k_n e1 ... en LOOKS_m d ...                         -->  d, when no matching k
+         */
+        NODEPTR d = ARG(TOP(nn + 1));
+        for (int i = 0; i < m; i++) {
+          NODEPTR a = ARG(TOP(nn + 2 + i));
+          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_INT)
+            ERR("LOOKS, bad table");
+          if (GETVALUE(FUN(a)) == k) {
+            d = ARG(a);
+            for (int j=0; j < nn; j++) {
+              d = new_ap(d, ARG(TOP(j)));
+            }
+            break;
+          }
+        }
+        POP(nn + 2 + m);
+        n = TOP(-1);
+        GOIND(d);
+      } else {
+        ERR("CONSTR: no LOOK");
       }
-      POP(nn + 1 + m);
-      n = TOP(-1);
-      GOIND(fk);
     }
 
   default:
@@ -7259,6 +7316,7 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
     PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter"   look cells\n", num_look);
     PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
