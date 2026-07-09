@@ -569,6 +569,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_CASED, T_LOOKD,
                 T_CASES, T_LOOKS,
                 T_CONSTR,
+                T_ARM,
                 T_LAST_TAG,
                 T_XXX = 0x7fffffff
 };
@@ -636,7 +637,9 @@ typedef struct PACKED node {
 #define MK_LOOKD(m) ((T_LOOKD | ((m) << TAG_BITS)))
 #define MK_CASES(m) ((T_CASES | ((m) << TAG_BITS)))
 #define MK_LOOKS(m) ((T_LOOKS | ((m) << TAG_BITS)))
-#define MK_CONSTR(k, n) ((T_CONSTR | ((((n) << 10) | k) << TAG_BITS)))
+#define MK_CONSTR_ARM(t, k, n) (((t) | ((((n) << 10) | k) << TAG_BITS)))
+#define MK_CONSTR(k, n) (MK_CONSTR_ARM(T_CONSTR, k, n))
+#define MK_ARM(k, n) (MK_CONSTR_ARM(T_ARM, k, n))
 #define CASE_SIZE(tag, m) ((m) = (tag) >> (TAG_BITS + TAG_SHIFT))
 #define CONSTR_NO(tag, k, n) ((n) = (tag) >> (TAG_BITS + TAG_SHIFT + 10), (k) = ((tag) >> (TAG_BITS + TAG_SHIFT)) & 0x3ff)
 #define MK_CONSTR_TAG(k, n) ((MK_CONSTR(k, n) << TAG_SHIFT) | BIT_TG)
@@ -2416,6 +2419,7 @@ struct {
   { "E_", T_CASES },
   { "M_", T_LOOKS },
   { "C_", T_CONSTR },
+  { "A_", T_ARM },
 };
 
 #if GCRED
@@ -2988,6 +2992,7 @@ mark(NODEPTR *np)
     np = &FUN(n);
     to_push = &ARG(n);
     break;
+
    case T_ARR:
     {
       struct ioarray *arr = ARR(n);
@@ -3987,6 +3992,18 @@ parse(BFILE *f)
       } else {
         goto def;
       }
+    case 'A':
+      if (gobble(f, '_')) {
+        int k = parse_int(f);
+        if (!gobble(f, '_'))
+          ERR("parse A");
+        int n = parse_int(f);
+        r = alloc_node(MK_ARM(k, n));
+        PUSH(r);
+        break;
+      } else {
+        goto def;
+      }
     case 'D':
       if (gobble(f, '_')) {
         int m = parse_int(f);
@@ -4439,6 +4456,18 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_CONSTR:
     {
       putb('C', f);
+      putb('_', f);
+      tag_t rtag = GETRAWTAG(n);
+      int k, n;
+      CONSTR_NO(rtag, k, n);
+      putdecb((value_t)k, f);
+      putb('_', f);
+      putdecb((value_t)n, f);
+      break;
+    }
+  case T_ARM:
+    {
+      putb('A', f);
       putb('_', f);
       tag_t rtag = GETRAWTAG(n);
       int k, n;
@@ -6495,7 +6524,8 @@ evali(NODEPTR an)
     }
   case T_LOOKD:
   case T_LOOKS:
-    RET;                        /* this should never happen */
+  case T_ARM:
+    RET;
   case T_CONSTR:
     {
       int k, m, nn;
@@ -6506,29 +6536,34 @@ evali(NODEPTR an)
       //fprintf(stderr, "  n=%p p=%p\n", n, p);
       tag_t ltag = GETRAWTAG(p);
       CASE_SIZE(ltag, m);
-      GCCHECK(nn);
       if (TAGOF(ltag) == T_LOOKD) {
         /* CONSTR_k_n e1 ... en LOOKD_m f0 ... f{m-1}  -->  fk e1 ... en */
         /* XXX should sanity check stack depth */
+        GCCHECK(nn);
         NODEPTR fk = ARG(TOP(nn + 1 + k));
-        for (int i=0; i < nn; i++) {
+        for (int i = 0; i < nn; i++) {
           fk = new_ap(fk, ARG(TOP(i)));
         }
         POP(nn + 1 + m);
         n = TOP(-1);
         GOIND(fk);
       } else if (TAGOF(ltag) == T_LOOKS) {
-        /* CONSTR_k_n e1 ... en LOOKS_m d (k0 f0) (k fk) (km f{m-1})  -->  fk e1 ... en
-         * CONSTR_k_n e1 ... en LOOKS_m d ...                         -->  d, when no matching k
+        /* CONSTR_k_n e1 ... en LOOKS_m d (ARM_k0_n0 f0) (ARM_k_n fk) (ARM_km_nm f{m-1})  -->  fk e1 ... en
+         * CONSTR_k_n e1 ... en LOOKS_m d ...                                             -->  d, when no matching k
          */
         NODEPTR d = ARG(TOP(nn + 1));
         for (int i = 0; i < m; i++) {
           NODEPTR a = ARG(TOP(nn + 2 + i));
-          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_INT)
+          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM)
+            a = evali(a);
+          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM)
             ERR("LOOKS, bad table");
-          if (GETVALUE(FUN(a)) == k) {
+          int ki, ni;
+          CONSTR_NO(GETRAWTAG(FUN(a)), ki, ni);
+          if (ki == k) {
+            GCCHECK(nn);
             d = ARG(a);
-            for (int j=0; j < nn; j++) {
+            for (int j = 0; j < nn; j++) {
               d = new_ap(d, ARG(TOP(j)));
             }
             break;
