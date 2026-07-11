@@ -12,7 +12,6 @@ import MicroHs.Exp(Exp(Var))
 import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, SLoc(..), slocIdent, isNoSLoc)
-import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -81,7 +80,7 @@ startIState flags mdls hist = do
   ccash <- getCached flags
   cash <- loadEmbedded flags ccash
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 ""
+  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
