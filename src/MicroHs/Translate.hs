@@ -2,14 +2,14 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module MicroHs.Translate(
-  translate,
   TranslateMap,
+  translate,
   translateMap,
   translateWithMap,
   translateAndRun
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.ByteString.Internal(ByteString)
+import Data.ByteString(ByteString, pack)
 import Data.Maybe
 import Data.String
 import Unsafe.Coerce
@@ -21,33 +21,54 @@ import MicroHs.Exp
 import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import System.IO.Serialize(readSerializedBS)
+import System.IO.Unsafe(unsafePerformIO)
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
-
-translateAndRun :: ([LDef], Exp) -> IO ()
-translateAndRun defs = do
-  let prog = unsafeCoerce (translate defs)
-  prog
 
 type TranslateMap = M.Map AnyType
 
-trLookup :: TranslateMap -> Ident -> AnyType
-trLookup mp n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+-- Convert the expression e in the environment ds into its value
+translate :: ([LDef], Exp) -> AnyType
+translate = translateWithMap M.empty
 
+-- Convert a bunch of definitions to a TranslateMap
 translateMap :: [LDef] -> TranslateMap
 translateMap ds =
   let mp = M.fromList [(n, translateExp mp d) | (n, d) <- ds ]
   in  mp
 
-translateExp :: TranslateMap -> Exp -> AnyType
-translateExp mp e = trans (trLookup mp) e
+-- Convert and assume the converted value is of type IO() and run it
+translateAndRun :: ([LDef], Exp) -> IO ()
+translateAndRun defs = do
+  let prog = unsafeCoerce (translate defs)
+  prog
 
+---------------------------------------------------------------------
+
+translateWithMap :: TranslateMap -> ([LDef], Exp) -> AnyType
+translateWithMap mp (ds, e) =
+  let ds' = [(i, tr d) | (i, d) <- ds]
+      e'  = tr e
+      tr e@(Var i) | Just v <- M.lookup i mp = Lit (LVal (unsafeCoerce v))
+                   | otherwise               = e
+      tr (App f a)                           = App (tr f) (tr a)
+      tr _                                   = error "translateWithMap"
+      str = toStringCMdl (ds', e')    -- serialized value
+      val = unsafePerformIO (readSerializedBS (pack str))
+  in  val
+
+{-
+-- This is the heart of the translator
 translateWithMap :: TranslateMap -> ([LDef], Exp) -> AnyType
 translateWithMap mp (ds, e) =
   let mp' = foldr (\ (i, d) -> M.insert i (translateExp mp' d)) mp ds
   in  translateExp mp' e
 
-translate :: ([LDef], Exp) -> AnyType
-translate (ds, e) = translateExp (translateMap ds) e
+trLookup :: TranslateMap -> Ident -> AnyType
+trLookup mp n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+
+translateExp :: TranslateMap -> Exp -> AnyType
+translateExp mp e = trans (trLookup mp) e
 
 trans :: (Ident -> AnyType) -> Exp -> AnyType
 trans r ae =
@@ -341,5 +362,7 @@ primTable = [
   ("Wkfinal", _primitive "Wkfinal"),
   ("IO.getmaskingstate", _primitive "IO.getmaskingstate"),
   ("IO.setmaskingstate", _primitive "IO.setmaskingstate"),
-  ("IO.pp", _primitive "IO.pp")
+  ("IO.pp", _primitive "IO.pp"),
+  ("nodePtr", _primitive "nodePtr")
   ]
+-}
