@@ -14,7 +14,7 @@ import Data.List(sortBy)
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..), impossible)
 import MicroHs.Ident
-import Debug.Trace
+--import Debug.Trace
 
 --
 -- Encoding of constructors and case
