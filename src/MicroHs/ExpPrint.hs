@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl, renumberCMdlM) where
 import qualified Prelude(); import MHSPrelude
 import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
@@ -35,15 +35,19 @@ removeUnused (ds, emain) = dfs roots M.empty
                     | otherwise = dfs (freeVars e ++ is) (M.insert i e done)
                                   where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
+renumberCMdl :: CMdl -> (ForExpTable, CMdl)
+renumberCMdl (ds, emain) =
+  let fexps = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
+      dMap = M.fromList ds
+  in  renumberCMdlM fexps dMap emain
+
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- This is the "linking" of the program.
 -- Returns the renamed foreign exports and the "linked" CNdl
-renumberCMdl :: CMdl -> (ForExpTable, CMdl)
-renumberCMdl (ds, emain) =
+renumberCMdlM :: [(Ident, CType)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl)
+renumberCMdlM fexps dMap emain =
   let
-    fexps = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
     roots = freeVars emain ++ map fst fexps
-    dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
     dfs :: Ident -> State (Int, M.Map Exp, [LDef]) ()

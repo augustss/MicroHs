@@ -351,15 +351,7 @@ mainCompile flags mn = do
   dumpIf flags Dtoplevel $ do
     putStrLn "toplevel:"; printLDefs allDefs
   if runIt flags then do
-    if compiledWithMhs then do
-      let prg = translateAndRun cmdl
-      prg
-{-
-     else if compiledWithGhc then
-      withMhsContext $ \ ctx -> do
-        run ctx outData
--}
-     else mhsError "The -r flag currently only works with mhs and ghc"
+    translateAndRun cmdl
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
@@ -535,7 +527,7 @@ addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
   let ps = encList $ map (Lit . LBStr) bss
       rep ie@(i, _) | i == mkIdent "MicroHs.Embed.packages" = (i, ps)
                     | otherwise = ie
-  
+
   when (verbosityGT flags 0) $
     putStrLn $ "Embedded " ++ show (embedPkgs flags)
   return $ map rep ds
