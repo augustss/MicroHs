@@ -41,6 +41,7 @@ data IState = IState {
   isSymbols :: Symbols,
   isStats   :: Bool,
   isCompStats :: Bool,
+  isType    :: Bool,
   isPrompt  :: String,
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
@@ -93,7 +94,7 @@ startIState flags mdls hist = do
   now <- getTimeMicro
   putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
 -}
-  return $ IState startMdl flags cash noSymbols False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
+  return $ IState startMdl flags cash noSymbols False False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -251,10 +252,12 @@ setOptions "" = do
   stats <- gets isStats
   compStats <- gets isCompStats
   prompt <- gets isPrompt
+  typ <- gets isType
   flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
-  putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
+  putStrLnI $ "  " ++ (if stats     then "+" else "-") ++ "s"
   putStrLnI $ "  " ++ (if compStats then "+" else "-") ++ "c"
+  putStrLnI $ "  " ++ (if typ       then "+" else "-") ++ "t"
   putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
   putStrLnI $ "  prompt=" ++ prompt
 setOptions "+s" = do
@@ -265,6 +268,10 @@ setOptions "+c" = do
   modify $ \ is -> is{ isCompStats = True }
 setOptions "-c" = do
   modify $ \ is -> is{ isCompStats = False }
+setOptions "+t" = do
+  modify $ \ is -> is{ isType = True }
+setOptions "-t" = do
+  modify $ \ is -> is{ isType = False }
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
 setOptions s | Just p <- stripPrefix "prompt=" s =
@@ -360,7 +367,7 @@ oneline aline = do
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats ln)
         case exprTest of
           Right (m, _) -> do
-            evalExpr m
+            evalExpr ln m
 {-
             t2 <- liftIO getTimeMilli
             when (stats) $
@@ -408,8 +415,8 @@ compile file = do
 --  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
   return (tBindingsOf cmdl, tcstate')
 
-evalExpr :: [LDef] -> I ()
-evalExpr cmdl = do
+evalExpr :: String -> [LDef] -> I ()
+evalExpr ln cmdl = do
 --  putStrLnI $ "evalExpr: " ++ show cmdl
   (_, _, tmap) <- gets isCComp
   let ares = translateWithMap tmap (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
@@ -421,7 +428,11 @@ evalExpr cmdl = do
       mio <- liftIO $ try val
       case mio of
         Left  e -> err e
-        Right _ -> return ()
+        Right _ -> do
+          typ <- gets isType
+          when (typ) $ do
+            liftIO $ putStr " :: "
+            showType ln
 
 showType :: String -> I ()
 showType line = do
