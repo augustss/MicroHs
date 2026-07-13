@@ -42,6 +42,7 @@ data IState = IState {
   isStats   :: Bool,
   isCompStats :: Bool,
   isType    :: Bool,
+  isColor   :: Bool,
   isPrompt  :: String,
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
@@ -94,7 +95,7 @@ startIState flags mdls hist = do
   now <- getTimeMicro
   putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
 -}
-  return $ IState startMdl flags cash noSymbols False False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
+  return $ IState startMdl flags cash noSymbols False False False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -253,11 +254,13 @@ setOptions "" = do
   compStats <- gets isCompStats
   prompt <- gets isPrompt
   typ <- gets isType
+  color <- gets isColor
   flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
   putStrLnI $ "  " ++ (if stats     then "+" else "-") ++ "s"
   putStrLnI $ "  " ++ (if compStats then "+" else "-") ++ "c"
   putStrLnI $ "  " ++ (if typ       then "+" else "-") ++ "t"
+  putStrLnI $ "  " ++ (if color     then "+" else "-") ++ "color"
   putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
   putStrLnI $ "  prompt=" ++ prompt
 setOptions "+s" = do
@@ -272,6 +275,10 @@ setOptions "+t" = do
   modify $ \ is -> is{ isType = True }
 setOptions "-t" = do
   modify $ \ is -> is{ isType = False }
+setOptions "+color" = do
+  modify $ \ is -> is{ isColor = True }
+setOptions "-color" = do
+  modify $ \ is -> is{ isColor = False }
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
 setOptions s | Just p <- stripPrefix "prompt=" s =
@@ -335,7 +342,7 @@ err e = do
   case parseError msg of
     Just (f, l) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
     Nothing -> return ()
-  liftIO $ err' msg
+  err' msg
 
 -- Try to find a file and line number
 -- XXX We should have a special exception instead of parsing the message string.
@@ -347,8 +354,15 @@ parseError s =
       Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
     _ -> Nothing
 
-err' :: String -> IO ()
-err' s = putStrLn $ "*** Exception: " ++ s
+err' :: String -> I ()
+err' s = do
+  s' <- wrapColor 91 ("*** Exception: " ++ s)
+  liftIO $ putStrLn s'
+
+wrapColor :: Int -> String -> I String
+wrapColor c s = do
+  color <- gets isColor
+  return $ if color then "\ESC[" ++ show c ++ "m" ++ s ++ "\ESC[0m" else s
 
 oneline :: String -> I ()
 oneline aline = do
@@ -385,7 +399,7 @@ oneline aline = do
       -- if that fails, parse as an expression.
       tryParse pExprTop line expr $ \ msg ->
         -- finally, try to strip an initial 'let' and parse as a definition
-        let emsg = liftIO (err' msg) in
+        let emsg = err' msg in
         case stripPrefix "let " line of
           Just line' -> tryParse pTopModule (ls ++ line' ++ "\n") def $ const emsg
           Nothing    -> emsg
