@@ -26,6 +26,7 @@ import System.Cmd
 import System.Environment
 import System.FilePath
 import System.IO
+import System.IO.TimeMilli
 import Text.Printf
 import Text.Read(readMaybe)
 --import System.IO.TimeMilli
@@ -39,6 +40,7 @@ data IState = IState {
   isCache   :: Cache,
   isSymbols :: Symbols,
   isStats   :: Bool,
+  isCompStats :: Bool,
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
   isErrLine :: Int,
@@ -57,6 +59,11 @@ mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   putStrLn $ "Integer implemented with " ++
     if wantGMP then "GMP" else if wantImath then "imath" else "Haskell"
+{-
+  bootTime <- getBootTimeMicro
+  now <- getTimeMicro
+  putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
   mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
@@ -80,7 +87,12 @@ startIState flags mdls hist = do
   ccash <- getCached flags
   cash <- loadEmbedded flags ccash
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", translateMapEmpty) hist 1 ""
+{-
+  bootTime <- getBootTimeMicro
+  now <- getTimeMicro
+  putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
+  return $ IState startMdl flags cash noSymbols False False (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -106,6 +118,11 @@ startInteractive = do
   rc <- liftIO (catch (lines <$> readFile ".mhsi_rc") (\ (_ :: SomeException) -> return []))
   mapM_ line rc
   putStrLnI "Type ':quit' to quit, ':help' for help"
+{-
+  liftIO $ do bootTime <- getBootTimeMicro
+              now <- getTimeMicro
+              putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
   repl
 
 repl :: I ()
@@ -135,7 +152,12 @@ repl = do
           c <- command r
           if c then repl else bye
         _ -> do
+          t1 <- liftIO getTimeMilli
           oneline s
+          t2 <- liftIO getTimeMilli
+          cstat <- gets isCompStats
+          when (cstat) $
+            putStrLnI $ "(" ++ show (t2 - t1) ++ "ms compile)"
           repl
 
 command :: String -> I Bool
@@ -222,18 +244,24 @@ help = const $ do
 setOptions :: String -> I ()
 setOptions "" = do
   stats <- gets isStats
+  compStats <- gets isCompStats
   flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
   putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
+  putStrLnI $ "  " ++ (if compStats then "+" else "-") ++ "c"
   putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
 setOptions "+s" = do
   modify $ \ is -> is{ isStats = True }
 setOptions "-s" = do
   modify $ \ is -> is{ isStats = False }
+setOptions "+c" = do
+  modify $ \ is -> is{ isCompStats = True }
+setOptions "-c" = do
+  modify $ \ is -> is{ isCompStats = False }
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
 setOptions _ =
-  putStrLnI "Unknown flag.  Known flags: +s, -s, path=PATH"
+  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH"
 
 reload :: I ()
 reload = do
