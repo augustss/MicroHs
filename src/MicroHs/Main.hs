@@ -54,11 +54,12 @@ main = do
       -- Flag decoding happens twice, because we need to decode the flags to know
       -- how to read the config file, but we also need the config file for the
       -- default package search path.
-      let (cflags, _, _) = decodeArgs defaultFlags{ mhsdir = mhsDir } [] args  -- decode flags so we can read the config file
-      conf <- readConfig cflags
+      let (cflags, cmdls, _) = decodeArgs defaultFlags{ mhsdir = mhsDir } [] args  -- decode flags so we can read the config file
+          cflags' = if null cmdls && null (cArgs cflags) then cflags{interactive = True} else cflags
+      conf <- readConfig cflags'
       let paths = splitColonPath $ fromMaybe ('$':mHSPKG) $ lookup "mhs" conf >>= lookup "packageDbPath"
           (eflags, mdls, rargs) = decodeArgs dflags [] args  -- decode flags for real
-            where dflags = defaultFlags{ pkgPaths = paths, srcPaths = srcs, mhsdir = mhsDir }
+            where dflags = defaultFlags{ pkgPaths = paths, srcPaths = srcs, mhsdir = mhsDir, interactive = interactive cflags' }
       paths' <- nub . filter (not . null) . splitColonPath <$> expandPath mpkg (intercalate ":" $ pkgPaths eflags)
       let flags = eflags{ config = conf, pkgPaths = paths'  }
 
@@ -72,9 +73,8 @@ main = do
           _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
           _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
           _ | installPkg flags'               -> mainInstallPackage flags' mdls
-          _ | null mdls && null (cArgs flags')-> mainInteractive flags' []
-          _ | null mdls                       -> mainCompileC flags' [] ""
           _ | interactive flags'              -> mainInteractive flags' mdls
+          _ | null mdls                       -> mainCompileC flags' [] ""
           _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
           _                                   -> mhsError usage
 
@@ -205,7 +205,8 @@ readConfig flags = do
   let cfFilePath = mhsdir flags </> "mhs.conf"
   exists <- doesFileExist cfFilePath
   if not exists then do
-    when (verbosityGT flags (-1)) $
+    -- If interactive, we don't need the conf file
+    when (verbosityGT flags (-1) && not (interactive flags)) $
       putStrLn $ "Warning: cannot find config file: " ++ cfFilePath
     return []
    else do
