@@ -352,7 +352,7 @@ main = display $ Color red $ SolidCircle 50
                 if (asciiCode === 10) {
                   term.write('\r\n');
                 } else {
-                  term.write(String.fromCharCode(asciiCode));
+                  term.write(new Uint8Array([asciiCode]));
                 }
               }
             },
