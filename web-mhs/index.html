@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-unicode11@0.6.0/lib/xterm-addon-unicode11.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
@@ -216,7 +217,8 @@
   </div>
 
   <script>
-    const mhsi_rc_text = `
+    const replutils_text = `
+module ReplUtils where
 import System.Directory
 cat :: FilePath -> IO ()
 cat f = readFile f >>= putStrLn
@@ -224,14 +226,22 @@ ls :: FilePath -> IO ()
 ls d = listDirectory d >>= putStrLn . unlines
 cd :: FilePath -> IO ()
 cd d = setCurrentDirectory d
-putStrLn ""
-putStrLn "*** MicroHs Web Playground ***"
-putStrLn "Use ':defs' to see definitions."
-putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
-putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo7."
-putStrLn "To access local files, use the button above to select a directory."
-putStrLn ""
+startUpMessage :: IO ()
+startUpMessage = do
+  putStrLn ""
+  putStrLn "*** MicroHs Web Playground ***"
+  putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
+  putStrLn "Try 'import Graphics.CanvHs.Demo' and then run demo1 through demo7."
+  putStrLn "To access (read and write) local files, use the 'Mount Folder' button"
+  putStrLn "above to select a directory."
+  putStrLn ""
 `;
+    const mhsi_rc_text = `
+import ReplUtils
+startUpMessage
+:set +color
+:set prompt=λ 
+`;    
     const line_edit_text = `
 Line editing keys (Emacs inspired):
 CTL-B         move backards
@@ -275,6 +285,7 @@ main = display $ Color red $ SolidCircle 50
 
     window.onload = function() {
       const term = new Terminal({
+        allowProposedApi: true,
         cursorBlink: true,
         rightClickSelectsWord: true,
         fontFamily: 'monospace',
@@ -289,6 +300,10 @@ main = display $ Color red $ SolidCircle 50
           foreground: '#ffffff'
         }
       });
+
+      const unicode11Addon = new Unicode11Addon.Unicode11Addon();
+      term.loadAddon(unicode11Addon);
+      term.unicode.activeVersion = '11';
 
       const fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
@@ -345,7 +360,7 @@ main = display $ Color red $ SolidCircle 50
                 if (asciiCode === 10) {
                   term.write('\r\n');
                 } else {
-                  term.write(String.fromCharCode(asciiCode));
+                  term.write(new Uint8Array([asciiCode]));
                 }
               }
             },
@@ -358,6 +373,7 @@ main = display $ Color red $ SolidCircle 50
 
           Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
           Module.FS.writeFile("line_edit", line_edit_text);
+          Module.FS.writeFile("ReplUtils.hs", replutils_text);
           const demo_path = home + '/Demo.hs';
           Module.FS.writeFile(demo_path, demo_code);
 
@@ -656,10 +672,12 @@ async function pollFiles() {
 
 
       function sendToMicroHs(data) {
-        for (let i = 0; i < data.length; i++) {
-          const code = data.charCodeAt(i);
-          if (window.Module && window.Module._set_input_char) {
-            window.Module._set_input_char(code);
+        if (window.Module && window.Module._set_input_char) {
+          const encoder = new TextEncoder();
+          const utf8Bytes = encoder.encode(data);
+          
+          for (let i = 0; i < utf8Bytes.length; i++) {
+            window.Module._set_input_char(utf8Bytes[i]);
           }
         }
       }

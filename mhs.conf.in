@@ -55,7 +55,7 @@ conf = "unix"
 -- Generate JavaScript&Wasm, with xterm.js support
 [emscripten_web]
 cc = "emcc"
-ccflags = "-O3 -sASYNCIFY -sEXPORTED_FUNCTIONS=['_main','_set_input_char'] -sEXPORTED_RUNTIME_METHODS=['FS','ccall'] -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_WEB_INPUT -Wno-address-of-packed-member"
+ccflags = "-O3 -sASYNCIFY -sEXPORTED_FUNCTIONS=['_main','_set_input_char'] -sEXPORTED_RUNTIME_METHODS=['FS','ccall'] -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -DUSE_WEB_INPUT -Wno-address-of-packed-member"
 cclibs = "-lm"
 conf = "unix"
 

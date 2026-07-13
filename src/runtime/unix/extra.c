@@ -87,7 +87,19 @@ void c_end_draw(void) {
 }
 
 /* Allow a thread switch in yield() */
-#define YIELD_EXTRA do { if (!is_drawing) emscripten_sleep(0); } while(0)
+static inline void
+yield_extra(void)
+{
+  static double last;
+  double now = emscripten_get_now();
+  if (!is_drawing && (now - last) > 32) {
+    /* Only do this a few time a second.  If done too often JS will enforce a minimum 4ms delay. */
+    last = now;
+    emscripten_sleep(0);
+  }
+}
+
+#define YIELD_EXTRA yield_extra()
 
 // Create a C function called c_waitForFrame
 // that executes the JavaScript inside the block.

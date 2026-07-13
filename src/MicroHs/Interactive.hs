@@ -26,6 +26,7 @@ import System.Cmd
 import System.Environment
 import System.FilePath
 import System.IO
+import System.IO.TimeMilli
 import Text.Printf
 import Text.Read(readMaybe)
 --import System.IO.TimeMilli
@@ -39,6 +40,10 @@ data IState = IState {
   isCache   :: Cache,
   isSymbols :: Symbols,
   isStats   :: Bool,
+  isCompStats :: Bool,
+  isType    :: Bool,
+  isColor   :: Bool,
+  isPrompt  :: String,
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
   isErrLine :: Int,
@@ -57,6 +62,11 @@ mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   putStrLn $ "Integer implemented with " ++
     if wantGMP then "GMP" else if wantImath then "imath" else "Haskell"
+{-
+  bootTime <- getBootTimeMicro
+  now <- getTimeMicro
+  putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
   mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
@@ -80,7 +90,12 @@ startIState flags mdls hist = do
   ccash <- getCached flags
   cash <- loadEmbedded flags ccash
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", translateMapEmpty) hist 1 ""
+{-
+  bootTime <- getBootTimeMicro
+  now <- getTimeMicro
+  putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
+  return $ IState startMdl flags cash noSymbols False False False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -101,11 +116,16 @@ startInteractive = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   let line "" = return ()
-      line ('r':r) = do _ <- command r; return ()
+      line (':':r) = do _ <- command r; return ()
       line s = oneline s
   rc <- liftIO (catch (lines <$> readFile ".mhsi_rc") (\ (_ :: SomeException) -> return []))
   mapM_ line rc
   putStrLnI "Type ':quit' to quit, ':help' for help"
+{-
+  liftIO $ do bootTime <- getBootTimeMicro
+              now <- getTimeMicro
+              putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
+-}
   repl
 
 repl :: I ()
@@ -114,16 +134,17 @@ repl = do
   syms <- gets isSymbols
   stdinFlag <- gets (useStdin . isFlags)
   hist <- gets isHistory
+  prompt <- gets isPrompt
   ms <- liftIO $
     if stdinFlag then do
-      putStr "> "
+      putStr prompt
       hFlush stdout
       es <- try getLine
       case es of
         Left  (_::SomeException) -> return Nothing
         Right s                  -> return (Just s)
     else do
-      ms <- getInputLineHistComp (return . complete mdls syms) hist "> "
+      ms <- getInputLineHistComp (return . complete mdls syms) hist prompt
       return (ms <|> Just "")  -- ignore ^D
   let bye = putStrLnI "Bye"
   case ms of
@@ -135,24 +156,32 @@ repl = do
           c <- command r
           if c then repl else bye
         _ -> do
+          t1 <- liftIO getTimeMilli
           oneline s
+          t2 <- liftIO getTimeMilli
+          cstat <- gets isCompStats
+          when cstat $
+            putStrLnI $ "(" ++ show (t2 - t1) ++ "ms compile)"
           repl
 
 command :: String -> I Bool
-command s =
-  let fw = (!!0) . words . fst in
-  case words s of
-    [] -> return True
-    c : ws ->
-      case filter (isPrefixOf c . fw) commands of
-        [] -> do
-          putStrLnI "Unrecognized command"
-          return True
-        [(_, cmd)] ->
-          cmd (unwords ws)
-        xs -> do
-          putStrLnI $ "Ambiguous command: " ++ unwords (map fw xs)
-          return True
+command s = do
+  let fw = (!!0) . words . fst
+      -- split string into command and rest
+      (c, rest) = break isSpace $ dropWhile isSpace s
+      arg = dropWhile isSpace rest
+  if null c then
+    return True
+   else
+    case filter (isPrefixOf c . fw) commands of
+      [] -> do
+        putStrLnI "Unrecognized command"
+        return True
+      [(_, cmd)] -> do
+        cmd arg
+      xs -> do
+        putStrLnI $ "Ambiguous command: " ++ unwords (map fw xs)
+        return True
 
 commands :: [(String, String -> I Bool)]
 commands =
@@ -222,18 +251,40 @@ help = const $ do
 setOptions :: String -> I ()
 setOptions "" = do
   stats <- gets isStats
+  compStats <- gets isCompStats
+  prompt <- gets isPrompt
+  typ <- gets isType
+  color <- gets isColor
   flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
-  putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
+  putStrLnI $ "  " ++ (if stats     then "+" else "-") ++ "s"
+  putStrLnI $ "  " ++ (if compStats then "+" else "-") ++ "c"
+  putStrLnI $ "  " ++ (if typ       then "+" else "-") ++ "t"
+  putStrLnI $ "  " ++ (if color     then "+" else "-") ++ "color"
   putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
+  putStrLnI $ "  prompt=" ++ prompt
 setOptions "+s" = do
   modify $ \ is -> is{ isStats = True }
 setOptions "-s" = do
   modify $ \ is -> is{ isStats = False }
+setOptions "+c" = do
+  modify $ \ is -> is{ isCompStats = True }
+setOptions "-c" = do
+  modify $ \ is -> is{ isCompStats = False }
+setOptions "+t" = do
+  modify $ \ is -> is{ isType = True }
+setOptions "-t" = do
+  modify $ \ is -> is{ isType = False }
+setOptions "+color" = do
+  modify $ \ is -> is{ isColor = True }
+setOptions "-color" = do
+  modify $ \ is -> is{ isColor = False }
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
+setOptions s | Just p <- stripPrefix "prompt=" s =
+  modify $ \ is -> is{ isPrompt = p }
 setOptions _ =
-  putStrLnI "Unknown flag.  Known flags: +s, -s, path=PATH"
+  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH, prompt=STR"
 
 reload :: I ()
 reload = do
@@ -291,7 +342,7 @@ err e = do
   case parseError msg of
     Just (f, l) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
     Nothing -> return ()
-  liftIO $ err' msg
+  err' msg
 
 -- Try to find a file and line number
 -- XXX We should have a special exception instead of parsing the message string.
@@ -303,8 +354,15 @@ parseError s =
       Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
     _ -> Nothing
 
-err' :: String -> IO ()
-err' s = putStrLn $ "*** Exception: " ++ s
+err' :: String -> I ()
+err' s = do
+  s' <- wrapColor 91 ("*** Exception: " ++ s)
+  liftIO $ putStrLn s'
+
+wrapColor :: Int -> String -> I String
+wrapColor c s = do
+  color <- gets isColor
+  return $ if color then "\ESC[" ++ show c ++ "m" ++ s ++ "\ESC[0m" else s
 
 oneline :: String -> I ()
 oneline aline = do
@@ -323,7 +381,7 @@ oneline aline = do
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats ln)
         case exprTest of
           Right (m, _) -> do
-            evalExpr m
+            evalExpr ln m
 {-
             t2 <- liftIO getTimeMilli
             when (stats) $
@@ -341,7 +399,7 @@ oneline aline = do
       -- if that fails, parse as an expression.
       tryParse pExprTop line expr $ \ msg ->
         -- finally, try to strip an initial 'let' and parse as a definition
-        let emsg = liftIO (err' msg) in
+        let emsg = err' msg in
         case stripPrefix "let " line of
           Just line' -> tryParse pTopModule (ls ++ line' ++ "\n") def $ const emsg
           Nothing    -> emsg
@@ -371,8 +429,8 @@ compile file = do
 --  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
   return (tBindingsOf cmdl, tcstate')
 
-evalExpr :: [LDef] -> I ()
-evalExpr cmdl = do
+evalExpr :: String -> [LDef] -> I ()
+evalExpr ln cmdl = do
 --  putStrLnI $ "evalExpr: " ++ show cmdl
   (_, _, tmap) <- gets isCComp
   let ares = translateWithMap tmap (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
@@ -384,7 +442,11 @@ evalExpr cmdl = do
       mio <- liftIO $ try val
       case mio of
         Left  e -> err e
-        Right _ -> return ()
+        Right _ -> do
+          typ <- gets isType
+          when (typ) $ do
+            liftIO $ putStr " :: "
+            showType ln
 
 showType :: String -> I ()
 showType line = do

@@ -8,3 +8,4 @@ generated/mhseval.js binary
 generated/base.pkg binary
 doc/hs2024.pdf binary
 web-mhs/mhs-embed.js
+web-mhs/mhs-embed.wasm

@@ -253,7 +253,7 @@ jsTypes =
 -- These are already in the runtime
 runtimeFFI :: [String]
 runtimeFFI = [
-  "GETRAW", "GETTIMEMICRO", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
+  "GETRAW", "GETTIMEMICRO", "GETBOOTTIMEMICRO", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
   "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "islinux", "ismacos", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
