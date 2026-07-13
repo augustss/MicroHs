@@ -671,10 +671,12 @@ async function pollFiles() {
 
 
       function sendToMicroHs(data) {
-        for (let i = 0; i < data.length; i++) {
-          const code = data.charCodeAt(i);
-          if (window.Module && window.Module._set_input_char) {
-            window.Module._set_input_char(code);
+        if (window.Module && window.Module._set_input_char) {
+          const encoder = new TextEncoder();
+          const utf8Bytes = encoder.encode(data);
+          
+          for (let i = 0; i < utf8Bytes.length; i++) {
+            window.Module._set_input_char(utf8Bytes[i]);
           }
         }
       }
