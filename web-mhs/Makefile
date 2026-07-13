@@ -9,4 +9,4 @@ serve:
 	python3 -m http.server 8000
 
 clean:
-	rm -rf mhs-embed.js
+	rm -rf mhs-embed.js mhs-embed.wasm

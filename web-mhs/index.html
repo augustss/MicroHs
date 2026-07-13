@@ -216,7 +216,8 @@
   </div>
 
   <script>
-    const mhsi_rc_text = `
+    const replutils_text = `
+module ReplUtils where
 import System.Directory
 cat :: FilePath -> IO ()
 cat f = readFile f >>= putStrLn
@@ -224,14 +225,20 @@ ls :: FilePath -> IO ()
 ls d = listDirectory d >>= putStrLn . unlines
 cd :: FilePath -> IO ()
 cd d = setCurrentDirectory d
-putStrLn ""
-putStrLn "*** MicroHs Web Playground ***"
-putStrLn "Use ':defs' to see definitions."
-putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
-putStrLn "Try 'import Graphics.CanvHs.Demo' and then try demo1-demo7."
-putStrLn "To access local files, use the button above to select a directory."
-putStrLn ""
+startUpMessage :: IO ()
+startUpMessage = do
+  putStrLn ""
+  putStrLn "*** MicroHs Web Playground ***"
+  putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
+  putStrLn "Try 'import Graphics.CanvHs.Demo' and then running demo1 through demo7."
+  putStrLn "To access (read and write) local files, use the 'Mount Folder' button"
+  putStrLn "above to select a directory."
+  putStrLn ""
 `;
+    const mhsi_rc_text = `
+import ReplUtils
+startUpMessage
+`;    
     const line_edit_text = `
 Line editing keys (Emacs inspired):
 CTL-B         move backards
@@ -358,6 +365,7 @@ main = display $ Color red $ SolidCircle 50
 
           Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
           Module.FS.writeFile("line_edit", line_edit_text);
+          Module.FS.writeFile("ReplUtils.hs", replutils_text);
           const demo_path = home + '/Demo.hs';
           Module.FS.writeFile(demo_path, demo_code);
 
