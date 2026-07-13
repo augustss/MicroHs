@@ -158,7 +158,7 @@ repl = do
           oneline s
           t2 <- liftIO getTimeMilli
           cstat <- gets isCompStats
-          when (cstat) $
+          when cstat $
             putStrLnI $ "(" ++ show (t2 - t1) ++ "ms compile)"
           repl
 
@@ -166,7 +166,7 @@ command :: String -> I Bool
 command s = do
   let fw = (!!0) . words . fst
       -- split string into command and rest
-      (c, rest) = span (not . isSpace) $ dropWhile isSpace s
+      (c, rest) = break isSpace $ dropWhile isSpace s
       arg = dropWhile isSpace rest
   if null c then
     return True
