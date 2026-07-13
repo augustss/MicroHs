@@ -41,6 +41,7 @@ data IState = IState {
   isSymbols :: Symbols,
   isStats   :: Bool,
   isCompStats :: Bool,
+  isPrompt  :: String,
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
   isErrLine :: Int,
@@ -92,7 +93,7 @@ startIState flags mdls hist = do
   now <- getTimeMicro
   putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
 -}
-  return $ IState startMdl flags cash noSymbols False False (-1, error "tcstate", translateMapEmpty) hist 1 ""
+  return $ IState startMdl flags cash noSymbols False False "> " (-1, error "tcstate", translateMapEmpty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -113,7 +114,7 @@ startInteractive = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   let line "" = return ()
-      line ('r':r) = do _ <- command r; return ()
+      line (':':r) = do _ <- command r; return ()
       line s = oneline s
   rc <- liftIO (catch (lines <$> readFile ".mhsi_rc") (\ (_ :: SomeException) -> return []))
   mapM_ line rc
@@ -131,16 +132,17 @@ repl = do
   syms <- gets isSymbols
   stdinFlag <- gets (useStdin . isFlags)
   hist <- gets isHistory
+  prompt <- gets isPrompt
   ms <- liftIO $
     if stdinFlag then do
-      putStr "> "
+      putStr prompt
       hFlush stdout
       es <- try getLine
       case es of
         Left  (_::SomeException) -> return Nothing
         Right s                  -> return (Just s)
     else do
-      ms <- getInputLineHistComp (return . complete mdls syms) hist "> "
+      ms <- getInputLineHistComp (return . complete mdls syms) hist prompt
       return (ms <|> Just "")  -- ignore ^D
   let bye = putStrLnI "Bye"
   case ms of
@@ -161,20 +163,23 @@ repl = do
           repl
 
 command :: String -> I Bool
-command s =
-  let fw = (!!0) . words . fst in
-  case words s of
-    [] -> return True
-    c : ws ->
-      case filter (isPrefixOf c . fw) commands of
-        [] -> do
-          putStrLnI "Unrecognized command"
-          return True
-        [(_, cmd)] ->
-          cmd (unwords ws)
-        xs -> do
-          putStrLnI $ "Ambiguous command: " ++ unwords (map fw xs)
-          return True
+command s = do
+  let fw = (!!0) . words . fst
+      -- split string into command and rest
+      (c, rest) = span (not . isSpace) $ dropWhile isSpace s
+      arg = dropWhile isSpace rest
+  if null c then
+    return True
+   else
+    case filter (isPrefixOf c . fw) commands of
+      [] -> do
+        putStrLnI "Unrecognized command"
+        return True
+      [(_, cmd)] -> do
+        cmd arg
+      xs -> do
+        putStrLnI $ "Ambiguous command: " ++ unwords (map fw xs)
+        return True
 
 commands :: [(String, String -> I Bool)]
 commands =
@@ -245,11 +250,13 @@ setOptions :: String -> I ()
 setOptions "" = do
   stats <- gets isStats
   compStats <- gets isCompStats
+  prompt <- gets isPrompt
   flags <- gets isFlags
   putStrLnI "Current flags: (use + to set and - to unset)"
   putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
   putStrLnI $ "  " ++ (if compStats then "+" else "-") ++ "c"
   putStrLnI $ "  path=" ++ intercalate ":" (srcPaths flags)
+  putStrLnI $ "  prompt=" ++ prompt
 setOptions "+s" = do
   modify $ \ is -> is{ isStats = True }
 setOptions "-s" = do
@@ -260,8 +267,10 @@ setOptions "-c" = do
   modify $ \ is -> is{ isCompStats = False }
 setOptions s | Just p <- stripPrefix "path=" s =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
+setOptions s | Just p <- stripPrefix "prompt=" s =
+  modify $ \ is -> is{ isPrompt = p }
 setOptions _ =
-  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH"
+  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH, prompt=STR"
 
 reload :: I ()
 reload = do
