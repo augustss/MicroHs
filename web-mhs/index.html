@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-unicode11@0.6.0/lib/xterm-addon-unicode11.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
@@ -238,6 +239,7 @@ startUpMessage = do
     const mhsi_rc_text = `
 import ReplUtils
 startUpMessage
+:set prompt=λ 
 `;    
     const line_edit_text = `
 Line editing keys (Emacs inspired):
@@ -282,6 +284,7 @@ main = display $ Color red $ SolidCircle 50
 
     window.onload = function() {
       const term = new Terminal({
+        allowProposedApi: true,
         cursorBlink: true,
         rightClickSelectsWord: true,
         fontFamily: 'monospace',
@@ -296,6 +299,10 @@ main = display $ Color red $ SolidCircle 50
           foreground: '#ffffff'
         }
       });
+
+      const unicode11Addon = new Unicode11Addon.Unicode11Addon();
+      term.loadAddon(unicode11Addon);
+      term.unicode.activeVersion = '11';
 
       const fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
