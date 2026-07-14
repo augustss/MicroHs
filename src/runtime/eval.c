@@ -3993,8 +3993,6 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   return n;
 }
 
-counter_t num_shared;
-
 /* Two bits per node: marked, shared
  * 0, 0   -- not visited
  * 1, 0   -- visited once
@@ -4054,7 +4052,7 @@ void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
-find_sharing(struct print_bits *pb, NODEPTR n)
+find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
@@ -4072,19 +4070,19 @@ find_sharing(struct print_bits *pb, NODEPTR n)
       /* Already marked, so now mark as shared */
       //PRINT("marked\n");
       set_bit(pb->shared_bits, n);
-      num_shared++;
+      (*num_sharedp)++;
     } else {
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
       set_bit(pb->marked_bits, n);
       switch(tag) {
       case T_AP:
-        find_sharing(pb, FUN(n));
+        find_sharing(num_sharedp, pb, FUN(n));
         n = ARG(n);
         goto top;
       case T_ARR:
         for(size_t i = 0; i < ARR(n)->size; i++) {
-          find_sharing(pb, ARR(n)->array[i]);
+          find_sharing(num_sharedp, pb, ARR(n)->array[i]);
         }
         break;
       default:
@@ -4356,10 +4354,11 @@ void
 printb(BFILE *f, NODEPTR n, bool header)
 {
   struct print_bits pb;
-  num_shared = 0;
+  counter_t num_shared = 0;
+
   pb.marked_bits = mcalloc(free_map_nwords, sizeof(bits_t));
   pb.shared_bits = mcalloc(free_map_nwords, sizeof(bits_t));
-  find_sharing(&pb, n);
+  find_sharing(&num_shared, &pb, n);
   if (header) {
     putsb(VERSION, f);
     putdecb(num_shared, f);
