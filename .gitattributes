@@ -1,11 +1,9 @@
 *.comb binary
 *.ico binary
-generated/mhs.c binary
-generated/cpphs.c binary
-generated/mcabal.c binary
-generated/install.c binary
-generated/mhseval.js binary
-generated/base.pkg binary
 doc/hs2024.pdf binary
+generated/* binary
+generated/* merge=ours
 web-mhs/mhs-embed.js
+web-mhs/mhs-embed.js merge=ours
 web-mhs/mhs-embed.wasm
+web-mhs/mhs-embed.wasm merge=ours

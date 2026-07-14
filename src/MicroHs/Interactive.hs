@@ -444,7 +444,7 @@ evalExpr ln cmdl = do
         Left  e -> err e
         Right _ -> do
           typ <- gets isType
-          when (typ) $ do
+          when typ $ do
             liftIO $ putStr " :: "
             showType ln
 
