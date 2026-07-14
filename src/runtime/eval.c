@@ -3670,31 +3670,7 @@ mkStrNode(struct bytestring str)
 struct shared_entry {
   heapoffs_t label;
   NODEPTR node;                 /* NIL indicates unused */
-} *shared_table;
-heapoffs_t shared_table_size;
-
-/* Look for the label in the table.
- * If it's found, return the node.
- * If not found, return the first empty entry.
-*/
-NODEPTR *
-find_label(heapoffs_t label)
-{
-  int i;
-
-  for(i = (int)label; ; i++) {
-    i %= shared_table_size;
-    if (shared_table[i].node == NIL) {
-      /* The slot is empty, so claim and return it */
-      shared_table[i].label = label;
-      return &shared_table[i].node;
-    } else if (shared_table[i].label == label) {
-      /* Found the label, so return it. */
-      return &shared_table[i].node;
-    }
-    /* Not empty and not found, try next. */
-  }
-}
+};
 
 /* The memory allocated here is never freed.
  * This could be fixed by using a forptr and a
@@ -3763,8 +3739,40 @@ parse_string(BFILE *f)
 
 struct forptr *new_mpz(void);
 
+struct parse_ctx {
+  struct shared_entry *shared_table;
+  heapoffs_t shared_table_size;
+  jmp_buf deser_err;
+  const char *message;
+};
+
+/* Look for the label in the table.
+ * If it's found, return the node.
+ * If not found, return the first empty entry.
+*/
+NODEPTR *
+find_label(struct parse_ctx *pc, heapoffs_t label)
+{
+  int i;
+
+  for(i = (int)label; ; i++) {
+    i %= pc->shared_table_size;
+    if (pc->shared_table[i].node == NIL) {
+      /* The slot is empty, so claim and return it */
+      pc->shared_table[i].label = label;
+      return &pc->shared_table[i].node;
+    } else if (pc->shared_table[i].label == label) {
+      /* Found the label, so return it. */
+      return &pc->shared_table[i].node;
+    }
+    /* Not empty and not found, try next. */
+  }
+}
+
+#define DESER_ERR(s) do { pc->message = (s); longjmp(pc->deser_err, 1); } while(0);
+
 NODEPTR
-parse(BFILE *f)
+parse(struct parse_ctx *pc, BFILE *f)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR r, x, y;
@@ -3776,14 +3784,14 @@ parse(BFILE *f)
 
   for(;;) {
     c = getb(f);
-    if (c < 0) ERR("parse EOF");
+    if (c < 0) DESER_ERR("parse EOF");
     switch (c) {
     case ' ':
     case '\n':
       continue;
     }
     if (num_free < 3)
-      ERR("out of heap reading code");
+      DESER_ERR("out of heap reading code");
     GCCHECK(1);
     switch(c) {
     case '@':
@@ -3796,7 +3804,7 @@ parse(BFILE *f)
       x = TOP(0);
       POP(1);
       if (stack_ptr != stk)
-        ERR("parse: stack");
+        DESER_ERR("parse: stack");
       return x;
 #if WANT_GMP || WANT_IMATH
     case '%':
@@ -3840,7 +3848,7 @@ parse(BFILE *f)
 #if WANT_INT64
         r = mkInt64(parse_int64(f));
 #else
-        ERR("no Int64");
+        DESER_ERR("no Int64");
 #endif /* WANT_INT64 */
       } else {
         r = mkInt(parse_int(f));
@@ -3853,7 +3861,8 @@ parse(BFILE *f)
         struct ioarray *arr;
         size_t i;
         sz = (size_t)parse_int(f);
-        if (!gobble(f, ']')) ERR("parse arr 1");
+        if (!gobble(f, ']'))
+          DESER_ERR("parse arr 1");
         arr = arr_alloc(sz, NIL);
         for (i = 0; i < sz; i++) {
           arr->array[i] = TOP(sz - i - 1);
@@ -3867,7 +3876,7 @@ parse(BFILE *f)
     case '_':
       /* Reference to a shared value: _label */
       l = parse_int(f);  /* The label */
-      nodep = find_label(l);
+      nodep = find_label(pc, l);
       if (*nodep == NIL) {
         /* Not yet defined, so make it an indirection */
         *nodep = alloc_node(T_FREE);
@@ -3878,15 +3887,17 @@ parse(BFILE *f)
     case ':':
       /* Define a shared expression: :label e */
       l = parse_int(f);  /* The label */
-      if (!gobble(f, ' ')) ERR("parse ' '");
-      nodep = find_label(l);
+      if (!gobble(f, ' '))
+        DESER_ERR("parse ' '");
+      nodep = find_label(pc, l);
       x = TOP(0);
       if (*nodep == NIL) {
         /* not referenced yet, so add a direct reference */
         *nodep = x;
       } else {
         /* Sanity check */
-        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL) ERR("shared != NIL");
+        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL)
+          DESER_ERR("shared != NIL");
         SETINDIR(*nodep, x);
       }
       break;
@@ -3900,7 +3911,7 @@ parse(BFILE *f)
       {
         struct bytestring bs = mk_ro_bytestring(parse_int(f), NULL);
         if (!gobble(f, ' '))
-          ERR("bytestring parse error");
+          DESER_ERR("bytestring parse error");
         for(size_t i = 0; i < bs.bs_size; i++) {
           ((uint8_t*)bs.bs_array)[i] = getb(f);
         }
@@ -3911,7 +3922,7 @@ parse(BFILE *f)
 #if WANT_TICK
     case '!':
       if (!gobble(f, '"'))
-        ERR("parse !");
+        DESER_ERR("parse !");
       r = alloc_node(T_TICK);
       SETVALUE(r, (value_t)add_tick_table(parse_string(f)));
       PUSH(r);
@@ -3933,7 +3944,7 @@ parse(BFILE *f)
       } else if (strcmp(buf, "closeb") == 0) {
         PUSH(mkFunPtr((HsFunPtr)closeb));
       } else {
-        ERR1("unknown funptr '%s'", buf);
+        DESER_ERR("unknown funptr");
       }
       break;
     default:
@@ -3946,7 +3957,7 @@ parse(BFILE *f)
       {
         int t = lookup_primop(buf);
         if (t < 0)
-          ERR1("no primop %s", buf);
+          DESER_ERR("unknown primop");
         r = HEAPREF((enum node_tag)t);
       }
       PUSH(r);
@@ -3956,42 +3967,53 @@ parse(BFILE *f)
 }
 
 void
-checkversion(BFILE *f)
+checkversion(struct parse_ctx *pc, BFILE *f)
 {
   char *p = VERSION;
   int c;
 
   while ((c = *p++)) {
     if (c != getb(f))
-      ERR("version mismatch");
+      DESER_ERR("version mismatch");
   }
   (void)gobble(f, '\r');                 /* allow extra CR */
 }
 
 /* Parse a file */
+/* XXX We should not be using the ordinary stack here. */
 NODEPTR
 parse_top(BFILE *f, struct ffe_entry *ffe)
 {
   heapoffs_t numLabels, i;
   NODEPTR n;
-  checkversion(f);
-  numLabels = parse_int(f);
-  if (!gobble(f, '\n'))
-    ERR("size parse");
-  gobble(f, '\r');                 /* allow extra CR */
-  shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
-  shared_table = mmalloc(shared_table_size * sizeof(struct shared_entry));
-  for(i = 0; i < shared_table_size; i++)
-    shared_table[i].node = NIL;
-  n = parse(f);
-  if (ffe) {
-    for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
-      heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
-      f->ffe_value = *find_label(l);
+  struct parse_ctx spc, *pc = &spc;
+
+  pc->shared_table = 0;
+  if (setjmp(pc->deser_err)) {
+    /* exception */
+    if (pc->shared_table)
+      FREE(pc->shared_table);
+    raise_rts(exn_deserialize);
+  } else {
+    checkversion(pc, f);
+    numLabels = parse_int(f);
+    if (!gobble(f, '\n'))
+      DESER_ERR("size parse");
+    gobble(f, '\r');                 /* allow extra CR */
+    pc->shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
+    pc->shared_table = mmalloc(pc->shared_table_size * sizeof(struct shared_entry));
+    for(i = 0; i < pc->shared_table_size; i++)
+      pc->shared_table[i].node = NIL;
+    n = parse(pc, f);
+    if (ffe) {
+      for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
+        heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
+        f->ffe_value = *find_label(pc, l);
+      }
     }
+    FREE(pc->shared_table);
+    return n;
   }
-  FREE(shared_table);
-  return n;
 }
 
 /* Two bits per node: marked, shared
@@ -4377,7 +4399,6 @@ printb(BFILE *f, NODEPTR n, bool header)
     FREE(pb.shared_bits);
     raise_rts(exn_serialize);
   } else {
-    /* normal termination */
     printrec(f, &pb, n, !header);
     if (header) {
       putb('}', f);
