@@ -1065,7 +1065,8 @@ free_stableptr(uvalue_t sp)
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
-               exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow };
+               exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
+               exn_serialize, exn_deserialize, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -4002,6 +4003,8 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
 struct print_bits {
   bits_t *marked_bits;
   bits_t *shared_bits;
+  jmp_buf ser_err;
+  const char *message;
 };
 static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
@@ -4134,6 +4137,7 @@ print_string(BFILE *f, struct bytestring bs)
   putb('"', f);
 }
 
+#define SER_ERR(s) do { pb->message = (s); longjmp(pb->ser_err, 1); } while(0)
 /*
  * Recursively print an expression.
  * This assumes that the shared nodes has been marked as such.
@@ -4199,7 +4203,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #if WANT_FLOAT32
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
 #endif
-  case T_WEAK: ERR("serialize WEAK unimplemented");
+  case T_WEAK: SER_ERR("serialize WEAK unimplemented");
   case T_ARR:
     if (prefix) {
       /* Arrays serialize as '[sz] e_1 ... e_sz' */
@@ -4219,6 +4223,9 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putdecb((value_t)ARR(n)->size, f);
       putb(']', f);
     }
+    break;
+  case T_MVAR:
+    SER_ERR("cannot serialize MVAR");
     break;
   case T_PTR:
     if(PTR(n) == NULL) {
@@ -4251,7 +4258,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       snprintf(prbuf, sizeof prbuf, "PTR<%p>",PTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize pointers");
+      SER_ERR("Cannot serialize pointers");
     }
     break;
   case T_FUNPTR:
@@ -4267,14 +4274,14 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>", FUNPTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize function pointers");
+      SER_ERR("Cannot serialize function pointers");
     }
     break;
   case T_THID:
     if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%d>",(int)THR(n)->mt_id);
     } else {
-      ERR("cannot serialize ThreadId yet");
+      SER_ERR("cannot serialize ThreadId yet");
     }
     break;
   case T_FORPTR:
@@ -4315,7 +4322,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize foreign pointers");
+      SER_ERR("Cannot serialize foreign pointers");
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
@@ -4331,10 +4338,10 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       if (tag_names[tag]) {
         putsb(tag_names[tag], f);
       } else {
-        ERR1("TAG %d", tag);
+        SER_ERR("TAG1");
       }
     } else {
-      ERR1("TAG %d", tag);
+      SER_ERR("TAG2");
     }
     break;
   }
@@ -4364,12 +4371,20 @@ printb(BFILE *f, NODEPTR n, bool header)
     putdecb(num_shared, f);
     putb('\n', f);
   }
-  printrec(f, &pb, n, !header);
-  if (header) {
-    putb('}', f);
+  if (setjmp(pb.ser_err)) {
+    /* exception */
+    FREE(pb.marked_bits);
+    FREE(pb.shared_bits);
+    raise_rts(exn_serialize);
+  } else {
+    /* normal termination */
+    printrec(f, &pb, n, !header);
+    if (header) {
+      putb('}', f);
+    }
+    FREE(pb.marked_bits);
+    FREE(pb.shared_bits);
   }
-  FREE(pb.marked_bits);
-  FREE(pb.shared_bits);
 }
 
 /* Show a graph. */
@@ -6882,22 +6897,29 @@ die_exn(NODEPTR exn)
    * (combShowExn exn) and evaluate it.
    */
   NODEPTR x;
-  char *msg;
+  const char *msg;
 
   in_raise = true;
 
   if (GETTAG(exn) == T_INT) {
     /* This is the special hack for RTS generated exception, represented by a T_INT */
-    switch(GETVALUE(exn)) {
-    case 0: msg = "stack overflow"; break;
-    case 1: msg = "heap overflow"; break;
-    case 2: msg = "thread killed"; break;
-    case 3: msg = "user interrupt"; break;
-    case 4: msg = "DivideByZero"; break;
-    case 5: msg = "blocked MVar"; break;
-    case 6: msg = "blocked STM"; break;
-    case 7: msg = "arithmetic overflow"; break;
-    default: msg = "unknown"; break;
+    enum rts_exn eexn = GETVALUE(exn);
+    static const char *msgs[] =
+      { "stack overflow",
+        "heap overflow",
+        "thread killed",
+        "user interrupt",
+        "DivideByZero",
+        "blocked MVar",
+        "blocked STM",
+        "arithmetic overflow",
+        "Serialize",
+        "Deserialize",
+      };
+    if (eexn < 0 || eexn >= exn_last) {
+      msg = "unknown";
+    } else {
+      msg = msgs[eexn];
     }
   } else {
     /* just overwrite the top stack element, we don't need it */

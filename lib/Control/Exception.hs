@@ -34,6 +34,7 @@ module Control.Exception(
 
   --
   ArithException(..),
+  SerializeException(..),
   SomeAsyncException(..), AsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
@@ -144,6 +145,8 @@ deriving instance Eq   AsyncException
 deriving instance Ord  AsyncException
 deriving instance Eq   MaskingState
 deriving instance Show MaskingState
+deriving instance Eq   SerializeException
+deriving instance Ord  SerializeException
 
 blockedIndefinitelyOnMVar :: SomeException
 blockedIndefinitelyOnMVar = toException BlockedIndefinitelyOnMVar
