@@ -5172,6 +5172,8 @@ rnf(value_t noerr, NODEPTR n)
   FREE(done);
 }
 
+counter_t num_arm, num_bad_arm;
+
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
 evali(NODEPTR an)
@@ -6590,8 +6592,13 @@ evali(NODEPTR an)
         NODEPTR d = ARG(TOP(nn + 1));
         for (int i = 0; i < m; i++) {
           NODEPTR a = ARG(TOP(nn + 2 + i));
-          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM)
+          num_arm++;
+          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM) {
+            num_bad_arm++;
+            //            fprintf(stderr, "bad a.tag=%s a.fun.tag=%s\n",
+            //                    TAGNAME(GETTAG(a)), GETTAG(a) == T_AP ? TAGNAME(GETTAG(FUN(a))) : "---");
             a = evali(a);
+          }
           if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM)
             ERR("LOOKS, bad table");
           int ki, ni;
@@ -7388,7 +7395,7 @@ mhs_main(int argc, char **argv)
   run_time += GETTIMEMILLI();
 
 #if WANT_STDIO
-  if (verbose) {
+  if (verbose || 1) {
     if (verbose > 1) {
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
@@ -7419,6 +7426,7 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
 #endif
+    PRINT("arms=%"PRIcounter" bad=%"PRIcounter"\n", num_arm, num_bad_arm);
     // PRINT("%"PCOMMA"15d avg gc stack depth\n", (int)(gc_tot / num_gc));
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
