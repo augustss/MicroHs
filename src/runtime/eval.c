@@ -4,6 +4,12 @@
 #include "mhsffi.h"  /* this includes config.h */
 #include "extra.c"
 
+/* Extra asserts for debugging */
+#define XASSERT(p) do { if (!(p)) { fprintf(stderr, "XASSERT line %d: %s\n", __LINE__, #p); exit(1); } } while(0)
+//#define XASSERT(p)
+
+//#define ROUND_UP(x, d) ((((x) + (d) - 1) / (d)) * (d))
+
 #if !defined(WANT_GMP)
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
@@ -150,7 +156,6 @@ int num_ffi;
 #define PRIuvalue PRIuPTR
 typedef uintptr_t heapoffs_t;   /* Heap offsets */
 #define PRIheap PRIuPTR
-typedef uintptr_t tag_t;        /* Room for tag, low order bit indicates AP/not-AP */
 
 typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since overflow doesn't matter */
 #define PRIcounter PRIuPTR
@@ -217,6 +222,13 @@ void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 #define PACKED
 #endif  /* WORD_SIZE == 32 */
 #endif  /* !defined(PACKED) */
+
+/* tcc doesn't understand noreturn attribute */
+#if defined(__TCC__)
+#define NOTREACHED return 0
+#else
+#define NOTREACHED
+#endif
 
 #if !defined(SLICE)
 #define SLICE 100000
@@ -495,23 +507,28 @@ islinux(void)
 #define STACK_SIZE 250000
 #endif
 
-/* tcc doesn't understand noreturn attribute */
-#if defined(__TCC__)
-#define NOTREACHED return 0
-#else
-#define NOTREACHED
-#endif
+/***************************************/
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
+/* All node tags for nodes with a payload */
+
+/* NODEPTR with a "virtual" pointer, and special tags */
+
+/* NODEPTR with a "virtual" pointer, and regular tags */
+enum node_tag { D_NONE, 
+                /* Tags with a payload */
+                D_INT, D_INT64, D_DBL, D_FLT32, D_PTR, D_FUNPTR, D_FORPTR,
+                D_ARR, D_THID, D_MVAR, D_WEAK,
+                D_BADDYN, D_TICK,
+
+                /* Tags with extra info */
+                V_CONSTR, V_ARM, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
+
+                T_FIRST_REAL_TAG,
+                /* Regular tags */
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
                 T_L, T_KK, T_KA,
-                T_T3, T_T4, T_T5, T_T6, T_T7, T_T8, T_T9, T_T10, T_T11, T_T12, T_T13, T_T14, T_T15, T_T16,
-                T_TAG0, T_TAG1, T_TAG2, T_TAG3, T_TAG4, T_TAG5,  T_TAG6,  T_TAG7,  T_TAG8,  T_TAG9,
-                T_TAG10, T_TAG11, T_TAG12, T_TAG13, T_TAG14, T_TAG15,  T_TAG16,  T_TAG17,  T_TAG18,  T_TAG19,
-                T_TAG20, T_TAG21, T_TAG22, T_TAG23, T_TAG24, T_TAG25,  T_TAG26,  T_TAG27,  T_TAG28,  T_TAG29,
-                T_TAG30, T_TAG31, T_TAG32,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
                 T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -540,7 +557,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_FTOD, T_DTOF,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_TRUNC, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_RNF,
-                T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
@@ -548,7 +564,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
                 T_IO_LAZYBIND, T_IO_STRICT,
-                T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
@@ -566,19 +581,176 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
-                T_CASED, T_LOOKD,
-                T_CASES, T_LOOKS,
-                T_CONSTR,
-                T_ARM,
                 T_LAST_TAG,
                 T_XXX = 0x7fffffff
 };
 
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
-    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
+  { "FREE",
+    "INT", "INT64", "DBL", "FLT32", "PTR",
+    "FUNPTR", "FORPTR", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
+
+/***************************************/
+
+/*
+ * A NODEPTR is a basically a pointer to a struct node.
+ * But to save memory references, we never point to a constant
+ * node that is just a tag, instead we encode the tag straight in
+ * the NODEPTR.
+ * A struct node is always at least 4 byte aligned, so the two lower
+ * bits of a real pointer are always 0.
+ * A NODEPTR always has an LSB=0.
+ * ...pppp00         real pointer = ...pppp00
+ * ...tttt10         tag = ...tttt, basically a node_tag
+ */
+
+/* 
+ * For a node (i.e., two NODEPTR) the two lower bits of the FUN part
+ * decides what kind of node it is.
+ * xxx0  yyyy        AP node, xxx0 and yyyy are NODEPTRs
+ * xx01  yyyy        IND node, xx00 is a struct node* , yyyy is unused
+ * xx11  yyyy        node with payload (INT, DBL, etc), xx=D_INT,D_DBL,..., yyyy is the payload
+ */
+
+/*
+ * For a NODEPTR we have
+ * nnnkkkttt10       ttt 11 bits is a node_tag, kkk 11 bits, nnn 8 bits
+ *   when ttt=
+ *     V_CONSTR       kkk = constructor number, nnn = number of constructor arguments
+ *     V_ARM          as above
+ *     V_CASED        kkk = number of constructors, nnn unused
+ *     V_CASES        as above
+ *     V_LOOKD        as above
+ *     V_LOOKS        as above
+ *     otherwise      kkk, nnn unused
+ * 
+ */
+typedef uintptr_t tag_t;
+typedef union {
+  tag_t        node_bits;
+  struct node *node_ptr;
+} NODEPTR;
+
+const NODEPTR NIL_NODEPTR = { 0 };
+
+/* To fit in a word we should have
+ * PTR_TAG_BITS + PTR_TAG_TAG_BITS + PTR_TAG_NCON_BITS + PTR_TAG_NARG_BITS <= size_in_bits(tag_t)
+ * We make them add to 32
+ */
+#define PTR_TAG_BITS 2              /* number of reserved tag bits in every pointer */
+#define PTR_TAG_MASK ((1 << PTR_TAG_BITS) - 1)
+#define PTR_TAG_PTR  0
+#define PTR_TAG_IND  1
+#define PTR_TAG_TAG  2
+#define PTR_TAG_DATA 3
+#define PTR_AP_MASK  1
+#define PTR_AP_AP    0
+#define PTR_TAG_TAG_BITS 11     /* max number of bits in a enum node_tag */
+#define PTR_TAG_TAG_MASK ((1 << PTR_TAG_TAG_BITS) - 1)
+#define PTR_TAG_NCON_BITS 11    /* max number of constructors */
+#define PTR_TAG_NCON_MASK ((1 << PTR_TAG_NCON_BITS) - 1)
+#define PTR_TAG_NARG_BITS 11    /* max number of constructor arguments */
+#define PTR_TAG_NARG_MASK ((1 << PTR_TAG_NARG_BITS) - 1)
+
+#define MK_TAG(t) (((tag_t)(t) << PTR_TAG_BITS) | PTR_TAG_TAG)
+/* Encode the CASEx/LOOKx/CON/ARM as above */
+#define MK_CASE(t, m) MK_TAG(((tag_t)(m) << PTR_TAG_TAG_BITS) | (t))
+#define MK_CON(t, k, n) MK_CASE(t, ((tag_t)(n) << PTR_TAG_NCON_BITS) | (k))
+
+static INLINE bool
+is_NIL(NODEPTR n)
+{
+  return n.node_bits == 0;
+}
+
+static INLINE struct node*
+get_node_ptr(NODEPTR n)
+{
+  if ((n.node_bits & PTR_TAG_MASK) == 0)
+    return n.node_ptr;
+  else
+    return NULL;
+}
+
+/* For a FUN part of a struct node */
+static INLINE bool
+is_AP(NODEPTR n)
+{
+  return (n.node_bits & PTR_AP_MASK) == PTR_AP_AP;
+}
+
+/* For a FUN part of a struct node */
+static INLINE bool
+is_IND(NODEPTR n)
+{
+  return (n.node_bits & PTR_TAG_MASK) == PTR_TAG_IND;
+}
+
+/* For a FUN part of a struct node */
+/* Get indirection pointer, or NULL if it isn't an indirection */
+static INLINE struct node*
+get_IND(NODEPTR n)
+{
+  if (is_IND(n))
+    return (struct node *)(n.node_bits - PTR_TAG_IND);
+  else
+    return NULL;
+}
+
+/* For a FUN part of a struct node */
+static INLINE bool
+is_DATA(NODEPTR n)
+{
+  return (n.node_bits & PTR_TAG_MASK) == PTR_TAG_DATA;
+}
+
+/* For a FUN part of a struct node */
+/* Returns the data tag or D_NONE */
+static INLINE enum node_tag
+get_DATA(NODEPTR n)
+{
+  if (is_DATA(n))
+    return n.node_bits >> PTR_TAG_BITS;
+  else
+    return D_NONE;
+}
+
+static INLINE NODEPTR
+mk_TAG(enum node_tag t)
+{
+  NODEPTR n;
+  n.node_bits = MK_TAG(t);
+  return n;
+}
+
+static INLINE NODEPTR
+mk_DATA_TAG(enum node_tag t)
+{
+  NODEPTR n;
+  n.node_bits = (t << PTR_TAG_BITS) | PTR_TAG_DATA;
+  return n;
+}
+
+static INLINE NODEPTR
+mk_CASE(enum node_tag t, int num_constr)
+{
+  NODEPTR n;
+  n.node_bits = MK_CASE(t, num_constr);
+  return n;
+}
+
+static INLINE NODEPTR
+mk_CON(enum node_tag t, int num_arg, int constr_no)
+{
+  NODEPTR n;
+  n.node_bits = MK_CON(t, num_arg, constr_no);
+  return n;
+}
+
+/***************************************/
+
 
 struct ioarray;
 struct bytestring;
@@ -588,123 +760,66 @@ struct mvar;
 struct weak_ptr;
 
 typedef struct PACKED node {
+  NODEPTR            ufun;
   union {
-    struct node *uufun;
-    intptr_t     uuifun;
-    tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
-  } ufun;
-  union {
-    struct node    *uuarg;
-    value_t         uuvalue;
+    NODEPTR          uuarg;
+    value_t          uuvalue;
 #if WANT_FLOAT32
-    flt32_t         uuflt32value;
-    uint32_t        uuint32value;
+    flt32_t          uuflt32value;
+    uint32_t         uuint32value;
 #endif  /* WANT_FLOAT32 */
 #if WANT_FLOAT64
-    flt64_t         uuflt64value;
+    flt64_t          uuflt64value;
 #endif  /* WANT_FLOAT32 */
 #if WANT_INT64
-    int64_t         uuint64value;
+    int64_t          uuint64value;
 #endif  /* WANT_INT64 */
-    const char     *uucstring;
-    void           *uuptr;
-    HsFunPtr        uufunptr;
-    struct ioarray *uuarray;
-    struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
-    struct mthread *uuthread;
-    struct mvar    *uumvar;
+    const char      *uucstring;
+    void            *uuptr;
+    HsFunPtr         uufunptr;
+    struct ioarray  *uuarray;
+    struct forptr   *uuforptr;      /* foreign pointers and byte arrays */
+    struct mthread  *uuthread;
+    struct mvar     *uumvar;
     struct weak_ptr *uuweak;
   } uarg;
 } node;
-/*
- * Low bits encode the node type
- *  00 - T_AP  application
- *  01 - tag   upper bits are T_XXX
- *  10 - T_IND indirection
- *  11 - unused
- * Only the lower 2 bits are free on 32 bit platforms with 3 word nodes
- * (i.e. with WANT_DOUBLE or WANT_INT64).
- */
-#define TAG_SHIFT 2
-#define BIT_MASK  ((1 << TAG_SHIFT) - 1)
-#define BIT_AP    0
-#define BIT_TG    1
-#define BIT_IN    2
-#define TAG_BITS  10        /* Allow 4096 primops */
-#define TAG_MASK  ((1 << TAG_BITS) - 1)
 
-#define MK_CASED(m) ((T_CASED | ((m) << TAG_BITS)))
-#define MK_LOOKD(m) ((T_LOOKD | ((m) << TAG_BITS)))
-#define MK_CASES(m) ((T_CASES | ((m) << TAG_BITS)))
-#define MK_LOOKS(m) ((T_LOOKS | ((m) << TAG_BITS)))
-#define MK_CONSTR_ARM(t, k, n) (((t) | ((((n) << 10) | k) << TAG_BITS)))
-#define MK_CONSTR(k, n) (MK_CONSTR_ARM(T_CONSTR, k, n))
-#define MK_ARM(k, n) (MK_CONSTR_ARM(T_ARM, k, n))
-#define CASE_SIZE(tag, m) ((m) = (tag) >> (TAG_BITS + TAG_SHIFT))
-#define CONSTR_NO(tag, k, n) ((n) = (tag) >> (TAG_BITS + TAG_SHIFT + 10), (k) = ((tag) >> (TAG_BITS + TAG_SHIFT)) & 0x3ff)
-#define MK_CONSTR_TAG(k, n) ((MK_CONSTR(k, n) << TAG_SHIFT) | BIT_TG)
-
-static INLINE tag_t GETRAWTAG(NODEPTR p)
+/* Set the tag of a data node, n is a real pointer */
+static INLINE void
+set_DATA_TAG(NODEPTR n, enum node_tag t)
 {
-  return p->ufun.uutag;
+  XASSERT(get_node_ptr(n) != NULL);
+  n.node_ptr->ufun = mk_DATA_TAG(t);
 }
 
-static INLINE enum node_tag TAGOF(tag_t t)
-{
-  switch(t & BIT_MASK) {
-  case BIT_AP: return T_AP;
-  case BIT_IN: return T_IND;
-  default:     return (t >> TAG_SHIFT) & TAG_MASK;
-  }
-}
 
-static INLINE tag_t GETTAG(NODEPTR p)
-{
-  return TAGOF(GETRAWTAG(p));
-}
-
-static INLINE void SETTAG(NODEPTR p, tag_t t)
-{
-  switch(t) {
-  case BIT_AP: break;           /* do nothing, bits are already 0 */
-  case BIT_IN: p->ufun.uutag |= BIT_IN; break;
-  default:     p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG; break;
-  }
-}
-
-#define NIL 0
 #define HEAPREF(i) &cells[(i)]
-// #define GETTAG(p) ( ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
-// #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
+#define NODEPTR(n) ((n).node_ptr)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETINT64VALUE(p) (p)->uarg.uuint64value
 #define GETINT32VALUE(p) (p)->uarg.uuint32value
 #define GETFLTVALUE(p) (p)->uarg.uuflt32value
 #define GETDBLVALUE(p) (p)->uarg.uuflt64value
-#define SETVALUE(p,v) (p)->uarg.uuvalue = v
+#define SETVALUE(p,v) NODEPTR(p)->uarg.uuvalue = v
 #define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
 #define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
 #define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
-#define FUN(p) (p)->ufun.uufun
+#define FUN(p) (p)->ufun
 #define ARG(p) (p)->uarg.uuarg
 #define CSTR(p) (p)->uarg.uucstring
 #define PTR(p) (p)->uarg.uuptr
 #define FUNPTR(p) (p)->uarg.uufunptr
-#define FORPTR(p) (p)->uarg.uuforptr
+#define FORPTR(p) (NODEPTR(p))->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
-#define THR(p) (p)->uarg.uuthread
+#define THR(p) NODEPTR(p)->uarg.uuthread
 #define MVAR(p) (p)->uarg.uumvar
-//#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
-#define ISINDIR(p) (GETTAG((p)) == T_IND)
-#define WEAK(p) (p)->uarg.uuweak
-//#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
-#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_MASK))
-#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IN; } while(0)
+#define WEAK(p) NODEPTR(p)->uarg.uuweak
+
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = mmalloc(n * sizeof(node)); } while(0)
-#define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
 /*
@@ -1049,7 +1164,7 @@ init_stableptr(void)
 {
   sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
   for (size_t i = 0; i < sp_capacity; i++)
-    sp_table[i] = NIL;
+    sp_table[i] = NIL_NODEPTR;
 }
 
 static uvalue_t
@@ -1061,7 +1176,7 @@ new_stableptr(NODEPTR n)
   /* Linear search for an empty slot. */
   /* Not ideal, but fine for a small number of StablePtr. */
   for(i = 1; i < sp_capacity; i++) { /* index 0 reserved according to the spec */
-    if (sp_table[i] == NIL)
+    if (is_NIL(sp_table[i]))
       break;
   }
   if (i == sp_capacity) {
@@ -1069,7 +1184,7 @@ new_stableptr(NODEPTR n)
     sp_capacity *= 2;
     sp_table = mrealloc(sp_table, sp_capacity * sizeof(NODEPTR));
     for(size_t j = i; j < sp_capacity; j++)
-      sp_table[j] = NIL;
+      sp_table[j] = NIL_NODEPTR;
   }
   sp_table[i] = n;
   return (uvalue_t)i;
@@ -1078,7 +1193,7 @@ new_stableptr(NODEPTR n)
 static NODEPTR
 deref_stableptr(uvalue_t sp)
 {
-  if (sp >= sp_capacity || sp_table[sp] == NIL)
+  if (sp >= sp_capacity || is_NIL(sp_table[sp]))
     ERR("deref_stableptr");
   return sp_table[sp];
 }
@@ -1086,10 +1201,10 @@ deref_stableptr(uvalue_t sp)
 static void
 free_stableptr(uvalue_t sp)
 {
-  if (sp >= sp_capacity || sp_table[sp] == NIL)
+  if (sp >= sp_capacity || is_NIL(sp_table[sp]))
     ERR("free_stableptr");
   COUNT(num_stable_free);
-  sp_table[sp] = NIL;
+  sp_table[sp] = NIL_NODEPTR;
 }
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
@@ -1118,30 +1233,61 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combA, combI;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
-NODEPTR combKK, combKA, combP;
-NODEPTR combSETMASKINGSTATE;
-NODEPTR combPERFORMIO;
-NODEPTR combShowExn, combU, combK2, combK3;
-NODEPTR combBININT1, combBININT2, combUNINT1;
-NODEPTR combBININT64_1, combBININT64_2, combUNINT64_1;
-NODEPTR combBINFLT1, combBINFLT2, combUNFLT1;
-NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
-NODEPTR combBINBS1, combBINBS2;
-NODEPTR comb_stdin, comb_stdout, comb_stderr;
-NODEPTR combTHROWTO;
-NODEPTR combCATCHR;
-NODEPTR combFP2P;
-NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
 
-NODEPTR combFalse, combTrue;
-NODEPTR combNothing, combJust;
-NODEPTR combUnit;
-NODEPTR combNil, combCons;
-NODEPTR combPair;
+#define combK               mk_TAG(T_K)
+#define combA               mk_TAG(T_A)
+#define combI               mk_TAG(T_I)
+#define combB               mk_TAG(T_B)
+#define combC               mk_TAG(T_C)
+#define combZ               mk_TAG(T_Z)
+#define combU               mk_TAG(T_U)
+#define combK2              mk_TAG(T_K2)
+#define combK3              mk_TAG(T_K3)
+#define combBB              mk_TAG(T_BB)
+#define combCC              mk_TAG(T_CC)
+#define combKK              mk_TAG(T_KK)
+#define combKA              mk_TAG(T_KA)
+#define combP               mk_TAG(T_P)
+#define combIOBIND          mk_TAG(T_IOBIND)
+#define combIORETURN        mk_TAG(T_IORETURN)
+#define combIOTHEN          mk_TAG(T_IOTHEN)
+#define combSETMASKINGSTATE mk_TAG(T_SETMASKINGSTATE)
+#define combPERFORMIO       mk_TAG(T_PERFORMIO)
+#define combBININT1         mk_TAG(T_BININT1)
+#define combBININT2         mk_TAG(T_BININT2)
+#define combUNINT1          mk_TAG(T_UNINT1)
+#define combBININT64_1      mk_TAG(T_BININT64_1)
+#define combBININT64_2      mk_TAG(T_BININT64_2)
+#define combUNINT64_1       mk_TAG(T_UNINT64_1)
+#define combBINFLT1         mk_TAG(T_BINFLT1)
+#define combBINFLT2         mk_TAG(T_BINFLT2)
+#define combUNFLT1          mk_TAG(T_UNFLT1)
+#define combBINDBL1         mk_TAG(T_BINDBL1)
+#define combBINDBL2         mk_TAG(T_BINDBL2)
+#define combUNDBL1          mk_TAG(T_UNDBL1)
+#define combBINBS1          mk_TAG(T_BINBS1)
+#define combBINBS2          mk_TAG(T_BINBS2)
+#define combTHROWTO         mk_TAG(T_IO_THROWTO)
+#define combCATCHR          mk_TAG(T_CATCHR)
+#define combFP2P            mk_TAG(T_FP2P)
+
+#define combFalse           mk_CON(V_CONSTR, 0, 0)
+#define combTrue            mk_CON(V_CONSTR, 1, 0)
+#define combNothing         mk_CON(V_CONSTR, 0, 0)
+#define combJust            mk_CON(V_CONSTR, 1, 1)
+#define combUnit            mk_CON(V_CONSTR, 0, 0)
+#define combNil             mk_CON(V_CONSTR, 0, 0)
+#define combCons            mk_CON(V_CONSTR, 1, 2)
+#define combPair            mk_CON(V_CONSTR, 0, 2)
+#define combLT              mk_CON(V_CONSTR, 0, 0)
+#define combEQ              mk_CON(V_CONSTR, 1, 0)
+#define combGT              mk_CON(V_CONSTR, 2, 0)
+
+NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
+NODEPTR combShowExn;
+NODEPTR comb_stdin, comb_stdout, comb_stderr;
+
 NODEPTR combPFst, combPSnd;
-NODEPTR combLT, combEQ, combGT;
 NODEPTR combPUnit;
 NODEPTR combWorld;
 
@@ -1384,7 +1530,7 @@ check_thrown(bool intr)
     return;
   }
   NODEPTR exn = take_mvar(true, runq.mq_head->mt_exn); /* get the exception */
-  if (exn == NIL)
+  if (is_NIL(exn))
     return;            /* no thrown exception */
   /* the current thread has an async exception */
 #if THREAD_DEBUG
@@ -1476,13 +1622,13 @@ new_thread(NODEPTR root)
 
 #if THREAD_DEBUG
   if (thread_trace) {
-    printf("new_thread: mt=%p root=%p\n", mt, root);
+    printf("new_thread: mt=%p root=%p\n", mt, root.node_ptr);
   }
 #endif  /* THREAD_DEBUG */
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
-  mt->mt_mval = NIL;
+  mt->mt_mval = NIL_NODEPTR;
   mt->mt_slice = 0;
   mt->mt_mark = false;
   mt->mt_num_slices = 0;
@@ -1516,7 +1662,7 @@ new_mvar(void)
   COUNT(num_mvar_alloc);
   struct mvar *mv = mmalloc(sizeof(struct mvar));
 
-  mv->mv_data = NIL;
+  mv->mv_data = NIL_NODEPTR;
   mv->mv_takeput.mq_head = 0;
   mv->mv_takeput.mq_tail = 0;
   mv->mv_read.mq_head = 0;
@@ -1544,13 +1690,13 @@ take_mvar(bool try, struct mvar *mv)
   }
 #endif  /* THREAD_DEBUG */
   NODEPTR n;
-  if ((n = mv->mv_data) != NIL) {
+  if (!is_NIL(n = mv->mv_data)) {
     /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p full\n", mv);
 #endif  /* THREAD_DEBUG */
-    mv->mv_data = NIL;           /* now empty */
+    mv->mv_data = NIL_NODEPTR;           /* now empty */
 
     /* move one thread waiting to put to the runq */
     struct mthread *mt;
@@ -1569,7 +1715,7 @@ take_mvar(bool try, struct mvar *mv)
     }
 #if THREAD_DEBUG
     if (thread_trace) {
-      printf("take_mvar: end mvar=%p return %p\n", mv, n);
+      printf("take_mvar: end mvar=%p return %p\n", mv, n.node_ptr);
     }
 #endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
@@ -1581,7 +1727,7 @@ take_mvar(bool try, struct mvar *mv)
 #endif  /* THREAD_DEBUG */
     /* mvar is empty */
     if (try)
-      return NIL;
+      return NIL_NODEPTR;
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt);
 #if THREAD_DEBUG
@@ -1601,19 +1747,19 @@ NODEPTR
 read_mvar(bool try, struct mvar *mv)
 {
   NODEPTR n;
-  if ((n = runq.mq_head->mt_mval) != NIL) {
+  if (!is_NIL(n = runq.mq_head->mt_mval)) {
     /* The putMVar delivers the data in mt_mval and wakes the thread.
      * So first first check if we already have data in mt_mval. */
-    runq.mq_head->mt_mval = NIL; /* empty again */
+    runq.mq_head->mt_mval = NIL_NODEPTR; /* empty again */
     return n;                    /* returned the stashed data */
   }
-  if ((n = mv->mv_data) != NIL) {
+  if (!is_NIL(n = mv->mv_data)) {
     /* mvar is full */
     return n;                   /* return the data */
   } else {
     /* mvar is empty */
     if (try)
-      return NIL;
+      return NIL_NODEPTR;
 #if THREAD_DEBUG
     if (thread_trace) {
       printf("read_mvar: suspend %d\n", (int)runq.mq_head->mt_id);
@@ -1637,7 +1783,7 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
     dump_q("read", mv->mv_read);
   }
 #endif  /* THREAD_DEBUG */
-  if (mv->mv_data != NIL) {
+  if (!is_NIL(mv->mv_data)) {
     /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
@@ -1683,7 +1829,7 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
-        if (mt->mt_mval != NIL)
+        if (!is_NIL(mt->mt_mval))
           ERR("put_mvar: mt_mval != NIL");
         mt->mt_mval = v;               /* value for restarted read */
         add_runq_tail(mt);             /* and schedule for execution later */
@@ -1845,7 +1991,7 @@ thread_intr(struct mthread *mt)
 #if defined(CLOCK_INIT)
     mt->mt_at = -1;             /* don't wait again */
 #endif
-    mt->mt_mval = NIL;          /* no longer waiting on the mvar */
+    mt->mt_mval = NIL_NODEPTR;          /* no longer waiting on the mvar */
     add_runq_tail(mt);
     break;
   case ts_wait_time:
@@ -1900,7 +2046,7 @@ raise_exn(NODEPTR exn)
 {
 #if THREAD_DEBUG
   if (thread_trace) {
-    printf("raise_exn: %p\n", exn);
+    printf("raise_exn: %p\n", exn.node_ptr);
     dump_q("runq", runq);
   }
 #endif  /* THREAD_DEBUG */
@@ -1927,7 +2073,10 @@ raise_rts(enum rts_exn exn) {
 /* Set FREE bit to 0 */
 static INLINE void mark_used(NODEPTR n)
 {
-  heapoffs_t i = LABEL(n);
+  struct node *p = get_node_ptr(n);
+  if (!p)
+    return;
+  heapoffs_t i = p - cells;
   if (i < heap_start)
     return;
 #if SANITY
@@ -1939,7 +2088,10 @@ static INLINE void mark_used(NODEPTR n)
 /* Set FREE bit to 1, used to undo marking in GC */
 static INLINE void mark_unused(NODEPTR n)
 {
-  heapoffs_t i = LABEL(n);
+  struct node *p = get_node_ptr(n);
+  if (!p)
+    return;
+  heapoffs_t i = p - cells;
 #if SANITY
   if (i < heap_start)
     ERR("Unmarking invalid heap address.");
@@ -1951,7 +2103,10 @@ static INLINE void mark_unused(NODEPTR n)
 /* Test if FREE bit is 0 */
 static INLINE int is_marked_used(NODEPTR n)
 {
-  heapoffs_t i = LABEL(n);
+  struct node *p = get_node_ptr(n);
+  if (!p)
+    return 1;
+  heapoffs_t i = p - cells;
   if (i < heap_start)
     return 1;
 #if SANITY
@@ -1967,13 +2122,14 @@ static INLINE void mark_all_free(void)
   next_scan_index = heap_start;
 }
 
-static INLINE NODEPTR
-alloc_node(enum node_tag t)
+/* Allocate a new node */
+static INLINE struct node*
+alloc_node_ptr(void)
 {
   heapoffs_t i = next_scan_index / BITS_PER_WORD;
   int k;                        /* will contain bit pos + 1 */
   heapoffs_t pos;
-  NODEPTR n;
+  struct node *n;
   heapoffs_t word;
 
   /* This can happen if we run out of memory when parsing. */
@@ -2002,18 +2158,36 @@ alloc_node(enum node_tag t)
   free_map[i] = word & (word-1);
   next_scan_index = pos;
 
-  SETTAG(n, t);
   COUNT(num_alloc);
   num_free--;
   return n;
 }
 
+/* Create a NODEPTR from a tag.  Either a real node or an inline tag */
+static INLINE NODEPTR
+alloc_node(enum node_tag t)
+{
+  if (t > T_FIRST_REAL_TAG)
+    return mk_TAG(t);
+  else {
+    struct node *p = alloc_node_ptr();
+    FUN(p) = mk_DATA_TAG(t);
+    /* ARG slot uninitialized */
+    NODEPTR n;
+    n.node_ptr = p;
+    return n;
+  }
+}
+
+/* Create a new application node */
 static INLINE NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
-  NODEPTR n = alloc_node(T_AP);
-  FUN(n) = f;
-  ARG(n) = a;
+  struct node *p = alloc_node_ptr();
+  FUN(p) = f;
+  ARG(p) = a;
+  NODEPTR n;
+  n.node_ptr = p;
   return n;
 }
 
@@ -2056,7 +2230,7 @@ start_exec(NODEPTR root)
       }
 #endif  /* THREAD_DEBUG */
       mt->mt_state = ts_died;
-      mt->mt_root = NIL;
+      mt->mt_root = NIL_NODEPTR;
     }
   }
 #if THREAD_DEBUG
@@ -2089,7 +2263,7 @@ start_exec(NODEPTR root)
     }
 #endif  /* THREAD_DEBUG */
     mt->mt_state = ts_finished;
-    mt->mt_root = NIL;
+    mt->mt_root = NIL_NODEPTR;
     /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD) {
@@ -2116,7 +2290,6 @@ struct {
   //  NODEPTR node;
 } primops[] = {
   /* combinators */
-  /* sorted by frequency in a typical program */
   { "B", T_B },
   { "O", T_O },
   { "K", T_K, T_A },
@@ -2140,53 +2313,6 @@ struct {
   { "L", T_L },
   { "KK", T_KK },
   { "KA", T_KA },
-  { "T3", T_T3 },
-  { "T4", T_T4 },
-  { "T5", T_T5 },
-  { "T6", T_T6 },
-  { "T7", T_T7 },
-  { "T8", T_T8 },
-  { "T9", T_T9 },
-  { "T10", T_T10 },
-  { "T11", T_T11 },
-  { "T12", T_T12 },
-  { "T13", T_T13 },
-  { "T14", T_T14 },
-  { "T15", T_T15 },
-  { "T16", T_T16 },
-  { "TAG0", T_TAG0 },
-  { "TAG1", T_TAG1 },
-  { "TAG2", T_TAG2 },
-  { "TAG3", T_TAG3 },
-  { "TAG4", T_TAG4 },
-  { "TAG5", T_TAG5 },
-  { "TAG6", T_TAG6 },
-  { "TAG7", T_TAG7 },
-  { "TAG8", T_TAG8 },
-  { "TAG9", T_TAG9 },
-  { "TAG10", T_TAG10 },
-  { "TAG11", T_TAG11 },
-  { "TAG12", T_TAG12 },
-  { "TAG13", T_TAG13 },
-  { "TAG14", T_TAG14 },
-  { "TAG15", T_TAG15 },
-  { "TAG16", T_TAG16 },
-  { "TAG17", T_TAG17 },
-  { "TAG18", T_TAG18 },
-  { "TAG19", T_TAG19 },
-  { "TAG20", T_TAG20 },
-  { "TAG21", T_TAG21 },
-  { "TAG22", T_TAG22 },
-  { "TAG23", T_TAG23 },
-  { "TAG24", T_TAG24 },
-  { "TAG25", T_TAG25 },
-  { "TAG26", T_TAG26 },
-  { "TAG27", T_TAG27 },
-  { "TAG28", T_TAG28 },
-  { "TAG29", T_TAG29 },
-  { "TAG30", T_TAG30 },
-  { "TAG31", T_TAG31 },
-  { "TAG32", T_TAG32 },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -2326,7 +2452,6 @@ struct {
   { "A.write", T_ARR_WRITE },
   { "A.trunc", T_ARR_TRUNC },
   { "A.==", T_ARR_EQ },
-  { "dynsym", T_DYNSYM },
   { "IO.fork", T_IO_FORK },
   { "IO.thid", T_IO_THID },
   { "thnum", T_THNUM },
@@ -2415,13 +2540,13 @@ struct {
   { "utoU", T_UTOU64 },
   { "Utou", T_U64TOU },
 #endif  /* WANT_INT64 */
-  { "tick", T_TICK },           /* fake op */
-  { "D_", T_CASED },
-  { "L_", T_LOOKD },
-  { "E_", T_CASES },
-  { "M_", T_LOOKS },
-  { "C_", T_CONSTR },
-  { "A_", T_ARM },
+  { "tick", D_TICK },           /* fake op */
+  { "D_", V_CASED },
+  { "L_", V_LOOKD },
+  { "E_", V_CASES },
+  { "M_", V_LOOKS },
+  { "C_", V_CONSTR },
+  { "A_", V_ARM },
 };
 
 #if GCRED
@@ -2497,7 +2622,6 @@ mk_std(NODEPTR n, FILE *f)
   struct final *fin = mcalloc(1, sizeof(struct final));
   struct forptr *fp = mcalloc(1, sizeof(struct forptr));
   BFILE *bf = add_utf8(add_FILE(f));
-  SETTAG(n, T_FORPTR);
   FORPTR(n) = fp;
   fin->arg = bf;
   fin->back = fp;
@@ -2509,128 +2633,55 @@ mk_std(NODEPTR n, FILE *f)
 void
 init_nodes(void)
 {
-  enum node_tag t;
   size_t j;
-  NODEPTR n;
+  NODEPTR x, y;
 
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
   free_map = mmalloc(free_map_nwords * sizeof(bits_t));
+  mark_all_free();
 
-  /* Set up permanent nodes */
-  heap_start = 0;
-  for(t = T_FREE; t <= T_LAST_TAG; t++) {
-    NODEPTR n = HEAPREF(heap_start++);
-    SETTAG(n, t);
-    switch (t) {
-    case T_K: combK = n; break;
-    case T_A: combA = n; break;
-    case T_I: combI = n; break;
-    case T_P: combP = n; break;
-    case T_CC: combCC = n; break;
-    case T_BB: combBB = n; break;
-    case T_B: combB = n; break;
-    case T_C: combC = n; break;
-    case T_Z: combZ = n; break;
-    case T_U: combU = n; break;
-    case T_K2: combK2 = n; break;
-    case T_K3: combK3 = n; break;
-    case T_KK: combKK = n; break;
-    case T_KA: combKA = n; break;
-    case T_IO_BIND: combIOBIND = n; break;
-    case T_IO_THEN: combIOTHEN = n; break;
-    case T_IO_RETURN: combIORETURN = n; break;
-    case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
-    case T_IO_PERFORMIO: combPERFORMIO = n; break;
-    case T_BININT1: combBININT1 = n; break;
-    case T_BININT2: combBININT2 = n; break;
-    case T_UNINT1: combUNINT1 = n; break;
-    case T_BININT64_1: combBININT64_1 = n; break;
-    case T_BININT64_2: combBININT64_2 = n; break;
-    case T_UNINT64_1: combUNINT64_1 = n; break;
-    case T_BINDBL1: combBINDBL1 = n; break;
-    case T_BINDBL2: combBINDBL2 = n; break;
-    case T_UNDBL1: combUNDBL1 = n; break;
-    case T_BINFLT1: combBINFLT1 = n; break;
-    case T_BINFLT2: combBINFLT2 = n; break;
-    case T_UNFLT1: combUNFLT1 = n; break;
-    case T_BINBS1: combBINBS1 = n; break;
-    case T_BINBS2: combBINBS2 = n; break;
-    case T_IO_THROWTO: combTHROWTO = n; break;
-    case T_CATCHR: combCATCHR = n; break;
-    case T_FP2P: combFP2P = n; break;
-#if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
-    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
-    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
-#endif
-    default:
-      break;
-    }
-    for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
-      //      if (primops[j].tag == t) {
-      //        primops[j].node = n;
-      //      }
-      tag_names[primops[j].tag] = primops[j].name;
-    }
-  }
-
-#if GCRED
+  /* Initialize node name array */
   for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+    tag_names[primops[j].tag] = primops[j].name;
+#if GCRED
     flip_ops[primops[j].tag] = primops[j].flipped;
-  }
 #endif
-
+  }
   init_primop_hash();
 
-#define NEW(n, t) do { n = HEAPREF(heap_start++); SETTAG(n, t); } while(0)
-#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
-#define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
-  {
-    /* The displaySomeException compiles to ((C D_1) (U (K2 A))) */
-    NODEPTR x, y;
-    NEWAP(x, combK2, combA);       /* (K2 A) */
-    NEWAP(x, combU, x);            /* (U (K2 A)) */
-    NEW(y, MK_CASED(1));            /* D_1 */
-    NEWAP(y, combC, y);            /* (C D_1) */
-    
-    NEWAP(combShowExn, y, x);      /* ((C D_1) (U (K2 A))) */
-  }
-  NEW(combFalse, MK_CONSTR(0, 0));
-  NEW(combTrue, MK_CONSTR(1, 0));
-  NEW(combNothing, MK_CONSTR(0, 0));
-  NEW(combJust, MK_CONSTR(1, 1));
-  NEW(combUnit, MK_CONSTR(0, 0));
-  NEW(combNil, MK_CONSTR(0, 0));
-  NEW(combCons, MK_CONSTR(1, 2));
-  NEW(combPair, MK_CONSTR(0, 2));
-  NEW(combLT, MK_CONSTR(0, 0));
-  NEW(combEQ, MK_CONSTR(1, 0));
-  NEW(combGT, MK_CONSTR(2, 0));
-  /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
-  NEWAP(combPUnit, combP, combUnit);
-  NEWAP(combPFst, combU, combK); /* fst for pairs constructed with P */
-  NEWAP(combPSnd, combU, combA); /* snd for pairs constructed with P */
-  MKINT(combWorld, 99999);
-#undef NEW
-#undef NEWAP
-#undef MKINT
-
+  /* Set up permanent nodes */
 #if INTTABLE
   /* Allocate permanent Int nodes */
   for (int i = LOW_INT; i < HIGH_INT; i++) {
-    NODEPTR n = HEAPREF(heap_start++);
+    NODEPTR n = alloc_node(D_INT);
     intTable[i - LOW_INT] = n;
-    SETTAG(n, T_INT);
     SETVALUE(n, i);
   }
 #endif
-  spare_node = HEAPREF(heap_start++);
+
+#if WANT_STDIO
+  comb_stdin  = alloc_node(D_FORPTR); mk_std(comb_stdin,  stdin);
+  comb_stdout = alloc_node(D_FORPTR); mk_std(comb_stdout, stdin);
+  comb_stderr = alloc_node(D_FORPTR); mk_std(comb_stderr, stdin);
+#endif
+
+  /* The displaySomeException compiles to ((C D_1) (U (K2 A))) */
+  x = new_ap(combK2, combA);                 /* (K2 A) */
+  x = new_ap(combU, x);                      /* (U (K2 A)) */
+  y = new_ap(combC, mk_CASE(V_CASED, 1));    /* (C D_1) */
+  combShowExn = new_ap(y, x);                /* ((C D_1) (U (K2 A))) */
+
+  /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
+  combPUnit = new_ap(combP, combUnit);
+  combPFst  = new_ap(combU, combK); /* fst for pairs constructed with P */
+  combPSnd  = new_ap(combU, combA); /* snd for pairs constructed with P */
+  combWorld = mkInt(99999);
+
+  spare_node = alloc_node(D_INT);
 
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
   heap_start = (heap_start + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
-
-  mark_all_free();
 
   num_free = heap_size - heap_start;
 }
@@ -2652,8 +2703,9 @@ static INLINE NODEPTR
 indir(NODEPTR *np)
 {
   NODEPTR n = *np;
-  while (GETTAG(n) == T_IND)
-    n = GETINDIR(n);
+  struct node *p;
+  while ((p = get_IND(n)))
+    n.node_ptr = p;
   *np = n;
   return n;
 }
@@ -2676,33 +2728,33 @@ sweep_weaks(void)
  restart:
   /* all weak pointer records are alive, marked or not */
   for (struct weak_ptr *wp = allweaks; wp; wp = wp->next) {
-    if (!wp->value)
+    if (is_NIL(wp->value))
       continue;                 /* the weak pointer is already dead */
     (void)indir(&wp->key);
     if (is_marked_used(wp->key)) {
       /* The key is used, so mark the other parts */
       if (!is_marked_used(wp->value) ||
-          (wp->finalize != 0 && !is_marked_used(wp->finalize))) {
+          (!is_NIL(wp->finalize) && !is_marked_used(wp->finalize))) {
         /* Not already marked */
         mark(&wp->value);
-        if (wp->finalize)
+        if (!is_NIL(wp->finalize))
           mark(&wp->finalize);
         /* This marking might have marked other keys, so restart the scan */
         goto restart;
       }
     } else {
       /* The key is not marked, so the weak reference is dead */
-      wp->value = 0;
+      wp->value = NIL_NODEPTR;
     }
   }
 
   /* Create finalizers for all weak pointers that just died */
   for (struct weak_ptr *wp = allweaks; wp; wp = wp->next) {
-    if (!wp->value && wp->finalize) {
+    if (is_NIL(wp->value) && !is_NIL(wp->finalize)) {
       struct mthread *mt = new_thread(wp->finalize);
       mark_thread(mt);        /* mark it, since overall thread marking has already run */
-      wp->finalize = 0;
-      wp->key = 0;            /* not needed, but for sanity */
+      wp->finalize = NIL_NODEPTR;
+      wp->key = NIL_NODEPTR;            /* not needed, but for sanity */
       /* Marking the finalizer does not resurrect keys */
     }
   }
@@ -2711,7 +2763,7 @@ sweep_weaks(void)
    * then it can be garbage collected. */
   for (struct weak_ptr **wpp = &allweaks; *wpp; ) {
     struct weak_ptr *wp = *wpp;
-    if (!wp->marked && !wp->value) {
+    if (!wp->marked && is_NIL(wp->value)) {
       /* not marked, so unlink and free */
       *wpp = wp->next;
       COUNT(num_gc_weak);
@@ -2732,14 +2784,14 @@ new_weak_ptr(NODEPTR key, NODEPTR value, NODEPTR finalize)
   wp->marked = 0;
   wp->key = key;
   wp->value = value;
-  if (finalize) {
+  if (!is_NIL(finalize)) {
     wp->finalize = new_ap(finalize, combWorld);
   } else {
-    wp->finalize = 0;
+    wp->finalize = NIL_NODEPTR;
   }
 
   COUNT(num_new_weak);
-  NODEPTR n = alloc_node(T_WEAK);
+  NODEPTR n = alloc_node(D_WEAK);
   WEAK(n) = wp;
   return n;
 }
@@ -2747,7 +2799,7 @@ new_weak_ptr(NODEPTR key, NODEPTR value, NODEPTR finalize)
 NODEPTR
 deref_weak_ptr(struct weak_ptr *wp)
 {
-  if (!wp->value)
+  if (is_NIL(wp->value))
     return combNothing;
   return new_ap(combJust, wp->value);
 }
@@ -2756,9 +2808,9 @@ void
 finalize_weak_ptr(struct weak_ptr *wp)
 {
   NODEPTR final = wp->finalize;
-  if (!final)
+  if (is_NIL(final))
     return;
-  wp->finalize = 0;
+  wp->finalize = NIL_NODEPTR;
   (void)evali(final);
 }
 
@@ -2774,7 +2826,7 @@ void
 async_throwto(struct mthread *mt, NODEPTR exn)
 {
   GCCHECK(4);
-  NODEPTR thid = alloc_node(T_THID);
+  NODEPTR thid = alloc_node(D_THID);
   THR(thid) = mt;		/* thread ID for mt */
   NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld); /* root = throwTo thid exn */
   (void)new_thread(root);       /* spawn and put on runq, i.e., forkIO root */
@@ -2786,10 +2838,10 @@ mark_thread(struct mthread *mt)
   if (mt->mt_mark)
     return;                     /* already marked */
   mt->mt_mark = true;
-  if (mt->mt_root != NIL)
+  if (!is_NIL(mt->mt_root))
     mark(&mt->mt_root);
   mark_mvar(mt->mt_exn);
-  if (mt->mt_mval != NIL)
+  if (!is_NIL(mt->mt_mval))
     mark(&mt->mt_mval);
 }
 
@@ -2799,7 +2851,7 @@ mark_mvar(struct mvar *mv)
   if (mv->mv_mark)
     return;
   mv->mv_mark = true;
-  if (mv->mv_data != NIL)
+  if (!is_NIL(mv->mv_data)
     mark(&mv->mv_data);
   for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
@@ -2817,7 +2869,7 @@ static int
 gc_red_ok(NODEPTR n)
 {
   for (stackptr_t s = stack_ptr; s >= 0 && s >= stack_ptr - 5; s--)
-    if (n == stack[s])
+    if (n.node_ptr == stack[s].node_ptr)
       return 0;
   return 1;
 }
@@ -6526,17 +6578,6 @@ evali(NODEPTR an)
     SETINT(n, (uvalue_t)mt->mt_id);
     RET;
     }
-
-  case T_DYNSYM:
-    /* A dynamic FFI lookup */
-    CHECK(1);
-    msg = evalstring(ARG(TOP(0))).bs_array;
-    GCCHECK(1);
-    x = ffiNode(msg);
-    FREE(msg);
-    POP(1);
-    n = TOP(-1);
-    GOIND(x);
 
 #if WANT_TICK
   case T_TICK:
