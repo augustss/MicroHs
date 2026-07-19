@@ -95,11 +95,12 @@ copyBase flags = do
 checkPath :: Flags -> IO ()
 checkPath flags = do
   path <- fromMaybe "" <$> lookupEnv "PATH"
-  let paths = splitOn pathSep path
+  let paths = map norm (splitOn pathSep path)
       pathSep | target flags == "windows" = ";"
               | otherwise = ":"
       bin = instDir flags </> "bin"
-  unless (bin `elem` paths) $
+      norm = map (\ c -> if c == '\\' then '/' else c)
+  unless (norm bin `elem` paths) $
     putStrLn $ "Please add " ++ bin ++ " to your PATH"
 
 buildBin :: Flags -> String -> IO ()
