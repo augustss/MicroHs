@@ -8,7 +8,7 @@ module MicroHs.Exp(
   app2, app3,
   allVarsExp, freeVars,
   lams, apps,
-  mkForExp, getForExp,
+  mkForExp, getForExp, IsJavascript,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
@@ -101,11 +101,14 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 -- Encoding for 'foreign export' definitions.
-mkForExp :: Exp -> CType -> Exp
-mkForExp e t = app2 cfe e cty
-  where cty = Lit $ LCType t
-        cfe = Lit $ LPrim "FE"
+type IsJavascript = Bool
 
-getForExp :: Exp -> Maybe (Exp, CType)
-getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (e, t)
+mkForExp :: IsJavascript -> Exp -> CType -> Exp
+mkForExp js e t = app2 cfe e cty
+  where cty = Lit $ LCType t
+        cfe = Lit $ LPrim $ if js then "FEJS" else "FE"
+
+getForExp :: Exp -> Maybe (IsJavascript, Exp, CType)
+getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (False, e, t)
+getForExp (App (App (Lit (LPrim "FEJS")) e) (Lit (LCType t))) = Just (True, e, t)
 getForExp _ = Nothing

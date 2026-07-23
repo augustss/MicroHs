@@ -15,7 +15,7 @@ import MicroHs.State
 import MicroHs.TypeCheck(isInstId)
 
 type CMdl = ([LDef], Exp)
-type ForExpTable = [(Ident, Ident, CType)]
+type ForExpTable = [(Ident, Ident, CType, IsJavascript)]
 
 -- Version number of combinator file.
 -- Must match version in eval.c.
@@ -37,17 +37,17 @@ removeUnused (ds, emain) = dfs roots M.empty
 
 renumberCMdl :: CMdl -> (ForExpTable, CMdl)
 renumberCMdl (ds, emain) =
-  let fexps = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
+  let fexps = [ (i, t, js) | (i, e) <- ds, Just (js, _, t) <- [getForExp e] ]
       dMap = M.fromList ds
   in  renumberCMdlM fexps dMap emain
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- This is the "linking" of the program.
 -- Returns the renamed foreign exports and the "linked" CNdl
-renumberCMdlM :: [(Ident, CType)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl)
+renumberCMdlM :: [(Ident, CType, IsJavascript)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl)
 renumberCMdlM fexps dMap emain =
   let
-    roots = freeVars emain ++ map fst fexps
+    roots = freeVars emain ++ [ i | (i, _, _) <- fexps ]
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
     dfs :: Ident -> State (Int, M.Map Exp, [LDef]) ()
@@ -74,7 +74,7 @@ renumberCMdlM fexps dMap emain =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    fexps' = [ (unVar (findIdent i), i, t) | (i, t) <- fexps ]
+    fexps' = [ (unVar (findIdent i), i, t, js) | (i, t, js) <- fexps ]
       where unVar (Var n) = n
             unVar _ = undefined
   in
@@ -86,7 +86,7 @@ toStringCMdl :: CMdl -> String
 toStringCMdl (ds, emain) =
   let
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
-    def (i, e) r | Just (e', _) <- getForExp e = def (i, e') r
+    def (i, e) r | Just (_, e', _) <- getForExp e = def (i, e') r
     def (i, e) r =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
