@@ -806,16 +806,16 @@ set_DATA_TAG(NODEPTR n, enum node_tag t)
 #define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
 #define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
-#define FUN(p) (p)->ufun
-#define ARG(p) (p)->uarg.uuarg
-#define CSTR(p) (p)->uarg.uucstring
-#define PTR(p) (p)->uarg.uuptr
-#define FUNPTR(p) (p)->uarg.uufunptr
-#define FORPTR(p) (NODEPTR(p))->uarg.uuforptr
-#define BSTR(p) (p)->uarg.uuforptr->payload
-#define ARR(p) (p)->uarg.uuarray
+#define FUN(p) NODEPTR(p)->ufun
+#define ARG(p) NODEPTR(p)->uarg.uuarg
+#define CSTR(p) NODEPTR(p)->uarg.uucstring
+#define PTR(p) NODEPTR(p)->uarg.uuptr
+#define FUNPTR(p) NODEPTR(p)->uarg.uufunptr
+#define FORPTR(p) NODEPTR(p)->uarg.uuforptr
+#define BSTR(p) NODEPTR(p)->uarg.uuforptr->payload
+#define ARR(p) NODEPTR(p)->uarg.uuarray
 #define THR(p) NODEPTR(p)->uarg.uuthread
-#define MVAR(p) (p)->uarg.uumvar
+#define MVAR(p) NODEPTR(p)->uarg.uumvar
 #define WEAK(p) NODEPTR(p)->uarg.uuweak
 
 #define NODE_SIZE sizeof(node)
@@ -2171,10 +2171,10 @@ alloc_node(enum node_tag t)
     return mk_TAG(t);
   else {
     struct node *p = alloc_node_ptr();
-    FUN(p) = mk_DATA_TAG(t);
-    /* ARG slot uninitialized */
     NODEPTR n;
     n.node_ptr = p;
+    FUN(n) = mk_DATA_TAG(t);
+    /* ARG slot uninitialized */
     return n;
   }
 }
@@ -2184,10 +2184,10 @@ static INLINE NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
   struct node *p = alloc_node_ptr();
-  FUN(p) = f;
-  ARG(p) = a;
   NODEPTR n;
   n.node_ptr = p;
+  FUN(n) = f;
+  ARG(n) = a;
   return n;
 }
 
@@ -2851,7 +2851,7 @@ mark_mvar(struct mvar *mv)
   if (mv->mv_mark)
     return;
   mv->mv_mark = true;
-  if (!is_NIL(mv->mv_data)
+  if (!is_NIL(mv->mv_data))
     mark(&mv->mv_data);
   for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
@@ -2881,6 +2881,7 @@ mark(NODEPTR *np)
   stackptr_t stk = stack_ptr;
   NODEPTR n;
   NODEPTR *to_push = 0;         /* silence warning by initializing */
+  struct node *p;
 #if GCRED
   value_t val;
 #endif
@@ -2891,163 +2892,30 @@ mark(NODEPTR *np)
   //    PRINT("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
-  tag = GETTAG(n);
-  if (tag == T_IND) {
-#if SANITY
-    int loop = 0;
-    /* Skip indirections, and redirect start pointer */
-    while ((tag = GETTAG(n)) == T_IND) {
-      //      PRINT("*"); fflush(stdout);
-      n = GETINDIR(n);
-      if (loop++ > 1000000000) {
-        //PRINT("%p %p %p\n", n, GETINDIR(n), GETINDIR(GETINDIR(n)));
-        ERR("IND loop");
-      }
-    }
-    //    if (loop)
-    //      PRINT("\n");
-#else  /* SANITY */
-    while ((tag = GETTAG(n)) == T_IND) {
-      n = GETINDIR(n);
-    }
-#endif  /* SANITY */
+  {
+    /* XXX limit the number of loops */
+    while ((p = get_IND(n)))
+      n.node_ptr = p;
     *np = n;
   }
-  if (n < cells || n > cells + heap_size)
+  p = get_node_ptr(n);
+  if (!p)
+    return;                     /* not a real pointer */
+
+  if (p < cells || p > cells + heap_size)
     ERR("bad n");
   if (is_marked_used(n)) {
     goto fin;
   }
   num_marked++;
   mark_used(n);
-  switch (tag) {
-#if GCRED
-#define GCREDIND(x) do { NODEPTR nn = (x); mark(&nn); SETINDIR(n, nn); goto fin; } while(0)
-   case T_INT:
-#if INTTABLE
-    if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
-      SETINDIR(n, intTable[val - LOW_INT]);
-      COUNT(red_int);
-      goto top;
-    }
-    goto fin;
-#endif  /* INTTABLE */
-   case T_AP:
-     if (want_gc_red) {
-        NODEPTR fun = indir(&FUN(n));
-        NODEPTR arg = indir(&ARG(n));
-        enum node_tag funt = GETTAG(fun);
-        enum node_tag argt = GETTAG(arg);
-        enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(fun))) : T_FREE;
-        enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(arg))) : T_FREE;
-
-        /* This is really only fruitful just after parsing.  It can be removed. */
-        if (funfunt == T_A && gc_red_ok(n)) {
-          /* Do the A x y --> y reduction */
-          NODEPTR y = ARG(n);
-          COUNT(red_a);
-          GCREDIND(y);
-        }
-
-        if (funfunt == T_K && gc_red_ok(n)) {
-          /* Do the K x y --> x reduction */
-          NODEPTR x = ARG(FUN(n));
-          COUNT(red_k);
-          GCREDIND(x);
-        }
-
-        if (funt == T_I && gc_red_ok(n)) {
-          /* Do the I x --> x reduction */
-          NODEPTR x = ARG(n);
-          COUNT(red_i);
-          GCREDIND(x);
-        }
-
-        if(funt == T_CC && argt == T_I && gc_red_ok(n)) {
-          /* C' I --> C */
-          SETTAG(n, T_C);
-          COUNT(red_cci);
-          goto top;
-        }
-
-        if(funt == T_CCB && argt == T_AP) {
-          NODEPTR funarg = indir(&FUN(arg));
-          NODEPTR argarg = indir(&ARG(arg));
-          if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
-            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) {
-              /* C'B ((B C) P) --> C */
-              SETTAG(n, T_C);
-              COUNT(red_ccbbcp);
-              goto top;
-            }
-          }
-        }
-
-        if(funt == T_B && argt == T_I && gc_red_ok(n)) {
-          /* B I --> I */
-          SETTAG(n, T_I);
-          COUNT(red_bi);
-          goto top;
-        }
-
-        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) {
-          /* B x I --> x */
-          NODEPTR x = ARG(FUN(n));
-          COUNT(red_bxi);
-          GCREDIND(x);
-        }
-
-        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) {
-          /* C'B x I --> x */
-          NODEPTR x = ARG(FUN(n));
-          COUNT(red_ccbi);
-          GCREDIND(x);
-        }
-
-        if(funt == T_C && funargt == T_C && gc_red_ok(n)) {
-          /* C (C x) --> x */
-          NODEPTR x = ARG(ARG(n));
-          COUNT(red_cc);
-          GCREDIND(x);
-        }
-
-#if 0
-        /* Very rare */
-        if (funt == T_S && funargt == T_K && gc_red_ok(n)) {
-          /* S (K x) --> B x */
-          printf("SK"); fflush(stdout);
-        }
-#endif
-
-#if 0
-        /* Fairly frequent, but needs allocation */
-        if (funfunt == T_B && funargt == T_K) {
-          /* B x (K y) --> K x y */
-          printf("BxK\n");
-        }
-#endif
-
-#if 1
-        if (funt == T_C && gc_red_ok(n)) {
-          enum node_tag tf;
-          if ((tf = flip_ops[argt])) {
-            /* Do the C op --> flip_op reduction */
-            // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
-            COUNT(red_flip);
-            GCREDIND(HEAPREF(tf));
-          }
-        }
-#endif
-      }
-#else   /* GCRED */
-   case T_AP:
-#endif  /* GCRED */
+  if (is_AP(n)) {
     /* Avoid tail recursion */
     np = &FUN(n);
     to_push = &ARG(n);
-    break;
-
-   case T_ARR:
+  } else {
+  switch (get_DATA_TAG(FUN(n))) {
+   case D_ARR:
     {
       struct ioarray *arr = ARR(n);
 
@@ -3064,44 +2932,38 @@ mark(NODEPTR *np)
       break;
     }
 
-   case T_FORPTR:
+   case D_FORPTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
 
-   case T_THID:
+   case D_THID:
      mark_thread(THR(n));
      goto fin;
 
-   case T_MVAR:
+   case D_MVAR:
      mark_mvar(MVAR(n));
      goto fin;
 
-   case T_WEAK:
+   case D_WEAK:
      WEAK(n)->marked = 1;
      goto fin;
 
    default:
      goto fin;
   }
+  }
 
   if (!is_marked_used(*to_push)) {
-    //  mark_depth++;
     PUSH((NODEPTR)to_push);
   }
   goto top;
- fin:
-  //  if (mark_depth > max_mark_depth) {
-  //    max_mark_depth = mark_depth;
-  //  }
-  //  mark_depth--;
+
+  fin:
   if (stack_ptr > stk) {
     np = (NODEPTR *)POPTOP();
     goto top;
   }
-  return;
 }
-
-// stackptr_t gc_tot;
 
 /* Perform a garbage collection:
    - Mark nodes from the stack
