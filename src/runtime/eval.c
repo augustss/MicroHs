@@ -514,7 +514,9 @@ islinux(void)
 /* NODEPTR with a "virtual" pointer, and special tags */
 
 /* NODEPTR with a "virtual" pointer, and regular tags */
-enum node_tag { D_NONE, 
+enum node_tag { D_NONE,
+                X_AP,           /* if we need to indicate an AP node */
+                D_IND,          /* indirection, pointer payload */
                 /* Tags with a payload */
                 D_INT, D_INT64, D_DBL, D_FLT32, D_PTR, D_FUNPTR, D_FORPTR,
                 D_ARR, D_THID, D_MVAR, D_WEAK,
@@ -610,13 +612,14 @@ static const char* tag_names [T_LAST_TAG+1] =
  * For a node (i.e., two NODEPTR) the two lower bits of the FUN part
  * decides what kind of node it is.
  * xxx0  yyyy        AP node, xxx0 and yyyy are NODEPTRs
- * xx01  yyyy        IND node, xx00 is a struct node* , yyyy is unused
- * xx11  yyyy        node with payload (INT, DBL, etc), xx=D_INT,D_DBL,..., yyyy is the payload
+ * xx01  yyyy        unused
+ * xx11  yyyy        node with payload (IND, INT, DBL, etc), xx=D_INT,D_DBL,..., yyyy is the payload
  */
 
 /*
  * For a NODEPTR we have
- * nnnkkkttt10       ttt 11 bits is a node_tag, kkk 11 bits, nnn 8 bits
+ * ppppppppp00        ppppppppp00 is a real pointer
+ * nnnkkkttt10        ttt 11 bits is a node_tag, kkk 11 bits, nnn 8 bits
  *   when ttt=
  *     V_CONSTR       kkk = constructor number, nnn = number of constructor arguments
  *     V_ARM          as above
@@ -628,9 +631,10 @@ static const char* tag_names [T_LAST_TAG+1] =
  * 
  */
 typedef uintptr_t tag_t;
-typedef union {
-  tag_t        node_bits;
-  struct node *node_ptr;
+typedef union NodePtr {
+  tag_t          node_bits;
+  struct node   *node_ptr;
+  union NodePtr *node_pptr;      /* only used during GC for values on the stack */
 } NODEPTR;
 
 const NODEPTR NIL_NODEPTR = { 0 };
@@ -639,32 +643,33 @@ const NODEPTR NIL_NODEPTR = { 0 };
  * PTR_TAG_BITS + PTR_TAG_TAG_BITS + PTR_TAG_NCON_BITS + PTR_TAG_NARG_BITS <= size_in_bits(tag_t)
  * We make them add to 32
  */
-#define PTR_TAG_BITS 2              /* number of reserved tag bits in every pointer */
-#define PTR_TAG_MASK ((1 << PTR_TAG_BITS) - 1)
+#define PTR_TAG_BITS 2                                   /* number of reserved tag bits in every pointer */
+#define PTR_TAG_MASK ((1 << PTR_TAG_BITS) - 1)           /* 0x3 */
 #define PTR_TAG_PTR  0
-#define PTR_TAG_IND  1
 #define PTR_TAG_TAG  2
 #define PTR_TAG_DATA 3
 #define PTR_AP_MASK  1
 #define PTR_AP_AP    0
 #define PTR_TAG_TAG_BITS 11     /* max number of bits in a enum node_tag */
-#define PTR_TAG_TAG_MASK ((1 << PTR_TAG_TAG_BITS) - 1)
-#define PTR_TAG_NCON_BITS 11    /* max number of constructors */
-#define PTR_TAG_NCON_MASK ((1 << PTR_TAG_NCON_BITS) - 1)
-#define PTR_TAG_NARG_BITS 11    /* max number of constructor arguments */
-#define PTR_TAG_NARG_MASK ((1 << PTR_TAG_NARG_BITS) - 1)
+#define PTR_TAG_TAG_MASK ((1 << PTR_TAG_TAG_BITS) - 1)   /* 0x7ff */
+#define PTR_TAG_NCON_BITS 11    /* max number of constructors/case-arms */
+#define PTR_TAG_NCON_MASK ((1 << PTR_TAG_NCON_BITS) - 1) /* 0x7ff */
+#define PTR_TAG_NARG_BITS 8     /* max number of constructor arguments */
+#define PTR_TAG_NARG_MASK ((1 << PTR_TAG_NARG_BITS) - 1) /* 0xff */
 
 #define MK_TAG(t) (((tag_t)(t) << PTR_TAG_BITS) | PTR_TAG_TAG)
 /* Encode the CASEx/LOOKx/CON/ARM as above */
 #define MK_CASE(t, m) MK_TAG(((tag_t)(m) << PTR_TAG_TAG_BITS) | (t))
 #define MK_CON(t, k, n) MK_CASE(t, ((tag_t)(n) << PTR_TAG_NCON_BITS) | (k))
 
+/* is it NIL_NODEPTR? */
 static INLINE bool
 is_NIL(NODEPTR n)
 {
   return n.node_bits == 0;
 }
 
+/* If the NODEPTR is a real pointer, return it. */
 static INLINE struct node*
 get_node_ptr(NODEPTR n)
 {
@@ -683,24 +688,6 @@ is_AP(NODEPTR n)
 
 /* For a FUN part of a struct node */
 static INLINE bool
-is_IND(NODEPTR n)
-{
-  return (n.node_bits & PTR_TAG_MASK) == PTR_TAG_IND;
-}
-
-/* For a FUN part of a struct node */
-/* Get indirection pointer, or NULL if it isn't an indirection */
-static INLINE struct node*
-get_IND(NODEPTR n)
-{
-  if (is_IND(n))
-    return (struct node *)(n.node_bits - PTR_TAG_IND);
-  else
-    return NULL;
-}
-
-/* For a FUN part of a struct node */
-static INLINE bool
 is_DATA(NODEPTR n)
 {
   return (n.node_bits & PTR_TAG_MASK) == PTR_TAG_DATA;
@@ -708,8 +695,8 @@ is_DATA(NODEPTR n)
 
 /* For a FUN part of a struct node */
 /* Returns the data tag or D_NONE */
-static INLINE enum node_tag
-get_DATA(NODEPTR n)
+static INLINE tag_t
+get_DATA_TAG(NODEPTR n)
 {
   if (is_DATA(n))
     return n.node_bits >> PTR_TAG_BITS;
@@ -763,6 +750,7 @@ typedef struct PACKED node {
   NODEPTR            ufun;
   union {
     NODEPTR          uuarg;
+    NODEPTR          uuind;
     value_t          uuvalue;
 #if WANT_FLOAT32
     flt32_t          uuflt32value;
@@ -785,6 +773,43 @@ typedef struct PACKED node {
   } uarg;
 } node;
 
+/* If the NODEPTR points to an application, return the FUN */
+static INLINE NODEPTR
+get_FUN(NODEPTR n)
+{
+  struct node *p = get_node_ptr(n);
+  if (p) {
+    NODEPTR q = p->ufun;
+    if ((q.node_bits & PTR_AP_MASK) == PTR_AP_AP)
+      return q;
+  }
+  return NIL_NODEPTR;
+}
+
+/* If the NODEPTR points to an indirection, return it */
+static INLINE NODEPTR
+get_IND(NODEPTR n)
+{
+  struct node *p = get_node_ptr(n);
+  if (p) {
+    NODEPTR q = p->ufun;
+    if (get_DATA_TAG(q) == D_IND) {
+      return p->uarg.uuind;
+    }
+  }
+  return NIL_NODEPTR;
+}
+
+static INLINE void
+set_IND(NODEPTR n, NODEPTR t)
+{
+  struct node *p = get_node_ptr(n);
+  if (!p)
+    ERR("set_IND");
+  p->ufun.node_bits = MK_TAG(D_IND);
+  p->uarg.uuind = t;
+}
+
 /* Set the tag of a data node, n is a real pointer */
 static INLINE void
 set_DATA_TAG(NODEPTR n, enum node_tag t)
@@ -793,33 +818,58 @@ set_DATA_TAG(NODEPTR n, enum node_tag t)
   n.node_ptr->ufun = mk_DATA_TAG(t);
 }
 
+static INLINE enum node_tag
+get_XTAG(struct node *p)
+{
+  NODEPTR n = p->ufun;
+  if (is_AP(n))
+    return X_AP;
+  return get_DATA_TAG(n);
+}
+
+static INLINE int
+get_CASE_size(NODEPTR n)
+{
+  struct node *p = get_node_ptr(n);
+  tag_t t = get_DATA_TAG(p->ufun);
+  return (t >> PTR_TAG_TAG_BITS) & PTR_TAG_NCON_MASK;
+}
+
+static INLINE void
+get_CON_info(NODEPTR n, int *kp, int *np)
+{
+  struct node *p = get_node_ptr(n);
+  tag_t t = get_DATA_TAG(p->ufun);
+  *kp = (t >> PTR_TAG_TAG_BITS) & PTR_TAG_NCON_MASK;
+  *np = (t >> (PTR_TAG_TAG_BITS + PTR_TAG_NCON_BITS)) & PTR_TAG_NARG_MASK;
+}
 
 #define HEAPREF(i) &cells[(i)]
-#define NODEPTR(n) ((n).node_ptr)
+#define NPTR(n) ((n).node_ptr)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETINT64VALUE(p) (p)->uarg.uuint64value
 #define GETINT32VALUE(p) (p)->uarg.uuint32value
 #define GETFLTVALUE(p) (p)->uarg.uuflt32value
 #define GETDBLVALUE(p) (p)->uarg.uuflt64value
-#define SETVALUE(p,v) NODEPTR(p)->uarg.uuvalue = v
+#define SETVALUE(p,v) NPTR(p)->uarg.uuvalue = v
 #define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
 #define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
 #define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
-#define FUN(p) NODEPTR(p)->ufun
-#define ARG(p) NODEPTR(p)->uarg.uuarg
-#define CSTR(p) NODEPTR(p)->uarg.uucstring
-#define PTR(p) NODEPTR(p)->uarg.uuptr
-#define FUNPTR(p) NODEPTR(p)->uarg.uufunptr
-#define FORPTR(p) NODEPTR(p)->uarg.uuforptr
-#define BSTR(p) NODEPTR(p)->uarg.uuforptr->payload
-#define ARR(p) NODEPTR(p)->uarg.uuarray
-#define THR(p) NODEPTR(p)->uarg.uuthread
-#define MVAR(p) NODEPTR(p)->uarg.uumvar
-#define WEAK(p) NODEPTR(p)->uarg.uuweak
+#define FUN(p) NPTR(p)->ufun
+#define ARG(p) NPTR(p)->uarg.uuarg
+#define CSTR(p) NPTR(p)->uarg.uucstring
+#define PTR(p) NPTR(p)->uarg.uuptr
+#define FUNPTR(p) NPTR(p)->uarg.uufunptr
+#define FORPTR(p) NPTR(p)->uarg.uuforptr
+#define BSTR(p) NPTR(p)->uarg.uuforptr->payload
+#define ARR(p) NPTR(p)->uarg.uuarray
+#define THR(p) NPTR(p)->uarg.uuthread
+#define MVAR(p) NPTR(p)->uarg.uumvar
+#define WEAK(p) NPTR(p)->uarg.uuweak
 
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = mmalloc(n * sizeof(node)); } while(0)
+#define LABEL(n) ((heapoffs_t)((n).node_ptr - cells))
 node *cells;                 /* All cells */
 
 /*
@@ -2636,7 +2686,7 @@ init_nodes(void)
   size_t j;
   NODEPTR x, y;
 
-  ALLOC_HEAP(heap_size);
+  cells = mmalloc(heap_size * sizeof(node));
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
   free_map = mmalloc(free_map_nwords * sizeof(bits_t));
   mark_all_free();
@@ -2703,9 +2753,12 @@ static INLINE NODEPTR
 indir(NODEPTR *np)
 {
   NODEPTR n = *np;
-  struct node *p;
-  while ((p = get_IND(n)))
-    n.node_ptr = p;
+  for(;;) {
+    NODEPTR p = get_IND(n);
+    if (is_NIL(p))
+      break;
+    n = p;
+  }
   *np = n;
   return n;
 }
@@ -2882,26 +2935,17 @@ mark(NODEPTR *np)
   NODEPTR n;
   NODEPTR *to_push = 0;         /* silence warning by initializing */
   struct node *p;
-#if GCRED
-  value_t val;
-#endif
-  enum node_tag tag;
 
   //  mark_depth++;
   //  if (mark_depth % 10000 == 0)
   //    PRINT("mark depth %"PRIcounter"\n", mark_depth);
   top:
-  n = *np;
-  {
-    /* XXX limit the number of loops */
-    while ((p = get_IND(n)))
-      n.node_ptr = p;
-    *np = n;
-  }
+  n = indir(np);
   p = get_node_ptr(n);
   if (!p)
     return;                     /* not a real pointer */
 
+  /* n/p points to a real node */
   if (p < cells || p > cells + heap_size)
     ERR("bad n");
   if (is_marked_used(n)) {
@@ -2909,7 +2953,7 @@ mark(NODEPTR *np)
   }
   num_marked++;
   mark_used(n);
-  if (is_AP(n)) {
+  if (is_AP(FUN(n))) {
     /* Avoid tail recursion */
     np = &FUN(n);
     to_push = &ARG(n);
@@ -2954,13 +2998,15 @@ mark(NODEPTR *np)
   }
 
   if (!is_marked_used(*to_push)) {
-    PUSH((NODEPTR)to_push);
+    NODEPTR q;
+    q.node_pptr = to_push;
+    PUSH(q);
   }
   goto top;
 
   fin:
   if (stack_ptr > stk) {
-    np = (NODEPTR *)POPTOP();
+    np = POPTOP().node_pptr;
     goto top;
   }
 }
@@ -3011,7 +3057,7 @@ gc(void)
 
   /* Mark used stable pointers */
   for (size_t i = 0; i < sp_capacity; i++) {
-    if (sp_table[i] != NIL)
+    if (!is_NIL(sp_table[i]))
       mark(&sp_table[i]);
   }
 
@@ -3019,7 +3065,7 @@ gc(void)
    * Note, zombie threads have no root so they are not marked.
    */
   for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-    if (mt->mt_root != NIL)
+    if (!is_NIL(mt->mt_root))
       mark_thread(mt);
   }
 
@@ -3516,7 +3562,7 @@ ffiNode(const char *buf)
 
   if (i < 0) {
     /* lookup failed, generate a node that will dynamically generate an error */
-    r = alloc_node(T_BADDYN);
+    r = alloc_node(D_BADDYN);
     fun = mmalloc(strlen(buf) + 1);
     strcpy(fun, buf);
     CSTR(r) = fun;
@@ -3618,7 +3664,7 @@ mkForPtrFree(struct bytestring str)
 NODEPTR
 mkStrNode(struct bytestring str)
 {
-  NODEPTR n = alloc_node(T_FORPTR);
+  NODEPTR n = alloc_node(D_FORPTR);
   struct forptr *fp = mkForPtrFree(str);
   FORPTR(n) = fp;
   fp->finalizer->fptype = FP_BSTR;
@@ -3717,7 +3763,7 @@ find_label(struct parse_ctx *pc, heapoffs_t label)
 
   for(i = (int)label; ; i++) {
     i %= pc->shared_table_size;
-    if (pc->shared_table[i].node == NIL) {
+    if (is_NIL(pc->shared_table[i].node)) {
       /* The slot is empty, so claim and return it */
       pc->shared_table[i].label = label;
       return &pc->shared_table[i].node;
@@ -3774,7 +3820,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         mpz_ptr op = fp->payload.bs_array;      /* get actual pointer */
         mpz_set_str(op, bs.bs_array, 10);       /* convert to an mpz */
         free(bs.bs_array);
-        r = alloc_node(T_FORPTR);
+        r = alloc_node(D_FORPTR);
         FORPTR(r) = fp;
         PUSH(r);
         break;
@@ -3823,11 +3869,11 @@ parse(struct parse_ctx *pc, BFILE *f)
         sz = (size_t)parse_int(f);
         if (!gobble(f, ']'))
           DESER_ERR("parse arr 1");
-        arr = arr_alloc(sz, NIL);
+        arr = arr_alloc(sz, NIL_NODEPTR);
         for (i = 0; i < sz; i++) {
           arr->array[i] = TOP(sz - i - 1);
         }
-        r = alloc_node(T_ARR);
+        r = alloc_node(D_ARR);
         ARR(r) = arr;
         POP(sz);
         PUSH(r);
@@ -3837,10 +3883,10 @@ parse(struct parse_ctx *pc, BFILE *f)
       /* Reference to a shared value: _label */
       l = parse_int(f);  /* The label */
       nodep = find_label(pc, l);
-      if (*nodep == NIL) {
+      if (is_NIL(*nodep)) {
         /* Not yet defined, so make it an indirection */
-        *nodep = alloc_node(T_FREE);
-        SETINDIR(*nodep, NIL);
+        *nodep = alloc_node(D_NONE);
+        set_IND(*nodep, NIL_NODEPTR);
       }
       PUSH(*nodep);
       break;
@@ -3851,14 +3897,17 @@ parse(struct parse_ctx *pc, BFILE *f)
         DESER_ERR("parse ' '");
       nodep = find_label(pc, l);
       x = TOP(0);
-      if (*nodep == NIL) {
+      if (is_NIL(*nodep)) {
         /* not referenced yet, so add a direct reference */
         *nodep = x;
       } else {
+#if 0
         /* Sanity check */
-        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL)
-          DESER_ERR("shared != NIL");
-        SETINDIR(*nodep, x);
+        NODEPTR q = get_IND(*nodep);
+        if (!q || is_NIL(q))
+          ERR("shared != NIL");
+#endif
+        set_IND(*nodep, x);
       }
       break;
     case '"':
@@ -3883,7 +3932,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case '!':
       if (!gobble(f, '"'))
         DESER_ERR("parse !");
-      r = alloc_node(T_TICK);
+      r = alloc_node(D_TICK);
       SETVALUE(r, (value_t)add_tick_table(parse_string(f)));
       PUSH(r);
       break;
@@ -3913,7 +3962,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse C");
         int n = parse_int(f);
-        r = alloc_node(MK_CONSTR(k, n));
+        r = alloc_node(MK_CON(k, n, V_CONSTR));
         PUSH(r);
         break;
       } else {
@@ -3925,7 +3974,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse A");
         int n = parse_int(f);
-        r = alloc_node(MK_ARM(k, n));
+        r = alloc_node(MK_CON(k, n, V_ARM));
         PUSH(r);
         break;
       } else {
@@ -3934,7 +3983,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'D':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASED(m));
+        r = alloc_node(MK_CASE(m, V_CASED));
         PUSH(r);
         break;
       } else {
@@ -3943,7 +3992,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'L':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_LOOKD(m));
+        r = alloc_node(MK_CASE(m, V_LOOKD));
         PUSH(r);
         break;
       } else {
@@ -3952,7 +4001,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'E':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASES(m));
+        r = alloc_node(MK_CASE(m, V_CASES));
         PUSH(r);
         break;
       } else {
@@ -3961,7 +4010,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'M':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_LOOKS(m));
+        r = alloc_node(MK_CASE(m, V_LOOKS));
         PUSH(r);
         break;
       } else {
@@ -3979,7 +4028,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         int t = lookup_primop(buf);
         if (t < 0)
           DESER_ERR("unknown primop");
-        r = HEAPREF((enum node_tag)t);
+        r = alloc_node(t);
       }
       PUSH(r);
       break;
@@ -4024,12 +4073,12 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
     pc->shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
     pc->shared_table = mmalloc(pc->shared_table_size * sizeof(struct shared_entry));
     for(i = 0; i < pc->shared_table_size; i++)
-      pc->shared_table[i].node = NIL;
+      pc->shared_table[i].node = NIL_NODEPTR;
     n = parse(pc, f);
     if (ffe) {
       for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
         heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
-        f->ffe_value = *find_label(pc, l);
+        f->ffe_value = find_label(pc, l)->node_ptr;
       }
     }
     FREE(pc->shared_table);
@@ -4101,13 +4150,18 @@ void
 find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
 {
  top:
-  while (GETTAG(n) == T_IND) {
-    n = GETINDIR(n);
+  { NODEPTR np = n;
+    n = indir(&np);
   }
-  if (n < cells || n >= cells + heap_size) abort();
+  struct node *p = get_node_ptr(n);
+  if (!p)
+    return;
+  if (p < cells || p >= cells + heap_size) abort();
+  
+
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
-  tag_t tag = GETTAG(n);
-  if (tag == T_AP || tag == T_ARR || tag == T_FORPTR) {
+  tag_t tag = get_XTAG(p);
+  if (tag == X_AP || tag == D_ARR || tag == D_FORPTR) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -4122,11 +4176,11 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
       //PRINT("unmarked\n");
       set_bit(pb->marked_bits, n);
       switch(tag) {
-      case T_AP:
+      case X_AP:
         find_sharing(num_sharedp, pb, FUN(n));
         n = ARG(n);
         goto top;
-      case T_ARR:
+      case D_ARR:
         for(size_t i = 0; i < ARR(n)->size; i++) {
           find_sharing(num_sharedp, pb, ARR(n)->array[i]);
         }
@@ -4221,9 +4275,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
   }
 
   //if (n == atptr) putb('@', f);
-  tag = GETTAG(n);
+  tag = get_XTAG(n);
   switch (tag) {
-  case T_AP:
+  case X_AP:
     if (prefix) {
       putb('(', f);
       printrec(f, pb, FUN(n), prefix);
@@ -4236,18 +4290,18 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putb('@', f);
     }
     break;
-  case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
+  case D_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
 #if WANT_INT64
   case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
 #endif  /* WANT_INT64 */
 #if WANT_FLOAT64
-case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+  case D_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
 #endif
 #if WANT_FLOAT32
-  case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
+  case D_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
 #endif
-  case T_WEAK: SER_ERR("serialize WEAK unimplemented");
-  case T_ARR:
+  case D_WEAK: SER_ERR("serialize WEAK unimplemented");
+  case D_ARR:
     if (prefix) {
       /* Arrays serialize as '[sz] e_1 ... e_sz' */
       putb('[', f);
@@ -4267,10 +4321,10 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       putb(']', f);
     }
     break;
-  case T_MVAR:
+  case D_MVAR:
     SER_ERR("cannot serialize MVAR");
     break;
-  case T_PTR:
+  case D_PTR:
     if(PTR(n) == NULL) {
       if (prefix) {
         putsb("(toPtr #0)", f);
@@ -4304,7 +4358,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       SER_ERR("Cannot serialize pointers");
     }
     break;
-  case T_FUNPTR:
+  case D_FUNPTR:
     /* There are a few function pointers that happen without user FFI.
      * We need to be able to serialize these.
      * XXX Make a table if we need more.
@@ -4320,14 +4374,14 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       SER_ERR("Cannot serialize function pointers");
     }
     break;
-  case T_THID:
+  case D_THID:
     if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%d>",(int)THR(n)->mt_id);
     } else {
       SER_ERR("cannot serialize ThreadId yet");
     }
     break;
-  case T_FORPTR:
+  case D_FORPTR:
 #if WANT_STDIO
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -4368,55 +4422,49 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       SER_ERR("Cannot serialize foreign pointers");
     }
     break;
-  case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
-  case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+  case D_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
+  case D_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
 #if WANT_TICK
-  case T_TICK:
+  case D_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
 #endif
-  case T_CASED:
-  case T_LOOKD:
-  case T_CASES:
-  case T_LOOKS:
+  case V_CASED:
+  case V_LOOKD:
+  case V_CASES:
+  case V_LOOKS:
     {
       switch(tag) {
-      case T_CASED: putb('D', f); break;
-      case T_LOOKD: putb('L', f); break;
-      case T_CASES: putb('E', f); break;
-      case T_LOOKS: putb('M', f); break;
-      default: abort();
+      case V_CASED: putb('D', f); break;
+      case V_LOOKD: putb('L', f); break;
+      case V_CASES: putb('E', f); break;
+      case V_LOOKS: putb('M', f); break;
+      default: ERR("V_");
       }
       putb('_', f);
-      tag_t rtag = GETRAWTAG(n);
-      int m;
-      CASE_SIZE(rtag, m);
-      putdecb((value_t)m, f);
+      putdecb((value_t)get_CASE_size(n), f);
       break;
     }
   case T_CONSTR:
     {
       putb('C', f);
       putb('_', f);
-      tag_t rtag = GETRAWTAG(n);
-      int k, n;
-      CONSTR_NO(rtag, k, n);
+      int k, nn;
+      get_CON_info(n, &k, &nn);
       putdecb((value_t)k, f);
       putb('_', f);
-      putdecb((value_t)n, f);
+      putdecb((value_t)nn, f);
       break;
     }
   case T_ARM:
     {
       putb('A', f);
       putb('_', f);
-      tag_t rtag = GETRAWTAG(n);
-      int k, n;
-      CONSTR_NO(rtag, k, n);
+      get_CON_info(n, &k, &nn);
       putdecb((value_t)k, f);
       putb('_', f);
-      putdecb((value_t)n, f);
+      putdecb((value_t)nn, f);
       break;
     }
   default:
