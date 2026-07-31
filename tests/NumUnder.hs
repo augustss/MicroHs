@@ -34,3 +34,17 @@ main = do
   print 0xff__ff
   print 0x_ffff
   print 0x__ffff
+
+  print 0b1e10
+  print 0b1p2
+  print 0o7e3
+  print 0o5p2
+  print 0x1e1
+  print 0x0p0
+  print 0xffp10
+
+  print 0b0.1
+  print 0o0.1
+  print 0o0.7
+  print 0x0.1
+  print 0x0.f
