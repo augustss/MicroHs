@@ -101,10 +101,15 @@ lex loc (d:cs) | isLower_ d =
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs)
-  | toLower x == 'x' = lexNumBasePrefix x 16 isHexDigit loc cs
-  | toLower x == 'o' = lexNumBasePrefix x  8 isOctDigit loc cs
-  | toLower x == 'b' = lexNumBasePrefix x  2 isBinDigit loc cs
-  where isBinDigit c = c == '0' || c == '1'
+  | toLower x == 'x' = case readNumHex cs of
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+  | toLower x == 'o' = case readNumOct cs of
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+  | toLower x == 'b' = case readNumBin cs of
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
 lex loc cs@(d:_) | isDigit d =
   case readNumDec cs of
     (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
@@ -184,41 +189,60 @@ readIntBase base isDig ds =
 
     addDigit x d = x * base + toInteger (digitToInt d)
 
-readNumDec :: String -> (Either Integer Rational, Int, String)
-readNumDec cs =
-  case readIntDec cs of
+readNumHex, readNumDec, readNumOct, readNumBin :: String -> (Either Integer Rational, Int, String)
+readNumHex cs = readNum isHexDigit 16 cs
+readNumDec cs = readNum isDigit 10 cs
+readNumOct cs = readNum isOctDigit 8 cs
+readNumBin cs = readNum isBinDigit 2 cs
+  where isBinDigit c = c == '0' || c == '1'
+
+readNum :: (Char -> Bool) -> Integer -> String -> (Either Integer Rational, Int, String)
+readNum isBaseDigit base cs =
+  case readInt cs of
     Just (n, nLen, rest) ->
       case rest of
-        '.' : rs@(d : _) | isDigit d ->
-          case readIntDec rs of
+        '.' : rs@(d : _) | isBaseDigit d ->
+          case readInt rs of
             Just (m, mLen, rest') ->
-              let q = toRational n + toRational m * 10 ^^ negate (length $ filter isDigit $ take mLen rs)
+              let q = toRational n + toRational m * fromInteger base ^^ negate (length $ filter isBaseDigit $ take mLen rs)
               in case expo rest' of
-                Just (e, eLen, rest'') -> (Right $ q * 10 ^^ e, nLen + 1 + mLen + eLen, rest'')
+                Just (base, e, eLen, rest'') -> (Right $ q * fromInteger base ^^ e, nLen + 1 + mLen + eLen, rest'')
                 Nothing -> (Right q, nLen + 1 + mLen, rest')
             Nothing -> (Left n, nLen, rest) -- this can't happen
         _ ->
           case expo rest of
-            Just (e, eLen, rest') -> (Right $ toRational n * 10 ^^ e, nLen + eLen, rest')
+            Just (base, e, eLen, rest') -> (Right $ toRational n * fromInteger base ^^ e, nLen + eLen, rest')
             Nothing -> (Left n, nLen, rest)
     Nothing -> error "impossible: first char is a digit"
   where
     readIntDec = readIntBase 10 isDigit
+    readInt = readIntBase base isBaseDigit
 
     -- try to read an exponent
-    expo :: String -> Maybe (Integer, Int, String)
+    expo :: String -> Maybe (Integer, Integer, Int, String)
     expo = go 0
 
     go len ('_' : xs) = go (len + 1) xs
-    go len (e:'-':xs@(d:_)) | toLower e == 'e' && isDigit d =
+    -- e means exponent on base written in base
+    go len (e:'-':xs@(d:_)) | toLower e == 'e' && isBaseDigit d =
+      let (n, len', rest) = fromJust $ readInt xs
+      in Just (base, -n, len + 2 + len', rest)
+    go len (e:'+':xs@(d:_)) | toLower e == 'e' && isBaseDigit d =
+      let (n, len', rest) = fromJust $ readInt xs
+      in Just (base, n, len + 2 + len', rest)
+    go len (e:    xs@(d:_)) | toLower e == 'e' && isBaseDigit d =
+      let (n, len', rest) = fromJust $ readInt xs
+      in Just (base, n, len + 1 + len', rest)
+    -- p means exponent on base 2 written in base 10
+    go len (e:'-':xs@(d:_)) | toLower e == 'p' && isDigit d =
       let (n, len', rest) = fromJust $ readIntDec xs
-      in Just (-n, len + 2 + len', rest)
-    go len (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d =
+      in Just (2, -n, len + 2 + len', rest)
+    go len (e:'+':xs@(d:_)) | toLower e == 'p' && isDigit d =
       let (n, len', rest) = fromJust $ readIntDec xs
-      in Just (n, len + 2 + len', rest)
-    go len (e:    xs@(d:_)) | toLower e == 'e' && isDigit d =
+      in Just (2, n, len + 2 + len', rest)
+    go len (e:    xs@(d:_)) | toLower e == 'p' && isDigit d =
       let (n, len', rest) = fromJust $ readIntDec xs
-      in Just (n, len + 1 + len', rest)
+      in Just (2, n, len + 1 + len', rest)
     go _ _ = Nothing
 
 -- Skip a {- -} style comment
