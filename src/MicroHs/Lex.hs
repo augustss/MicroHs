@@ -102,14 +102,14 @@ lex loc (d:cs) | isLower_ d =
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs)
   | toLower x == 'x' = case readNumHex cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
   | toLower x == 'o' = case readNumOct cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
   | toLower x == 'b' = case readNumBin cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
 lex loc cs@(d:_) | isDigit d =
   case readNumDec cs of
     (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
