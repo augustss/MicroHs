@@ -100,20 +100,12 @@ lex loc (d:cs) | isLower_ d =
   case spanIdent cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
-lex loc ('0':x:cs)
-  | toLower x == 'x' = case readNumHex cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
-  | toLower x == 'o' = case readNumOct cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
-  | toLower x == 'b' = case readNumBin cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc (2+len)) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc (2+len)) rs
-lex loc cs@(d:_) | isDigit d =
-  case readNumDec cs of
-    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
-    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
+lex loc ('0':x:cs@(d:_))
+  | toLower x == 'x' && isHexDigit d = readNum isHexDigit 16 (2+) loc cs
+  | toLower x == 'o' && isOctDigit d = readNum isOctDigit 8 (2+) loc cs
+  | toLower x == 'b' && isBinDigit d = readNum isBinDigit 2 (2+) loc cs
+  where isBinDigit c = c == '0' || c == '1'
+lex loc cs@(d:_) | isDigit d = readNum isDigit 10 id loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
 lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
@@ -189,15 +181,8 @@ readIntBase base isDig ds =
 
     addDigit x d = x * base + toInteger (digitToInt d)
 
-readNumHex, readNumDec, readNumOct, readNumBin :: String -> (Either Integer Rational, Int, String)
-readNumHex cs = readNum isHexDigit 16 cs
-readNumDec cs = readNum isDigit 10 cs
-readNumOct cs = readNum isOctDigit 8 cs
-readNumBin cs = readNum isBinDigit 2 cs
-  where isBinDigit c = c == '0' || c == '1'
-
-readNum :: (Char -> Bool) -> Integer -> String -> (Either Integer Rational, Int, String)
-readNum isBaseDigit base cs =
+readNum :: (Char -> Bool) -> Integer -> (Int -> Int) -> SLoc -> String -> [Token]
+readNum isBaseDigit base editLen loc cs =
   case readInt cs of
     Just (n, nLen, rest) ->
       case rest of
@@ -206,17 +191,18 @@ readNum isBaseDigit base cs =
             Just (m, mLen, rest') ->
               let q = toRational n + toRational m * fromInteger base ^^ negate (length $ filter isBaseDigit $ take mLen rs)
               in case expo rest' of
-                Just (base, e, eLen, rest'') -> (Right $ q * fromInteger base ^^ e, nLen + 1 + mLen + eLen, rest'')
-                Nothing -> (Right q, nLen + 1 + mLen, rest')
-            Nothing -> (Left n, nLen, rest) -- this can't happen
+                Just (base, e, eLen, rest'') -> TRat loc (q * fromInteger base ^^ e) : lexSkipHash (addCol loc (editLen (nLen + 1 + mLen + eLen))) rest''
+                Nothing -> TRat loc q : lexSkipHash (addCol loc (editLen (nLen + 1 + mLen))) rest'
+            Nothing -> TInt loc n : lexSkipHash (addCol loc (editLen nLen)) rest -- this can't happen
         _ ->
           case expo rest of
-            Just (base, e, eLen, rest') -> (Right $ toRational n * fromInteger base ^^ e, nLen + eLen, rest')
-            Nothing -> (Left n, nLen, rest)
+            Just (base, e, eLen, rest') ->  TRat loc (toRational n * fromInteger base ^^ e) : lexSkipHash (addCol loc (editLen (nLen + eLen))) rest'
+            Nothing -> TInt loc n : lexSkipHash (addCol loc (editLen nLen)) rest
     Nothing -> error "impossible: first char is a digit"
   where
     readIntDec = readIntBase 10 isDigit
     readInt = readIntBase base isBaseDigit
+    mkInt = TInt loc n : lexSkipHash (addCol loc (flen len)) rs
 
     -- try to read an exponent
     expo :: String -> Maybe (Integer, Integer, Int, String)
