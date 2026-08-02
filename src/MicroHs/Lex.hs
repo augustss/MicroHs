@@ -198,7 +198,7 @@ readNum isBaseDigit base prefixLen loc cs =
           case expo rest of
             Just (base, e, eLen, rest') ->  TRat loc (toRational n * fromInteger base ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + eLen)) rest'
             Nothing -> TInt loc n : lexSkipHash (addCol loc (prefixLen + nLen)) rest
-    Nothing -> error "impossible: first char is a digit"
+    Nothing -> [TError loc "No digits in number"]
   where
     readIntDec = readIntBase 10 isDigit
     readInt = readIntBase base isBaseDigit
