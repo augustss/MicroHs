@@ -5,12 +5,15 @@ module System.IO.Serialize(
   writeSerialized, writeSerializedCompressed,
   readSerialized, readSerializedH, readSerializedBS,
   writeSerializedCompressedBS, writeSerializedBS,
+  hSerializeDescr, hDeserializeDescr,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
 import Data.ByteString(ByteString)
+import Data.Data(Data)
 import System.IO
 import System.IO.Internal
+import System.IO.Serialize.TypeDescr
 import System.IO.StringHandle(withByteStringHandle, handleWriteToByteString)
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
@@ -75,3 +78,21 @@ writeSerializedBS a =
   handleWriteToByteString $ \ h -> do
     hSerialize h a
     hFlush h
+
+descrVersion :: String
+descrVersion = "TD1 "
+
+hSerializeDescr :: forall a . Data a => Handle -> a -> IO ()
+hSerializeDescr h a = do
+  let d = descrVersion ++ show (getTypeDescrMD5 a)
+  hPutStr h d
+  hSerialize h a
+
+hDeserializeDescr :: forall a . Data a => Handle -> IO (Maybe a)
+hDeserializeDescr h = do
+  let d = descrVersion ++ show (getTypeDescrMD5 (undefined :: a))
+  d' <- replicateM (length d) (hGetChar h)
+  if d == d' then
+    Just <$> hDeserialize h
+   else
+    return Nothing

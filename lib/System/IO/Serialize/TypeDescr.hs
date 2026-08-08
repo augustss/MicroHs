@@ -1,12 +1,17 @@
-module System.IO.Serialize.TypeDescr(getTypeDescr, TypeDescr(..), TypeEnv, TypeInfo) where
-
+module System.IO.Serialize.TypeDescr(
+  getTypeDescr, getTypeDescrMD5,
+  TypeDescr(..), TypeEnv, TypeInfo(..)
+  ) where
+import qualified Prelude(); import MiniPrelude
 import Data.Data
 import Data.Data_Class
 import Data.Function((&))
 import Data.List
 import Data.Ord
+import Data.Typeable(typeRepFingerprint)
+import System.IO.MD5
 
-data TypeInfo = TypeInfo [(ConstrRep, [TypeKey])]
+newtype TypeInfo = TypeInfo [(ConstrRep, [TypeKey])]
   deriving (Show)
 
 data TypeDescr = TypeDescr TypeKey TypeEnv
@@ -17,10 +22,17 @@ type TypeEnv = [(TypeKey, TypeInfo)]  -- Sorted list of types already seen
 
 -- | Get a descriptor of a type that fully describes the type.
 getTypeDescr :: Data a => a -> TypeDescr
-getTypeDescr dummy =
-  let rootKey = typeKey dummy
-      env     = collectTypes dummy []
-  in TypeDescr rootKey env
+getTypeDescr a = TypeDescr (typeKey a) (collectTypes a [])
+
+getTypeDescrMD5 :: Data a => a -> MD5CheckSum
+getTypeDescrMD5 a =
+  case getTypeDescr a of
+    TypeDescr rkey renv -> md5Combine $ typeRepFingerprint rkey : concatMap md5ki renv
+  where
+    md5ki :: (TypeKey, TypeInfo) -> [MD5CheckSum]
+    md5ki (key, TypeInfo info) = typeRepFingerprint key : concatMap md5i info
+    md5i :: (ConstrRep, [TypeKey]) -> [MD5CheckSum]
+    md5i (crep, keys) = md5String (show crep) : map typeRepFingerprint keys
 
 typeKey :: Data a => a -> TypeKey
 typeKey = typeOf
