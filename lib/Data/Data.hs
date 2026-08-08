@@ -39,6 +39,7 @@ module Data.Data (
   fromConstrM,
   ) where
 import Data.Data_Class
+import Data.Coerce
 import Data.Functor.Const(Const(..))
 import Data.Functor.Identity(Identity(..))
 import Data.Int(Int8, Int16, Int32, Int64)
@@ -50,6 +51,7 @@ import Data.Proxy
 import Data.Ratio((%))
 import Data.Ratio_Type
 import Data.Tuple
+import Data.Type.Coercion
 import Data.Typeable
 import Data.Type.Equality
 import Data.Version
@@ -68,6 +70,7 @@ deriving instance Eq ConstrRep
 deriving instance Show ConstrRep
 deriving instance Eq Fixity
 deriving instance Show Fixity
+deriving instance Eq DataType
 deriving instance Show DataType
 
 instance Eq Constr where
@@ -595,10 +598,10 @@ deriving instance (a ~ b, Data a) => Data (a :~: b)
 deriving instance (Typeable i, Typeable j, Typeable a, Typeable b,
                     (a :: i) ~~ (b :: j))
     => Data (a :~~: b)
+-}
 
 -- | @since base-4.7.0.0
 deriving instance (Coercible a b, Data a, Data b) => Data (Coercion a b)
--}
 
 -- | @since base-4.9.0.0
 deriving instance Data a => Data (Identity a)
@@ -634,10 +637,10 @@ deriving instance Data a => Data (First a)
 deriving instance Data a => Data (Last a)
 
 -- | @since base-4.8.0.0
---deriving instance (Data (f a), Data a, Typeable f) => Data (Alt f a)
+-- BUG deriving instance (Data (f a), Data a, Typeable f) => Data (Alt f a)
 
 -- | @since base-4.12.0.0
---deriving instance (Data (f a), Data a, Typeable f) => Data (Ap f a)
+-- BUG deriving instance (Data (f a), Data a, Typeable f) => Data (Ap f a)
 
 {-
 ----------------------------------------------------------------------------
