@@ -24,7 +24,7 @@ module Data.Typeable (
   splitTyConApp,
   typeRepArgs,
   typeRepTyCon,
-  typeRepFimgerprint,
+  typeRepFingerprint,
   --
   TyCon,
   tyConPackage,
@@ -86,8 +86,8 @@ instance Show TypeRep where
 showsTypeRep :: TypeRep -> ShowS
 showsTypeRep = shows
 
-typeRepFimgerprint :: TypeRep -> MD5CheckSum
-typeRepFimgerprint (TypeRep m _ _) = m
+typeRepFingerprint :: TypeRep -> MD5CheckSum
+typeRepFingerprint (TypeRep m _ _) = m
 
 typeRepTyCon :: TypeRep -> TyCon
 typeRepTyCon (TypeRep _ tc _) = tc
