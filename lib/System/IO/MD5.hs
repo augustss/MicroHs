@@ -4,8 +4,10 @@ module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) whe
 import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
+import Control.Monad.Fail
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as BS
+import Data.Char (digitToInt, isHexDigit)
 import Data.Coerce
 import Data.Word(Word8)
 import Foreign.C.String
@@ -16,6 +18,8 @@ import Foreign.Ptr
 import Foreign.Storable
 import System.IO
 import System.IO.Internal
+import qualified Text.ParserCombinators.ReadP as P
+import Text.Read
 
 foreign import ccall "md5BFILE"  c_md5BFILE  :: Ptr BFILE        -> Ptr MD5CheckSum -> IO ()
 foreign import ccall "md5String" c_md5String :: CString          -> Ptr MD5CheckSum -> IO ()
@@ -27,6 +31,24 @@ newtype MD5CheckSum = MD5 BS.ByteString  -- 16 bytes
 instance Show MD5CheckSum where
   showsPrec p (MD5 bs) = showParen (p > 10) $ showString "MD5 " . showString (concatMap hex (BS.unpack bs))
     where hex b = [intToDigit q, intToDigit r] where (q, r) = quotRem (fromIntegral b) 16
+
+instance Read MD5CheckSum where
+  readPrec = parens $ prec 10 $ do
+    Ident "MD5" <- lexP
+    hexStr <- lift $ do
+      P.skipSpaces
+      P.munch1 isHexDigit
+    case parseHex hexStr of
+      Just bytes | length bytes == 16 -> return (MD5 (BS.pack bytes))
+      _                               -> pfail
+
+parseHex :: String -> Maybe [Word8]
+parseHex [] = Just []
+parseHex (h1:h2:rest)
+  | isHexDigit h1 && isHexDigit h2 =
+      let b = fromIntegral (digitToInt h1 * 16 + digitToInt h2)
+      in (b :) <$> parseHex rest
+parseHex _ = Nothing
 
 instance NFData MD5CheckSum where
   rnf (MD5 bs) = seq bs ()
