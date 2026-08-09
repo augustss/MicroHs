@@ -10,6 +10,7 @@ import Data.List
 import Data.Ord
 import Data.Typeable(typeRepFingerprint)
 import System.IO.MD5
+import Debug.Trace
 
 newtype TypeInfo = TypeInfo [(ConstrRep, [TypeKey])]
   deriving (Show)
@@ -21,10 +22,11 @@ type TypeKey = TypeRep
 type TypeEnv = [(TypeKey, TypeInfo)]  -- Sorted list of types already seen
 
 -- | Get a descriptor of a type that fully describes the type.
-getTypeDescr :: Data a => a -> TypeDescr
-getTypeDescr a = TypeDescr (typeKey a) (collectTypes a [])
+getTypeDescr :: forall a . Data a => a -> TypeDescr
+getTypeDescr _ = TypeDescr (typeKey a) (collectTypes a [])
+  where a = undefined :: a
 
-getTypeDescrMD5 :: Data a => a -> MD5CheckSum
+getTypeDescrMD5 :: forall a . Data a => a -> MD5CheckSum
 getTypeDescrMD5 a =
   case getTypeDescr a of
     TypeDescr rkey renv -> md5Combine $ typeRepFingerprint rkey : concatMap md5ki renv
@@ -38,20 +40,20 @@ typeKey :: Data a => a -> TypeKey
 typeKey = typeOf
 
 -- Recursively build the flat type environment using fully qualified keys
-collectTypes :: Data a => a -> TypeEnv -> TypeEnv
-collectTypes dummy env =
-  let key = typeKey dummy
+collectTypes :: forall a . Data a => a -> TypeEnv -> TypeEnv
+collectTypes a env =
+  let key = typeKey a
   in if any ((== key) . fst) env
      then env  -- Already visited; breaks recursive loops
      else
-       let dType = dataTypeOf dummy
+       let dType = dataTypeOf a
            dRep  = dataTypeRep dType
 
            (cDescrs, finalEnv) =
              case dRep of
                AlgRep constrs ->
                  let env' = insertBy (comparing fst) (key, TypeInfo []) env  -- create dummy entry
-                 in  foldr (processConstr dummy) ([], env') constrs
+                 in  foldr (processConstr a) ([], env') constrs
                _ ->
                  ([], env)  -- Primitives have no constructors
            info = TypeInfo cDescrs

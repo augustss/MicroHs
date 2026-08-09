@@ -84,7 +84,7 @@ descrVersion = "TD1 "
 
 hSerializeDescr :: forall a . Data a => Handle -> a -> IO ()
 hSerializeDescr h a = do
-  let d = descrVersion ++ show (getTypeDescrMD5 a)
+  let d = descrVersion ++ show (getTypeDescrMD5 (undefined :: a))
   hPutStr h d
   hSerialize h a
 
