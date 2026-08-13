@@ -7151,8 +7151,12 @@ MHS_INIT_ARGS(
     }
 #endif
     if (c == 'z') {
-      /* add LZ77 decompressor transducer */
+#if WANT_LZMA
+      /* add LZMA decompressor transducer */
       bf = add_lzma_decompressor(bf);
+#else
+      ERR("LZMA compression not supported");
+#endif
     } else {
       /* put it back, we need it */
       ungetb(c, bf);
