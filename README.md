@@ -93,11 +93,14 @@ You can enter expressions to be evaluated, or top level definitions (including `
 Simple line editing is available.
 
 ## MHS as a cross compiler
-When `mhs` is built, targets.conf is generated. It will look something like this:
+When `mhs` is built, `mhs.conf` is generated with a number of predefined targets.
+It will look something like this:
 ```ini
-[default]
+[unix]
 cc = "cc"
-conf = "unix-64"
+ccflags = "-w -Wall -O3 "
+cclibs = " -lm"
+conf = "unix"
 ```
 
 You can add other targets to this file, changing which compiler command is used and which runtime is

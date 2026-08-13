@@ -357,6 +357,8 @@ installmsg:
 	@echo '*    mcabal  - cabal for MicroHs'
 	@echo '*  Libraries:'
 	@echo '*    base (bytestring, deepseq, directory, hashable, text, stm)'
+	@echo '*  Configuration (in $(MDATA)):'
+	@echo '*    mhs.conf  – package path and build targets'
 	@echo '***************************************************'
 	@echo ''
 
