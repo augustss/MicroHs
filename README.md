@@ -1,5 +1,5 @@
 # Micro Haskell
-This repository contains an implementation of an extended subset of Haskell.
+The [MicroHs repository](https://github.com/augustss/MicroHs) contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
 [Try it in your browser](https://augustss.github.io/MicroHs/web-mhs/)
