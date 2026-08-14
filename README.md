@@ -1,5 +1,5 @@
 # Micro Haskell
-This repository contains an implementation of an extended subset of Haskell.
+The [MicroHs repository](https://github.com/augustss/MicroHs) contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
 [Try it in your browser](https://augustss.github.io/MicroHs/web-mhs/)
@@ -53,15 +53,15 @@ You might also need to do `make USECPPHS=cpphs bootstrapcpphs` if there are comp
 ## Example
 The file `Example.hs` contains the following:
 ```Haskell
-module Example(main) where
+module Example(fac, main) where
 
-fac :: Int -> Int
+fac :: Integer -> Integer
 fac 0 = 1
-fac n = n * fac(n-1)
+fac n = n * fac(n - 1)
 
 main :: IO ()
 main = do
-  let rs = map fac [1,2,3,10]
+  let rs = map fac [1,2,3,10,52]
   putStrLn "Some factorials"
   print rs
 ```
@@ -72,7 +72,7 @@ Finally, run the binary file by `./Ex`.
 This should produce
 ```
 Some factorials
-[1,2,6,3628800]
+[1,2,6,3628800,80658175170943878571660636856403766975289505440883277824000000000000]
 ```
 
 ## Libraries
