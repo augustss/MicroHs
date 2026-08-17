@@ -69,9 +69,10 @@ main = do
       let flags' = flags { preload = preload' }
       withArgs rargs $
         case () of
-          _ | Just p <- listPkg flags'        -> mainListPkg flags p
+          _ | Just p <- listPkg flags'        -> mainListPkg flags' p
           _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
           _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
+          _ | noCode flags'                   -> mainNoCode flags' mdls
           _ | installPkg flags'               -> mainInstallPackage flags' mdls
           _ | interactive flags'              -> mainInteractive flags' mdls
           _ | null mdls                       -> mainCompileC flags' [] ""
@@ -103,6 +104,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-eEXPR             Evaluate EXPR\n\
       \-embed-ffis PKG*   Embed packages FFI stubs in mhs binary\n\
       \-embed-packages PKG* Embed packages in mhs binary\n\
+      \-fno-code          Do not generate code\n\
       \-F                 Run a preprocessor\n\
       \-h                 Print usage\n\
       \--help             Print this message\n\
@@ -175,7 +177,7 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{embedFFIs = embedFFIs f ++ splitColonPath s} mdls args'
     "--embed-packages" | s : args' <- args, let ps = splitColonPath s
                 -> decodeArgs f{embedPkgs = embedPkgs f ++ ps, embedFFIs = embedFFIs f ++ ps} mdls args'
-
+    "-fno-code" -> decodeArgs f{noCode = True} mdls args
     '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
     '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -261,6 +263,19 @@ mainBuildPkg flags namever amns = do
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Compression time " ++ show (t2 - t1) ++ " ms"
+
+mainNoCode :: Flags -> [String] -> IO ()
+mainNoCode flags amns = do
+  when (verbose flags > 0) $
+    putStrLn $ "Building"
+  let mns = map mkIdent amns
+  t1 <- getTimeMilli
+  cash <- compileMany flags mns emptyCache
+  let mdls = getCompMdls cash
+  force mdls `seq` putStrLn "No code generated"
+  t2 <- getTimeMilli
+  when (verbose flags >= 0) $
+    putStrLn $ "Build time " ++ show (t2 - t1) ++ " ms"
 
 splitNameVer :: String -> (String, Version)
 splitNameVer s =

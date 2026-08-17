@@ -17,6 +17,7 @@ data Flags = Flags {
   writeCache :: Bool,       -- generate cache
   useTicks   :: Bool,       -- emit ticks
   doCPP      :: Bool,       -- run ccphs on input files
+  noCode     :: Bool,       -- don't generate code
   cppArgs    :: [String],   -- flags for CPP
   cArgs      :: [String],   -- arguments for C compiler
   lArgs      :: [String],   -- arguments for C linker
@@ -60,6 +61,7 @@ defaultFlags = Flags {
   writeCache = False,
   useTicks   = False,
   doCPP      = False,
+  noCode     = False,
   cppArgs    = [],
   cArgs      = [],
   lArgs      = [],
