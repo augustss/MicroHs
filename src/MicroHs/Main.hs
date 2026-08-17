@@ -274,7 +274,7 @@ mainNoCode flags amns = do
   let mdls = getCompMdls cash
   force mdls `seq` putStrLn "No code generated"
   t2 <- getTimeMilli
-  when (verbose flags >= 0) $
+  when (verbose flags > 0) $
     putStrLn $ "Build time " ++ show (t2 - t1) ++ " ms"
 
 splitNameVer :: String -> (String, Version)

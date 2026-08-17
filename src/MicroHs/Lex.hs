@@ -154,13 +154,6 @@ nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
 nested loc cs = skipNest loc 1 cs
 
--- lex a number of the form '0':x:cs
-lexNumBasePrefix :: Char -> Integer -> (Char -> Bool) -> SLoc -> String -> [Token]
-lexNumBasePrefix x base isDig loc cs =
-  case readIntBase base isDig cs of
-    Just (n, len, rs) -> TInt loc n : lexSkipHash (addCol loc $ len + 2) rs
-    Nothing           -> TInt loc 0 : lexSkipHash (addCol loc 1) (x : cs)
-
 -- Used to skip # after numbers
 lexSkipHash :: SLoc -> String -> [Token]
 lexSkipHash loc ('#':cs) = lexSkipHash (addCol loc 1) cs
@@ -183,25 +176,25 @@ readIntBase base isDig ds =
 
 readNum :: (Char -> Bool) -> Integer -> Int -> SLoc -> String -> [Token]
 readNum isBaseDigit base prefixLen loc cs =
-  case readInt cs of
+  case readIntB cs of
     Just (n, nLen, rest) ->
       case rest of
         '.' : rs@(d : _) | isBaseDigit d ->
-          case readInt rs of
+          case readIntB rs of
             Just (m, mLen, rest') ->
               let q = toRational n + toRational m * fromInteger base ^^ negate (length $ filter isBaseDigit $ take mLen rs)
               in case expo rest' of
-                Just (base, e, eLen, rest'') -> TRat loc (q * fromInteger base ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + 1 + mLen + eLen)) rest''
+                Just (ebase, e, eLen, rest'') -> TRat loc (q * fromInteger ebase ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + 1 + mLen + eLen)) rest''
                 Nothing -> TRat loc q : lexSkipHash (addCol loc (prefixLen + nLen + 1 + mLen)) rest'
             Nothing -> TInt loc n : lexSkipHash (addCol loc (prefixLen + nLen)) rest -- this can't happen
         _ ->
           case expo rest of
-            Just (base, e, eLen, rest') ->  TRat loc (toRational n * fromInteger base ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + eLen)) rest'
+            Just (ebase, e, eLen, rest') ->  TRat loc (toRational n * fromInteger ebase ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + eLen)) rest'
             Nothing -> TInt loc n : lexSkipHash (addCol loc (prefixLen + nLen)) rest
     Nothing -> [TError loc "No digits in number"]
   where
     readIntDec = readIntBase 10 isDigit
-    readInt = readIntBase base isBaseDigit
+    readIntB = readIntBase base isBaseDigit
 
     -- try to read an exponent
     expo :: String -> Maybe (Integer, Integer, Int, String)
@@ -210,13 +203,13 @@ readNum isBaseDigit base prefixLen loc cs =
     go len ('_' : xs) = go (len + 1) xs
     -- e means exponent on base written in base
     go len (e:'-':xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let (n, len', rest) = fromJust $ readInt xs
+      let !(n, len', rest) = fromJust $ readIntB xs
       in Just (base, -n, len + 2 + len', rest)
     go len (e:'+':xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let (n, len', rest) = fromJust $ readInt xs
+      let !(n, len', rest) = fromJust $ readIntB xs
       in Just (base, n, len + 2 + len', rest)
     go len (e:    xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let (n, len', rest) = fromJust $ readInt xs
+      let !(n, len', rest) = fromJust $ readIntB xs
       in Just (base, n, len + 1 + len', rest)
     -- p means exponent on base 2 written in base 10
     go len (e:'-':xs@(d:_)) | toLower e == 'p' && isDigit d =
@@ -449,11 +442,8 @@ tokensLoc (TPragma loc _  :_) = loc
 tokensLoc (TEnd    loc    :_) = loc
 tokensLoc _                   = mkLocEOF
 
-readBase :: Integer -> String -> Integer
-readBase b = foldl (\ r c -> r * b + toInteger (digitToInt c)) 0
-
 readInt :: String -> Int
-readInt = fromInteger . readBase 10
+readInt = foldl (\ r c -> r * 10 + digitToInt c) 0
 
 -- XXX This is a pretty hacky recognition of pragmas.
 pragma :: SLoc -> [Char] -> [Token]
