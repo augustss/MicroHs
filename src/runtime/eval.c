@@ -7783,7 +7783,9 @@ from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return 
 from_t mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+#if WANT_FLOAT64
 from_t mhs_mpz_get_d(int s) { return mhs_from_Double(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_FLOAT64 */
 from_t mhs_mpz_get_f(int s) { return mhs_from_Float(s, 1, (float)mpz_get_d(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si_(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
@@ -7811,9 +7813,11 @@ from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr
 from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); return mhs_from_Unit(s, 4); }
 from_t mhs_mpz_tstbit(int s) { return mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+#if WANT_INT64
 from_t mhs_mpz_init_set_si64(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui64(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_get_si64(int s) { return mhs_from_Int64(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_INT64 */
 from_t mhs_mpz_log2(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
   return mhs_from_Int(s, 1, mpz_sizeinbase(a, 2) - 1);
@@ -8034,7 +8038,9 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_add", 3, mhs_mpz_add},
   { "mpz_and", 3, mhs_mpz_and},
   { "mpz_cmp", 2, mhs_mpz_cmp},
+#if WANT_FLOAT64
   { "mpz_get_d", 1, mhs_mpz_get_d},
+#endif  /* WANT_FLOAT64 */
   { "mpz_get_si", 1, mhs_mpz_get_si},
   { "mpz_init_set_si", 2, mhs_mpz_init_set_si},
   { "mpz_init_set_ui", 2, mhs_mpz_init_set_ui},
@@ -8049,9 +8055,11 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_tstbit", 2, mhs_mpz_tstbit},
   { "mpz_xor", 3, mhs_mpz_xor},
   { "mpz_get_f", 1, mhs_mpz_get_f},
+#if WANT_INT64
   { "mpz_init_set_si64", 2, mhs_mpz_init_set_si64},
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
+#endif  /* WANT_INT64 */
   { "mpz_log2", 1, mhs_mpz_log2},
 #endif  /* WANT_GMP || WANT_IMATH */
 #if WANT_TIME
