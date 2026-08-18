@@ -203,13 +203,13 @@ readNum isBaseDigit base prefixLen loc cs =
     go len ('_' : xs) = go (len + 1) xs
     -- e means exponent on base written in base
     go len (e:'-':xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let !(n, len', rest) = fromJust $ readIntB xs
+      let (n, len', rest) = fromJust $ readIntB xs
       in Just (base, -n, len + 2 + len', rest)
     go len (e:'+':xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let !(n, len', rest) = fromJust $ readIntB xs
+      let (n, len', rest) = fromJust $ readIntB xs
       in Just (base, n, len + 2 + len', rest)
     go len (e:    xs@(d:_)) | toLower e == 'e' && not (isBaseDigit e) && isBaseDigit d =
-      let !(n, len', rest) = fromJust $ readIntB xs
+      let (n, len', rest) = fromJust $ readIntB xs
       in Just (base, n, len + 1 + len', rest)
     -- p means exponent on base 2 written in base 10
     go len (e:'-':xs@(d:_)) | toLower e == 'p' && isDigit d =
