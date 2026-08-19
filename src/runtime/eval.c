@@ -4698,6 +4698,11 @@ headutf8(struct bytestring bs, void **ret)
   uint8_t *p = bs.bs_array;
   if (bs.bs_size == 0)
     ERR("headUTF8 0");
+#if !WANT_UTF8
+  if (ret)
+    *ret = p + 1;
+  return *p;
+#else
   int c1 = *p++;
   if ((c1 & 0x80) == 0) {
     if (ret)
@@ -4730,6 +4735,7 @@ headutf8(struct bytestring bs, void **ret)
   }
   ERR("headUTF8 4");
   NOTREACHED;
+#endif  /* WANT_UTF8 */
 }
 
 /* Evaluate to an INT */

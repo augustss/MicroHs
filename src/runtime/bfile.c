@@ -1171,7 +1171,13 @@ add_bwt_compressor(BFILE *file)
 
 /***************** BFILE with UTF8 encode/decode *******************/
 
-#if WANT_UTF8
+/*
+ * This transducer is always compiled in: mk_std() and mkStringU() in eval.c
+ * use it unconditionally for stdio and ByteString-to-String decoding, so it
+ * must exist regardless of WANT_UTF8. The flag instead selects the decode
+ * policy below: real UTF-8 when set, one Char per raw byte when not, so
+ * every byte<->Char boundary in the runtime agrees on what "no UTF-8" means.
+ */
 struct BFILE_utf8 {
   BFILE    mets;
   BFILE    *bfile;
@@ -1184,7 +1190,7 @@ getb_utf8(BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
   CHECKBFILE(bp, getb_utf8);
-  int c1, c2, c3, c4;
+  int c1;
 
   /* Do we have an ungetb character? */
   if (p->unget >= 0) {
@@ -1193,6 +1199,10 @@ getb_utf8(BFILE *bp)
     return c1;
   }
   c1 = getb(p->bfile);
+#if !WANT_UTF8
+  return c1;                   /* one Char per raw byte, no decoding */
+#else
+  int c2, c3, c4;
   if (c1 < 0)
     return -1;
   if ((c1 & 0x80) == 0)
@@ -1224,6 +1234,7 @@ getb_utf8(BFILE *bp)
   }
   ERR("getb_utf8");
   NOTREACHED;
+#endif  /* WANT_UTF8 */
 }
 
 void
@@ -1243,6 +1254,10 @@ putb_utf8(int c, BFILE *bp)
   CHECKBFILE(bp, getb_utf8);
   if (c < 0)
     ERR("putb_utf8: < 0");
+#if !WANT_UTF8
+  putb(c, p->bfile);            /* one raw byte per Char, no encoding */
+  return;
+#else
   if (0 < c && c < 0x80) {      /* modified UTF-8 avoids 0 */
     putb(c, p->bfile);
     return;
@@ -1266,6 +1281,7 @@ putb_utf8(int c, BFILE *bp)
     return;
   }
   ERR("putb_utf8");
+#endif  /* WANT_UTF8 */
 }
 
 void
@@ -1306,7 +1322,6 @@ add_utf8(BFILE *file)
 
   return (BFILE*)p;
 }
-#endif  /* WANT_UTF8 */
 
 /***************** BFILE that just buffers *******************/
 
