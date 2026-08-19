@@ -267,7 +267,7 @@ mainBuildPkg flags namever amns = do
 mainNoCode :: Flags -> [String] -> IO ()
 mainNoCode flags amns = do
   when (verbose flags > 0) $
-    putStrLn $ "Building"
+    putStrLn "Building"
   let mns = map mkIdent amns
   t1 <- getTimeMilli
   cash <- compileMany flags mns emptyCache
