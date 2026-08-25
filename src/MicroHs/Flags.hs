@@ -15,6 +15,7 @@ data Flags = Flags {
   speed      :: Bool,       -- show lines/s
   readCache  :: Bool,       -- read and use cache
   writeCache :: Bool,       -- generate cache
+  cacheName  :: FilePath,   -- file name for compilation cache
   useTicks   :: Bool,       -- emit ticks
   doCPP      :: Bool,       -- run ccphs on input files
   noCode     :: Bool,       -- don't generate code
@@ -59,6 +60,7 @@ defaultFlags = Flags {
   speed      = False,
   readCache  = False,
   writeCache = False,
+  cacheName  = ".mhscache",
   useTicks   = False,
   doCPP      = False,
   noCode     = False,

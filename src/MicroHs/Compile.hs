@@ -56,9 +56,6 @@ import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 mhsVersion :: String
 mhsVersion = showVersion version
 
-mhsCacheName :: FilePath
-mhsCacheName = ".mhscache"
-
 type Time = Int
 
 type CM a = StateIO Cache a
@@ -88,21 +85,21 @@ loadEmbedded flags ach =
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
 getCached flags = do
-  mcash <- loadCached mhsCacheName
+  mcash <- loadCached (cacheName flags)
   case mcash of
     Nothing ->
       return emptyCache
     Just cash -> do
       when (loading flags || verbosityGT flags 0) $
-        putStrLn $ "Loading saved cache " ++ show mhsCacheName
+        putStrLn $ "Loading saved cache " ++ show (cacheName flags)
       validateCache flags cash
 
 maybeSaveCache :: Flags -> Cache -> IO ()
 maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
-      putStrLn $ "Saving cache " ++ show mhsCacheName
-    saveCache mhsCacheName cash
+      putStrLn $ "Saving cache " ++ show (cacheName flags)
+    saveCache (cacheName flags) cash
 
 -- Load the real modules for imported boot modules.
 -- Doing so can result in more boot imports, so we recurse.
