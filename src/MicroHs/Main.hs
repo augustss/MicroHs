@@ -83,7 +83,7 @@ mHSPKG :: String
 mHSPKG = "MHSPKG"
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -93,9 +93,9 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-a                 Clear package search path\n\
       \-aPATH             Add PATH to package search path\n\
       \-b64               Base64 encode the combinator code\n\
-      \-C                 Read and write compilation cache\n\
-      \-CR                Read compilation cache\n\
-      \-CW                Write compilation cache\n\
+      \-C[PATH]           Read and write compilation cache, optionally at PATH (default .mhscache)\n\
+      \-CR[PATH]          Read compilation cache, optionally from PATH\n\
+      \-CW[PATH]          Write compilation cache, optionally to PATH\n\
       \-c                 Do not generate executable\n\
       \-Dxxx              Pass -Dxxx to cpphs\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
@@ -153,6 +153,9 @@ decodeArgs f mdls (arg:args) =
     "-CR"       -> decodeArgs f{readCache = True} mdls args
     "-CW"       -> decodeArgs f{writeCache = True} mdls args
     "-C"        -> decodeArgs f{readCache = True, writeCache = True} mdls args
+    '-':'C':'R':s@(_:_) -> decodeArgs f{readCache = True, cacheName = s} mdls args
+    '-':'C':'W':s@(_:_) -> decodeArgs f{writeCache = True, cacheName = s} mdls args
+    '-':'C':s@(_:_)     -> decodeArgs f{readCache = True, writeCache = True, cacheName = s} mdls args
     "-T"        -> decodeArgs f{useTicks = True} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
