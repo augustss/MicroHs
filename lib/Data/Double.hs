@@ -58,10 +58,10 @@ instance Fractional Double where
           in  scaleFloat64 (ne - de) (fromInteger nm / fromInteger dm)
 
 -- XXX Very inefficient scaling
--- If we get here the number has > 1023 bits, so shifting by 256 is fine.
+-- If we get here the number has > 1023 bits, so shifting by 512 is fine.
 scaleToMax :: Integer -> Integer -> (Int, Integer)
 scaleToMax m = f 0
-  where f e x = if abs x < m then (e, x) else f (e+256) (x `shiftR` 256)
+  where f e x = if abs x < m then (e, x) else f (e+512) (x `shiftR` 512)
 
 instance Eq Double where
   (==) = primDoubleEQ
