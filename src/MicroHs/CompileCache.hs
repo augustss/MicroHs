@@ -87,8 +87,11 @@ addWorking mn c =
         c{ working = mn : ws }
 
 workToDone :: CModule -> Cache -> Cache
-workToDone (t, i, k) c@(Cache{ working = mn:ws, boots = bs, cache = m }) =
+workToDone (t, i, k) c@(Cache{ working = _mn:ws, boots = bs, cache = m }) =
   c{ working = ws, boots = filter (/= mn) bs, cache = M.insert mn (CompMdl t i k) m }
+  -- The identifier in _mn is from the place of use (=import), but we want the cache
+  -- to contain the identifier from the place of definition.
+  where mn = tModuleName t
 workToDone _ _ = undefined
 
 cachedModules :: Cache -> [TModule [LDef]]
