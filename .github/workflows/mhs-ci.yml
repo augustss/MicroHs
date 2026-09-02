@@ -98,7 +98,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -118,7 +117,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
-        branch: v3.15
         packages: >
           build-base
           gcc

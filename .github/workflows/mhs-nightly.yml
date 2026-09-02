@@ -91,7 +91,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: aarch64
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -111,7 +110,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -131,7 +129,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -151,7 +148,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: armv7
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -171,7 +167,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: riscv64
-        branch: v3.20
         packages: >
           build-base
           gcc
@@ -191,7 +186,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: ppc64le
-        branch: v3.15
         packages: >
           build-base
           gcc
@@ -211,7 +205,6 @@ jobs:
 #    - uses: jirutka/setup-alpine@v1
 #      with:
 #        arch: ppc64be
-#        branch: v3.15
 #        packages: >
 #          build-base
 #          gcc
@@ -252,7 +245,6 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x
-        branch: v3.15
         packages: >
           build-base
           gcc
