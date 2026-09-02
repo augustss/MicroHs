@@ -638,9 +638,14 @@ static INLINE tag_t GETTAG(NODEPTR p)
 static INLINE void SETTAG(NODEPTR p, tag_t t)
 {
   switch(t) {
-  case BIT_AP: break;           /* do nothing, bits are already 0 */
-  case BIT_IN: p->ufun.uutag |= BIT_IN; break;
-  default:     p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG; break;
+  case T_AP:
+    break;           /* do nothing, bits are already 0 */
+  case T_IND:
+    p->ufun.uutag |= BIT_IN;
+    break;
+  default:
+    p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG;
+    break;
   }
 }
 
