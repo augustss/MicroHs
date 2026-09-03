@@ -684,6 +684,13 @@ static INLINE void SETTAG(NODEPTR p, tag_t t)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
+/* Prefetch a node we know we'll need soon but haven't dereferenced yet. */
+#if defined(__GNUC__) || defined(__clang__)
+#define PREFETCH_READ(addr) __builtin_prefetch((addr), 0, 2)
+#else
+#define PREFETCH_READ(addr) do { } while(0)
+#endif
+
 /*
  * Byte arrays.
  * This is used for both immutable and mutable arrays.
@@ -2993,6 +3000,7 @@ mark(NODEPTR *np)
 
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
+    PREFETCH_READ(*to_push);   /* won't be popped and dereferenced until later */
     PUSH((NODEPTR)to_push);
   }
   goto top;
