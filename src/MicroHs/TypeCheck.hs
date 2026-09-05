@@ -3592,6 +3592,9 @@ solvers =
   , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
   , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 123 constraints
   , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownSymbol "abc" constraints
+  , ((== mkIdent nameSymbolEq),    solveSymbolEq)     -- SymbolEq "hello" "h3ll0" "False"
+  , ((== mkIdent nameConcatSymbol),solveConcatSymbol) -- ConcatSymbol "ab" "cd" "abcd" constraints
+  , ((== mkIdent nameHeadSymbol),  solveHeadSymbol)   -- HeadSymbol "h" "tail" "htail" ("h" always 1 character) contraints
   , ((== mkIdent nameCoercible),   solveCoercible)    -- Coercible a b constraints
   , (const True,                   solveInst)         -- handle constraints with instances
   ]
@@ -3776,6 +3779,72 @@ solveKnownSymbol :: SolveOne
 --solveKnownSymbol _ _ x | trace ("solveKnownSymbol: " ++ prettyShow x) False = undefined
 solveKnownSymbol loc iCls [e@(ELit _ (LStr _))] = mkConstDict loc iCls e
 solveKnownSymbol loc iCls ts = solveInst loc iCls ts  -- look for a dict argument
+
+solveSymbolEq :: SolveOne
+solveSymbolEq loc iCls [s, t, b] =
+  case (s, t) of
+    (ELit _ (LStr sStr), ELit _ (LStr tStr)) ->
+      let result = if sStr == tStr then "True" else "False"
+      in case b of
+           ELit _ (LStr bStr)
+             | bStr == result -> return $ Just (ETuple [], [], [])
+             | otherwise      -> return Nothing
+           _ | isEUVar b -> return $ Just (ETuple [], [], [(loc, b, ELit loc (LStr result))])
+             | otherwise -> return Nothing
+    _ -> solveInst loc iCls [s, t, b]   -- s or t not concrete yet : we defer
+solveSymbolEq loc iCls ts = solveInst loc iCls ts
+
+solveConcatSymbol :: SolveOne
+solveConcatSymbol loc iCls [s, t, st] =
+  case (getLit s, getLit t, getLit st) of
+    (Just sStr, Just tStr, _) ->
+      unifyOrCheck loc st (sStr ++ tStr)
+    (Just sStr, Nothing, Just stStr)
+      | sStr `isPrefixOf` stStr -> unifyOrCheck loc t (drop (length sStr) stStr)
+      | otherwise -> tcError loc $ "ConcatSymbol: " ++ show stStr
+                                  ++ " does not start with " ++ show sStr
+    (Nothing, Just tStr, Just stStr)
+      | tStr `isSuffixOf` stStr -> unifyOrCheck loc s (take (length stStr - length tStr) stStr)
+      | otherwise -> tcError loc $ "ConcatSymbol: " ++ show stStr
+                                  ++ " does not end with " ++ show tStr
+    _ -> solveInst loc iCls [s, t, st]   -- not enough info : we defer
+  where
+    getLit (ELit _ (LStr x)) = Just x
+    getLit _                 = Nothing
+    unifyOrCheck l ty target = case ty of
+      ELit _ (LStr actual) | actual == target -> return $ Just (ETuple [], [], [])
+                            | otherwise -> tcError l $ "ConcatSymbol mismatch"
+      _ | isEUVar ty -> return $ Just (ETuple [], [], [(l, ty, ELit l (LStr target))])
+        | otherwise  -> return Nothing
+solveConcatSymbol loc iCls ts = solveInst loc iCls ts
+
+solveHeadSymbol :: SolveOne
+-- Case 1 : s already known -> we split a head (1 character) and a tail
+solveHeadSymbol loc iCls [h, t, s@(ELit _ (LStr sStr))]
+  | null sStr = return Nothing   -- empty Symbol has neither head nor tail
+  | otherwise = do
+      let hStr = take 1 sStr
+          tStr = drop 1 sStr
+          check ty target = case ty of
+            ELit _ (LStr actual)
+              | actual == target -> Right []
+              | otherwise        -> Left actual
+            _ | isEUVar ty -> Right [(loc, ty, ELit loc (LStr target))]
+              | otherwise  -> Right []
+      case (check h hStr, check t tStr) of
+        (Left actual, _) ->
+          tcError loc $ "HeadSymbol: expected head " ++ show hStr ++ ", received " ++ show actual
+        (_, Left actual) ->
+          tcError loc $ "HeadSymbol: expected tail " ++ show tStr ++ ", received " ++ show actual
+        (Right is1, Right is2) -> return $ Just (ETuple [], [], is1 ++ is2)
+-- Case 2 : h and t already known (and s not litteral, otherwise case 1 should match)
+solveHeadSymbol loc iCls [h@(ELit _ (LStr hStr)), t@(ELit _ (LStr tStr)), s]
+  | length hStr /= 1 =
+      tcError loc $ "HeadSymbol: head should be 1 character, received " ++ show hStr
+  | isEUVar s = return $ Just (ETuple [], [], [(loc, s, ELit loc (LStr (hStr ++ tStr)))])
+  | otherwise = return Nothing
+-- not enough info : we defer
+solveHeadSymbol loc iCls ts = solveInst loc iCls ts
 
 mkConstDict :: SLoc -> Ident -> Expr -> T (Maybe (Expr, [Goal], [Improve]))
 mkConstDict loc iCls e = do

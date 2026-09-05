@@ -125,6 +125,8 @@ test:
 	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
 	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
 	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
+	$(TMHS) ConcatSymbol   && $(EVAL) > ConcatSymbol.out 	&& diff ConcatSymbol.ref ConcatSymbol.out
+	$(TMHS) HeadSymbolEq   && $(EVAL) > HeadSymbolEq.out	&& diff HeadSymbolEq.ref HeadSymbolEq.out
 	$(TMHS) DerivingBuiltin
 
 testforimp:
