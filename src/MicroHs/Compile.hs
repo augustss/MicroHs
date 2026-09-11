@@ -448,7 +448,7 @@ runPreString flags pgm args fn ifile = do
   hClose hi
   writeFile fni ifile
   (fno, ho) <- openTmpFile "mhspreout.hs"
-  let cmd = unwords $ pgm : fn : fni : fno : args
+  let cmd = unwords $ map quote $ pgm : fn : fni : fno : args
   when (verbosityGT flags 1) $
     putStrLn $ "Run preprocessor: " ++ show cmd
   callCommand cmd
@@ -468,14 +468,17 @@ runCPP flags infile outfile = do
   let datadir = mhsdir flags
       cpphs = fromMaybe "cpphs" mcpphs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
-      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
-      cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
+      cmd = unwords $ map quote $ [cpphs, "--strip"] ++ args ++ [infile, "-O" ++ outfile]
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
   callCommand cmd
 
+-- Quote one shell word, closing and reopening quotes around single quotes.
 quote :: String -> String
-quote s = "'" ++ s ++ "'"
+quote s = "'" ++ concatMap escape s ++ "'"
+  where escape '\'' = "'\\''"
+        escape c = [c]
 
 runHsc2hs :: Flags -> FilePath -> IO String
 runHsc2hs flags fni = do
@@ -485,8 +488,8 @@ runHsc2hs flags fni = do
       hsc2hs = fromMaybe "hsc2hs" mhsc2hs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"
                     ,"-I" ++ datadir </> "src/runtime/unix"]
-      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
-      cmd = unwords $ [hsc2hs, "-o", fno] ++ args ++ [fni]
+      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
+      cmd = unwords $ map quote $ [hsc2hs, "-o", fno] ++ args ++ [fni]
   when (verbosityGT flags 1) $
     putStrLn $ "Run hsc2hs: " ++ show cmd
   callCommand cmd
