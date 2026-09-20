@@ -103,7 +103,7 @@ mapException f v =
 evaluate :: a -> IO a
 evaluate a = seq a (return ()) >> return a
 
-try :: forall a e . Exception e => IO a -> IO (Either e a)
+try :: forall e a . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
 tryJust :: Exception e => (e -> Maybe b) -> IO a -> IO (Either b a)
