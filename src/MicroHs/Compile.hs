@@ -434,8 +434,9 @@ runCPPString flags fn ifile = do
   hClose hi
   writeFile fni $ "#line 1 \"" ++ fn ++ "\"\n" ++ ifile
   (fno, ho) <- openTmpFile "mhsout.hs"
+  hClose ho
   runCPP flags fni fno
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fni
   removeFile fno
   return ofile
@@ -448,11 +449,12 @@ runPreString flags pgm args fn ifile = do
   hClose hi
   writeFile fni ifile
   (fno, ho) <- openTmpFile "mhspreout.hs"
+  hClose ho
   let cmd = unwords $ map quote $ pgm : fn : fni : fno : args
   when (verbosityGT flags 1) $
     putStrLn $ "Run preprocessor: " ++ show cmd
   callCommand cmd
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fni
   removeFile fno
   return ofile
@@ -483,6 +485,7 @@ quote s = "'" ++ concatMap escape s ++ "'"
 runHsc2hs :: Flags -> FilePath -> IO String
 runHsc2hs flags fni = do
   (fno, ho) <- openTmpFile "mhshsc2hs.hs"
+  hClose ho
   mhsc2hs <- lookupEnv "MHSHSC2HS"
   let datadir = mhsdir flags
       hsc2hs = fromMaybe "hsc2hs" mhsc2hs
@@ -493,7 +496,7 @@ runHsc2hs flags fni = do
   when (verbosityGT flags 1) $
     putStrLn $ "Run hsc2hs: " ++ show cmd
   callCommand cmd
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fno
   return ofile
 
