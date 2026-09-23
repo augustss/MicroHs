@@ -32,6 +32,31 @@ EOF
     printf '42\n%s\n' "$name" > "$work/expected"
     diff "$work/expected" "$work/result"
 
+    # Locations must keep the whole file name, including spaces, when the
+    # source goes through the preprocessor and comes back with #line directives.
+    cat > "$inst/input files/CppLine.hs" <<'EOF'
+{-# LANGUAGE CPP #-}
+module CppLine where
+x :: Int
+x = "not an int"
+EOF
+    if "$inst/bin/mhs" "$@" "$inst/input files/CppLine.hs" "-o$work/result.comb" 2> "$work/error"; then
+        echo 'expected CppLine.hs to fail to compile'; exit 1
+    fi
+    grep -F "\"$inst/input files/CppLine.hs\": line 4, col 5" "$work/error" > /dev/null
+    # A bare #line directive keeps the current file name.
+    cat > "$inst/input files/CppBareLine.hs" <<'EOF'
+{-# LANGUAGE CPP #-}
+module CppBareLine where
+x :: Int
+#line 7
+x = "not an int"
+EOF
+    if "$inst/bin/mhs" "$@" "$inst/input files/CppBareLine.hs" "-o$work/result.comb" 2> "$work/error"; then
+        echo 'expected CppBareLine.hs to fail to compile'; exit 1
+    fi
+    grep -F "\"$inst/input files/CppBareLine.hs\": line 7, col 5" "$work/error" > /dev/null
+
     # Check the custom preprocessor's positional arguments, including an empty one.
     cat > "$inst/bin/preprocessor" <<'EOF'
 #!/bin/sh
@@ -58,7 +83,8 @@ test "$1" = -o
 test "$3" = -D__MHS__
 test "$4" = "-I$MHSDIR/src/runtime"
 test "$5" = "-I$MHSDIR/src/runtime/unix"
-cp "$6" "$2"
+printf '{-# LINE 1 "%s" #-}\n' "$6" > "$2"
+cat "$6" >> "$2"
 EOF
     chmod +x "$inst/bin/hsc2hs"
     export MHSHSC2HS="$inst/bin/hsc2hs"
@@ -67,5 +93,10 @@ EOF
     "$root/bin/mhseval" +RTS "-r$work/result.comb" -RTS > "$work/result"
     printf '42\n' > "$work/expected"
     diff "$work/expected" "$work/result"
+    printf 'module HscLine where\nx :: Int\nx = "not an int"\n' > "$inst/input files/HscLine.hsc"
+    if "$inst/bin/mhs" "$@" "-i$inst/input files" HscLine "-o$work/result.comb" 2> "$work/error"; then
+        echo 'expected HscLine.hsc to fail to compile'; exit 1
+    fi
+    grep -F "\"$inst/input files/HscLine.hsc\": line 3, col 5" "$work/error" > /dev/null
 done
 echo 'Preprocessor path tests passed'
