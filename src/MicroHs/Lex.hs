@@ -9,7 +9,7 @@ module MicroHs.Lex(
 import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
@@ -114,11 +114,7 @@ lex loc ('#':')':cs) = TSpec loc 'R' : lex (addCol loc 2) cs
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of
-    (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
-      let ws = words line
-          file = tail $ init $ ws!!1   -- strip the initial and final '"'
-          loc' = SLoc file (readInt (ws!!0) - 1) 1
-      in  lex loc' rs
+    (line, rs) -> lex (fromMaybe loc (lineDirective loc line)) rs
                   | (SLoc _ 1 1) <- loc, take 1 xcs == "!" =
   -- It's a shebang (#!), ignore the rest of the line
   skipLine loc xcs
@@ -449,14 +445,34 @@ readInt = foldl (\ r c -> r * 10 + digitToInt c) 0
 pragma :: SLoc -> [Char] -> [Token]
 pragma loc cs =
   let skip = skipNest loc 1 ('#':cs)
-  in  case words cs of
-        p : _ | map toUpper p == "SOURCE" -> TPragma loc p : skip
+      (p, rest) = break isSpace (dropWhile isSpace cs)
+  in  case map toUpper p of
+        "SOURCE" -> TPragma loc p : skip
         -- hsc2hs generates LINE pragmas
-        p : ln@(_:_) : fn : _ | map toUpper p == "LINE", all isDigit ln ->
-          let f = tail (init fn)
-              l = readInt ln - 1
-          in  seq l $ skipNest (SLoc f l 1) 1 ('#':cs)
+        "LINE" | Just loc' <- lineDirective loc rest -> skipNest loc' 1 ('#':cs)
         _ -> skip
+
+-- Parse the arguments of a '#line 123 "file/name.hs"' directive or a LINE pragma.
+-- The directive describes the following line, and the '\n' that ends it
+-- will increment the line number, so subtract 1 here.
+-- The file name is everything between the first and the last '"', taken
+-- verbatim: the tools that generate these directives (cpphs, hsc2hs, and
+-- runCPPString) write the name without any escaping, so it may contain spaces.
+-- Without a quoted file name the current file name is kept.
+-- Only the directive's own line is examined.
+lineDirective :: SLoc -> String -> Maybe SLoc
+lineDirective (SLoc file _ _) cs =
+  case span isDigit (dropWhile isSpace (takeWhile (/= '\n') cs)) of
+    (ln@(_:_), rs) ->
+      let l = readInt ln - 1
+          f = fromMaybe file (quoted rs)
+      in  seq l $ Just (SLoc f l 1)
+    _ -> Nothing
+  where
+    quoted rs =
+      case break (== '"') rs of
+        (_, '"':qs) | (_, '"':nm) <- break (== '"') (reverse qs) -> Just (reverse nm)
+        _ -> Nothing
 
 -- | This is the magical layout resolver, straight from the Haskell report.
 -- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3
