@@ -34,13 +34,13 @@ boundedEnumFromThen n1 n2
     i_n2 = fromEnum n2
 
 numericEnumFrom :: (Num a) => a -> [a]
-numericEnumFrom n = n : numericEnumFrom (n + 1)
+numericEnumFrom !n = n : numericEnumFrom (n + 1)
 
 numericEnumFromThen :: (Num a) => a -> a -> [a]
 numericEnumFromThen n m = from n
   where
     d = m - n
-    from i = i : from (i + d)
+    from !i = i : from (i + d)
 
 numericEnumFromTo :: (Num a, Ord a) => a -> a -> [a]
 numericEnumFromTo l h = takeWhile (<= h) (numericEnumFrom l)
