@@ -50,6 +50,50 @@ class (B a b, C a b) => D a b where
   -- Multiple solutions
   d = a
 
+class E a where
+  e :: a -> a
+
+instance A Int Int where
+  a x = x
+
+-- Class synonym instances
+type F a = E a
+instance F Int where
+  e x = x
+
+-- Multiple instances at once
+instance (B Int Int, C Int Int, D Int Int)
+
+-- Multiple instances with methods
+instance (A Char Char, E Char) where
+  a x = x
+  e x = x
+
+-- tuple synonym
+type ABCD a b = (A a b, B a b, C a b, D a b)
+instance ABCD Bool Bool
+
+-- constraints
+type OrddT x y = (E x, Ordd (x,y))
+instance forall a b . (Eqq a, Eqq b, Ord a, Ord b) => OrddT a b where
+  (<==) = (<=)
+  e x = x
+
+-- cascading tuples
+instance ((B Char Int, B Int Char), B Char Char, (A Int Char, A Char Int))
+
+-- unrelated instances
+class G a where
+  g' :: a -> a
+instance G Int where
+  g' x = x
+instance G Bool where
+  g' = not
+class G a => H a where
+  h' :: a -> a
+  h' = g'
+instance (H Int, H Bool)
+
 main :: IO ()
 main = do
   print $ f (5::Int)
@@ -57,3 +101,7 @@ main = do
   print $ h (5::Int) 'a'
   print $ f [88::Int]
   print $ f (1::Int, 'a')
+  print (a ('a'::Char)::Char)
+  print (e ('b'::Char)::Char)
+  print $ h' True
+  print $ h' (1::Int)

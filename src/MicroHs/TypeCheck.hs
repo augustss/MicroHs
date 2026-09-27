@@ -1408,50 +1408,75 @@ splitContext act =
         (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
     _ -> ([], [], act)
 
+-- Convert a Set of Classes to a list while expanding synonyms
+expandTup :: EType -> T [EType]
+expandTup t = do
+  u <- expandSyn t
+  case getExprTuple u of
+    Just xs -> concat <$> mapM expandTup xs
+    Nothing -> pure [u]
+
 -- expandInst runs when all kind checking has been done, but no value checking.
 -- So any generated type expressions must be kind correct and fully qualified,
 -- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs extra) = do
-  (vks, ctx, cc) <- splitContext <$> expandSyn act
-  let loc = getSLoc act
-      qiCls = getAppCon cc
-      iInst = mkInstId loc cc
---  tcTrace ("expandInst " ++ show iInst)
---  (e, _) <- tLookupV iCls
-  ct <- gets classTable
---  let qiCls = getAppCon e
-  (ClassInfo _ supers _ mits fds) <-
-    case M.lookup qiCls ct of
-      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
-      Just x -> return x
-  let signs = [ (i, t) | Sign is t <- bs, i <- is ]
-      addSign i e = maybe e (ESign e) $ lookup i signs
-      clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
-      meth (i, t) = fromMaybe (mkDefault i t) $ lookup i ies
-      meths = map meth mits
-      sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
-      args = sups ++ meths
-      instBind (Fcn i _) = isJust $ lookup i mits
-      instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
-      instBind _ = False
-      -- When the method type has nested quantifiers the type checker cannot handle
-      --  m = mDflt
-      -- so we eta expand the definition t
-      --  m $1 ... = mDflt $1 ...
-      mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
-        where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
-              vs = [EVar $ mkIdentSLoc loc $ "$" ++ show k | k <- [0 .. countArrows t - 1] ]
-  case filter (not . instBind) bs of
-    [] -> return ()
-    b:_ -> tcError (getSLoc b) "superflous instance binding"
+  (vks, ctx, uccs) <- splitContext <$> expandSyn act
+  ccs <- expandTup uccs
+  (instBinds, defs) <- unzip <$> forM ccs (\ cc -> do
+    let loc = getSLoc act
+        qiCls = getAppCon cc
+        iInst = mkInstId loc cc
+--    tcTrace ("expandInst " ++ show iInst)
+--    (e, _) <- tLookupV iCls
+    ct <- gets classTable
+--    let qiCls = getAppCon e
 
-  let body = eEqns [] $ eLetB extra $ eApps (EVar $ mkClassConstructor qiCls) args
-      bind = Fcn iInst body
-      sign = Sign [iInst] $ eForall vks $ addConstraints ctx cc
-  addInstTable [(EVar iInst, vks, ctx, cc, fds)]
-  return [dinst, sign, bind]
+    -- Lookup known class: supers => _ | fds where mits
+    (ClassInfo _ supers _ mits fds) <-
+      case M.lookup qiCls ct of
+        Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+        Just x -> return x
+
+    let lbs = filter ((0 /=) . instBind) bs
+        signs = [ (i, t) | Sign is t <- lbs, i <- is ]
+        addSign i e = maybe e (ESign e) $ lookup i signs
+        clsMdl = qualOf qiCls                   -- get class's module name
+        ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- lbs]
+        meth (i, t) = fromMaybe (mkDefault i t) $ lookup i ies
+        meths = map meth mits
+        sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
+        args = sups ++ meths
+        lengthMaybe :: Maybe EType -> Int
+        lengthMaybe Just{} = 1
+        lengthMaybe Nothing = 0
+        instBind (Fcn i _) = lengthMaybe $ lookup i mits
+        instBind (Sign is _) = sum ((\ i -> lengthMaybe $ lookup i mits) <$> is)
+        instBind _ = 0
+        -- When the method type has nested quantifiers the type checker cannot handle
+        --  m = mDflt
+        -- so we eta expand the definition t
+        --  m $1 ... = mDflt $1 ...
+        mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
+          where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
+                vs = [EVar $ mkIdentSLoc loc $ "$" ++ show k | k <- [0 .. countArrows t - 1] ]
+      
+    let body = eEqns [] $ eLetB extra $ eApps (EVar $ mkClassConstructor qiCls) args
+        bind = Fcn iInst body
+        sign = Sign [iInst] $ eForall vks $ addConstraints ctx cc
+    addInstTable [(EVar iInst, vks, ctx, cc, fds)]
+    return (instBind, [sign, bind])
+    )
+
+  let instBindSum = foldr (\ f b x -> f x + b x) (const 0) instBinds
+  case filter ((1 /=) . instBindSum) bs of
+    [] -> return ()
+    b:_ -> tcError (getSLoc b) (if instBindSum b < 1
+      then "superflous instance binding"
+      else "ambiguous instance binding"
+      )
+
+  return (dinst : concat defs)
 
 expandInst d = return [d]
 
