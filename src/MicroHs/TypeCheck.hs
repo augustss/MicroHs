@@ -1333,6 +1333,9 @@ expandClass dcls@(Class _ctx (iCls, vks) _fds ms) = do
             vs = replicate n (EVar dummyIdent)
         in  [Eqn vs $ simpleAlts e]
       dDflts = concatMap mkDflt meths
+  case map fst mdflts \\ [ i | Sign is _ <- meths, i <- is ] of  -- defaults without a signature
+    i:_ -> tcError (getSLoc i) $ "missing method signature: " ++ showIdent i
+    _ -> return ()
   return $ dcls : dDflts
 expandClass d = return [d]
 
@@ -1460,7 +1463,7 @@ expandInst dinst@(Instance act bs extra) = do
         mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
           where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
                 vs = [EVar $ mkIdentSLoc loc $ "$" ++ show k | k <- [0 .. countArrows t - 1] ]
-      
+
     let body = eEqns [] $ eLetB extra $ eApps (EVar $ mkClassConstructor qiCls) args
         bind = Fcn iInst body
         sign = Sign [iInst] $ eForall vks $ addConstraints ctx cc
