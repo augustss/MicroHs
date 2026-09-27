@@ -4751,6 +4751,13 @@ headutf8(struct bytestring bs, void **ret)
 #endif  /* WANT_UTF8 */
 }
 
+/* Evaluate to a Bool */
+static INLINE value_t
+evalbool(NODEPTR n)
+{
+  return GETTAG(evali(n)) == T_A;
+}
+
 /* Evaluate to an INT */
 static INLINE value_t
 evalint(NODEPTR n)
@@ -7422,6 +7429,9 @@ MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
 #endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
+/* A Bool is the K (False) or A (True) combinator, not an int node. */
+#define SETBOOL(n, x) SETINDIR((n), (x) ? combTrue : combFalse)
+MHS_FROM(mhs_from_Bool, SETBOOL, value_t);
 #if WANT_INT64
 MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
 #endif
@@ -7471,6 +7481,7 @@ MHS_TO(mhs_to_Float, evalflt, flt32_t);
 MHS_TO(mhs_to_Double, evaldbl, flt64_t);
 #endif
 MHS_TO(mhs_to_Int, evalint, value_t);
+MHS_TO(mhs_to_Bool, evalbool, value_t);
 #if WANT_INT64
 MHS_TO(mhs_to_Int64, evalint64, int64_t);
 #endif

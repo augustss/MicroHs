@@ -55,7 +55,7 @@ dsDef flags mn ffiNo adef =
     --   foo = FE bar' ty'
     -- where bar' is the desugared expression for bar, and ty' is the C type
     -- (currently just a newtype of an EType).
-    ForExp _ (Just s) e t ->  [(mkIdentSLoc l s, mkForExp e' (CType t))]
+    ForExp cc (Just s) e t ->  [(mkIdentSLoc l s, mkForExp (cc == Cjavascript) e' (CType t))]
       where l = getSLoc e
             e' = dsExpr e
     Class ctx (c, _) _ bs ->

@@ -11,7 +11,7 @@ import MicroHs.Names
 --import Debug.Trace
 
 -- The export table has (internal-name, external-name, external-type)
-makeFFI :: Flags -> [(Ident, Ident, CType)] -> [IdentModule ]-> [[LDef]] -> (String, String)
+makeFFI :: Flags -> [(Ident, Ident, CType, IsJavascript)] -> [IdentModule ]-> [[LDef]] -> (String, String)
 makeFFI _ forExps exclude dss =
   let ffiImports = nubBy eq [ (ie, n, t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
@@ -24,7 +24,7 @@ makeFFI _ forExps exclude dss =
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
         where isJS (ImpJS _, _, _, _) = True
               isJS _ = False
-      mkSig (_, i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
+      mkSig (_, i, CType t, js) = let (as, ior) = getArrows t in mkExportSig js i as ior ++ ";"
       header = unlines
         ["#include <stdint.h>",
          "#if defined(__cplusplus)",
@@ -40,6 +40,13 @@ makeFFI _ forExps exclude dss =
     if not (null wrappers) || not (null dynamics) then mhsError "Unimplemented FFI feature" else
     (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
+      (if any (\ (_, _, _, js) -> js) forExps then
+         ["#if defined(__EMSCRIPTEN__)",
+          "#include \"emscripten.h\"",
+          "#else",
+          "#define EMSCRIPTEN_KEEPALIVE",
+          "#endif"]
+       else []) ++
       map mkHdr imps ++
       ["static const struct ffi_entry imp_table[] = {"] ++
       map mkEntry imps ++
@@ -56,23 +63,23 @@ makeFFI _ forExps exclude dss =
       ] ++ zipWith mkExportWrapper [0..] forExps
     , header)
 
-mkExportSig :: Ident -> [EType] -> EType -> String
-mkExportSig n as ior =
-  let outT = cTypeName $ checkIO ior
-      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
+mkExportSig :: IsJavascript -> Ident -> [EType] -> EType -> String
+mkExportSig js n as ior =
+  let outT = expTypeName js $ checkIO ior
+      ins = zipWith (\ i a -> expTypeName js a ++ " _x" ++ show i) [1::Int ..] as
    in outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
 
-mkExport :: (Ident, Ident, CType) -> String
-mkExport (i, _, _) = "  { \"" ++ unIdent i ++ "\", 0 },"
+mkExport :: (Ident, Ident, CType, IsJavascript) -> String
+mkExport (i, _, _, _) = "  { \"" ++ unIdent i ++ "\", 0 },"
 
-mkExportWrapper :: Int -> (Ident, Ident, CType) -> String
-mkExportWrapper no (_, n, CType t) = unlines $
+mkExportWrapper :: Int -> (Ident, Ident, CType, IsJavascript) -> String
+mkExportWrapper no (_, n, CType t, js) = unlines $
   let (as, ior) = getArrows t
       r = checkIO ior
-      outT = cTypeName r
-      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
+      outT = expTypeName js r
+      arg k a = "  mhs_from_" ++ expTypeHsName js a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
       eval = if eqEType r ior then "ffe_eval()" else "ffe_exec()"
-  in  [mkExportSig n as ior ++ " {",
+  in  [(if js then "EMSCRIPTEN_KEEPALIVE " else "") ++ mkExportSig js n as ior ++ " {",
        "  gc_check(" ++ show (2 * length as + 4) ++ ");",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
@@ -82,7 +89,7 @@ mkExportWrapper no (_, n, CType t) = unlines $
           "}"
         ]
        else
-        [ "  " ++ outT ++ " _res = mhs_to_" ++ cTypeHsName r ++ "(" ++ eval ++ ", -1);",
+        [ "  " ++ outT ++ " _res = mhs_to_" ++ expTypeHsName js r ++ "(" ++ eval ++ ", -1);",
           "  ffe_pop();",
           "  return _res;",
           "}"
@@ -205,6 +212,15 @@ cHsTypes =
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   ]
+
+-- Foreign export type names; a javascript export also allows Bool.
+expTypeName :: IsJavascript -> EType -> String
+expTypeName True (EVar i) | unIdent i == "Data.Bool_Type.Bool" = "int"
+expTypeName _ t = cTypeName t
+
+expTypeHsName :: IsJavascript -> EType -> String
+expTypeHsName True (EVar i) | unIdent i == "Data.Bool_Type.Bool" = "Bool"
+expTypeHsName _ t = cTypeHsName t
 
 -- Use to construct 'foreign export ccall' signature.
 cTypeName :: EType -> String
