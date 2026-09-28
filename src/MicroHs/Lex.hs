@@ -64,6 +64,13 @@ showToken (TPragma _ s) = "{-# " ++ s ++ " #-}"
 showToken (TEnd _) = "EOF"
 showToken (TRaw _) = "TRaw"
 
+-- Lex an operator (a sequence of operator characters)
+lexOper :: SLoc -> String -> [Token]
+lexOper loc (d:cs) =
+  case span isOperChar cs of
+    (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
+lexOper loc [] = lex loc []
+
 incrLine :: SLoc -> SLoc
 incrLine (SLoc f l _) = let l' = l+1 in seq l' (SLoc f l' 1)
 
@@ -108,9 +115,40 @@ lex loc ('0':x:cs)
 lex loc cs@(d:_) | isDigit d = readNum isDigit 10 0 loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
-lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
-                         | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
-lex loc ('#':')':cs) = TSpec loc 'R' : lex (addCol loc 2) cs
+-- '(#' starts an unboxed tuple when its bracket is closed by '#)', as in
+-- (# a, b #), (# #), (##) or (#-1, x #): the body is then lexed on its own,
+-- so a '#)' met anywhere else is the operator '#' and ')', as in the section
+-- (x #).  Otherwise '(#' is '(' followed by an operator whose name begins
+-- with '#': (#), (#>), or a section like (#> 1) or (# x).
+lex loc ('(':dcs@(d:cs))
+  | d == '#', Just k <- hashClose (0::Int) (0::Int) cs =
+      let (body, rest) = splitAt k cs          -- rest starts with "#)"
+          loc' = advance (addCol loc 2) body
+      in  TSpec loc 'L' : noEnd (lex (addCol loc 2) body) ++ TSpec loc' 'R' : lex (addCol loc' 2) (drop 2 rest)
+  | d == '#'  = TSpec loc '(' : lexOper (addCol loc 1) dcs
+  | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
+  where -- The position of the '#)' that closes the bracket, if any.  Nested
+        -- parentheses are counted; string and character literals are skipped.
+        hashClose n i ('#':')':_) | n == 0 = Just i
+        hashClose n i (')':r) = if n > 0 then hashClose (n - 1) (i + 1) r else Nothing
+        hashClose n i ('(':r) = hashClose (n + 1) (i + 1) r
+        hashClose n i ('"':r) = let (j, r') = skipString (i + 1) r in hashClose n j r'
+        hashClose n i ('\'':'\\':_:'\'':r) = hashClose n (i + 4) r
+        hashClose n i ('\'':_:'\'':r) = hashClose n (i + 3) r
+        hashClose n i (_:r) = hashClose n (i + 1) r
+        hashClose _ _ [] = Nothing
+        skipString i ('\\':_:r) = skipString (i + 2) r
+        skipString i ('"':r) = (i + 1, r)
+        skipString i (_:r) = skipString (i + 1) r
+        skipString i [] = (i, [])
+        -- The position after a piece of text
+        advance l ('\n':r) = advance (incrLine l) r
+        advance l (_:r) = advance (addCol l 1) r
+        advance l [] = l
+        -- The tokens of the body, without the end marker lex adds
+        noEnd (TEnd _ : _) = []
+        noEnd (t : ts) = t : noEnd ts
+        noEnd [] = []
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of
@@ -124,9 +162,7 @@ lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
   TSpec loc c :
     let ts = lex (addCol loc 1) cs
     in  if c == '\\' then tLam ts else ts
-lex loc (d:cs) | isOperChar d =
-  case span isOperChar cs of
-    (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
+lex loc dcs@(d:_) | isOperChar d = lexOper loc dcs
 lex loc (d:cs) | isSpec d =
   TSpec loc d : lex (addCol loc 1) cs
 lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (\ _ s -> [TString loc s]) isTrip   multiLine (\ _ _ -> Nothing) cs

@@ -28,6 +28,7 @@ test:
 	$(TMHS) Arith64    && $(EVAL) > Arith64.out    && diff Arith64.ref Arith64.out
 	$(TMHS) Guard      && $(EVAL) > Guard.out      && diff Guard.ref Guard.out
 	$(TMHS) Newtype    && $(EVAL) > Newtype.out    && diff Newtype.ref Newtype.out
+	$(TMHS) HashOper   && $(EVAL) > HashOper.out   && diff HashOper.ref HashOper.out
 	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
