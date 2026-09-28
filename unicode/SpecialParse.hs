@@ -6,31 +6,38 @@ import Numeric
 import System.Environment
 import System.IO
 
-specialData :: FilePath
+specialData, foldData :: FilePath
 specialData = "SpecialCasing.txt"
+foldData = "caseFolding.txt"
 
 main :: IO ()
 main = do
   args <- getArgs
-  let unifilename =
+  let (specfilename, foldfilename) =
         case args of
-          [] -> specialData
-          [s] -> s
-          _ -> error "usage: SpecialParse [File]"
-  specfile <- readFile unifilename
-  let info = catMaybes $ map parseOne $ dropEmpty $ map dropComment $ lines specfile
+          [] -> (specialData, foldData)
+          [s1, s2] -> (s1, s2)
+          _ -> error "usage: SpecialParse [FILE FILE]"
+  specfile <- readFile specfilename
+  let info = catMaybes $ map parseSpec $ dropEmpty $ map dropComment $ lines specfile
       dropEmpty = filter (any (not . isSpace))
       dropComment = takeWhile (/= '#')
       (lowers, titles, uppers) = bucket info
       lowers' = filter (keep toLower) (reverse lowers)
       titles' = filter (keep toTitle) (reverse titles)
       uppers' = filter (keep toUpper) (reverse uppers)
+
   putStrLn $ printTable "Lower" lowers'
   putStrLn $ printTable "Title" titles'
   putStrLn $ printTable "Upper" uppers'
 
-parseOne :: String -> Maybe (Char, [Char], [Char], [Char])
-parseOne = decode . splitBy ';'
+  foldFile <- readFile foldfilename
+  let foldInfo = catMaybes $ map parseFold $ dropEmpty $ map dropComment $ lines foldFile
+      folds = filter keepFold foldInfo
+  putStrLn $ printFold folds
+
+parseSpec :: String -> Maybe (Char, [Char], [Char], [Char])
+parseSpec = decode . splitBy ';'
   where decode [ code, lower, title, upper, spc ] | all isSpace spc = Just
           (readHex' code, map readHex' (words lower), map readHex' (words title), map readHex' (words upper))
         decode _ = Nothing
@@ -54,7 +61,22 @@ printTable s tbl = unlines $
  [ "  _ -> [ to" ++ s ++ " c]"]
  where ch (c, cs) = "  " ++ show c ++ " -> " ++ show cs
 
+parseFold :: String -> Maybe (Char, [Char])
+parseFold = decode . splitBy ';'
+  where decode [ code, _status, mapping, spc ] | all isSpace spc = Just
+          (readHex' code, map readHex' (words mapping))
+        decode _ = Nothing
 
+keepFold :: (Char, [Char]) -> Bool
+keepFold (c, cs) = [toLower c] /= cs
+
+printFold :: [(Char, [Char])] -> String
+printFold fs = unlines $
+  [ "_toFolds :: Char -> [Char]",
+    "_toFolds c = case c of" ] ++
+  map ch fs ++
+  [ "  _ -> [toLower c]" ]
+ where ch (c, cs) = "  " ++ show c ++ " -> " ++ show cs
 
 readHex' :: String -> Char
 readHex' s =
@@ -67,4 +89,3 @@ splitBy sep = loop []
   where loop r [] = [reverse r]
         loop r (c:cs) | c == sep  = reverse r : loop [] cs
                       | otherwise = loop (c:r) cs
-

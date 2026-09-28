@@ -11,7 +11,7 @@ uni_string:	UniParse UnicodeData.txt
 UniParse: UniParse.hs
 	mhs UniParse.hs -oUniParse
 
-uni_case: SpecialParse SpecialCasing.txt
+uni_case: SpecialParse SpecialCasing.txt CaseFolding.txt
 	./SpecialParse > uni_case
 
 SpecialParse: SpecialParse.hs
@@ -26,5 +26,8 @@ DerivedCoreProperties.txt:
 SpecialCasing.txt:
 	wget https://www.unicode.org/Public/$(UNICODE_VERSION)/ucd/SpecialCasing.txt
 
+CaseFolding.txt:
+	wget https://www.unicode.org/Public/$(UNICODE_VERSION)/ucd/CaseFolding.txt
+
 clean:
-	rm -rf UnicodeData.txt DerivedCoreProperties.txt SpecialCasing.txt UniParse SpecialParse uni_string uni_case
+	rm -rf UnicodeData.txt DerivedCoreProperties.txt SpecialCasing.txt CaseFolding.txt UniParse SpecialParse uni_string uni_case
