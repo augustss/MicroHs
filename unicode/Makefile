@@ -1,7 +1,7 @@
-UNICODE_VERSION=17.0.0
+UNICODE_VERSION=18.0.0
 .PHONY: clean
 
-all: uni_string
+all: uni_string uni_case
 
 uni_string:	UniParse UnicodeData.txt
 	echo "unicodeVersion :: Version" > uni_string
@@ -11,11 +11,20 @@ uni_string:	UniParse UnicodeData.txt
 UniParse: UniParse.hs
 	mhs UniParse.hs -oUniParse
 
+uni_case: SpecialParse SpecialCasing.txt
+	./SpecialParse > uni_case
+
+SpecialParse: SpecialParse.hs
+	mhs SpecialParse.hs -oSpecialParse
+
 UnicodeData.txt:
 	wget https://www.unicode.org/Public/$(UNICODE_VERSION)/ucd/UnicodeData.txt
 
 DerivedCoreProperties.txt:
 	wget https://www.unicode.org/Public/$(UNICODE_VERSION)/ucd/DerivedCoreProperties.txt
 
+SpecialCasing.txt:
+	wget https://www.unicode.org/Public/$(UNICODE_VERSION)/ucd/SpecialCasing.txt
+
 clean:
-	rm -rf UnicodeData.txt DerivedCoreProperties.txt UniParse uni_string
+	rm -rf UnicodeData.txt DerivedCoreProperties.txt SpecialCasing.txt UniParse SpecialParse uni_string uni_case
