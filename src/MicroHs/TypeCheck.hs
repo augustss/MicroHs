@@ -2334,6 +2334,13 @@ failureFree (ELazy True _) = return True
 failureFree (ELazy False p) = failureFree p
 failureFree (EViewPat _ p) = failureFree p
 failureFree (EParen p) = failureFree p
+failureFree (EUpdate c fs) = do          -- record pattern, e.g. C { f = p, .. }
+  b <- failureFreeAp [] c
+  bs <- mapM fieldFree fs
+  return (b && and bs)
+  where fieldFree (EField _ p) = failureFree p
+        fieldFree (EFieldPun _) = return True
+        fieldFree EFieldWild = return True
 failureFree _ = return False
 
 failureFreeAp :: [Bool] -> EPat -> T Bool

@@ -19,7 +19,9 @@ module Data.Text(
   words,
   unwords,
   toLower,
+  toTitle,
   toUpper,
+  toCaseFold,
   foldr,
   concat,
   lines,
@@ -47,6 +49,7 @@ module Data.Text(
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map)
 import Control.DeepSeq.Class
 import qualified Data.Char as C
+import qualified Data.Char.Unicode as U
 import qualified Data.List as L
 import Data.String
 import qualified Data.ByteString.Internal as BS
@@ -154,10 +157,16 @@ unwords :: [Text] -> Text
 unwords = pack . L.unwords . L.map unpack
 
 toLower :: Text -> Text
-toLower = pack . L.map C.toLower . unpack
+toLower = pack . L.concatMap U._toLowers . unpack
+
+toTitle :: Text -> Text
+toTitle = pack . L.concatMap U._toTitles . unpack
 
 toUpper :: Text -> Text
-toUpper = pack . L.map C.toUpper . unpack
+toUpper = pack . L.concatMap U._toUppers . unpack
+
+toCaseFold :: Text -> Text
+toCaseFold = pack . L.concatMap U._toFolds . unpack
 
 foldr :: (Char -> a -> a) -> a -> Text -> a
 foldr f z = L.foldr f z . unpack
