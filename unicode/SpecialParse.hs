@@ -19,20 +19,20 @@ main = do
           [s1, s2] -> (s1, s2)
           _ -> error "usage: SpecialParse [FILE FILE]"
   specfile <- readFile specfilename
-  let info = catMaybes $ map parseSpec $ dropEmpty $ map dropComment $ lines specfile
-      dropEmpty = filter (any (not . isSpace))
+  let info = mapMaybe parseSpec $ dropEmpty $ map dropComment $ lines specfile
+      dropEmpty = filter (not . all isSpace)
       dropComment = takeWhile (/= '#')
       (lowers, titles, uppers) = bucket info
-      lowers' = filter (keep toLower) (reverse lowers)
-      titles' = filter (keep toTitle) (reverse titles)
-      uppers' = filter (keep toUpper) (reverse uppers)
+      lowers' = reverse $ filter (keep toLower) lowers
+      titles' = reverse $ filter (keep toTitle) titles
+      uppers' = reverse $ filter (keep toUpper) uppers
 
   putStrLn $ printTable "Lower" lowers'
   putStrLn $ printTable "Title" titles'
   putStrLn $ printTable "Upper" uppers'
 
   foldFile <- readFile foldfilename
-  let foldInfo = catMaybes $ map parseFold $ dropEmpty $ map dropComment $ lines foldFile
+  let foldInfo = mapMaybe parseFold $ dropEmpty $ map dropComment $ lines foldFile
       folds = filter keepFold foldInfo
   putStrLn $ printFold folds
 
