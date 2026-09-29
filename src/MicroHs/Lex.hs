@@ -121,34 +121,28 @@ lex loc ('.':cs@(d:_)) | isLower_ d =
 -- (x #).  Otherwise '(#' is '(' followed by an operator whose name begins
 -- with '#': (#), (#>), or a section like (#> 1) or (# x).
 lex loc ('(':dcs@(d:cs))
-  | d == '#', Just k <- hashClose (0::Int) (0::Int) cs =
-      let (body, rest) = splitAt k cs          -- rest starts with "#)"
-          loc' = advance (addCol loc 2) body
-      in  TSpec loc 'L' : noEnd (lex (addCol loc 2) body) ++ TSpec loc' 'R' : lex (addCol loc' 2) (drop 2 rest)
-  | d == '#'  = TSpec loc '(' : lexOper (addCol loc 1) dcs
-  | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
-  where -- The position of the '#)' that closes the bracket, if any.  Nested
-        -- parentheses are counted; string and character literals are skipped.
-        hashClose n i ('#':')':_) | n == 0 = Just i
-        hashClose n i (')':r) = if n > 0 then hashClose (n - 1) (i + 1) r else Nothing
-        hashClose n i ('(':r) = hashClose (n + 1) (i + 1) r
-        hashClose n i ('"':r) = let (j, r') = skipString (i + 1) r in hashClose n j r'
-        hashClose n i ('\'':'\\':_:'\'':r) = hashClose n (i + 4) r
-        hashClose n i ('\'':_:'\'':r) = hashClose n (i + 3) r
-        hashClose n i (_:r) = hashClose n (i + 1) r
-        hashClose _ _ [] = Nothing
-        skipString i ('\\':_:r) = skipString (i + 2) r
-        skipString i ('"':r) = (i + 1, r)
-        skipString i (_:r) = skipString (i + 1) r
-        skipString i [] = (i, [])
-        -- The position after a piece of text
-        advance l ('\n':r) = advance (incrLine l) r
-        advance l (_:r) = advance (addCol l 1) r
-        advance l [] = l
-        -- The tokens of the body, without the end marker lex adds
-        noEnd (TEnd _ : _) = []
-        noEnd (t : ts) = t : noEnd ts
-        noEnd [] = []
+  | d == '#' =
+    case hashClose (500::Int) (0::Int) $ lex (addCol loc 2) cs of
+      Just ts -> TSpec loc 'L' : ts
+      Nothing -> TSpec loc '(' : lexOper (addCol loc 1) dcs
+  | otherwise  = TSpec loc '(' : lex (addCol loc 1) dcs
+  where -- Look for a closing #) within a small (n tokens) distance.
+        -- The #) is recognized as two separate tokens and merged,
+        -- otherwise #) could be accidentally recognized outside a (#.
+        -- Nested (# #) are handled by the recursive call to lex above.
+        -- Only recognize #) with matching parens, otherwise it cannot
+        -- be the one we are looking for.
+        -- The reason for a matching distance is to avoid eagerly lexing
+        -- the entire file, instead of streaming as we want.
+        hashClose 0 _  _ = Nothing          -- Not found with 500 token
+        hashClose _ _ [] = Nothing          -- No more tokens
+        hashClose _ p  _ | p < 0 = Nothing  -- Mismatched paren
+        hashClose _ 0 (TIdent l1 [] "#" : TSpec l2 ')' : ts) | addCol l1 1 == l2 =   -- Found adjacent # ) tokens
+          Just $ TSpec l1 'R' : ts
+        hashClose n p (t : ts) = (t:) <$> hashClose (n+1) (par t) ts
+          where par (TSpec _ '(') = p+1
+                par (TSpec _ ')') = p-1
+                par _             = p
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of

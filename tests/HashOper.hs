@@ -44,3 +44,5 @@ main = do
   case (# 1,
           2 #) of
     (# a, b #) -> print (a * b)
+  case (# {- #) -} 1,2 #) of
+    (# x,y #) -> print (x,y)

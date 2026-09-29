@@ -50,7 +50,7 @@ type Line = Int
 type Col  = Int
 
 data SLoc = SLoc FilePath Line Col
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- instance Show SLoc where
 --  show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
