@@ -511,21 +511,22 @@ islinux(void)
 
 /* All node tags for nodes with a payload */
 
-/* NODEPTR with a "virtual" pointer, and special tags */
-
-/* NODEPTR with a "virtual" pointer, and regular tags */
 enum node_tag { D_NONE,
                 X_AP,           /* if we need to indicate an AP node */
+
+                /* NODEPTR with a "virtual" pointer, and special tags */
                 D_IND,          /* indirection, pointer payload */
                 /* Tags with a payload */
                 D_INT, D_INT64, D_DBL, D_FLT32, D_PTR, D_FUNPTR, D_FORPTR,
                 D_ARR, D_THID, D_MVAR, D_WEAK,
+                D_IO_CCALL,
                 D_BADDYN, D_TICK,
 
                 /* Tags with extra info */
                 V_CONSTR, V_ARM, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
 
                 T_FIRST_REAL_TAG,
+                /* NODEPTR with a "virtual" pointer, and regular tags */
                 /* Regular tags */
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
@@ -563,7 +564,6 @@ enum node_tag { D_NONE,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
-                T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
                 T_IO_LAZYBIND, T_IO_STRICT,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
@@ -736,6 +736,12 @@ mk_CON(enum node_tag t, int num_arg, int constr_no)
   return n;
 }
 
+static INLINE bool
+eq_NODEPTR(NODEPTR p, NODEPTR q)
+{
+  return p.node_ptr == q.node_ptr;
+}
+
 /***************************************/
 
 
@@ -819,9 +825,8 @@ set_DATA_TAG(NODEPTR n, enum node_tag t)
 }
 
 static INLINE enum node_tag
-get_XTAG(struct node *p)
+get_XTAG(NODEPTR n)
 {
-  NODEPTR n = p->ufun;
   if (is_AP(n))
     return X_AP;
   return get_DATA_TAG(n);
@@ -844,18 +849,25 @@ get_CON_info(NODEPTR n, int *kp, int *np)
   *np = (t >> (PTR_TAG_TAG_BITS + PTR_TAG_NCON_BITS)) & PTR_TAG_NARG_MASK;
 }
 
+static INLINE void
+mk_AP(NODEPTR n, NODEPTR fun, NODEPTR arg)
+{
+  n.node_ptr->ufun = fun;
+  n.node_ptr->uarg.uuarg = arg;
+}
+
 #define HEAPREF(i) &cells[(i)]
 #define NPTR(n) ((n).node_ptr)
-#define GETVALUE(p) (p)->uarg.uuvalue
-#define GETINT64VALUE(p) (p)->uarg.uuint64value
-#define GETINT32VALUE(p) (p)->uarg.uuint32value
-#define GETFLTVALUE(p) (p)->uarg.uuflt32value
-#define GETDBLVALUE(p) (p)->uarg.uuflt64value
+#define GETVALUE(p) NPTR(p)->uarg.uuvalue
+#define GETINT64VALUE(p) NPTR(p)->uarg.uuint64value
+#define GETINT32VALUE(p) NPTR(p)->uarg.uuint32value
+#define GETFLTVALUE(p) NPTR(p)->uarg.uuflt32value
+#define GETDBLVALUE(p) NPTR(p)->uarg.uuflt64value
 #define SETVALUE(p,v) NPTR(p)->uarg.uuvalue = v
-#define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
-#define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
-#define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
-#define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
+#define SETINT64VALUE(p,v) NPTR(p)->uarg.uuint64value = v
+#define SETINT32VALUE(p,v) NPTR(p)->uarg.uuint32value = v
+#define SETFLTVALUE(p,v) NPTR(p)->uarg.uuflt32value = v
+#define SETDBLVALUE(p,v) NPTR(p)->uarg.uuflt64value = v
 #define FUN(p) NPTR(p)->ufun
 #define ARG(p) NPTR(p)->uarg.uuarg
 #define CSTR(p) NPTR(p)->uarg.uucstring
@@ -2529,7 +2541,7 @@ struct {
   { "fromDbl", T_FROMDBL },
   { "fromFlt", T_FROMFLT },
   { "toFunPtr", T_TOFUNPTR },
-  { "IO.ccall", T_IO_CCALL },
+  { "IO.ccall", D_IO_CCALL },
   { "isint", T_ISINT },
   { "SPnew", T_SPNEW },
   { "SPderef", T_SPDEREF },
@@ -3567,7 +3579,7 @@ ffiNode(const char *buf)
     strcpy(fun, buf);
     CSTR(r) = fun;
   } else {
-    r = alloc_node(T_IO_CCALL);
+    r = alloc_node(D_IO_CCALL);
     SETVALUE(r, i);
   }
   return r;
@@ -4157,10 +4169,9 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
   if (!p)
     return;
   if (p < cells || p >= cells + heap_size) abort();
-  
 
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
-  tag_t tag = get_XTAG(p);
+  tag_t tag = get_XTAG(n);
   if (tag == X_AP || tag == D_ARR || tag == D_FORPTR) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
@@ -4243,13 +4254,17 @@ print_string(BFILE *f, struct bytestring bs)
 void
 printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 {
+  NODEPTR n1;
   int share = 0;
   enum node_tag tag;
   char prbuf[30];
 
-  while (GETTAG(n) == T_IND) {
+  for (;;) {
+    n1 = get_IND(n);
+    if (is_NIL(n1))
+      break;
     /*putb('*', f);*/
-    n = GETINDIR(n);
+    n = n1;
   }
 
   if (test_bit(pb->shared_bits, n)) {
@@ -4292,7 +4307,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   case D_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
 #if WANT_INT64
-  case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
+  case D_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
 #endif  /* WANT_INT64 */
 #if WANT_FLOAT64
   case D_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
@@ -4335,19 +4350,13 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 #if WANT_STDIO
     /* The pointer can be a forptr comb_std* that has been dereferenced */
     if (PTR(n) == FORPTR(comb_stdin)->payload.bs_array) {
-      SETTAG(spare_node, T_AP);
-      FUN(spare_node) = combFP2P;
-      ARG(spare_node) = comb_stdin;
+      mk_AP(spare_node, combFP2P, comb_stdin);
       printrec(f, pb, spare_node, prefix);
     } else if (PTR(n) == FORPTR(comb_stdout)->payload.bs_array) {
-      SETTAG(spare_node, T_AP);
-      FUN(spare_node) = combFP2P;
-      ARG(spare_node) = comb_stdout;
+      mk_AP(spare_node, combFP2P, comb_stdout);
       printrec(f, pb, spare_node, prefix);
     } else if (PTR(n) == FORPTR(comb_stderr)->payload.bs_array) {
-      SETTAG(spare_node, T_AP);
-      FUN(spare_node) = combFP2P;
-      ARG(spare_node) = comb_stderr;
+      mk_AP(spare_node, combFP2P, comb_stderr);
       printrec(f, pb, spare_node, prefix);
     } else
 #endif  /* WANT_STDIO */
@@ -4383,11 +4392,11 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   case D_FORPTR:
 #if WANT_STDIO
-    if (n == comb_stdin)
+    if (eq_NODEPTR(n, comb_stdin))
       putsb("IO.stdin", f);
-    else if (n == comb_stdout)
+    else if (eq_NODEPTR(n, comb_stdout))
       putsb("IO.stdout", f);
-    else if (n == comb_stderr)
+    else if (eq_NODEPTR(n, comb_stderr))
       putsb("IO.stderr", f);
     else
 #endif  /* WANT_STDIO */
@@ -4446,7 +4455,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putdecb((value_t)get_CASE_size(n), f);
       break;
     }
-  case T_CONSTR:
+  case V_CONSTR:
     {
       putb('C', f);
       putb('_', f);
@@ -4457,10 +4466,11 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putdecb((value_t)nn, f);
       break;
     }
-  case T_ARM:
+  case V_ARM:
     {
       putb('A', f);
       putb('_', f);
+      int k, nn;
       get_CON_info(n, &k, &nn);
       putdecb((value_t)k, f);
       putb('_', f);
@@ -4480,7 +4490,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   }
   if (!prefix) {
-    if (GETTAG(n) != T_AP)
+    if (is_AP(n))
       putb(' ', f);
     if (share) {
       putb(':', f);
@@ -4568,7 +4578,7 @@ mkInt(value_t i)
 #endif
 
   NODEPTR n;
-  n = alloc_node(T_INT);
+  n = alloc_node(D_INT);
   SETVALUE(n, i);
   return n;
 }
@@ -4578,7 +4588,7 @@ NODEPTR
 mkInt64(int64_t i)
 {
   NODEPTR n;
-  n = alloc_node(T_INT64);
+  n = alloc_node(D_INT64);
   SETINT64VALUE(n, i);
   return n;
 }
@@ -4589,7 +4599,7 @@ NODEPTR
 mkFlt32(flt32_t d)
 {
   NODEPTR n;
-  n = alloc_node(T_FLT32);
+  n = alloc_node(D_FLT32);
   SETFLTVALUE(n, d);
   return n;
 }
@@ -4600,7 +4610,7 @@ NODEPTR
 mkFlt64(flt64_t d)
 {
   NODEPTR n;
-  n = alloc_node(T_DBL);
+  n = alloc_node(D_DBL);
   SETDBLVALUE(n, d);
   return n;
 }
@@ -4610,7 +4620,7 @@ NODEPTR
 mkPtr(void* p)
 {
   NODEPTR n;
-  n = alloc_node(T_PTR);
+  n = alloc_node(D_PTR);
   PTR(n) = p;
   return n;
 }
@@ -4619,7 +4629,7 @@ NODEPTR
 mkFunPtr(void (*p)(void))
 {
   NODEPTR n;
-  n = alloc_node(T_FUNPTR);
+  n = alloc_node(D_FUNPTR);
   FUNPTR(n) = p;
   return n;
 }
@@ -4850,8 +4860,8 @@ evalint(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_INT) {
-    ERR1("evalint, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_INT) {
+    ERR1("evalint, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return GETVALUE(n);
@@ -4864,8 +4874,8 @@ evalint64(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_INT64) {
-    ERR1("evalint64, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_INT64) {
+    ERR1("evalint64, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return GETINT64VALUE(n);
@@ -4879,8 +4889,8 @@ evaldbl(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_DBL) {
-    ERR1("evaldbl, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_DBL) {
+    ERR1("evaldbl, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return GETDBLVALUE(n);
@@ -4894,8 +4904,8 @@ evalflt(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_FLT32) {
-    ERR1("evaldbl, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_FLT32) {
+    ERR1("evaldbl, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return GETFLTVALUE(n);
@@ -4908,8 +4918,8 @@ evalptr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_PTR) {
-    ERR1("evalptr, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_PTR) {
+    ERR1("evalptr, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return PTR(n);
@@ -4921,8 +4931,8 @@ evalfunptr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_FUNPTR) {
-    ERR1("evalfunptr, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_FUNPTR) {
+    ERR1("evalfunptr, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return FUNPTR(n);
@@ -4934,8 +4944,8 @@ evalforptr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_FORPTR) {
-    ERR1("evalforptr, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_FORPTR) {
+    ERR1("evalforptr, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return FORPTR(n);
@@ -4947,8 +4957,8 @@ evalbstr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR) {
-    ERR1("evalbstr, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR) {
+    ERR1("evalbstr, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return FORPTR(n);
@@ -4960,8 +4970,8 @@ evalthid(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_THID) {
-    ERR1("evalthid, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_THID) {
+    ERR1("evalthid, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return THR(n);
@@ -4973,8 +4983,8 @@ evalmvar(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_MVAR) {
-    ERR1("evalmvar, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_MVAR) {
+    ERR1("evalmvar, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return MVAR(n);
@@ -4986,8 +4996,8 @@ evalweak(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_WEAK) {
-    ERR1("evalweak, bad tag %s", TAGNAME(GETTAG(n)));
+  if (get_XTAG(n) != D_WEAK) {
+    ERR1("evalweak, bad tag %s", TAGNAME(get_XTAG(n)));
   }
 #endif
   return WEAK(n);
@@ -5018,9 +5028,9 @@ evalstring(NODEPTR n)
     PUSH(n);                    /* protect the list from GC */
     n = evali(n);
     POP(1);
-    if (GETRAWTAG(n) == MK_CONSTR_TAG(0, 0))       /* Nil */
+    if (eq_NODEPTR(n, combNil))
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETRAWTAG(indir(&FUN(x))) == MK_CONSTR_TAG(1, 2)) { /* Cons */
+    else if (get_XTAG(n) == X_AP && get_XTAG(x = indir(&FUN(n))) == X_AP && eq_NODEPTR(indir(&FUN(x)), combCons)) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
       n = POPTOP();
@@ -5113,7 +5123,7 @@ rnf_rec(bits_t *done, NODEPTR n)
     return;
   set_bit(done, n);
   n = evali(n);
-  if (GETTAG(n) == T_AP) {
+  if (get_XTAG(n) == X_AP) {
     PUSH(ARG(n));               /* protect from GC */
     rnf_rec(done, FUN(n));
     n = POPTOP();
@@ -5217,14 +5227,6 @@ evali(NODEPTR an)
   /*pp(stdout, an);*/
   if (--glob_slice <= 0)
     yield();
-#if 0
-  /* This increases the cycle count */
-  l = LABEL(n);
-  if (l < T_IO_STDIN) {
-    /* The node is one of the permanent nodes; the address offset is the tag */
-    tag = l;
-  } else
-#endif
     {
     /* first follow AP nodes down the spine */
     for(;;) {
@@ -5257,18 +5259,18 @@ evali(NODEPTR an)
   case T_AP:   PUSH(n);
     n = FUN(n); goto top;
 
-  case T_INT:    RET;
-  case T_DBL:    RET;
-  case T_INT64:  RET;
-  case T_FLT32:  RET;
-  case T_PTR:    RET;
-  case T_FUNPTR: RET;
-  case T_FORPTR: RET;
-  case T_ARR:    RET;
-  case T_THID:   RET;
-  case T_MVAR:   RET;
-  case T_WEAK:   RET;
-  case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
+  case D_INT:    RET;
+  case D_DBL:    RET;
+  case D_INT64:  RET;
+  case D_FLT32:  RET;
+  case D_PTR:    RET;
+  case D_FUNPTR: RET;
+  case D_FORPTR: RET;
+  case D_ARR:    RET;
+  case D_THID:   RET;
+  case D_MVAR:   RET;
+  case D_WEAK:   RET;
+  case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
