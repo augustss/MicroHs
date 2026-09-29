@@ -83,3 +83,7 @@ main = do
   print $ toInteger (maxBound :: Int32) == iMaxI32
   print $ toInteger (maxBound :: Word64) == iMaxU64
   print $ toInteger (maxBound :: Word32) == iMaxU32
+  print (toInteger (maxBound :: Int))
+  print (fromInteger (2 ^ 40 + 7) :: Int)
+  print (1.5 :: Double)
+  print (2.0 ^ 40 :: Double)
