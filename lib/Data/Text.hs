@@ -19,7 +19,7 @@ module Data.Text(
   words,
   unwords,
   toLower,
-  toTitle,
+  -- toTitle,
   toUpper,
   toCaseFold,
   foldr,
@@ -159,8 +159,10 @@ unwords = pack . L.unwords . L.map unpack
 toLower :: Text -> Text
 toLower = pack . L.concatMap U._toLowers . unpack
 
-toTitle :: Text -> Text
-toTitle = pack . L.concatMap U._toTitles . unpack
+-- this isn't how you convert title case! you need awareness of words and other
+-- characters
+-- toTitle :: Text -> Text
+-- toTitle = pack . L.concatMap U._toTitles . unpack
 
 toUpper :: Text -> Text
 toUpper = pack . L.concatMap U._toUppers . unpack
