@@ -12,6 +12,7 @@ packageDbPath = "$MHSPKG:$HOME/.mcabal-user/mhs-$VERSION"
 --  cclibs    flags to pass at the end of the compilation command, default ""
 --  conf      the config directory to use, default "unix"
 --  cout      flag to set the output file to cc, default "-o"
+--  js        flag to embed a JavaScript file, default "" (not possible)
 
 -- If no target is set, we use 'unix' on non-Windows and 'windows' on Windows.
 
@@ -48,6 +49,7 @@ conf = "unix"
 -- Generate JavaScript&Wasm
 [emscripten]
 cc = "emcc"
+js = "--pre-js"
 ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
 cclibs = "-lm"
 conf = "unix"

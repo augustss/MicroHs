@@ -1,0 +1,9 @@
+module JSFlag where
+
+-- jsFlagAdd is defined in JSFlag.pre, which is embedded with -js
+foreign import javascript "return jsFlagAdd($0, $1)" jsFlagAdd :: Int -> Int -> IO Int
+
+main :: IO ()
+main = do
+  n <- jsFlagAdd 40 2
+  print n

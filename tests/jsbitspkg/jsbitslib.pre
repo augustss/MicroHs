@@ -1,0 +1,4 @@
+// Installed by testjsbits as jsbits/jsbitslib.js of the JSBits package,
+// as MicroCabal does with js-sources.
+console.log('jsbits loaded');
+function jsBitsLibAdd(x, y) { return x + y; }

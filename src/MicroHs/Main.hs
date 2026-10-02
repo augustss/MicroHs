@@ -83,7 +83,7 @@ mHSPKG :: String
 mHSPKG = "MHSPKG"
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [-js FILE] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -121,6 +121,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
       \-optc OPTION       Options for the C compiler\n\
       \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
+      \-js FILE           JavaScript file to embed in the output (for targets with a js option)\n\
       \-PPKG              Build package PKG\n\
       \-pFILE             Pre-load package\n\
       \-pgmF CMD          Use CMD for the -F preprocessor\n\
@@ -167,6 +168,8 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
     "-optl" | s : args' <- args
                 -> decodeArgs f{lArgs = lArgs f ++ [s]} mdls args'
+    "-js"   | s : args' <- args
+                -> decodeArgs f{jsFiles = jsFiles f ++ [s]} mdls args'
     "-optF" | s : args' <- args
                 -> decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
     "-pgmF" | s : args' <- args
@@ -433,15 +436,24 @@ mainCompileC flags pkgs infile = do
   let dir = mhsdir flags
       incDirs = map (convertToInclude "include") ppkgs
       cDirs   = map (convertToInclude "cbits") ppkgs
+      jsDirs  = map (convertToInclude "jsbits") ppkgs
       outFile = output flags
   incDirs' <- filterM doesDirectoryExist incDirs
   cDirs'   <- filterM doesDirectoryExist cDirs
+  jsDirs'  <- filterM doesDirectoryExist jsDirs
+  -- JavaScript files from packages (jsbits directory) and the command line (-js)
+  pkgJs <- concat <$> mapM (\ d -> map (d </>) . filter (".js" `isSuffixOf`) . sort <$> listDirectory d) jsDirs'
   -- print (map fst $ getPathPkgs cash, (incDirs, incDirs'), (cDirs, cDirs'))
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
   sect <- findSection flags
+  let vjs = getSectionKey sect "js" ""
+      jsFs = pkgJs ++ jsFiles flags
+      jsOpts = if null vjs then [] else concatMap (\ f -> [vjs, f]) jsFs
+  when (not (null jsFs) && null vjs && verbosityGT flags 0) $
+    putStrLn $ "Warning: JavaScript files ignored, target " ++ target flags ++ " has no js option: " ++ unwords jsFs
   let optls = concatMap pkgOptl poptls -- optl from pkgs
       vcc      = getSectionKey sect "cc"      "cc"
       vccflags = getSectionKey sect "ccflags" ""
@@ -458,6 +470,7 @@ mainCompileC flags pkgs infile = do
                        cArgs flags ++
                        lArgs flags ++
                        optls ++
+                       jsOpts ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",

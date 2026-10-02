@@ -161,6 +161,18 @@ testpipenonblockio:
 testpipenonblockioem:
 	$(TMHS) PipeNonBlockIO && $(EVAL) > PipeNonBlockIO.out && diff PipeNonBlockIO.ref PipeNonBlockIO.out
 
+# -js FILE embeds a JavaScript file in the output (--pre-js for emscripten)
+testjsflag:
+	$(TMHS) -js JSFlag.pre JSFlag && $(EVAL) > JSFlag.out && diff JSFlag.ref JSFlag.out
+
+# The .js files in the jsbits directory of a package are embedded too.
+# Install JSBitsLib as package JSBits, with jsbits as MicroCabal installs js-sources.
+testjsbits:
+	rm -rf jsbitsdb
+	$(MHS) -ijsbitspkg -PJSBits-1.0 -oJSBits-1.0.pkg JSBitsLib && $(MHS) -Q JSBits-1.0.pkg jsbitsdb
+	mkdir -p jsbitsdb/packages/JSBits-1.0/jsbits && cp jsbitspkg/jsbitslib.pre jsbitsdb/packages/JSBits-1.0/jsbits/jsbitslib.js
+	$(TMHS) -ajsbitsdb JSBits && $(EVAL) > JSBits.out && diff JSBits.ref JSBits.out && rm -rf jsbitsdb JSBits-1.0.pkg
+
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 

@@ -22,6 +22,7 @@ data Flags = Flags {
   cppArgs    :: [String],   -- flags for CPP
   cArgs      :: [String],   -- arguments for C compiler
   lArgs      :: [String],   -- arguments for C linker
+  jsFiles    :: [String],   -- JavaScript files to embed in the output (targets with a js option)
   compress   :: Bool,       -- compress generated combinators
   base64     :: Bool,       -- base64 encode generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
@@ -67,6 +68,7 @@ defaultFlags = Flags {
   cppArgs    = [],
   cArgs      = [],
   lArgs      = [],
+  jsFiles    = [],
   compress   = False,
   base64     = False,
   buildPkg   = Nothing,
