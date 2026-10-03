@@ -243,6 +243,7 @@ _toLowers c = case c of
   '\304' -> "i\775"
   _ -> [ toLower c]
 
+-- this is insufficient for title case, but is left here for whatever future use
 _toTitles :: Char -> [Char]
 _toTitles c = case c of 
   '\8183' -> "\937\834\837"

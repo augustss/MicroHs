@@ -72,6 +72,10 @@ module Data.Text.Lazy
     , dropWhileEnd
     , map
     , concat
+    , toLower
+    -- , toTitle
+    , toUpper
+    , toCaseFold
     ) where
 import qualified Prelude(); import MiniPrelude hiding(head)
 import Primitives
@@ -213,6 +217,9 @@ fromChunks = L.foldr chunk Empty
 toChunks :: Text -> [T.Text]
 toChunks = foldrChunks (:) []
 
+onChunks :: (T.Text -> T.Text) -> Text -> Text
+onChunks f = foldrChunks (Chunk . f) Empty
+
 toStrict :: Text -> T.Text
 toStrict t = T.concat (toChunks t)
 
@@ -228,6 +235,19 @@ foldlChunks :: (a -> T.Text -> a) -> a -> Text -> a
 foldlChunks f z = go z
   where go !a Empty        = a
         go !a (Chunk c cs) = go (f a c) cs
+
+toLower :: Text -> Text
+toLower = onChunks T.toLower
+
+-- see Data.Text.toTitle for why this is disabled
+-- toTitle :: Text -> Text
+-- toTitle = onChunks T.toTitle
+
+toUpper :: Text -> Text
+toUpper = onChunks T.toUpper
+
+toCaseFold :: Text -> Text
+toCaseFold = onChunks T.toCaseFold
 
 pattern (:<) :: Char -> Text -> Text
 pattern x :< xs <- (uncons -> Just (x, xs)) where
