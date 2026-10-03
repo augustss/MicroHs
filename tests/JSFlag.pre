@@ -1,0 +1,4 @@
+// Copied to jsflag.js and embedded with `mhs -temscripten jsflag.js` (testjsflag).
+// The file is not named *.js, since those are ignored and cleaned here.
+console.log('pre-js loaded');
+function jsFlagAdd(x, y) { return x + y; }

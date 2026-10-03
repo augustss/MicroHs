@@ -200,6 +200,8 @@ decodeArgs f mdls (arg:args) =
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
+      | arg `hasTheExtension` ".js"
+                -> decodeArgs f{jsFiles = jsFiles f ++ [arg]} mdls args
       | otherwise
                 -> decodeArgs f (mdls ++ [arg]) args
   where
@@ -433,15 +435,24 @@ mainCompileC flags pkgs infile = do
   let dir = mhsdir flags
       incDirs = map (convertToInclude "include") ppkgs
       cDirs   = map (convertToInclude "cbits") ppkgs
+      jsDirs  = map (convertToInclude "jsbits") ppkgs
       outFile = output flags
   incDirs' <- filterM doesDirectoryExist incDirs
   cDirs'   <- filterM doesDirectoryExist cDirs
+  jsDirs'  <- filterM doesDirectoryExist jsDirs
+  -- JavaScript files from packages (jsbits directory) and the command line (FILE.js)
+  pkgJs <- concat <$> mapM (\ d -> map (d </>) . filter (".js" `isSuffixOf`) . sort <$> listDirectory d) jsDirs'
   -- print (map fst $ getPathPkgs cash, (incDirs, incDirs'), (cDirs, cDirs'))
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
   sect <- findSection flags
+  let vjs = getSectionKey sect "js" ""
+      jsFs = pkgJs ++ jsFiles flags
+      jsOpts = if null vjs then [] else concatMap (\ f -> [vjs, f]) jsFs
+  when (not (null jsFs) && null vjs && verbosityGT flags 0) $
+    putStrLn $ "Warning: JavaScript files ignored, target " ++ target flags ++ " has no js option: " ++ unwords jsFs
   let optls = concatMap pkgOptl poptls -- optl from pkgs
       vcc      = getSectionKey sect "cc"      "cc"
       vccflags = getSectionKey sect "ccflags" ""
@@ -458,6 +469,7 @@ mainCompileC flags pkgs infile = do
                        cArgs flags ++
                        lArgs flags ++
                        optls ++
+                       jsOpts ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",
