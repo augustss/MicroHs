@@ -3,7 +3,7 @@
 doc/hs2024.pdf binary
 generated/* binary
 generated/* merge=ours
-web-mhs/mhs-embed.js
+web-mhs/mhs-embed.js binary
 web-mhs/mhs-embed.js merge=ours
-web-mhs/mhs-embed.wasm
+web-mhs/mhs-embed.wasm binary
 web-mhs/mhs-embed.wasm merge=ours
