@@ -226,10 +226,13 @@ textDataType :: DataType
 textDataType = mkDataType "Data.Text.Lazy.Text" [packConstr]
 
 pack :: String -> Text
-pack s = let (c, s') = L.splitAt defaultChunkSize s in Chunk (T.pack c) (pack s')
+pack "" = Empty
+pack s =
+  case L.splitAt defaultChunkSize s of
+    (c, s') -> Chunk (T.pack c) (pack s')
 
 unpack :: Text -> String
-unpack = foldrChunks (\t s -> T.unpack t ++ s) ""
+unpack = foldrChunks (\ t s -> T.unpack t ++ s) ""
 
 singleton :: Char -> Text
 singleton c = Chunk (T.singleton c) Empty
