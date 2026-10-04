@@ -112,6 +112,7 @@ test:
 	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
 	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
 	$(TMHS) ThrowMVar  && $(EVAL) > ThrowMVar.out  && diff ThrowMVar.ref ThrowMVar.out
+	$(TMHS) ThrowToSync && $(EVAL) > ThrowToSync.out && diff ThrowToSync.ref ThrowToSync.out
 	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
 	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
 	$(TMHS) EmptyData  && $(EVAL) > EmptyData.out  && diff EmptyData.ref EmptyData.out

@@ -979,6 +979,9 @@ struct mthread {
   counter_t       mt_num_slices; /* number of slices so far */
   NODEPTR         mt_root;       /* root of the graph to reduce */
   struct mvar    *mt_exn;        /* possible thrown exception */
+  struct mthread *mt_throwto;    /* When set, we are in throwTo to this thread and have
+                                  * already handed over the exception; we are waiting for
+                                  * the target to take it.  See throwto(). */
   NODEPTR         mt_mval;       /* Filled when put_mvar wakes a thread waiting in read_mvar.
                                   * The value cannot be taken from the mvar by the read, because
                                   * we need to guarantee that all reads get the same value. */
@@ -1340,6 +1343,35 @@ check_pollq(int timeout)
 #endif  /* WANT_IO_POLL */
 }
 
+/* Wake every thread that is blocked in throwTo waiting for mt to take its
+ * exception.  Called when mt takes one, and when mt finishes or dies. */
+void
+wake_throwto(struct mthread *mt)
+{
+  for (struct mthread *k; (k = remove_q_head(&mt->mt_exn->mv_read)); ) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("wake_throwto: wake %d, which threw to %d\n", (int)k->mt_id, (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+    /* The exception has been delivered, so the thrower continues next: at
+     * the tail of the run queue it would first wait for a slice of every
+     * other runnable thread, which made a loop of killThread quadratic. */
+    k->mt_state = ts_runnable;
+    if (runq.mq_head == mt) {
+      /* mt is the running thread (check_thrown): k goes right after it */
+      k->mt_queue = mt->mt_queue;
+      mt->mt_queue = k;
+      if (runq.mq_tail == mt)
+        runq.mq_tail = k;
+    } else {
+      k->mt_queue = runq.mq_head;
+      runq.mq_head = k;
+      if (!runq.mq_tail)
+        runq.mq_tail = k;
+    }
+  }
+}
+
 void
 throwto(struct mthread *mt, NODEPTR exn)
 {
@@ -1348,15 +1380,54 @@ throwto(struct mthread *mt, NODEPTR exn)
     printf("throwto: id=%d\n", (int)mt->mt_id);
   }
 #endif  /* THREAD_DEBUG */
-  thread_intr(mt);
-  if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
-#if THREAD_DEBUG
-    if (thread_trace) {
-      printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
-    }
-#endif  /* THREAD_DEBUG */
+  struct mthread *me = runq.mq_head;
+
+  if (mt == me) {
+    /* Throwing to ourselves: just hand the exception over.  It is raised at the
+     * next interruption point, so there is nothing to wait for. */
     (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
+    return;
   }
+  if (me->mt_throwto == mt) {
+    /* We handed the exception over in an earlier execution of this throwTo and
+     * blocked; being back here means the target has taken it, or has died. */
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("throwto: id=%d delivered\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+    me->mt_throwto = 0;
+    return;
+  }
+  thread_intr(mt);
+  if (mt->mt_state == ts_died || mt->mt_state == ts_finished)
+    return;                     /* there is nothing left to interrupt */
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
+  }
+#endif  /* THREAD_DEBUG */
+  (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
+  /* GHC's throwTo does not return until the exception has been raised in the
+   * target thread, so wait for the target to take it.  Without this the target
+   * stays runnable with an exception pending, and can still run a stretch of
+   * code -- and consume shared state -- before it is interrupted.
+   * We wait on the read queue of the target's exception MVar: check_thrown and
+   * a finishing thread wake it, and thread_intr searches it, so the wait is
+   * itself interruptible. */
+  me = remove_q_head(&runq);
+  me->mt_throwto = mt;
+  add_q_tail(&mt->mt_exn->mv_read, me);
+  /* Let the target run next.  If it is somewhere down the run queue (it was
+   * runnable, or thread_intr has just put it at the tail) it would otherwise
+   * take the exception only after every thread ahead of it has had a slice,
+   * so killing n runnable threads cost n passes over the run queue. */
+  if (mt->mt_state == ts_runnable && find_and_unlink(&runq, mt)) {
+    mt->mt_queue = runq.mq_head;
+    runq.mq_head = mt;
+    if (!runq.mq_tail)
+      runq.mq_tail = mt;
+  }
+  resched(me, ts_wait_mvar);     /* never returns */
 }
 
 void
@@ -1371,6 +1442,8 @@ check_thrown(bool intr)
   if (exn == NIL)
     return;            /* no thrown exception */
   /* the current thread has an async exception */
+  wake_throwto(runq.mq_head);    /* the throwTo that sent it may now return */
+  runq.mq_head->mt_throwto = 0;  /* we are unwinding; drop any throwTo of our own */
 #if THREAD_DEBUG
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
@@ -1466,6 +1539,7 @@ new_thread(NODEPTR root)
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
+  mt->mt_throwto = 0;
   mt->mt_mval = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = false;
@@ -2041,6 +2115,7 @@ start_exec(NODEPTR root)
 #endif  /* THREAD_DEBUG */
       mt->mt_state = ts_died;
       mt->mt_root = NIL;
+      wake_throwto(mt);         /* release anyone blocked in throwTo to it */
     }
   }
 #if THREAD_DEBUG
@@ -2074,6 +2149,7 @@ start_exec(NODEPTR root)
 #endif  /* THREAD_DEBUG */
     mt->mt_state = ts_finished;
     mt->mt_root = NIL;
+    wake_throwto(mt);           /* release anyone blocked in throwTo to it */
     /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD) {
@@ -2756,6 +2832,8 @@ mark_thread(struct mthread *mt)
   if (mt->mt_root != NIL)
     mark(&mt->mt_root);
   mark_mvar(mt->mt_exn);
+  if (mt->mt_throwto)
+    mark_thread(mt->mt_throwto);
   if (mt->mt_mval != NIL)
     mark(&mt->mt_mval);
 }
