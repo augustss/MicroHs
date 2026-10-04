@@ -48,6 +48,7 @@ instance Enum Natural where
 instance Integral Natural where
   toInteger (N i) = i
   quotRem (N x) (N y) = (N q, N r) where (q, r) = quotRem x y
+  divMod  (N x) (N y) = (N q, N r) where (q, r) = quotRem x y  -- same as quotRem for N
 
 instance Real Natural where
   toRational (N i) = toRational i
