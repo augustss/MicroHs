@@ -1,82 +1,116 @@
--- |
--- Module      : Data.Text.Lazy
--- Copyright   : (c) 2009, 2010, 2012 Bryan O'Sullivan
---
--- License     : BSD-style
--- Maintainer  : bos@serpentine.com
--- Portability : GHC
---
--- A time and space-efficient implementation of Unicode text using
--- lists of packed arrays.
---
--- /Note/: Read below the synopsis for important notes on the use of
--- this module.
---
--- The representation used by this module is suitable for high
--- performance use and for streaming large quantities of data.  It
--- provides a means to manipulate a large body of text without
--- requiring that the entire content be resident in memory.
---
--- Some operations, such as 'concat', 'append', 'reverse' and 'cons',
--- have better time complexity than their "Data.Text" equivalents, due
--- to the underlying representation being a list of chunks. For other
--- operations, lazy 'Text's are usually within a few percent of strict
--- ones, but often with better heap usage if used in a streaming
--- fashion. For data larger than available memory, or if you have
--- tight memory constraints, this module will be the only option.
---
--- This module is intended to be imported @qualified@, to avoid name
--- clashes with "Prelude" functions.  eg.
---
--- > import qualified Data.Text.Lazy as L
+module Data.Text.Lazy(
+  -- Special for Data.Text.Lazy
+  Text, LazyText,
+  fromChunks,
+  toChunks,
+  toStrict,
+  fromStrict,
+  foldrChunks,
+  foldlChunks,
 
-module Data.Text.Lazy
-    (
-    -- * Types
-      Text
-    , LazyText
-
-    -- * Creation and elimination
-    , pack
-    , unpack
-    , singleton
-    , empty
-    , fromChunks
-    , toChunks
-    , toStrict
-    , fromStrict
-    , foldrChunks
-    , foldlChunks
-
-    -- * Pattern matching
-    , pattern Empty
-    , pattern (:<)
-    , pattern (:>)
-
-    -- * Basic interface
-    , cons
-    , snoc
-    , append
-    , uncons
-    , unsnoc
-    , head
-    , last
-    , tail
-    , init
-    , null
-    , length
-    , compareLength
-
-    , replicate
-    , splitOn
-    , dropWhileEnd
-    , map
-    , concat
-    ) where
+  -- Common with Data.Text
+  pattern Empty,
+  pattern (:<),
+  pattern (:>),
+  pack,
+  unpack,
+  show,
+  empty,
+  singleton,
+  append,
+  null,
+  length,
+  head,
+  tail,
+  cons,
+  snoc,
+  uncons,
+  replicate,
+  splitOn,
+  words,
+  unwords,
+  toLower,
+  toTitle,
+  toUpper,
+  toCaseFold,
+  foldr,
+  concat,
+  lines,
+  unlines,
+  take,
+  drop,
+  takeWhile,
+  dropWhile,
+  dropWhileEnd,
+  intercalate,
+  isPrefixOf,
+  isSuffixOf,
+  isInfixOf,
+  replace,
+  map,
+  dropAround,
+  strip,
+  stripStart,
+  stripEnd,
+  stripPrefix,
+  stripSuffix,
+  all,
+  any,
+  concatMap,
+  foldl,
+  foldl',
+  filter,
+  reverse,
+  last,
+  init,
+  elem,
+  zip,
+  span,
+  break,
+  breakOn,
+  takeWhileEnd,
+  count,
+  index,
+  chunksOf,
+  breakOnEnd,
+  center,
+  compareLength,
+  dropEnd,
+  find,
+  findIndex,
+  group,
+  groupBy,
+  inits,
+  tails,
+  intersperse,
+  justifyLeft,
+  justifyRight,
+  mapAccumL,
+  mapAccumR,
+  maximum,
+  minimum,
+  partition,
+  scanl,
+  scanr,
+  split,
+  splitAt,
+  takeEnd,
+  transpose,
+  unfoldr,
+  unfoldrN,
+  unsnoc,
+  zipWith,
+  foldl1,
+  foldr1,
+  scanl1,
+  scanr1,
+  ) where
 import qualified Prelude(); import MiniPrelude hiding(head)
 import Primitives
 import Control.DeepSeq.Class
 import Data.Bounded
+import qualified Data.Char as C
+import qualified Data.Char.Unicode as U
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Unsafe as BS
 import Data.Data
@@ -87,7 +121,7 @@ import qualified Data.Text as T
 import Data.Text.Internal
 import Text.Read.Internal
 
-data Text = Empty | Chunk !T.Text Text
+data Text = Empty | Chunk !T.Text Text  -- invariant: T.Text is never empty
 
 type LazyText = Text
 
@@ -323,9 +357,9 @@ splitOn pat src = L.map pack $ splitOnList (unpack pat) (unpack src)
     splitOnList [] = error "splitOn: empty"
     splitOnList sep = loop []
       where
-        loop r  [] = [reverse r]
-        loop r  s@(c:cs) | Just t <- L.stripPrefix sep s = reverse r : loop [] t
-                        | otherwise = loop (c:r) cs
+        loop r  [] = [L.reverse r]
+        loop r  s@(c:cs) | Just t <- L.stripPrefix sep s = L.reverse r : loop [] t
+                         | otherwise = loop (c:r) cs
 
 dropWhileEnd :: (Char -> Bool) -> Text -> Text
 dropWhileEnd p = pack . L.dropWhileEnd p . unpack
@@ -342,15 +376,7 @@ concat (Chunk c cs : css)    = Chunk c (concat (cs : css))
 
 -- | Currently set to 16 KiB, less the memory management overhead.
 defaultChunkSize :: Int
-defaultChunkSize = 16384 - chunkOverhead
-
--- | Currently set to 128 bytes, less the memory management overhead.
-smallChunkSize :: Int
-smallChunkSize = 128 - chunkOverhead
-
--- | The memory management overhead. Currently this is tuned for GHC only.
-chunkOverhead :: Int
-chunkOverhead = _wordSize `primIntShl` 1
+defaultChunkSize = 16384 - 32
 
 emptyError :: String -> a
 emptyError fun = error ("Data.Text.Lazy." ++ fun ++ ": empty input")
@@ -360,3 +386,190 @@ intToInt64 = primIntToInt64
 
 int64ToInt :: Int64 -> Int
 int64ToInt = primInt64ToInt
+
+-----
+-- XXX This is pretty much exact copies of Data.Text.
+-- That's crazy!  Strict text should be implemented as a single big chunk
+-- of lazy text.
+
+take :: Int64 -> Text -> Text
+take n = pack . L.take (int64ToInt n) . unpack
+
+drop :: Int64 -> Text -> Text
+drop n = pack . L.drop (int64ToInt n) . unpack
+
+toLower :: Text -> Text
+toLower = pack . L.concatMap U._toLowers . unpack
+
+toTitle :: Text -> Text
+toTitle = pack . L.concatMap U._toTitles . unpack
+
+toUpper :: Text -> Text
+toUpper = pack . L.concatMap U._toUppers . unpack
+
+toCaseFold :: Text -> Text
+toCaseFold = pack . L.concatMap U._toFolds . unpack
+
+intercalate :: Text -> [Text] -> Text
+intercalate _ [] = empty
+intercalate _ [x] = x
+intercalate s (x:xs) = x `append` s `append` intercalate s xs
+
+-- XXX Should make the BS version efficient and go via that
+isPrefixOf :: Text -> Text -> Bool
+isPrefixOf p s = L.isPrefixOf (unpack p) (unpack s)
+
+isSuffixOf :: Text -> Text -> Bool
+isSuffixOf p s = L.isSuffixOf (unpack p) (unpack s)
+
+isInfixOf :: Text -> Text -> Bool
+isInfixOf p s = L.isInfixOf (unpack p) (unpack s)
+
+replace :: Text -> Text -> Text -> Text
+replace s r = intercalate r . splitOn s
+
+dropAround :: (Char -> Bool) -> Text -> Text
+dropAround p = dropWhile p . dropWhileEnd p
+
+dropWhile :: (Char -> Bool) -> Text -> Text
+dropWhile p = pack . L.dropWhile p . unpack
+
+takeWhile :: (Char -> Bool) -> Text -> Text
+takeWhile p = pack . L.takeWhile p . unpack
+
+stripStart :: Text -> Text
+stripStart = dropWhile C.isSpace
+
+stripEnd :: Text -> Text
+stripEnd = dropWhileEnd C.isSpace
+
+strip :: Text -> Text
+strip = dropAround C.isSpace
+
+stripPrefix :: Text -> Text -> Maybe Text
+stripPrefix p t = pack <$> L.stripPrefix (unpack p) (unpack t)
+
+stripSuffix :: Text -> Text -> Maybe Text
+stripSuffix p t = pack <$> L.stripSuffix (unpack p) (unpack t)
+
+foldl :: (a -> Char -> a) -> a -> Text -> a
+foldl f z = L.foldl f z . unpack
+
+foldl' :: (a -> Char -> a) -> a -> Text -> a
+foldl' f z = L.foldl' f z . unpack
+
+filter :: (Char -> Bool) -> Text -> Text
+filter p = pack . L.filter p . unpack
+
+reverse :: Text -> Text
+reverse = pack . L.reverse . unpack
+
+breakOn :: Text -> Text -> (Text, Text)
+breakOn p t = go [] (unpack t)
+  where ps = unpack p
+        go acc s@(c:cs) | ps `L.isPrefixOf` s = (pack (L.reverse acc), pack s)
+                        | otherwise = go (c:acc) cs
+        go acc [] = (pack (L.reverse acc), empty)
+
+takeWhileEnd :: (Char -> Bool) -> Text -> Text
+takeWhileEnd p = pack . L.reverse . L.takeWhile p . L.reverse . unpack
+
+count :: Text -> Text -> Int
+count p t = L.length (splitOn p t) - 1
+
+index :: Text -> Int64 -> Char
+index t i = unpack t L.!! int64ToInt i
+
+chunksOf :: Int64 -> Text -> [Text]
+chunksOf n t | n <= 0 || null t = []
+             | otherwise = take n t : chunksOf n (drop n t)
+
+breakOnEnd :: Text -> Text -> (Text, Text)
+breakOnEnd p t = case breakOn (reverse p) (reverse t) of (a, b) -> (reverse b, reverse a)
+
+replicateChar :: Int64 -> Char -> Text
+replicateChar n c = pack (L.replicate (int64ToInt n) c)
+
+center :: Int64 -> Char -> Text -> Text
+center k c t | len >= k  = t
+             | otherwise = replicateChar l c `append` t `append` replicateChar r c
+  where len = length t
+        d = k - len
+        r = d `quot` 2
+        l = d - r
+
+justifyLeft :: Int64 -> Char -> Text -> Text
+justifyLeft k c t | len >= k  = t
+                  | otherwise = t `append` replicateChar (k - len) c
+  where len = length t
+
+justifyRight :: Int64 -> Char -> Text -> Text
+justifyRight k c t | len >= k  = t
+                   | otherwise = replicateChar (k - len) c `append` t
+  where len = length t
+
+dropEnd :: Int64 -> Text -> Text
+dropEnd n = pack . L.reverse . L.drop (int64ToInt n) . L.reverse . unpack
+
+takeEnd :: Int64 -> Text -> Text
+takeEnd n = pack . L.reverse . L.take (int64ToInt n) . L.reverse . unpack
+
+find :: (Char -> Bool) -> Text -> Maybe Char
+find p = L.find p . unpack
+
+findIndex :: (Char -> Bool) -> Text -> Maybe Int64
+findIndex p = fmap intToInt64 . L.findIndex p . unpack
+
+group :: Text -> [Text]
+group = L.map pack . L.group . unpack
+
+groupBy :: (Char -> Char -> Bool) -> Text -> [Text]
+groupBy f = L.map pack . L.groupBy f . unpack
+
+inits :: Text -> [Text]
+inits = L.map pack . L.inits . unpack
+
+tails :: Text -> [Text]
+tails = L.map pack . L.tails . unpack
+
+intersperse :: Char -> Text -> Text
+intersperse c = pack . L.intersperse c . unpack
+
+mapAccumL :: (a -> Char -> (a, Char)) -> a -> Text -> (a, Text)
+mapAccumL f z t = case L.mapAccumL f z (unpack t) of (a, s) -> (a, pack s)
+
+mapAccumR :: (a -> Char -> (a, Char)) -> a -> Text -> (a, Text)
+mapAccumR f z t = case L.mapAccumR f z (unpack t) of (a, s) -> (a, pack s)
+
+maximum :: Text -> Char
+maximum = L.maximum . unpack
+
+minimum :: Text -> Char
+minimum = L.minimum . unpack
+
+partition :: (Char -> Bool) -> Text -> (Text, Text)
+partition p t = case L.partition p (unpack t) of (a, b) -> (pack a, pack b)
+
+scanl :: (Char -> Char -> Char) -> Char -> Text -> Text
+scanl f z = pack . L.scanl f z . unpack
+
+scanr :: (Char -> Char -> Char) -> Char -> Text -> Text
+scanr f z = pack . L.scanr f z . unpack
+
+split :: (Char -> Bool) -> Text -> [Text]
+split p t = L.map pack (go (unpack t))
+  where go s = case L.break p s of
+                 (a, [])       -> [a]
+                 (a, _ : rest) -> a : go rest
+
+splitAt :: Int64 -> Text -> (Text, Text)
+splitAt n t = case L.splitAt (int64ToInt n) (unpack t) of (a, b) -> (pack a, pack b)
+
+transpose :: [Text] -> [Text]
+transpose = L.map pack . L.transpose . L.map unpack
+
+unfoldr :: (a -> Maybe (Char, a)) -> a -> Text
+unfoldr f = pack . L.unfoldr f
+
+unfoldrN :: Int64 -> (a -> Maybe (Char, a)) -> a -> Text
+unfoldrN n f = pack . L.take (int64ToInt n) . L.unfoldr f
