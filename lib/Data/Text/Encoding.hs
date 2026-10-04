@@ -21,7 +21,7 @@ import Data.Bits.Base
 import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
 import Data.Char
-import Data.Text
+import Data.Text (Text, pack, unpack)
 import Data.Text.Internal
 import Data.Word.Word8 (intToWord8, word8ToInt)
 import Unsafe.Coerce (unsafeCoerce)
