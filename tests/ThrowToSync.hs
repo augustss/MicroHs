@@ -58,3 +58,30 @@ main = do
   threadDelay 5000
   killThread t4
   readIORef r4 >>= \ s -> putStrLn ("masked target: " ++ s)
+
+  -- Two threads kill a target that finishes without ever being interruptible.
+  -- The first exception waits in the target's exception slot, the second thread
+  -- waits because the slot is full.  Both killThreads return when the target ends.
+  m5 <- newEmptyMVar :: IO (MVar ())
+  t5 <- forkIO $ uninterruptibleMask_ (threadDelay 30000)
+  threadDelay 5000
+  _ <- forkIO $ killThread t5 >> putMVar m5 ()
+  _ <- forkIO $ killThread t5 >> putMVar m5 ()
+  takeMVar m5
+  takeMVar m5
+  putStrLn "two killThreads of a finishing target both return"
+
+  -- A throwTo that is interrupted has no effect.  Thread b is masked, so the
+  -- throwTo from thread a waits; a is killed while it waits, and b must then
+  -- not receive a's exception.
+  r6 <- newIORef "not set"
+  d6 <- newEmptyMVar :: IO (MVar ())
+  b6 <- forkIO $ ((uninterruptibleMask_ (threadDelay 30000) >> threadDelay 10000 >> writeIORef r6 "finished normally")
+                   `catch` \ e -> writeIORef r6 ("received " ++ show (e :: ErrorCall)))
+                  `finally` putMVar d6 ()
+  threadDelay 5000
+  a6 <- forkIO $ throwTo b6 (ErrorCall "from a")
+  threadDelay 5000
+  killThread a6
+  takeMVar d6
+  readIORef r6 >>= \ s -> putStrLn ("interrupted throwTo: target " ++ s)
