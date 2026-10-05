@@ -1188,6 +1188,28 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
+/* Add the thread to the head of runq */
+void
+add_runq_head(struct mthread *mt)
+{
+  mt->mt_state = ts_runnable;
+  mt->mt_queue = runq.mq_head;
+  runq.mq_head = mt;
+  if (!runq.mq_tail)
+    runq.mq_tail = mt;           /* runq was empty */
+}
+
+/* Add the thread k to runq right after mt, which is in runq */
+void
+add_runq_after(struct mthread *mt, struct mthread *k)
+{
+  k->mt_state = ts_runnable;
+  k->mt_queue = mt->mt_queue;
+  mt->mt_queue = k;
+  if (runq.mq_tail == mt)
+    runq.mq_tail = k;            /* mt was last */
+}
+
 struct mthread*
 remove_q_head(struct mqueue *q)
 {
@@ -1358,19 +1380,10 @@ wake_throwto(struct mthread *mt)
      * the tail of the run queue it would first wait for a slice of every
      * other runnable thread, which made a loop of killThread quadratic. */
     k->mt_throwdone = true;
-    k->mt_state = ts_runnable;
-    if (runq.mq_head == mt) {
-      /* mt is the running thread (check_thrown): k goes right after it */
-      k->mt_queue = mt->mt_queue;
-      mt->mt_queue = k;
-      if (runq.mq_tail == mt)
-        runq.mq_tail = k;
-    } else {
-      k->mt_queue = runq.mq_head;
-      runq.mq_head = k;
-      if (!runq.mq_tail)
-        runq.mq_tail = k;
-    }
+    if (runq.mq_head == mt)
+      add_runq_after(mt, k);    /* mt is the running thread (check_thrown): k goes right after it */
+    else
+      add_runq_head(k);
   }
 }
 
@@ -1443,12 +1456,8 @@ throwto(struct mthread *mt, NODEPTR exn)
    * runnable, or thread_intr has just put it at the tail) it would otherwise
    * take the exception only after every thread ahead of it has had a slice,
    * so killing n runnable threads cost n passes over the run queue. */
-  if (mt->mt_state == ts_runnable && find_and_unlink(&runq, mt)) {
-    mt->mt_queue = runq.mq_head;
-    runq.mq_head = mt;
-    if (!runq.mq_tail)
-      runq.mq_tail = mt;
-  }
+  if (mt->mt_state == ts_runnable && find_and_unlink(&runq, mt))
+    add_runq_head(mt);
   resched(me, ts_wait_mvar);     /* never returns */
 }
 
