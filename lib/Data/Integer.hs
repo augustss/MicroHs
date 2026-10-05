@@ -7,6 +7,7 @@ module Data.Integer(
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives(primSeq)
+import Control.Exception.Internal(throw, ArithException(DivideByZero))
 import Data.Bits.Base
 import Data.Bool
 import Data.Enum
@@ -58,7 +59,8 @@ instance Num Integer where
   fromInteger x = x
 
 instance Integral Integer where
-  quotRem = quotRemI
+  quotRem x y =
+    if y == 0 then throw DivideByZero else quotRemI x y
   toInteger x = x
 
 instance Real Integer where
