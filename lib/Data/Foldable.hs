@@ -45,7 +45,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
-import Control.Monad(Monad(..), MonadPlus(..))
+import Control.Monad
 import Data.Bool
 import Data.Coerce
 import Data.Either

@@ -127,8 +127,6 @@ instance Applicative IO where
 instance Monad IO where
   (>>=)        = primBind
   (>>)         = primThen
-  return       = primReturn
 
 instance MonadFail IO where
   fail         = error
-

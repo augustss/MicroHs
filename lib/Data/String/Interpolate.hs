@@ -25,7 +25,7 @@ import Data.List
 import Data.Num
 import Data.Maybe
 import Data.Monoid
-import Data.Monoid.Internal(Semigroup(..))
+import Data.Monoid.Internal
 import Data.Ord
 import Data.RealFloat
 import Data.String

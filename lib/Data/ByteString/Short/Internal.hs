@@ -193,7 +193,6 @@ instance Semigroup ShortByteString where
 -- copied from bytestring-0.12.2.0
 instance Monoid ShortByteString where
   mempty  = empty
-  mappend = (<>)
   mconcat = concat
 
 -- copied from bytestring-0.12.2.0

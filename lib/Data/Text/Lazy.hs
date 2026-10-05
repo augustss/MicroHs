@@ -187,7 +187,6 @@ instance Semigroup Text where
 
 instance Monoid Text where
   mempty  = empty
-  mappend = (<>)
   mconcat = concat
 
 instance IsString Text where

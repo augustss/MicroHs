@@ -33,9 +33,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe
 import Data.Semigroup
 import Data.Tuple (Solo (..))
-import Prelude
-       (Maybe (..), Monad (..), Ord, Ordering (..), id, seq, ($!), ($), (.),
-       (=<<), flip, const, error)
+import Prelude hiding (foldr)
 
 import qualified Data.List.NonEmpty as NE
 

@@ -82,9 +82,6 @@ instance (Generic a, Monoid (Rep a ())) => Monoid (Generically a) where
   mempty :: Generically a
   mempty = Generically (to (mempty :: Rep a ()))
 
-  mappend :: Generically a -> Generically a -> Generically a
-  mappend = (<>)
-
 type    Generically1 :: forall k. (k -> Type) -> (k -> Type)
 newtype Generically1 f a = Generically1 (f a)
 

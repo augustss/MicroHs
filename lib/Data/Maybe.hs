@@ -44,7 +44,6 @@ instance Applicative Maybe where
   _      <*> _      = Nothing
 
 instance Monad Maybe where
-  return = pure
   Nothing >>= _ = Nothing
   Just a  >>= f = f a
 

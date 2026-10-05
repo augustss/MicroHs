@@ -23,11 +23,12 @@ import Text.Show
 
 class Semigroup a => Monoid a where
   mempty :: a
-  mappend :: a -> a -> a
-  mappend = (<>)
   mconcat :: [a] -> a
   mconcat [] = mempty
   mconcat (a:as) = a <> mconcat as
+
+mappend :: Semigroup a => a -> a -> a
+mappend = (<>)
 
 ---------------------
 
