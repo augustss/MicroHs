@@ -1474,10 +1474,9 @@ revoke_throwto(struct mthread *mt)
     if (thread_trace)
       printf("revoke_throwto: %d revokes its exception to %d\n", (int)mt->mt_id, (int)target->mt_id);
 #endif  /* THREAD_DEBUG */
-    target->mt_exn->mv_data = NIL;
-    struct mthread *k = remove_q_head(&target->mt_exn->mv_takeput);
-    if (k)
-      add_runq_tail(k);
+    /* Take our exception back; a thread waiting to throw to target may then put its own.
+     * The MVar holds our exception, so this does not block. */
+    (void)take_mvar(true, target->mt_exn);
   }
   mt->mt_throwto = 0;
   mt->mt_throwdone = false;
