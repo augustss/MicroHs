@@ -9,7 +9,8 @@ module MHSPrelude(
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
-  getExecutablePath
+  getExecutablePath,
+  listDirectory
   ) where
 import Hugs.Prelude()
 import Prelude hiding(catch, fail)
@@ -29,6 +30,7 @@ import Data.Text(Text, append, pack)
 import Data.Word
 import Data.Version
 import Debug.Trace
+import System.Directory (getDirectoryContents)
 import System.IO
 import System.Environment
 import System.IO.MD5
@@ -268,3 +270,8 @@ f <=< g = \ a -> do
 
 getExecutablePath :: forall a . IO a
 getExecutablePath = error "unimplemented"
+
+listDirectory :: FilePath -> IO [FilePath]
+listDirectory dir = do
+  r <- getDirectoryContents dir
+  return $ filter (\s -> s /= "." && s /= "..") r
