@@ -28,7 +28,6 @@ import System.FilePath
 import System.IO
 import System.IO.TimeMilli
 import Text.Printf
-import Text.Read(readMaybe)
 --import System.IO.TimeMilli
 
 defaultEditor :: String

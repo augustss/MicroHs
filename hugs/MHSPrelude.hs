@@ -32,6 +32,7 @@ import Debug.Trace
 import System.IO
 import System.Environment
 import System.IO.MD5
+import Text.Read (reads)
 
 ------- List --------
 
@@ -168,6 +169,11 @@ openTmpFile tmplt = do
     Left (_::SomeException) -> openTempFile "." tmplt
 
 ------- Read --------
+
+readMaybe :: Read a => String -> Maybe a
+readMaybe s = case reads s of
+    [(r, _)] -> Just r
+    _ -> Nothing
 
 mhsError :: String -> a
 mhsError = error
