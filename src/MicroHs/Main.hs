@@ -564,25 +564,22 @@ addEmbedPkgs flags ds | null (embedPkgs flags) = return ds
   return $ map rep ds
 
 expandPath :: Maybe FilePath -> FilePath -> IO FilePath
-expandPath (Just s) f = do
-  m <- lookupEnv mHSPKG
-  when (isNothing m) $
-    setEnv mHSPKG s
-  setEnv "VERSION" mhsVersion
-  expandEnv f
-expandPath Nothing  f = do
-  setEnv "VERSION" mhsVersion
-  expandEnv f
+expandPath = expandEnv . expandEnvLookup
 
-expandEnv :: String -> IO String
-expandEnv "" = return ""
-expandEnv ('$':cs) = do
+expandEnvLookup :: Maybe FilePath -> String -> IO String
+expandEnvLookup (Just s) mHSPKG = fromMaybe s <$> lookupEnv mHSPKG
+expandEnvLookup _ "VERSION" = return mhsVersion
+expandEnvLookup _ name = fromMaybe "" <$> lookupEnv name
+
+expandEnv :: (String -> IO String) -> String -> IO String
+expandEnv _ "" = return ""
+expandEnv f ('$':cs) = do
   let (name, rest) = span isMacroName cs
       isMacroName c = isAlphaNum c || c == '_'
-  repl <- fromMaybe "" <$> lookupEnv name
-  (repl ++) <$> expandEnv rest
-expandEnv (c:cs) =
-  (c :) <$> expandEnv cs
+  repl <- f name
+  (repl ++) <$> expandEnv f rest
+expandEnv f (c:cs) =
+  (c :) <$> expandEnv f cs
 
 copyFileBS :: FilePath -> FilePath -> IO ()
 copyFileBS src dst = BS.readFile src >>= BS.writeFile dst
