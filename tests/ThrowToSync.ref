@@ -1,0 +1,8 @@
+runnable target: thread killed
+blocked target: thread killed
+the value went to the live thread
+killing a dead thread twice is a no-op
+self throwTo: user error (self)
+masked target: thread killed
+two killThreads of a finishing target both return
+interrupted throwTo: target finished normally
