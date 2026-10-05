@@ -128,7 +128,7 @@ openFileM path m = do
 
 openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openBinaryFileM path m = do
-  r <- (try $ openBinaryFile path m) :: IO (Either IOError Handle)
+  r <- try $ openBinaryFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
