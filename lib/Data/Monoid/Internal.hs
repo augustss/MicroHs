@@ -27,8 +27,9 @@ class Semigroup a => Monoid a where
   mconcat [] = mempty
   mconcat (a:as) = a <> mconcat as
 
-mappend :: Semigroup a => a -> a -> a
-mappend = (<>)
+  mappend :: -- Semigroup a =>
+             a -> a -> a
+  mappend = (<>)
 
 ---------------------
 
