@@ -123,7 +123,8 @@ dsEqns loc eqns =
           let ps' = map dsPat ps
           in  (ps', id, dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
-      in foldr Lam ex xs
+        ex' = optCase ex
+      in foldr Lam ex' xs
     _ -> eMatchErr loc
 
 dsAlts :: EAlts -> (Exp -> Exp)
@@ -647,3 +648,46 @@ mkForImp mn no cc ms i ty =
             if isValidC n then n else fno
           _ -> fno
   in  LForImp mn impent cid cty
+
+-- Pattern matching against a number of Int/Char constants, e.g.
+--  case e of 1->2; 2->3; 3->4; _->5
+-- make each match turn into view pattern  ((1 ==) -> True) -> 2; ((2 ==) -> True) -> 3 etc.
+-- This is quite slow when there are many case arms.
+-- Recognize this case and turn it into a binary search instead.
+-- Sadly, it only works for Char/Int/Word in this simple version.
+optCase :: Exp -> Exp
+optCase ae = opt [] ae
+  where opt arms e | Just (eq, texp, fexp) <- getEncIf e
+                   , Just (var, lit) <- getEqExp eq = opt ((var, (lit, texp)) : arms) fexp
+        opt arms@((var, _):_) dflt | length arms >= binLimit && all ((var ==) . fst) arms
+                                   , let kes = sortBy (compare `on` fst) (map snd arms)
+                                   , length kes == length (groupBy ((==) `on` fst) kes)  -- no duplicated labels
+                                   = tree var kes dflt
+        opt _ _ = ae
+
+        getEqExp (App (App (App (Var sel) (Var dict)) (Lit (LInt lit))) var@(Var _))
+          |  unIdent sel  == "Data.Eq.=="
+          && (unIdent dict == "inst$Data.Eq.Eq@Primitives.Char" ||
+              unIdent dict == "inst$Data.Eq.Eq@Primitives.Int" ||
+              unIdent dict == "inst$Data.Eq.Eq@Primitives.Word")
+          = Just (var, lit)
+        getEqExp _ = Nothing
+
+        tree var kes dflt | l < binLimit = linear var kes dflt
+                      | otherwise =
+                        case splitAt (l `quot` 2) kes of
+                          (lo, hi@((k,_):_)) -> encIf (gtInt k var) (tree var lo dflt) (tree var hi dflt)
+                          _ -> undefined
+                      where l = length kes
+        linear _ [] dflt = dflt
+        linear var ((k, rhs):kes) dflt = encIf (eqInt k var) rhs (linear var kes dflt)
+
+        eqInt :: Int -> Exp -> Exp
+        eqInt i x = app2 (Lit (LPrim "==")) (Lit (LInt i)) x
+        gtInt :: Int -> Exp -> Exp
+        gtInt i x = app2 (Lit (LPrim ">")) (Lit (LInt i)) x
+
+-- Switch to binary search with >= binLimit arms
+-- Experimentally, this seems to be the sweet spot.
+binLimit :: Int
+binLimit = 7

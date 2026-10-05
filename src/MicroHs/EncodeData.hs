@@ -7,6 +7,7 @@ module MicroHs.EncodeData(
   encList,
   encTuple,
   encTupleSel,
+  getEncIf,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.List
@@ -32,6 +33,10 @@ encConstr i n ss | n <= scottLimit = encConstrScott i n ss
 
 encIf :: Exp -> Exp -> Exp -> Exp
 encIf = encIfScott
+
+getEncIf :: Exp -> Maybe (Exp, Exp, Exp)
+getEncIf (App (App c f) t) = Just (c, t, f)
+getEncIf _ = Nothing
 
 -- Lowest value that works is 3.
 -- The runtime system knows the encoding of some types:
@@ -223,4 +228,3 @@ encTupleSel m n tup =
   let
     xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
-
