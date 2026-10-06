@@ -249,6 +249,9 @@ fromChunks = L.foldr chunk Empty
 toChunks :: Text -> [T.Text]
 toChunks = foldrChunks (:) []
 
+onChunks :: (T.Text -> T.Text) -> Text -> Text
+onChunks f = foldrChunks (Chunk . f) Empty
+
 toStrict :: Text -> T.Text
 toStrict t = T.concat (toChunks t)
 
@@ -367,7 +370,7 @@ dropWhileEnd :: (Char -> Bool) -> Text -> Text
 dropWhileEnd p = pack . L.dropWhileEnd p . unpack
 
 map :: (Char -> Char) -> Text -> Text
-map f = foldrChunks (Chunk . T.map f) Empty
+map f = onChunks (T.map f)
 
 concat :: [Text] -> Text
 concat []                    = Empty
@@ -401,16 +404,16 @@ drop :: Int64 -> Text -> Text
 drop n = pack . L.drop (int64ToInt n) . unpack
 
 toLower :: Text -> Text
-toLower = pack . L.concatMap U._toLowers . unpack
+toLower = onChunks T.toLower
 
 toTitle :: Text -> Text
-toTitle = fromStrict . T.toTitle . toStrict
+toTitle = onChunks T.toTitle
 
 toUpper :: Text -> Text
-toUpper = pack . L.concatMap U._toUppers . unpack
+toUpper = onChunks T.toUpper
 
 toCaseFold :: Text -> Text
-toCaseFold = pack . L.concatMap U._toFolds . unpack
+toCaseFold = onChunks T.toCaseFold
 
 intercalate :: Text -> [Text] -> Text
 intercalate _ [] = empty
@@ -461,7 +464,7 @@ foldl' :: (a -> Char -> a) -> a -> Text -> a
 foldl' f z = L.foldl' f z . unpack
 
 filter :: (Char -> Bool) -> Text -> Text
-filter p = pack . L.filter p . unpack
+filter p = onChunks (T.filter p)
 
 reverse :: Text -> Text
 reverse = pack . L.reverse . unpack
