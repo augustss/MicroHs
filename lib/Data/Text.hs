@@ -229,7 +229,13 @@ toLower :: Text -> Text
 toLower = pack . L.concatMap U._toLowers . unpack
 
 toTitle :: Text -> Text
-toTitle = pack . L.concatMap U._toTitles . unpack
+toTitle = pack . f . unpack
+  where f [] = []
+        f (c:cs) | U.isAlpha c = U._toTitles c ++ g cs
+                 | otherwise   = c : f cs
+        g [] = []
+        g (c:cs) | U.isAlpha c = U._toLowers c ++ g cs
+                 | otherwise   = c : f cs
 
 toUpper :: Text -> Text
 toUpper = pack . L.concatMap U._toUppers . unpack

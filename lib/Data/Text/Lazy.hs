@@ -404,7 +404,7 @@ toLower :: Text -> Text
 toLower = pack . L.concatMap U._toLowers . unpack
 
 toTitle :: Text -> Text
-toTitle = pack . L.concatMap U._toTitles . unpack
+toTitle = fromStrict . T.toTitle . toStrict
 
 toUpper :: Text -> Text
 toUpper = pack . L.concatMap U._toUppers . unpack
