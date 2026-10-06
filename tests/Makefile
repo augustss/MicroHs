@@ -5,7 +5,7 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest: info test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
+alltest: info test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testlargegetline
 # interactivetest
 
 cache:
@@ -133,6 +133,10 @@ test:
 .PHONY: testpreprocessorpaths
 testpreprocessorpaths:
 	sh preprocessor-paths.sh $(TMHS)
+
+.PHONY: testlargegetline
+testlargegetline:
+	sh large-getline.sh $(TMHS)
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out

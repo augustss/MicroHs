@@ -3129,7 +3129,13 @@ mark(NODEPTR *np)
      goto fin;
   }
 
-  if (!is_marked_used(*to_push)) {
+  /* Mark integer leaves immediately instead of deferring them while walking
+   * the other branch.  In particular, a string can contain a distinct integer
+   * node (behind an indirection) for every character read from a handle.
+   */
+  if (GETTAG(indir(to_push)) == T_INT) {
+    mark(to_push);
+  } else if (!is_marked_used(*to_push)) {
     //  mark_depth++;
     PREFETCH_READ(*to_push);   /* won't be popped and dereferenced until later */
     PUSH((NODEPTR)to_push);
