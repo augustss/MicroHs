@@ -3,6 +3,7 @@ MHSOUTPUT=
 MHS=../bin/gmhs
 TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
+EVALUATOR?=../bin/mhseval
 .PHONY: test nfib clean errtest alltest cache info
 
 alltest: info test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testlargegetline
@@ -136,7 +137,13 @@ testpreprocessorpaths:
 
 .PHONY: testlargegetline
 testlargegetline:
-	sh large-getline.sh $(TMHS)
+	$(TMHS) LargeGetLine -oout.comb
+	awk 'BEGIN { for (line = 0; line < 2; line++) { \
+	    for (i = 0; i < 100000; i++) printf "0123456789"; \
+	    printf "\n"; } printf "\nend\n"; }' > LargeGetLine.tmp
+	# Use defaults first, then vary GC timing and constrain the evaluator stack.
+	$(EVALUATOR) < LargeGetLine.tmp > LargeGetLine.out && diff LargeGetLine.ref LargeGetLine.out
+	$(EVALUATOR) +RTS -H8M -K4096 -RTS < LargeGetLine.tmp > LargeGetLine.out && diff LargeGetLine.ref LargeGetLine.out
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
