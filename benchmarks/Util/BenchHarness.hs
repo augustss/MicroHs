@@ -7,6 +7,7 @@
 -- the repo root
 module Util.BenchHarness(main) where
 import Control.Exception(SomeException, catch)
+import Control.Monad(when)
 import Data.List(dropWhileEnd, minimumBy, sort)
 import Data.Char(isSpace)
 import Data.Ord(comparing)
@@ -34,7 +35,7 @@ defaultRuns = 5
 readBenchmarkNames :: IO [String]
 readBenchmarkNames = do
   files <- listDirectory benchmarkDirectory
-  return $ map (takeWhile ((/=) '.')) files
+  return $ map (takeWhile ('.' /=)) files
 
 main :: IO ()
 main = do
@@ -76,7 +77,7 @@ main = do
   mapM_ (putStrLn . describeEntry) entries
   putStrLn ("wrote " ++ path)
 
-  if anyFail then exitFailure else return ()
+  when anyFail exitFailure
 
 --------------------------------------------------------------------------
 

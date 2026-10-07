@@ -199,7 +199,7 @@ classifyNumberedLine n rest
   | rest == "combinator file size" = ([("comb_file_size", n)], [])
   | rest == "cells at start"       = ([("cells_at_start", n)], [])
   | Just tl <- stripPrefix "cells heap size (" rest
-      = ([("heap_cells", n)] ++ intField "heap_bytes" tl, [])
+      = (("heap_cells", n) : intField "heap_bytes" tl, [])
   | Just tl <- stripPrefix "cells allocated (" rest
       = ([("cells_allocated", n)], rateField "alloc_rate_mbps" tl)
   | rest == "GCs"                  = ([("gcs", n)], [])
@@ -207,15 +207,15 @@ classifyNumberedLine n rest
   | Just tl <- stripPrefix "reductions (" rest
       = ([("reductions", n)], rateField "reduction_rate_mps" tl)
   | Just tl <- stripPrefix "yields (" rest
-      = ([("yields", n)] ++ intField "resched" tl, [])
+      = (("yields", n) : intField "resched" tl, [])
   | rest == "array alloc"          = ([("array_alloc", n)], [])
   | rest == "array free"           = ([("array_free", n)], [])
   | rest == "foreign alloc"        = ([("foreign_alloc", n)], [])
   | rest == "foreign free"         = ([("foreign_free", n)], [])
   | Just tl <- stripPrefix "bytestring alloc bytes (max " rest
-      = ([("bytestring_alloc_bytes", n)] ++ intField "bytestring_alloc_bytes_max" tl, [])
+      = (("bytestring_alloc_bytes", n) : intField "bytestring_alloc_bytes_max" tl, [])
   | Just tl <- stripPrefix "bytestring alloc (max " rest
-      = ([("bytestring_alloc", n)] ++ intField "bytestring_alloc_max" tl, [])
+      = (("bytestring_alloc", n) : intField "bytestring_alloc_max" tl, [])
   | rest == "bytestring free"      = ([("bytestring_free", n)], [])
   | rest == "thread create"        = ([("thread_create", n)], [])
   | rest == "thread reap"          = ([("thread_reap", n)], [])
