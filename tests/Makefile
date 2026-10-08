@@ -20,6 +20,7 @@ test:
 #	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
 	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
 	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
+	$(TMHS) LargeGetLine && $(EVAL) > LargeGetLine.out && diff LargeGetLine.ref LargeGetLine.out
 	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
 	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out
 	$(TMHS) Misc       && $(EVAL) > Misc.out       && diff Misc.ref Misc.out
