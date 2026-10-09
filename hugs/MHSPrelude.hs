@@ -8,6 +8,8 @@ module MHSPrelude(
   first, second,
   module Data.Monoid,
   module Data.Semigroup,
+  module Data.Version,
+  Int64,
   (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
   getExecutablePath,
   listDirectory

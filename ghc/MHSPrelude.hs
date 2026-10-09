@@ -1,6 +1,16 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP #-}
-module MHSPrelude(module Prelude, module Control.DeepSeq, module Control.Arrow, module Text.Read, module MHSPrelude, Type, Int64, HasCallStack) where
+module MHSPrelude(
+  module Prelude,
+  module Control.DeepSeq,
+  module Control.Arrow,
+  module Data.Version,
+  module Text.Read,
+  module MHSPrelude,
+  Type,
+  Int64,
+  HasCallStack
+  ) where
 import Prelude
 import Control.Arrow(first, second)
 import Control.DeepSeq
@@ -9,6 +19,7 @@ import Data.Int
 import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)
+import Data.Version
 import GHC.Stack
 import Data.Kind
 import System.Environment

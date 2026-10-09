@@ -24,7 +24,6 @@ import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Version
 import System.Directory
 import System.Environment
 import System.FilePath

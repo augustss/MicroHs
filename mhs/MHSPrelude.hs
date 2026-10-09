@@ -31,6 +31,7 @@ module MHSPrelude(
   module Data.String,
   module Data.Tuple,
   module Data.Typeable,
+  module Data.Version,
   module System.IO.Base,
   module Text.Read,
   module Text.Show,
@@ -84,6 +85,7 @@ import Data.Records  -- needed for data types with fields
 import Data.Semigroup
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
+import Data.Version
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                       FilePath, readFile, writeFile, appendFile,
                       cprint, cuprint)

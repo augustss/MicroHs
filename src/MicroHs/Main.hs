@@ -8,7 +8,6 @@ import Control.Applicative
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
 import Data.List
-import Data.Version
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
@@ -194,7 +193,7 @@ decodeArgs f mdls (arg:args) =
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
     '-':'e':s   -> decodeArgs f{evalArg = Just s} mdls args
-    _ | Just r  <- stripPrefix "-ddump-" arg, Just d <- lookup r dumpFlagTable ->
+    '-':'d':'d':'u':'m':'p':'-':r | isJust (lookup r dumpFlagTable) -> let Just d = lookup r dumpFlagTable in
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
 
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage

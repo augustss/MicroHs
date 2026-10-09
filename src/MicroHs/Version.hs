@@ -2,8 +2,7 @@
 module MicroHs.Version(
   version,
   ) where
-import qualified Prelude()
-import Data.Version
+import qualified Prelude(); import MHSPrelude
 
 version :: Version
 version = makeVersion [0,16,8,0]

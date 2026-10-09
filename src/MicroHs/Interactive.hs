@@ -3,7 +3,6 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Version
 import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
@@ -278,9 +277,9 @@ setOptions "+color" = do
   modify $ \ is -> is{ isColor = True }
 setOptions "-color" = do
   modify $ \ is -> is{ isColor = False }
-setOptions s | Just p <- stripPrefix "path=" s =
+setOptions ('p':'a':'t':'h':'=':p) =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
-setOptions s | Just p <- stripPrefix "prompt=" s =
+setOptions ('p':'r':'o':'m':'p':'t':'=':p) =
   modify $ \ is -> is{ isPrompt = p }
 setOptions _ =
   putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH, prompt=STR"
@@ -348,9 +347,10 @@ err e = do
 parseError :: String -> Maybe (FilePath, Int)
 parseError s =
   case words s of
-    "error:" : ('"' : sfile) : "line" : sline : _ |
-      Just file <- stripSuffix "\":" sfile,
-      Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
+    "error:" : ('"' : sfile) : "line" : sline : _ -> do
+      file <- stripSuffix "\":" sfile
+      line <- stripSuffix "," sline >>= readMaybe
+      Just (file, line)
     _ -> Nothing
 
 err' :: String -> I ()
