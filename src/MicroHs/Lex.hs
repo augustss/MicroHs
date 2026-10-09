@@ -108,11 +108,11 @@ lex loc (d:cs) | isLower_ d =
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs)
-  | toLower x == 'x' = readNum isHexDigit 16 2 loc cs
-  | toLower x == 'o' = readNum isOctDigit 8 2 loc cs
-  | toLower x == 'b' = readNum isBinDigit 2 2 loc cs
+  | toLower x == 'x' = readNum isHexDigit 16 2 loc x cs
+  | toLower x == 'o' = readNum isOctDigit 8  2 loc x cs
+  | toLower x == 'b' = readNum isBinDigit 2  2 loc x cs
   where isBinDigit c = c == '0' || c == '1'
-lex loc cs@(d:_) | isDigit d = readNum isDigit 10 0 loc cs
+lex loc cs@(d:_) | isDigit d = readNum isDigit 10 0 loc '0' cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
 -- '(#' starts an unboxed tuple when its bracket is closed by '#)', as in
@@ -200,8 +200,8 @@ readIntBase base isDig ds =
 
     addDigit x d = x * base + toInteger (digitToInt d)
 
-readNum :: (Char -> Bool) -> Integer -> Int -> SLoc -> String -> [Token]
-readNum isBaseDigit base prefixLen loc cs =
+readNum :: (Char -> Bool) -> Integer -> Int -> SLoc -> Char -> String -> [Token]
+readNum isBaseDigit base prefixLen loc x cs =
   case readIntB cs of
     Just (n, nLen, rest) ->
       case rest of
@@ -217,7 +217,8 @@ readNum isBaseDigit base prefixLen loc cs =
           case expo rest of
             Just (ebase, e, eLen, rest') ->  TRat loc (toRational n * fromInteger ebase ^^ e) : lexSkipHash (addCol loc (prefixLen + nLen + eLen)) rest'
             Nothing -> TInt loc n : lexSkipHash (addCol loc (prefixLen + nLen)) rest
-    Nothing -> [TError loc "No digits in number"]
+    Nothing -> -- we have something like 0x with no digits.  So this is not a number
+               TInt loc 0 : lex (addCol loc 1) (x:cs)
   where
     readIntDec = readIntBase 10 isDigit
     readIntB = readIntBase base isBaseDigit
