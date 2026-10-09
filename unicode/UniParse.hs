@@ -1,6 +1,7 @@
 --module UniParse where
 import Data.Bits
 import Data.Char
+import Data.List
 import Data.Maybe
 import Numeric
 import System.Environment
@@ -95,7 +96,11 @@ main = do
   --mapM_ print info
   let out = encodeGCInfo info
       cout = {-compress $-} compressRLE out
-  putStrLn $ "compressedGCTable :: ByteString\ncompressedGCTable =\n  " ++ showChars cout
+      chunks "" = []
+      chunks cs = case splitAt 512 cs of (as, bs) -> as : chunks bs
+  putStrLn $ "compressedGCTable :: ByteString\ncompressedGCTable =\n  (" ++
+    intercalate "::ByteString) <>\n  (" (map showChars (chunks cout)) ++
+    "::ByteString)"
   let tcInfo = [(cp, t - cp) | (cp, _, _, _, Just t) <- info]
       tcInfoC = delta $ compact tcInfo
   putStrLn $ "\ntcTable :: [(Int, Int, Int)]\ntcTable =\n  " ++ show tcInfoC
