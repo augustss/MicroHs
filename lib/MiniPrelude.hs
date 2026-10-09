@@ -53,8 +53,7 @@ import Data.String
 import Data.Tuple
 import {-# SOURCE #-} Data.Typeable
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
-                      FilePath, readFile, writeFile, appendFile,
-                      cprint, cuprint)
+                      FilePath, readFile, writeFile, appendFile)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.Show
 import Primitives(_wordSize, _isWindows)

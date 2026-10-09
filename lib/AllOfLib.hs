@@ -154,6 +154,7 @@ import Mhs.Builtin
 import Mhs.MutArr
 import Mhs.MutUArr
 import Mhs.UArr
+import Mhs.Print
 import Prelude
 import Primitives
 import System.Compress

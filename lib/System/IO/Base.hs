@@ -19,8 +19,6 @@ module System.IO.Base(
   writeFile, readFile, appendFile,
   writeBinaryFile, readBinaryFile,
 
-  cprint, cuprint,
-
   hPutBuf, hGetBuf,
 
   openTmpFile, openTempFile, openBinaryTempFile,
@@ -61,9 +59,6 @@ import System.IO.Error
 import System.IO.Internal
 import System.IO.Open
 import System.IO.Unsafe
-
-primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
-primHPrint        = _primitive "IO.print"
 
 -- BFILE stuff
 foreign import ccall "closeb"       c_closeb       ::                 Ptr BFILE -> IO ()
@@ -134,21 +129,6 @@ putChar = hPutChar stdout
 
 getChar :: IO Char
 getChar = hGetChar stdin
-
-cprint :: forall a . a -> IO ()
-cprint a = withHandleWr stdout $ \ p ->
-  let gc = primGC 1 in
-  primRnfNoErr a `seq`
-  gc `primThen`     -- Do GC reductions
-  gc `primThen`
-  gc `primThen`
-  gc `primThen`
-  gc `primThen`
-  gc `primThen`
-  primHPrint p a
-
-cuprint :: forall a . a -> IO ()
-cuprint a = withHandleWr stdout $ \ p -> primHPrint p a
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
