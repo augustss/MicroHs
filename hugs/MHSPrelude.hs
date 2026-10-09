@@ -8,15 +8,18 @@ module MHSPrelude(
   first, second,
   module Data.Monoid,
   module Data.Semigroup,
-  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<)
+  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
+  getExecutablePath,
+  listDirectory
   ) where
 import Hugs.Prelude()
-import Prelude hiding(fail)
+import Prelude hiding(catch, fail)
 import qualified Prelude
 import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
+import Data.ByteString(ByteString)
 import Data.Int
 import Data.List
 import Data.Maybe
@@ -27,9 +30,11 @@ import Data.Text(Text, append, pack)
 import Data.Word
 import Data.Version
 import Debug.Trace
+import System.Directory (getDirectoryContents)
 import System.IO
 import System.Environment
 import System.IO.MD5
+import Text.Read (reads)
 
 ------- List --------
 
@@ -126,7 +131,7 @@ openFileM path m = do
 
 openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openBinaryFileM path m = do
-  r <- (try $ openBinaryFile path m) :: IO (Either IOError Handle)
+  r <- try $ openBinaryFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
@@ -166,6 +171,11 @@ openTmpFile tmplt = do
     Left (_::SomeException) -> openTempFile "." tmplt
 
 ------- Read --------
+
+readMaybe :: Read a => String -> Maybe a
+readMaybe s = case reads s of
+    [(r, _)] -> Just r
+    _ -> Nothing
 
 mhsError :: String -> a
 mhsError = error
@@ -220,6 +230,7 @@ instance NFData Bool
 instance NFData Ordering
 instance NFData ()
 instance NFData Text
+instance NFData ByteString
 
 instance NFData Integer where
   rnf x = (x == 0) `seq` ()
@@ -256,3 +267,11 @@ f <=< g = \ a -> do
 
 (>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
+
+getExecutablePath :: forall a . IO a
+getExecutablePath = error "unimplemented"
+
+listDirectory :: FilePath -> IO [FilePath]
+listDirectory dir = do
+  r <- getDirectoryContents dir
+  return $ filter (\s -> s /= "." && s /= "..") r
