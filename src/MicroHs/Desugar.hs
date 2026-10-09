@@ -656,7 +656,7 @@ mkForImp mn no cc ms i ty =
 -- Recognize this case and turn it into a binary search instead.
 -- Sadly, it only works for Char/Int/Word in this simple version.
 optCase :: Exp -> Exp
-optCase ae = opt [] ae
+optCase ae = ae {-opt [] ae
   where opt arms e | Just (eq, texp, fexp) <- getEncIf e
                    , Just (var, lit) <- getEqExp eq = opt ((var, (lit, texp)) : arms) fexp
         opt arms@((var, _):_) dflt | length arms >= binLimit && all ((var ==) . fst) arms
@@ -691,3 +691,4 @@ optCase ae = opt [] ae
 -- Experimentally, this seems to be the sweet spot.
 binLimit :: Int
 binLimit = 7
+-}

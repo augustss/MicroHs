@@ -68,14 +68,14 @@ main = do
       let flags' = flags { preload = preload' }
       withArgs rargs $
         case () of
-          _ | Just p <- listPkg flags'        -> mainListPkg flags' p
-          _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
-          _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
+          _ | isJust (listPkg flags')         -> let Just p = listPkg flags' in mainListPkg flags' p
+          _ | isJust (buildPkg flags')        -> let Just p = buildPkg flags' in mainBuildPkg flags' p mdls
+          _ | isJust (evalArg flags')         -> let Just s = evalArg flags' in mainEvalArg flags' s mdls
           _ | noCode flags'                   -> mainNoCode flags' mdls
           _ | installPkg flags'               -> mainInstallPackage flags' mdls
           _ | interactive flags'              -> mainInteractive flags' mdls
           _ | null mdls                       -> mainCompileC flags' [] ""
-          _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
+          _ | length mdls == 1                -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) $ head mdls)
           _                                   -> mhsError usage
 
 mHSPKG :: String
@@ -160,25 +160,25 @@ decodeArgs f mdls (arg:args) =
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-b64"      -> decodeArgs f{base64 = True} mdls args
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
-    "-o" | s : args' <- args
-                -> decodeArgs f{output = s} mdls args'
-    "-optc" | s : args' <- args
-                -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
-    "-optl" | s : args' <- args
-                -> decodeArgs f{lArgs = lArgs f ++ [s]} mdls args'
-    "-optF" | s : args' <- args
-                -> decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
-    "-pgmF" | s : args' <- args
-                -> decodeArgs f{fPgm = Just s} mdls args'
-    "-interactive-print" | s : args' <- args
-                -> decodeArgs f{iPrint = Just s} mdls args'
+    "-o" | not (null args)
+                -> let s : args' = args in decodeArgs f{output = s} mdls args'
+    "-optc" | not (null args)
+                -> let s : args' = args in decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
+    "-optl" | not (null args)
+                -> let s : args' = args in decodeArgs f{lArgs = lArgs f ++ [s]} mdls args'
+    "-optF" | not (null args)
+                -> let s : args' = args in decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
+    "-pgmF" | not (null args)
+                -> let s : args' = args in decodeArgs f{fPgm = Just s} mdls args'
+    "-interactive-print" | not (null args)
+                -> let s : args' = args in decodeArgs f{iPrint = Just s} mdls args'
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
-    "--embed-ffis" | s : args' <- args
-                -> decodeArgs f{embedFFIs = embedFFIs f ++ splitColonPath s} mdls args'
-    "--embed-packages" | s : args' <- args, let ps = splitColonPath s
-                -> decodeArgs f{embedPkgs = embedPkgs f ++ ps, embedFFIs = embedFFIs f ++ ps} mdls args'
+    "--embed-ffis" | not (null args)
+                -> let s : args' = args in decodeArgs f{embedFFIs = embedFFIs f ++ splitColonPath s} mdls args'
+    "--embed-packages" | not (null args)
+                -> let s : args' = args; ps = splitColonPath s in decodeArgs f{embedPkgs = embedPkgs f ++ ps, embedFFIs = embedFFIs f ++ ps} mdls args'
     "-fno-code" -> decodeArgs f{noCode = True} mdls args
     '-':'i':[]  -> decodeArgs f{srcPaths = []} mdls args
     '-':'i':s   -> decodeArgs f{srcPaths = srcPaths f ++ splitColonPath s} mdls args

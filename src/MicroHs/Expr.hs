@@ -532,7 +532,7 @@ getTupleConstr i =
 getExprTuple :: EType -> Maybe [EType]
 getExprTuple = loop []
   where loop ts (EApp f a) = loop (a:ts) f
-        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
+        loop ts (EVar i) | isJust (getTupleConstr i) && Just (length ts) == getTupleConstr i = Just ts
         loop _ _ = Nothing
 
 -- Create a tuple selector, component i (0 based) of n
@@ -1038,11 +1038,11 @@ instance Pretty Expr where
     ppApp :: PrettyPrec -> [Expr] -> Expr -> Doc
     ppApp prec as (EApp f a) = ppApp prec (a:as) f
     ppApp prec as f | raw = ppApply prec f as
-    ppApp prec as (EVar i) | isOperChar cop, [a, b] <- as = maybeParens (prec > p) $ ppE pl a <+> text op <+> ppE pr b
-                           | isOperChar cop, [a] <- as    = parens $ ppE appPrec a <+> text op
-                           | cop == ',' && length op + 1 == length as
-                                                          = ppE prec (ETuple as)
-                           | op == "[]", length as == 1   = ppE prec (EListish (LList as))
+    ppApp prec as (EVar i) = case as of
+      [a, b] | isOperChar cop -> maybeParens (prec > p) $ ppE pl a <+> text op <+> ppE pr b
+      [a] | isOperChar cop -> parens $ ppE appPrec a <+> text op
+      _ | cop == ',' && length op + 1 == length as -> ppE prec (ETuple as)
+        | op == "[]" && length as == 1 -> ppE prec (EListish (LList as))
       where op = unIdent (unQualIdent i)
             cop = head op
             (pl, p, pr) = lookupPrec op
@@ -1254,5 +1254,5 @@ getImplies _ = Nothing
 
 dropForallContext :: EType -> EType
 dropForallContext (EForall _ _ t) = dropForallContext t
-dropForallContext t | Just (_, t') <- getImplies t = dropForallContext t'
+dropForallContext t | isJust (getImplies t) = let Just (_, t') = getImplies t in dropForallContext t'
                     | otherwise = t

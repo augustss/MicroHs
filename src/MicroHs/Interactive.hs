@@ -392,7 +392,7 @@ oneline aline = do
   -- building up multiple imports.
   if take 1 (words line) == ["import"] && line `elem` lines ls then
     reload
-   else 
+   else
     -- First try to parse as a definition,
     tryParse pTopModule (ls ++ line ++ "\n") def $ \ _ ->
       -- if that fails, parse as an expression.
@@ -556,9 +556,11 @@ finds str = do
   let i = mkIdent str
   case stLookup "type" i vs `alt` stLookup "value" i ts of
     Left s -> putStrLnI s
-    Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
-      ed <- getEditor
-      _ <- liftIO $ system $ printf ed l f
-      reload
-      return ()
+    Right (Entry (EVar qi) _) -> case slocIdent qi of
+      loc@(SLoc f l _) | not (isNoSLoc loc) -> do
+        ed <- getEditor
+        _ <- liftIO $ system $ printf ed l f
+        reload
+        return ()
+      _ -> putStrLnI "Unknown location"
     _ -> putStrLnI "Unknown location"

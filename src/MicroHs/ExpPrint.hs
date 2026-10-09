@@ -86,7 +86,7 @@ toStringCMdl :: CMdl -> String
 toStringCMdl (ds, emain) =
   let
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
-    def (i, e) r | Just (_, e', _) <- getForExp e = def (i, e') r
+    def (i, e) r | isJust (getForExp e) = let Just(_, e', _) = getForExp e in def (i, e') r
     def (i, e) r =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
