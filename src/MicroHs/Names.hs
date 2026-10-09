@@ -100,6 +100,15 @@ nameKnownNat = "Data.TypeLits.KnownNat"
 nameKnownSymbol :: String
 nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 
+nameSymbolEq :: String
+nameSymbolEq = "Data.TypeLits.SymbolEq"
+
+nameConcatSymbol :: String
+nameConcatSymbol = "Data.TypeLits.ConcatSymbol"
+
+nameHeadSymbol :: String
+nameHeadSymbol = "Data.TypeLits.HeadSymbol"
+
 nameDataTypeableTypeable :: String
 nameDataTypeableTypeable = "Data.Typeable.Typeable"
 identDataTypeableTypeable :: Ident
