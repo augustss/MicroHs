@@ -1,5 +1,6 @@
 module PartRed where
 import Primitives
+import Mhs.Print
 
 k2 :: Int -> Int -> Int -> Int
 k2 x y z = x

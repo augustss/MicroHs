@@ -79,7 +79,7 @@ mkConf flags = do
 copyRTS :: Flags -> IO ()
 copyRTS flags = do
   let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
-  let mData = mCabalMhs </> "packages" </> ("mhs-" ++ version flags) </> "data"
+  let mData = mCabalMhs </> "packages" </> ("MicroHs-" ++ version flags) </> "data"
       rts = "src" </> "runtime"
   time "mkdir eData" $ mkdir flags mData
   time "copy mhs.conf" $ copy flags "mhs.conf" (mData </> "mhs.conf")

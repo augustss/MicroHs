@@ -225,7 +225,7 @@ readConfig flags = do
         return []
       Right cfs -> do
         when (verbosityGT flags 1) $
-          putStrLn $ "Read targets file. Possible targets: " ++ show (map fst cfs)
+          putStrLn $ "Read config file " ++ show cfFilePath ++ ". Possible targets: " ++ show (map fst cfs)
         return cfs
 
 findSection :: Flags -> IO [(Key, Value)]

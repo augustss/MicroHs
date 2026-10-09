@@ -87,8 +87,7 @@ import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Version
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
-                      FilePath, readFile, writeFile, appendFile,
-                      cprint, cuprint)
+                      FilePath, readFile, writeFile, appendFile)
 import Text.Read(readMaybe)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import {-# SOURCE #-} Data.Typeable

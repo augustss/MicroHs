@@ -618,7 +618,6 @@ getPaths = do
                      | otherwise                  = []
         return (upDir, srcs ++ nogmpDir ++ [libDir], Nothing)
        else do
-        let vers = "mhs-" ++ mhsVersion
-            pkgDir = upDir </> vers                                   -- ~/.mcabal/bin/../mhs-VERSION
-            mhsDir = pkgDir </> "packages" </> vers </> "data"
+        let pkgDir = upDir </> "mhs-" ++ mhsVersion                                   -- ~/.mcabal/bin/../mhs-VERSION
+            mhsDir = pkgDir </> "packages" </> "MicroHs-" ++ mhsVersion </> "data"    -- ~/.mcabal/bin/../mhs-VERSION/packages/MicroHs-VERSION/data
         return (mhsDir, srcs, Just pkgDir)

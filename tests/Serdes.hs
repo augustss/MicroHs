@@ -1,6 +1,7 @@
 module Serdes(main) where
 
 import System.IO.Serialize
+import Mhs.Print
 
 f :: Int -> Int
 f x = x*2+1
