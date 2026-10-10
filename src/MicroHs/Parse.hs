@@ -732,7 +732,7 @@ pEqns = pEqns' pLIdentSym pLOper (\ _ _ -> True)
 pEqnsU :: Ident -> P (Ident, [Eqn])
 pEqnsU i = pEqns' pUIdentSym pUOper (\ n _ -> i == n)
 
--- pEqns' is used to parse oridinary function definitions as well
+-- pEqns' is used to parse ordinary function definitions as well
 -- as the 'constructor' of pattern synonyms, which has an upper case identifier.
 pEqns' :: P Ident -> P Ident -> (Ident -> Int -> Bool) -> P (Ident, [Eqn])
 pEqns' ident oper test = do
@@ -754,13 +754,11 @@ pEqn ident oper test = do
 
 pEqnLHS :: P Ident -> P Ident -> P (Ident, [EPat])
 pEqnLHS ident oper =
-  pOpLHS
+  ((\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> oper <*> pPatApp)
   <|>
   ((,) <$> ident <*> many pAPat)
   <|>
-  ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> many pAPat)
-  where
-    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> oper <*> pPatApp
+  ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens (pEqnLHS ident oper) <*> many pAPat)
 
 pAlts :: P () -> P EAlts
 pAlts sep = do
