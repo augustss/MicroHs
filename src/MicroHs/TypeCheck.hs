@@ -2540,9 +2540,18 @@ tcLSect (EOper e ies) op = do
   e' <- tcOper e (ies ++ [(op, x)])
   case e' of
     EApp f x' | x' `eqExpr` x -> return f
-    _                         -> tcError loc "Bad section fixity"
-tcLSect e op =
-  return (EApp (EVar op) e)
+    _                         -> badSectionFixity loc
+tcLSect e op | greedyExpr e = badSectionFixity (getSLoc op)
+             | otherwise    = return (EApp (EVar op) e)
+
+-- These construct have a greedy parser and cannot be in a left section
+greedyExpr :: Expr -> Bool
+greedyExpr (ELam _ _) = True
+greedyExpr (ECase _ _) = True
+greedyExpr (ELet _ _) = True
+greedyExpr (EIf _ _ _) = True
+greedyExpr (EDo _ _) = True
+greedyExpr _ = False
 
 tcRSect :: Ident -> Expr -> T Expr
 tcRSect op (EOper e ies) = do
@@ -2551,10 +2560,13 @@ tcRSect op (EOper e ies) = do
   e' <- tcOper x ((op, e):ies)
   case e' of
     EApp (EApp _ x') _ | x `eqExpr` x' -> return (eLam [x] e')
-    _                                  -> tcError loc "Bad section fixity"
+    _                                  -> badSectionFixity loc
 tcRSect op e = do
   let x = eVarI (getSLoc op) "$x"
   return (eLam [x] (EApp (EApp (EVar op) x) e))
+
+badSectionFixity :: SLoc -> T a
+badSectionFixity loc = tcError loc "Bad section fixity"
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
