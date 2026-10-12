@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
+import Control.Exception
 import Control.Monad
 import Control.Applicative
 import qualified Data.ByteString.Char8 as BS
@@ -39,6 +40,33 @@ import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
+-- Catch compiler errors, print them nicely, and exit with failure.
+reportErrors :: IO () -> IO ()
+reportErrors io = catch io $ \ (ErrorCall msg) -> do
+  case parseErrorLoc msg of
+    Nothing -> hPutStrLn stderr $ "mhs: " ++ msg
+    Just (fn, l, c) -> do
+      hPutStrLn stderr msg
+      mls <- catch (Just . lines <$> readFile fn) (\ (_ :: SomeException) -> return Nothing)
+      case mls of
+        Just ls | l >= 1 && l <= length ls -> do
+          let src = ls !! (l - 1)
+              num = show l
+              pad = map (const ' ') num
+          hPutStrLn stderr $ pad ++ " |"
+          hPutStrLn stderr $ num ++ " | " ++ src
+          hPutStrLn stderr $ pad ++ " | " ++ replicate (c - 1) ' ' ++ "^"
+        _ -> return ()
+  exitWith (ExitFailure 1)
+
+-- Recognize a leading "file:line:col:" in an error message.
+parseErrorLoc :: String -> Maybe (FilePath, Int, Int)
+parseErrorLoc s =
+  case break (== ':') s of
+    (fn@(_:_), ':' : r1) | (ds1@(_:_), ':' : r2) <- span isDigit r1
+                         , (ds2@(_:_), ':' : _ ) <- span isDigit r2 -> Just (fn, readInt ds1, readInt ds2)
+    _ -> Nothing
+
 main :: IO ()
 main = do
   (mhsDir, srcs, mpkg) <- getPaths
@@ -66,7 +94,7 @@ main = do
         putStrLn $ "flags = " ++ show flags
       preload' <- mapM (findAPackage flags) (preload flags)
       let flags' = flags { preload = preload' }
-      withArgs rargs $
+      withArgs rargs $ reportErrors $
         case () of
           _ | Just p <- listPkg flags'        -> mainListPkg flags' p
           _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls

@@ -7118,6 +7118,8 @@ die_exn(NODEPTR exn)
   /* A horrible hack until we get proper exceptions */
   if (strcmp(msg, "ExitSuccess") == 0) {
     EXIT(0);
+  } else if (strncmp(msg, "ExitFailure ", 12) == 0) {
+    EXIT(atoi(msg + 12));
   } else {
     fprintf(stderr, "\n%s: uncaught exception: %s\n", progname, msg);
     EXIT(1);

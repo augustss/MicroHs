@@ -197,10 +197,10 @@ isDummyIdent (Ident _ s) = s == pack "_"
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
-  show fn ++ ": " ++
+  fn ++ ":" ++
     if l == 0  then "no location" else
     if l == -1 then "end-of-file" else
-    "line " ++ show l ++ ", col " ++ show c
+    show l ++ ":" ++ show c
 
 slocFile :: SLoc -> FilePath
 slocFile (SLoc f _ _) = f
