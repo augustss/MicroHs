@@ -43,21 +43,46 @@ import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 -- Catch compiler errors, print them nicely, and exit with failure.
 reportErrors :: IO () -> IO ()
 reportErrors io = catch io $ \ (ErrorCall msg) -> do
+  -- Colors when stderr is a terminal, unless NO_COLOR is set.
+  tty <- (/= 0) <$> c_isatty 2         -- hIsTerminalDevice is a stub in the library, ask libc directly
+  noColor <- lookupEnv "NO_COLOR"
+  let color = tty && isNothing noColor
+      sgr code str = if color then "\ESC[" ++ code ++ "m" ++ str ++ "\ESC[0m" else str
+      bold = sgr "1"
+      red  = sgr "1;31"
+      blue = sgr "34"
+      green = sgr "32"
+      -- "file:line:col: error: headline" with the parts highlighted
+      headline hd =
+        case breakErr hd of
+          Just (locS, rest) -> bold locS ++ " " ++ red "error:" ++ rest
+          Nothing           -> hd
+      breakErr hd | (locS, ' ' : 'e' : 'r' : 'r' : 'o' : 'r' : ':' : rest) <- break (== ' ') hd = Just (locS, rest)
+                  | otherwise = Nothing
+      detail ln | "    expected:" `isPrefixOf` ln = "    expected:" ++ green (drop 13 ln)
+                | "    actual:" `isPrefixOf` ln   = "    actual:" ++ red (drop 11 ln)
+                | otherwise = ln
   case parseErrorLoc msg of
     Nothing -> hPutStrLn stderr $ "mhs: " ++ msg
     Just (fn, l, c) -> do
-      hPutStrLn stderr msg
+      case lines msg of
+        [] -> return ()
+        (hd : rest) -> do
+          hPutStrLn stderr $ headline hd
+          mapM_ (hPutStrLn stderr . detail) rest
       mls <- catch (Just . lines <$> readFile fn) (\ (_ :: SomeException) -> return Nothing)
       case mls of
         Just ls | l >= 1 && l <= length ls -> do
           let src = ls !! (l - 1)
               num = show l
               pad = map (const ' ') num
-          hPutStrLn stderr $ pad ++ " |"
-          hPutStrLn stderr $ num ++ " | " ++ src
-          hPutStrLn stderr $ pad ++ " | " ++ replicate (c - 1) ' ' ++ "^"
+          hPutStrLn stderr $ blue (pad ++ " |")
+          hPutStrLn stderr $ blue (num ++ " | ") ++ src
+          hPutStrLn stderr $ blue (pad ++ " | ") ++ replicate (c - 1) ' ' ++ red "^"
         _ -> return ()
   exitWith (ExitFailure 1)
+
+foreign import ccall "isatty" c_isatty :: Int -> IO Int
 
 -- Recognize a leading "file:line:col:" in an error message.
 parseErrorLoc :: String -> Maybe (FilePath, Int, Int)
