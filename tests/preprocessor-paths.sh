@@ -43,7 +43,7 @@ EOF
     if "$inst/bin/mhs" "$@" "$inst/input files/CppLine.hs" "-o$work/result.comb" 2> "$work/error"; then
         echo 'expected CppLine.hs to fail to compile'; exit 1
     fi
-    grep -F "\"$inst/input files/CppLine.hs\": line 4, col 5" "$work/error" > /dev/null
+    grep -F "$inst/input files/CppLine.hs:4:5" "$work/error" > /dev/null
     # A bare #line directive keeps the current file name.
     cat > "$inst/input files/CppBareLine.hs" <<'EOF'
 {-# LANGUAGE CPP #-}
@@ -55,7 +55,7 @@ EOF
     if "$inst/bin/mhs" "$@" "$inst/input files/CppBareLine.hs" "-o$work/result.comb" 2> "$work/error"; then
         echo 'expected CppBareLine.hs to fail to compile'; exit 1
     fi
-    grep -F "\"$inst/input files/CppBareLine.hs\": line 7, col 5" "$work/error" > /dev/null
+    grep -F "$inst/input files/CppBareLine.hs:7:5" "$work/error" > /dev/null
 
     # Check the custom preprocessor's positional arguments, including an empty one.
     cat > "$inst/bin/preprocessor" <<'EOF'
@@ -97,6 +97,6 @@ EOF
     if "$inst/bin/mhs" "$@" "-i$inst/input files" HscLine "-o$work/result.comb" 2> "$work/error"; then
         echo 'expected HscLine.hsc to fail to compile'; exit 1
     fi
-    grep -F "\"$inst/input files/HscLine.hsc\": line 3, col 5" "$work/error" > /dev/null
+    grep -F "$inst/input files/HscLine.hsc:3:5" "$work/error" > /dev/null
 done
 echo 'Preprocessor path tests passed'
