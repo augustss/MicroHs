@@ -36,7 +36,7 @@ module MHSPrelude(
   module Text.Read,
   module Text.Show,
   first, second,
-  mhsError,
+  mhsError, MhsError(..),
   _usingMhs, _wordSize,
   _isWindows,
   appendDot,
@@ -93,9 +93,17 @@ import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import {-# SOURCE #-} Data.Typeable
 import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
+import Control.Exception(Exception, throw)
+
+-- Errors in the program being compiled, as opposed to bugs in the compiler.
+newtype MhsError = MhsError String
+  deriving (Typeable)
+instance Show MhsError where
+  show (MhsError s) = s
+instance Exception MhsError
 
 mhsError :: String -> a
-mhsError = errorWithoutStackTrace
+mhsError s = throw (MhsError s)
 
 -- So we can detect mhs vs ghc
 _usingMhs :: Bool

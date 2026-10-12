@@ -120,8 +120,8 @@ module E() where
 data T = C Maybe
 -----
 ../tmp/E.hs:3:12: error: kind mismatch
-    expected: a -> b
-    actual:   Type
+    expected: Type
+    actual:   Type -> Type
 
 =====
 module E() where
@@ -194,8 +194,8 @@ module E() where
 x = 0._0001
 -----
 ../tmp/E.hs:3:7: error: no instance for (HasField "_0001" Integer b)
-  in the expression: getField (Proxy :: Proxy "_0001") $x
-  in the expression: (\$x  -> getField (Proxy :: Proxy "_0001") $x)
+  in the expression: ._0001
+  in the expression: (._0001) 0
   in the definition of: x
 
 =====
@@ -326,7 +326,7 @@ s x = foldr (\a b -> a + b) 0 x
 ../tmp/E.hs:4:31: error: type mismatch
     expected: [Int]
     actual:   Int
-  in the expression: foldr ((\a b  -> a + b)) 0 x
+  in the expression: foldr (\a b -> a + b) 0 x
   in the definition of: s
 
 =====
@@ -460,7 +460,6 @@ f = (id :: Int -> Int)
     expected: Int
     actual:   a
   in the expression: id :: (Int -> Int)
-  in the expression: (id :: (Int -> Int))
   in the definition of: f
 
 =====
@@ -472,7 +471,7 @@ x = g (\y -> y + 1)
 ../tmp/E.hs:5:18: error: no instance for (Num a)
     arising from the literal: 1
   in the expression: y + 1
-  in the expression: (\y  -> y + 1)
+  in the expression: (\y -> y + 1)
   in the definition of: x
 
 =====
@@ -490,8 +489,8 @@ module E() where
 deriving instance Show
 -----
 ../tmp/E.hs:3:19: error: kind mismatch
-    expected: a -> b
-    actual:   Constraint
+    expected: Constraint
+    actual:   Type -> Constraint
 
 =====
 module E() where
@@ -577,7 +576,6 @@ f x = do { y <- Just x; return y }
 ../tmp/E.hs:4:12: error: type mismatch
     expected: Int
     actual:   Maybe Int
-  in the expression: Just x >>= (\$b ...
   in the expression: do ...
   in the definition of: f
 
@@ -620,7 +618,7 @@ x = (\ y -> y) True
 ../tmp/E.hs:4:16: error: type mismatch
     expected: Int
     actual:   Bool
-  in the expression: ((\y  -> y)) True
+  in the expression: (\y -> y) True
   in the definition of: x
 
 =====

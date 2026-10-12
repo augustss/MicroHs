@@ -847,26 +847,46 @@ tcErrorC loc msg = do
 -- Show the innermost interesting expressions and the enclosing definition.
 renderCtx :: [Ctx] -> String
 renderCtx ctx =
-  let es = take 2 $ nubBy (\ a b -> showExpr a == showExpr b) [ e | CtxExpr e <- ctx, interesting e ]
+  let es = take 2 $ nub [ showExprUser e' | CtxExpr e <- ctx, let e' = unParen e, interesting e', not (generated e') ]
       bs = take 1 [ i | CtxBind i <- ctx ]
       interesting (EVar _)   = False
       interesting (ELit _ _) = False
       interesting (ECon _)   = False
-      interesting (EParen e) = interesting e
       interesting _          = True
+      -- Code made by the compiler, e.g., from desugaring do or record dot, mentions
+      -- identifiers like $x and $b that the user never wrote.
+      generated e = any isGen (allVarsExpr e)
+      isGen i = let s = unIdent (unQualIdent i) in '$' `elem` s && any isAlpha s
       oneLine s =
         case lines s of
           [l] | length l <= 72 -> l
           (l:_)                -> take 72 l ++ " ..."
           []                   -> ""
-  in  concatMap (\ e -> "\n  in the expression: " ++ oneLine (showExprUser e)) es
+  in  concatMap (\ e -> "\n  in the expression: " ++ oneLine e) es
    ++ concatMap (\ i -> "\n  in the definition of: " ++ showIdent i) bs
 
+-- Remove the parentheses the user wrote around and inside an expression;
+-- the pretty printer adds the ones that are needed.  Only the parts that
+-- usually show up in error contexts are traversed.
+unParen :: Expr -> Expr
+unParen ae =
+  case ae of
+    EParen e       -> unParen e
+    EApp f a       -> EApp (unParen f) (unParen a)
+    EOper e ies    -> EOper (unParen e) [ (i, unParen x) | (i, x) <- ies ]
+    ETuple es      -> ETuple (map unParen es)
+    ESign e t      -> ESign (unParen e) (unParen t)
+    EIf c t e      -> EIf (unParen c) (unParen t) (unParen e)
+    ENegApp e      -> ENegApp (unParen e)
+    EListish (LList es) -> EListish (LList (map unParen es))
+    _              -> ae
+
 -- Show an expression the way the user wrote it: without the
--- internal literal markers (#1, %1, &1.0).
+-- internal literal markers (#1, %1, &1.0), and with single spaces.
 showExprUser :: Expr -> String
 showExprUser = strip . showExpr
   where
+    strip (' ' : ' ' : s) = strip (' ' : s)
     strip ('"' : s) = '"' : inStr s
     strip ('\'' : s) = '\'' : inChr s
     strip (m : d : s) | m `elem` "#%&" && isDigit d = d : strip s
@@ -3374,11 +3394,24 @@ subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
   (exp1', rho1) <- tInst exp1 arho1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 rho1 rho2 | Just (a2, r2) <- getArrow rho2 = do -- Rule FUN
-  (a1, r1) <- unArrow loc rho1
-  subsCheckFun loc exp1 a1 r1 a2 r2
+  rho1' <- derefUVar rho1
+  case rho1' of
+    -- Not an arrow, unify the whole types so a mismatch reports both.
+    EVar _   -> unify loc rho1' rho2 >> return exp1
+    EApp _ _ | Nothing <- getArrow rho1' -> unify loc rho1' rho2 >> return exp1
+    _ -> do
+      (a1, r1) <- unArrow loc rho1'
+      subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 rho1 rho2 | Just (a1, r1) <- getArrow rho1 = do -- Rule FUN
-  (a2,r2) <- unArrow loc rho2
-  subsCheckFun loc exp1 a1 r1 a2 r2
+  rho2' <- derefUVar rho2
+  case rho2' of
+    -- Not an arrow, unify the whole types so a mismatch reports both
+    -- (and in the right order, unArrow would treat rho2 as the actual type).
+    EVar _   -> unify loc rho1 rho2' >> return exp1
+    EApp _ _ | Nothing <- getArrow rho2' -> unify loc rho1 rho2' >> return exp1
+    _ -> do
+      (a2,r2) <- unArrow loc rho2'
+      subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 tau1 tau2 = do  -- Rule MONO
 --  tcTrace $ "subsCheckRho: MONO " ++ show (tau1, tau2)
   unify loc tau1 tau2 -- Revert to ordinary unification

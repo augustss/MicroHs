@@ -40,9 +40,10 @@ import System.IO.TimeMilli
 import System.IO.Transducers(addLZ77, addBase64)
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
--- Catch compiler errors, print them nicely, and exit with failure.
+-- Catch errors in the program being compiled, print them nicely, and exit with failure.
+-- Compiler bugs and exceptions from a program run with -r are not caught.
 reportErrors :: IO () -> IO ()
-reportErrors io = catch io $ \ (ErrorCall msg) -> do
+reportErrors io = catch io $ \ (MhsError msg) -> do
   -- Colors when stderr is a terminal, unless NO_COLOR is set.
   tty <- (/= 0) <$> c_isatty 2         -- hIsTerminalDevice is a stub in the library, ask libc directly
   noColor <- lookupEnv "NO_COLOR"
@@ -53,12 +54,10 @@ reportErrors io = catch io $ \ (ErrorCall msg) -> do
       blue = sgr "34"
       green = sgr "32"
       -- "file:line:col: error: headline" with the parts highlighted
-      headline hd =
-        case breakErr hd of
-          Just (locS, rest) -> bold locS ++ " " ++ red "error:" ++ rest
-          Nothing           -> hd
-      breakErr hd | (locS, ' ' : 'e' : 'r' : 'r' : 'o' : 'r' : ':' : rest) <- break (== ' ') hd = Just (locS, rest)
-                  | otherwise = Nothing
+      headline locS hd =
+        case stripPrefix locS hd of
+          Just (' ' : 'e' : 'r' : 'r' : 'o' : 'r' : ':' : rest) -> bold locS ++ " " ++ red "error:" ++ rest
+          _                                                    -> hd
       detail ln | "    expected:" `isPrefixOf` ln = "    expected:" ++ green (drop 13 ln)
                 | "    actual:" `isPrefixOf` ln   = "    actual:" ++ red (drop 11 ln)
                 | otherwise = ln
@@ -68,7 +67,7 @@ reportErrors io = catch io $ \ (ErrorCall msg) -> do
       case lines msg of
         [] -> return ()
         (hd : rest) -> do
-          hPutStrLn stderr $ headline hd
+          hPutStrLn stderr $ headline (fn ++ ":" ++ show l ++ ":" ++ show c ++ ":") hd
           mapM_ (hPutStrLn stderr . detail) rest
       mls <- catch (Just . lines <$> readFile fn) (\ (_ :: SomeException) -> return Nothing)
       case mls of
@@ -85,12 +84,14 @@ reportErrors io = catch io $ \ (ErrorCall msg) -> do
 foreign import ccall "isatty" c_isatty :: Int -> IO Int
 
 -- Recognize a leading "file:line:col:" in an error message.
+-- The file name may itself contain colons, e.g., C:\src\M.hs.
 parseErrorLoc :: String -> Maybe (FilePath, Int, Int)
-parseErrorLoc s =
-  case break (== ':') s of
-    (fn@(_:_), ':' : r1) | (ds1@(_:_), ':' : r2) <- span isDigit r1
-                         , (ds2@(_:_), ':' : _ ) <- span isDigit r2 -> Just (fn, readInt ds1, readInt ds2)
-    _ -> Nothing
+parseErrorLoc = go []
+  where
+    go acc@(_:_) (':' : r1) | (ds1@(_:_), ':' : r2) <- span isDigit r1
+                            , (ds2@(_:_), ':' : _ ) <- span isDigit r2 = Just (reverse acc, readInt ds1, readInt ds2)
+    go acc (c : r) | c /= '\n' = go (c : acc) r
+    go _ _ = Nothing
 
 main :: IO ()
 main = do
@@ -285,7 +286,7 @@ findSection :: Flags -> IO [(Key, Value)]
 findSection flags = do
   case lookup (target flags) (config flags) of
     Nothing ->
-      error $ "Cannot find config section: " ++ target flags ++ ", available=" ++ unwords (map fst (config flags))
+      mhsError $ "Cannot find config section: " ++ target flags ++ ", available=" ++ unwords (map fst (config flags))
     Just cs -> do
       when (verbosityGT flags 0) $
         putStrLn $ "Found target: " ++ show (target flags, cs)

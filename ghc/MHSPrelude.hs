@@ -74,9 +74,14 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
+-- Errors in the program being compiled, as opposed to bugs in the compiler.
+newtype MhsError = MhsError String
+instance Show MhsError where
+  show (MhsError s) = s
+instance Exception MhsError
+
 mhsError :: HasCallStack => String -> a
-mhsError = error
-           -- errorWithoutStackTrace
+mhsError s = throw (MhsError s)
 
 _usingMhs :: Bool
 _usingMhs = False
