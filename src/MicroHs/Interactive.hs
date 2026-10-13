@@ -7,7 +7,7 @@ import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
-import MicroHs.Error(mhsError)
+import MicroHs.Error(mhsError, errLoc, formatMhsError)
 import MicroHs.Exp(Exp(Var))
 import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
@@ -283,7 +283,7 @@ setOptions ('p':'a':'t':'h':'=':p) =
 setOptions ('p':'r':'o':'m':'p':'t':'=':p) =
   modify $ \ is -> is{ isPrompt = p }
 setOptions _ =
-  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH, prompt=STR"
+  putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, +color, -color, path=PATH, prompt=STR"
 
 reload :: I ()
 reload = do
@@ -336,28 +336,18 @@ mkTypeIt l =
   "type " ++ itTypeName ++ " = " ++ l ++ "\n"
 
 err :: SomeException -> I ()
-err e = do
-  let msg = displayException e
-  case parseError msg of
-    Just (f, l) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
-    Nothing -> return ()
-  err' msg
-
--- Try to find a file and line number
--- XXX We should have a special exception instead of parsing the message string.
-parseError :: String -> Maybe (FilePath, Int)
-parseError s =
-  case words s of
-    "error:" : ('"' : sfile) : "line" : sline : _ -> do
-      file <- stripSuffix "\":" sfile
-      line <- stripSuffix "," sline >>= readMaybe
-      Just (file, line)
-    _ -> Nothing
+err e =
+  case fromException e of
+    Just e' -> do
+      case errLoc e' of
+        Just loc@(SLoc f l _) | not (isNoSLoc loc) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
+        _ -> return ()
+      color <- gets isColor
+      err' $ formatMhsError color e'
+    _  -> err' =<< wrapColor 91 ("*** Exception: " ++ displayException e)
 
 err' :: String -> I ()
-err' s = do
-  s' <- wrapColor 91 ("*** Exception: " ++ s)
-  liftIO $ putStrLn s'
+err' s = liftIO $ putStrLn s
 
 wrapColor :: Int -> String -> I String
 wrapColor c s = do

@@ -2,7 +2,9 @@ module MicroHs.Error(
   MhsError(..),
   mhsError,
   mhsErrorLoc,
-  reportErrors
+  reportErrors,
+  formatMhsError,
+  errLoc,
   ) where
 import Control.Exception
 import Data.Maybe
