@@ -1108,20 +1108,22 @@ addAssocs adef = do
   let
     addAssoc ti is = do
       vt <- gets valueTable
-      let val i =
-            case stLookup "" i vt of
+      let val (i, lookupName) =
+            case stLookup "" lookupName vt of
               Right e -> [ValueExport i e]
               _       -> []  -- fields with existential type have no selector
       addAssocTable (qualIdent mn ti) (concatMap val is)
 
-    assocData (Constr _ _ c _ (Left _)) = [c]
-    assocData (Constr _ _ c _ (Right its)) = c : map fst its
+    assocData _ (Constr _ _ c _ (Left _)) = [(c, c)]
+    -- Keep the visible field name, but look up its owner-specific getter.
+    assocData ti (Constr _ _ c _ (Right its)) =
+      (c, c) : [ (f, mkGetName ti f) | (f, _) <- its ]
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
-                        -> addAssoc i (nub $ concatMap assocData cs)
-    Newtype (i, _) c  _ -> addAssoc i (assocData c)
-    Class _ (i, _) _ ms -> addAssoc i [ x | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+                        -> addAssoc i (nub $ concatMap (assocData i) cs)
+    Newtype (i, _) c  _ -> addAssoc i (assocData i c)
+    Class _ (i, _) _ ms -> addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table.
