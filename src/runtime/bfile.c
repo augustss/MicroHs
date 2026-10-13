@@ -115,6 +115,7 @@ typedef struct BFILE {
   void (*closeb)(struct BFILE*);
   size_t (*readb)(uint8_t *, size_t, struct BFILE*); /* optional block read */
   size_t (*writeb)(const uint8_t *, size_t, struct BFILE*); /* optional block write */
+  int (*isattyb)(struct BFILE*);                            /* optional tty test */
 } BFILE;
 
 static INLINE int
@@ -147,17 +148,14 @@ flushb(BFILE *p)
   p->flushb(p);
 }
 
+/* Is the BFILE connected to a terminal? */
 static INLINE int
 isattyb(BFILE *p)
 {
-  /* XXX needs a new method */
-  /* XXX for now, just check FD 2 */
-#if defined(_WIN32)
-  return 0;
-#else
-  extern int isatty(int);
-  return isatty(2);
-#endif
+  if (p->isattyb)
+    return p->isattyb(p);
+  else
+    return 0;                   /* no method, so not a terminal */
 }
 
 void
@@ -354,6 +352,7 @@ openb_rd_mem(const uint8_t *buf, size_t len)
   p->mets.closeb = closeb_rd_mem;
   p->mets.readb = readb_mem;
   p->mets.writeb = 0;
+  p->mets.isattyb = 0;
   p->bf.size = len;
   p->bf.pos = 0;
   p->bf.buf = (uint8_t *)buf;
@@ -373,6 +372,7 @@ openb_wr_mem(void)
   p->mets.closeb = closeb_wr_mem;
   p->mets.readb = 0;
   p->mets.writeb = writeb_mem;
+  p->mets.isattyb = 0;
   bfbuffer_init(&p->bf, 1000);
   return (struct BFILE*)p;
 }
@@ -395,6 +395,10 @@ get_mem(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
 
 #if WANT_STDIO
 /***************** BFILE via FILE *******************/
+#if defined(_WIN32)
+#include <io.h>                 /* for _isatty() */
+#endif
+
 struct BFILE_file {
   BFILE    mets;
   FILE    *file;
@@ -441,6 +445,18 @@ closeb_file(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
+#if defined(_WIN32)
+  return _isatty(_fileno(p->file));
+#else
+  return isatty(fileno(p->file));
+#endif
+}
+
 void
 freeb_file(BFILE *bp)
 {
@@ -478,6 +494,7 @@ add_FILE(FILE *f)
   p->mets.closeb = closeb_file;
   p->mets.readb  = readb_file;
   p->mets.writeb = writeb_file;
+  p->mets.isattyb = isattyb_file;
   p->file = f;
   return (BFILE*)p;
 }
@@ -541,6 +558,14 @@ closeb_fd(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  return isatty(p->fd);
+}
+
 void
 freeb_fd(BFILE *bp)
 {
@@ -578,6 +603,7 @@ add_fd(int fd)
   p->mets.closeb = closeb_fd;
   p->mets.readb  = readb_fd;
   p->mets.writeb = writeb_fd;
+  p->mets.isattyb = isattyb_fd;
   p->fd = fd;
   p->unget = -1;
   return (BFILE*)p;
@@ -659,6 +685,15 @@ closeb_lz77(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_lz77(BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  return isattyb(p->bfile);
+}
+
 size_t
 readb_lz77(uint8_t *buf, size_t size, BFILE *bp)
 {
@@ -692,6 +727,7 @@ add_lz77_decompressor(BFILE *file)
   p->mets.closeb = closeb_lz77;
   p->mets.readb = readb_lz77;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_lz77;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -728,6 +764,7 @@ add_lz77_compressor(BFILE *file)
   p->mets.closeb = closeb_lz77;
   p->mets.readb = 0;
   p->mets.writeb = writeb_lz77;
+  p->mets.isattyb = isattyb_lz77;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -868,6 +905,15 @@ closeb_rle(BFILE *bp)
   closeb(p->bfile);
 }
 
+int
+isattyb_rle(BFILE *bp)
+{
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+
+  return isattyb(p->bfile);
+}
+
 void
 flushb_rle(BFILE *bp)
 {
@@ -894,6 +940,7 @@ add_rle_decompressor(BFILE *file)
   p->mets.closeb = closeb_rle;
   p->mets.readb = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_rle;
   p->count = 0;
   p->unget = -1;
   p->bfile = file;
@@ -916,6 +963,7 @@ add_rle_compressor(BFILE *file)
   p->mets.closeb = closeb_rle;
   p->mets.readb = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_rle;
   p->count = 0;
   p->byte = -1;
   p->bfile = file;
@@ -976,6 +1024,15 @@ closeb_bwt(BFILE *bp)
     flushb(bp);
 
   closeb(p->bfile);
+}
+
+int
+isattyb_bwt(BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  return isattyb(p->bfile);
 }
 
 size_t
@@ -1134,6 +1191,7 @@ add_bwt_decompressor(BFILE *file)
   p->mets.closeb = closeb_bwt;
   p->mets.readb = readb_bwt;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_bwt;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -1172,6 +1230,7 @@ add_bwt_compressor(BFILE *file)
   p->mets.closeb = closeb_bwt;
   p->mets.readb = 0;
   p->mets.writeb = writeb_bwt;
+  p->mets.isattyb = isattyb_bwt;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -1316,6 +1375,15 @@ closeb_utf8(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_utf8(BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
+
+  return isattyb(p->bfile);
+}
+
 BFILE *
 add_utf8(BFILE *file)
 {
@@ -1330,6 +1398,7 @@ add_utf8(BFILE *file)
   p->mets.closeb = closeb_utf8;
   p->mets.readb = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_utf8;
   p->bfile = file;
   p->unget = -1;
 
@@ -1433,6 +1502,15 @@ closeb_buf(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_buf(BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  return isattyb(p->bfile);
+}
+
 /* bufsize==0 no buffering, bufsize<0 linebuffered, bufsize>0 regular */
 BFILE *
 add_buf(BFILE *file, int bufsize)
@@ -1448,6 +1526,7 @@ add_buf(BFILE *file, int bufsize)
   p->mets.closeb = closeb_buf;
   p->mets.readb = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_buf;
   p->bfile = file;
   p->unget = -1;
   p->pos = 0;
@@ -1533,6 +1612,15 @@ closeb_crlf(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  CHECKBFILE(bp, getb_crlf);
+
+  return isattyb(p->bfile);
+}
+
 BFILE *
 add_crlf(BFILE *file)
 {
@@ -1547,6 +1635,7 @@ add_crlf(BFILE *file)
   p->mets.closeb = closeb_crlf;
   p->mets.readb = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_crlf;
   p->bfile = file;
   return (BFILE*)p;
 }
@@ -1743,6 +1832,14 @@ closeb_b64(BFILE *bp) {
   FREE(p);
 }
 
+static int
+isattyb_b64(BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+
+  return isattyb(p->bfile);
+}
+
 BFILE *
 add_base64_encoder(BFILE *file) {
   struct BFILE_b64 *p = MALLOC(sizeof(struct BFILE_b64));
@@ -1756,6 +1853,7 @@ add_base64_encoder(BFILE *file) {
   p->mets.closeb = closeb_b64;
   p->mets.readb  = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_b64;
 
   p->bfile  = file;
   p->read   = 0;
@@ -1783,6 +1881,7 @@ add_base64_decoder(BFILE *file) {
   p->mets.closeb = closeb_b64;
   p->mets.readb  = 0;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_b64;
   p->bfile = file;
   p->read = 1;
   p->unget = -1;
@@ -1929,6 +2028,15 @@ closeb_lzma(BFILE *bp)
   FREE(p);
 }
 
+int
+isattyb_lzma(BFILE *bp)
+{
+  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
+  CHECKBFILE(bp, getb_lzma);
+
+  return isattyb(p->bfile);
+}
+
 /* ---- public constructors ---- */
 
 BFILE *
@@ -1946,6 +2054,7 @@ add_lzma_decompressor(BFILE *file)
   p->mets.closeb = closeb_lzma;
   p->mets.readb  = readb_lzma;
   p->mets.writeb = 0;
+  p->mets.isattyb = isattyb_lzma;
   p->read        = 1;
   p->bfile       = file;
   p->numflush    = 0;
@@ -2007,6 +2116,7 @@ add_lzma_compressor(BFILE *file)
   p->mets.closeb = closeb_lzma;
   p->mets.readb  = 0;
   p->mets.writeb = writeb_lzma;
+  p->mets.isattyb = isattyb_lzma;
   p->read        = 0;
   p->bfile       = file;
   p->numflush    = 0;
