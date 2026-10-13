@@ -863,7 +863,12 @@ renderCtx ctx =
           (l:_)                -> take 72 l ++ " ..."
           []                   -> ""
   in  concatMap (\ e -> "\n  in the expression: " ++ oneLine e) es
-   ++ concatMap (\ i -> "\n  in the definition of: " ++ showIdent i) bs
+   ++ concatMap (\ i -> "\n  in the " ++ showBind i) bs
+  where
+    -- Instance methods live in a binding called inst$Class@Type.
+    showBind i | (instPrefix ++ "$") `isPrefixOf` s = "instance: " ++ map (\ c -> if c == '@' then ' ' else c) (drop (length instPrefix + 1) s)
+               | otherwise = "definition of: " ++ s
+      where s = showIdent i
 
 -- Remove the parentheses the user wrote around and inside an expression;
 -- the pretty printer adds the ones that are needed.  Only the parts that

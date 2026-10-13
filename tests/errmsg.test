@@ -640,4 +640,15 @@ x = 'c'
   in the definition of: x
 
 =====
+module E() where
+data T = T
+instance Show T where
+  show _ = 1
+-----
+../tmp/E.hs:5:12: error: no instance for (Num String)
+    arising from the literal: 1
+  in the expression: (\_ -> 1)
+  in the instance: Text.Show.Show E.T
+
+=====
 END

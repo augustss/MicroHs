@@ -76,11 +76,22 @@ reportErrors io = catch io $ \ (MhsError msg) -> do
               pad = map (const ' ') num
           hPutStrLn stderr $ blue (pad ++ " |")
           hPutStrLn stderr $ blue (num ++ " | ") ++ src
-          hPutStrLn stderr $ blue (pad ++ " | ") ++ replicate (c - 1) ' ' ++ red "^"
+          hPutStrLn stderr $ blue (pad ++ " | ") ++ caretPad src c ++ red "^"
         _ -> return ()
   exitWith (ExitFailure 1)
 
 foreign import ccall "isatty" c_isatty :: Int -> IO Int
+
+-- Whitespace that puts the caret under column c of the source line.
+-- Tabs are kept, so they expand the same way as in the line above;
+-- the lexer counts a tab as advancing to the next multiple of 8.
+caretPad :: String -> Int -> String
+caretPad src c = go 1 src
+  where
+    go col _ | col >= c = ""
+    go col ('\t' : r) = '\t' : go (((col + 7) `quot` 8) * 8 + 1) r
+    go col (_ : r)    = ' ' : go (col + 1) r
+    go col []         = replicate (c - col) ' '
 
 -- Recognize a leading "file:line:col:" in an error message.
 -- The file name may itself contain colons, e.g., C:\src\M.hs.
