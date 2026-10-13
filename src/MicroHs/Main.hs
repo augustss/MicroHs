@@ -41,7 +41,6 @@ import System.IO.Transducers(addLZ77, addBase64)
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 -- Catch errors in the program being compiled, print them nicely, and exit with failure.
--- Compiler bugs and exceptions from a program run with -r are not caught.
 reportErrors :: IO () -> IO ()
 reportErrors io = catch io $ \ (MhsError msg) -> do
   -- Colors when stderr is a terminal, unless NO_COLOR is set.
