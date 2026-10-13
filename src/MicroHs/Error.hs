@@ -22,7 +22,7 @@ mhsError s = throw (MhsError s)
 reportErrors :: IO () -> IO ()
 reportErrors io = catch io $ \ (MhsError msg) -> do
   -- Colors when stderr is a terminal, unless NO_COLOR is set.
-  tty <- (/= 0) <$> c_isatty 2         -- hIsTerminalDevice is a stub in the library, ask libc directly
+  tty <- hIsTerminalDevice stderr
   noColor <- lookupEnv "NO_COLOR"
   let color = tty && isNothing noColor
       sgr code str = if color then "\ESC[" ++ code ++ "m" ++ str ++ "\ESC[0m" else str
@@ -57,8 +57,6 @@ reportErrors io = catch io $ \ (MhsError msg) -> do
           hPutStrLn stderr $ blue (pad ++ " | ") ++ caretPad src c ++ red "^"
         _ -> return ()
   exitWith (ExitFailure 1)
-
-foreign import ccall "isatty" c_isatty :: Int -> IO Int
 
 -- Whitespace that puts the caret under column c of the source line.
 -- Tabs are kept, so they expand the same way as in the line above;
