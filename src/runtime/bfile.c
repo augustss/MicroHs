@@ -151,8 +151,13 @@ static INLINE int
 isattyb(BFILE *p)
 {
   /* XXX needs a new method */
-  /* XXX for now, just return 1 */
-  return 1;
+  /* XXX for now, just check FD 2 */
+#if defined(_WIN32)
+  return 0;
+#else
+  extern int isatty(int);
+  return isatty(2);
+#endif
 }
 
 void
