@@ -859,25 +859,9 @@ renderCtx ctx =
                | otherwise = "definition of: " ++ s
       where s = showIdent i
 
--- Show an expression the way the user wrote it: without the
--- internal literal markers (#1, %1, &1.0), and with single spaces.
-showExprUser :: Expr -> String
-showExprUser = strip . showExpr
-  where
-    strip (' ' : ' ' : s) = strip (' ' : s)
-    strip ('"' : s) = '"' : inStr s
-    strip ('\'' : s) = '\'' : inChr s
-    strip (m : d : s) | m `elem` "#%&" && isDigit d = d : strip s
-    strip (c : s) = c : strip s
-    strip [] = []
-    inStr ('\\' : c : s) = '\\' : c : inStr s
-    inStr ('"' : s) = '"' : strip s
-    inStr (c : s) = c : inStr s
-    inStr [] = []
-    inChr ('\\' : c : s) = '\\' : c : inChr s
-    inChr ('\'' : s) = '\'' : strip s
-    inChr (c : s) = c : inChr s
-    inChr [] = []
+-- Show a literal the way the user wrote it, without the internal markers (#1, %1, &1.0).
+showLitUser :: Lit -> String
+showLitUser = dropWhile (`elem` "#%&") . showLit
 
 -- Show a type for the user, with String instead of [Char].
 showTypeUser :: EType -> String
@@ -4074,8 +4058,8 @@ checkConstraints = do
         EApp (EApp (EVar eq) a) e | eq == identTypeEq -> mismatchError (getSLoc i) ctx (a, e)
         _ -> do
           c <- head <$> niceTypes [t']
-          let arising = case [ e | CtxExpr e@(ELit _ _) <- ctx ] of
-                          (e:_) -> "\n    arising from the literal: " ++ showExprUser e
+          let arising = case [ l | CtxExpr (ELit _ l) <- ctx ] of
+                          (l:_) -> "\n    arising from the literal: " ++ showLitUser l
                           []    -> ""
           tcError (getSLoc i) $ "no instance for (" ++ showTypeUser c ++ ")" ++ arising ++ renderCtx ctx
 {-
