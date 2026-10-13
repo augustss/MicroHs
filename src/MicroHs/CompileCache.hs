@@ -9,6 +9,7 @@ module MicroHs.CompileCache(
   ) where
 import qualified Prelude(); import MHSPrelude
 import MicroHs.Desugar(LDef)
+import MicroHs.Error(mhsError)
 import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M

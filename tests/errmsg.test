@@ -1,6 +1,6 @@
 module M() awhere
 -----
-"../tmp/E.hs": line 2, col 12:
+../tmp/E.hs:2:12:
   found:    awhere
   expected: where
 
@@ -10,7 +10,7 @@ x :: Int
 x = 1 +
 y = 0
 -----
-"../tmp/E.hs": line 5, col 1:
+../tmp/E.hs:5:1:
   found:    ;
   expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
 
@@ -19,21 +19,23 @@ module E() where
 x :: Int
 x = y
 -----
-"../tmp/E.hs": line 4, col 5: undefined value: y
+../tmp/E.hs:4:5: error: undefined value: y
+  in the definition of: x
 
 =====
 module E() where
 x :: Int
 x = A
 -----
-"../tmp/E.hs": line 4, col 5: undefined value: A
+../tmp/E.hs:4:5: error: undefined value: A
+  in the definition of: x
 
 =====
 module E() where
 x :: T
 x = 1
 -----
-"../tmp/E.hs": line 3, col 6: undefined type: T
+../tmp/E.hs:3:6: error: undefined type: T
 
 =====
 module E() where
@@ -44,7 +46,7 @@ y = 2
 x :: Int
 x = 3
 -----
-"../tmp/E.hs": line 4, col 1: duplicate definition E.x
+../tmp/E.hs:4:1: error: duplicate definition E.x
 
 =====
 module E() where
@@ -53,33 +55,33 @@ data D (f :: Type -> Type) = D (f Int)
 x :: D T
 x = (0, 0)
 -----
-"../tmp/E.hs": line 5, col 8: bad synonym use: E.T in D T
+../tmp/E.hs:5:8: error: bad synonym use: E.T in D T
 
 =====
 module E(module M) where
 -----
-"../tmp/E.hs": line 2, col 17: undefined module: M
+../tmp/E.hs:2:17: error: undefined module: M
 
 =====
 module E(T) where
 -----
-"../tmp/E.hs": line 2, col 10: undefined export: T
+../tmp/E.hs:2:10: error: undefined export: T
 
 =====
 module E(T(..)) where
 -----
-"../tmp/E.hs": line 2, col 10: undefined export: T
+../tmp/E.hs:2:10: error: undefined export: T
 
 =====
 module E(x) where
 -----
-"../tmp/E.hs": line 2, col 10: undefined export: x
+../tmp/E.hs:2:10: error: undefined export: x
 
 =====
 module E(lookup) where
 import TestMap
 -----
-"../tmp/E.hs": line 2, col 10: ambiguous export: lookup [Data.List.lookup,TestMap.lookup]
+../tmp/E.hs:2:10: error: ambiguous export: lookup [Data.List.lookup,TestMap.lookup]
 
 =====
 module E() where
@@ -87,7 +89,8 @@ import TestMap
 a :: ()
 a = lookup
 -----
-"../tmp/E.hs": line 5, col 5: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
+../tmp/E.hs:5:5: error: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
+  in the definition of: a
 
 =====
 module E() where
@@ -100,26 +103,31 @@ infixr 5 ***
 x :: Int
 x = 1 +++ 2 *** 3
 -----
-"../tmp/E.hs": line 10, col 13: ambiguous operator expression
+../tmp/E.hs:10:13: error: ambiguous operator expression
 
 =====
 module E() where
 a :: Int
 a = 'a'
 -----
-"../tmp/E.hs": line 4, col 5: Cannot satisfy constraint: Char ~ Int
-     fully qualified: Primitives.~ Primitives.Char Primitives.Int
+../tmp/E.hs:4:5: error: type mismatch
+    expected: Int
+    actual:   Char
+  in the definition of: a
+
 =====
 module E() where
 data T = C Maybe
 -----
-"../tmp/E.hs": line 3, col 12: kind error: cannot unify Type and _a2 -> _a3
+../tmp/E.hs:3:12: error: kind mismatch
+    expected: Type
+    actual:   Type -> Type
 
 =====
 module E() where
 data T (a :: X) = T
 -----
-"../tmp/E.hs": line 3, col 14: undefined kind: X
+../tmp/E.hs:3:14: error: undefined kind: X
 
 =====
 module E() where
@@ -127,15 +135,17 @@ data T = forall a . C a
 x :: Int
 x = let { C a = C (1::Int) } in a
 -----
-"../tmp/E.hs": line 5, col 33: Cannot satisfy constraint: a ~ Int
-     fully qualified: Primitives.~ a Primitives.Int
+../tmp/E.hs:5:33: error: type mismatch
+    expected: Int
+    actual:   a
+  in the definition of: x
 
 =====
 module E() where
 class C a where { m :: a }
 instance C Int where { x = 1 }
 -----
-"../tmp/E.hs": line 4, col 24: superflous instance binding
+../tmp/E.hs:4:24: error: superflous instance binding
 
 =====
 module E() where
@@ -143,7 +153,7 @@ data T = C Int
 x = case undefined of
       C -> True
 -----
-"../tmp/E.hs": line 5, col 7: too few arguments
+../tmp/E.hs:5:7: error: too few arguments
 
 =====
 module E() where
@@ -151,80 +161,459 @@ data T = C Int
 x = case undefined of
       C _ _ -> True
 -----
-"../tmp/E.hs": line 5, col 7: too many arguments
+../tmp/E.hs:5:7: error: too many arguments
 
 =====
 module E() where
 x = 1000000_
 -----
-"../tmp/E.hs": line 3, col 12: _ cannot be used as a variable
+../tmp/E.hs:3:12: error: _ cannot be used as a variable
 
 =====
 module E() where
 x = _1000000
 -----
-"../tmp/E.hs": line 3, col 5: undefined value: _1000000
+../tmp/E.hs:3:5: error: undefined value: _1000000
 
 =====
 module E() where
 x = _0.0001
 -----
-"../tmp/E.hs": line 3, col 5: undefined value: _0
+../tmp/E.hs:3:5: error: undefined value: _0
 
 =====
 module E() where
 x = 0_.0001
 -----
-"../tmp/E.hs": line 3, col 6: _ cannot be used as a variable
+../tmp/E.hs:3:6: error: _ cannot be used as a variable
 
 =====
 module E() where
 x = 0._0001
 -----
-"../tmp/E.hs": line 3, col 7: Cannot satisfy constraint: HasField "_0001" Integer b
-     fully qualified: Data.Records.HasField "_0001" Data.Integer_Type.Integer b
+../tmp/E.hs:3:7: error: no instance for (HasField "_0001" Integer b)
+  in the definition of: x
 
 =====
 module E() where
 x = 0.0001_
 -----
-"../tmp/E.hs": line 3, col 11: _ cannot be used as a variable
+../tmp/E.hs:3:11: error: _ cannot be used as a variable
 
 =====
 module E() where
 x = 1e_+23
 -----
-"../tmp/E.hs": line 3, col 6: undefined value: e_
+../tmp/E.hs:3:6: error: undefined value: e_
 
 =====
 module E() where
 x = 1e+_23
 -----
-"../tmp/E.hs": line 3, col 6: undefined value: e
+../tmp/E.hs:3:6: error: undefined value: e
 
 =====
 module E() where
 x = 1e_23
 -----
-"../tmp/E.hs": line 3, col 6: undefined value: e_23
+../tmp/E.hs:3:6: error: undefined value: e_23
 
 =====
 module E() where
 x = 1e23_
 -----
-"../tmp/E.hs": line 3, col 9: _ cannot be used as a variable
+../tmp/E.hs:3:9: error: _ cannot be used as a variable
 
 =====
 module E() where
 x = _0xffff
 -----
-"../tmp/E.hs": line 3, col 5: undefined value: _0xffff
+../tmp/E.hs:3:5: error: undefined value: _0xffff
 
 =====
 module E() where
 x = 0xffff_
 -----
-"../tmp/E.hs": line 3, col 11: _ cannot be used as a variable
+../tmp/E.hs:3:11: error: _ cannot be used as a variable
+
+=====
+module E() where
+f :: Int -> String
+f x = x + 1
+-----
+../tmp/E.hs:4:7: error: type mismatch
+    expected: String
+    actual:   Int
+  in the definition of: f
+
+=====
+module E() where
+g :: [Int] -> Int
+g xs = length xs ++ "a"
+-----
+../tmp/E.hs:4:18: error: type mismatch
+    expected: Int
+    actual:   [a]
+  in the definition of: g
+
+=====
+module E() where
+h :: Int -> Int
+h x = if x then 1 else 2
+-----
+../tmp/E.hs:4:10: error: type mismatch
+    expected: Bool
+    actual:   Int
+  in the definition of: h
+
+=====
+module E() where
+k :: Int -> Bool
+k x = x == "foo"
+-----
+../tmp/E.hs:4:12: error: no instance for (IsString Int)
+    arising from the literal: "foo"
+  in the definition of: k
+
+=====
+module E() where
+p :: Maybe Int -> Int
+p (Just x) = x + y
+-----
+../tmp/E.hs:4:18: error: undefined value: y
+  in the definition of: p
+
+=====
+module E() where
+q :: Int -> Int
+q x = show x
+-----
+../tmp/E.hs:4:7: error: type mismatch
+    expected: Int
+    actual:   String
+  in the definition of: q
+
+=====
+module E() where
+r :: (Int, Bool) -> Int
+r (a, b, c) = a
+-----
+../tmp/E.hs:4:4: error: type mismatch
+    expected: (Int, Bool)
+    actual:   (a, b, c)
+  in the definition of: r
+
+=====
+module E() where
+s :: Int -> Int
+s x = foldr (\a b -> a + b) 0 x
+-----
+../tmp/E.hs:4:31: error: type mismatch
+    expected: [Int]
+    actual:   Int
+  in the definition of: s
+
+=====
+module E() where
+u :: a -> [a]
+u x = x : x
+-----
+../tmp/E.hs:4:11: error: type mismatch
+    expected: [a]
+    actual:   a
+  in the definition of: u
+
+=====
+module E() where
+data T = T deriving Functor
+-----
+../tmp/E.hs:3:21: error: Bad deriving
+
+=====
+module E() where
+class C a where { m = 1 }
+-----
+../tmp/E.hs:3:19: error: missing method signature: m
+
+=====
+module E() where
+instance Int Bool
+-----
+../tmp/E.hs:3:10: error: kind mismatch
+    expected: a -> b
+    actual:   Type
+
+=====
+module E() where
+class C a where { m :: a }
+instance C Int where { n = 2 }
+-----
+../tmp/E.hs:4:24: error: superflous instance binding
+
+=====
+module E() where
+pattern P x = Q x
+pattern Q x = P x
+-----
+../tmp/E.hs:3:9: error: Cannot infer recursive pattern synonym types
+
+=====
+module E() where
+x = _
+-----
+../tmp/E.hs:3:5: error: _ cannot be used as a variable
+
+=====
+module E() where
+x = do { y <- return 1 }
+-----
+../tmp/E.hs:3:10: error: bad final do statement
+
+=====
+module E() where
+x = 1 @Int
+-----
+../tmp/E.hs:3:8: error: Bad type application
+
+=====
+module E() where
+data R = R { a :: Int }
+x = id {..}
+-----
+../tmp/E.hs:4:5: error: record wildcard not allowed
+
+=====
+module E() where
+data R = R { a :: Int }
+x = R { a.b = 1 }
+-----
+../tmp/E.hs:4:9: error: Nested fields not allowed
+
+=====
+module E() where
+data R = R { a :: Int }
+x = R { b = 1 }
+-----
+../tmp/E.hs:4:9: error: extra field(s) b
+
+=====
+module E() where
+x = (1 + 2 *)
+-----
+../tmp/E.hs:3:12: error: Bad section fixity
+
+=====
+module E() where
+f :: forall a -> Int -> Int
+f (Just a) x = x
+-----
+../tmp/E.hs:4:4: error: Bad required type argument
+
+=====
+module E() where
+f :: (forall a . a -> a) -> Int
+f g = g 1
+x :: (Int -> Int) -> Int
+x = f
+-----
+../tmp/E.hs:6:5: error: type mismatch
+    expected: Int
+    actual:   a
+  in the definition of: x
+
+=====
+module E() where
+f (Just) = 1
+-----
+../tmp/E.hs:3:4: error: too few arguments
+
+=====
+module E() where
+f (Just 1 2) = 1
+-----
+../tmp/E.hs:3:4: error: too many arguments
+
+=====
+module E() where
+f :: forall a . a -> a
+f = (id :: Int -> Int)
+-----
+../tmp/E.hs:4:6: error: type mismatch
+    expected: Int
+    actual:   a
+  in the definition of: f
+
+=====
+module E() where
+g :: (forall a . a -> a) -> Int
+g h = h 1
+x = g (\y -> y + 1)
+-----
+../tmp/E.hs:5:18: error: no instance for (Num a)
+    arising from the literal: 1
+  in the definition of: x
+
+=====
+module E() where
+class C a where { m :: a -> Int }
+instance C a => C (a, Int) where { m _ = 1 }
+instance C (Int, b) where { m _ = 2 }
+instance C Int where { m _ = 3 }
+x = m (1::Int, 2::Int)
+-----
+../tmp/E.hs:7:5: error: Multiple constraint solutions for: C (Int, Int)
+
+=====
+module E() where
+deriving instance Show
+-----
+../tmp/E.hs:3:19: error: kind mismatch
+    expected: Constraint
+    actual:   Type -> Constraint
+
+=====
+module E() where
+type T = Int
+deriving instance Show T
+-----
+../tmp/E.hs:4:19: error: not data/newtype E.T
+
+=====
+module E() where
+f x = x x
+-----
+../tmp/E.hs:3:9: error: occurs check: cannot construct the infinite type: a ~ a -> b
+
+=====
+module E() where
+x = show id
+-----
+../tmp/E.hs:3:5: error: no instance for (Show (a -> a))
+  in the definition of: x
+
+=====
+module E() where
+x :: Int
+x = let y = 1 in y y
+-----
+../tmp/E.hs:4:20: error: occurs check: cannot construct the infinite type: a ~ a -> b
+  in the definition of: x
+
+=====
+module E() where
+f :: Int -> Int
+f x = case x of { True -> 1; _ -> 2 }
+-----
+../tmp/E.hs:4:19: error: type mismatch
+    expected: Bool
+    actual:   Int
+  in the definition of: f
+
+=====
+module E() where
+f :: Int -> Bool
+f x = x > 1 && x
+-----
+../tmp/E.hs:4:16: error: type mismatch
+    expected: Bool
+    actual:   Int
+  in the definition of: f
+
+=====
+module E() where
+f :: Maybe (Int, [Bool]) -> Int
+f m = fst m
+-----
+../tmp/E.hs:4:11: error: type mismatch
+    expected: (Int, a)
+    actual:   Maybe (Int, [Bool])
+  in the definition of: f
+
+=====
+module E() where
+f :: [Int] -> Int
+f xs = [ x | x <- xs ]
+-----
+../tmp/E.hs:4:10: error: type mismatch
+    expected: Int
+    actual:   [Int]
+  in the definition of: f
+
+=====
+module E() where
+f :: Int -> Int
+f x = do { y <- Just x; return y }
+-----
+../tmp/E.hs:4:12: error: type mismatch
+    expected: Int
+    actual:   Maybe Int
+  in the definition of: f
+
+=====
+module E() where
+f x = x + "a" + 'b'
+-----
+../tmp/E.hs:3:11: error: no instance for (IsString Char)
+    arising from the literal: "a"
+  in the definition of: f
+
+=====
+module E() where
+f :: Int -> Int
+f x = g x where g y = y ++ y
+-----
+../tmp/E.hs:4:7: error: type mismatch
+    expected: Int
+    actual:   [a]
+  in the definition of: f
+
+=====
+module E() where
+f :: Int -> Int
+f x | x = 1
+-----
+../tmp/E.hs:4:7: error: type mismatch
+    expected: Bool
+    actual:   Int
+  in the definition of: f
+
+=====
+module E() where
+x :: Int
+x = (\ y -> y) True
+-----
+../tmp/E.hs:4:16: error: type mismatch
+    expected: Int
+    actual:   Bool
+  in the definition of: x
+
+=====
+module E() where
+data T = C Int
+f :: T -> Int
+f (C x y) = x
+-----
+../tmp/E.hs:5:4: error: too many arguments
+
+=====
+module E() where
+x :: Int
+x = 'c'
+-----
+../tmp/E.hs:4:5: error: type mismatch
+    expected: Int
+    actual:   Char
+  in the definition of: x
+
+=====
+module E() where
+data T = T
+instance Show T where
+  show _ = 1
+-----
+../tmp/E.hs:5:12: error: no instance for (Num String)
+    arising from the literal: 1
+  in the instance: Text.Show.Show E.T
 
 =====
 END

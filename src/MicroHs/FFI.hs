@@ -3,6 +3,7 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import MicroHs.Desugar(LDef)
+import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Flags

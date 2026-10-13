@@ -145,6 +145,12 @@ instance NFData ClassInfo where
 
 -----------------------------------------------
 -- TCState
+-- Where we are while type checking, for error messages.
+data Ctx
+  = CtxExpr Expr             -- checking this literal
+  | CtxBind Ident            -- in the definition of this identifier
+  deriving (Show)
+
 data TCState = TC {
   moduleName  :: IdentModule,           -- current module name
   unique      :: Int,                   -- unique number
@@ -163,7 +169,9 @@ data TCState = TC {
                   ArgDicts              -- dictionary arguments
                  ),
   constraints :: Constraints,           -- constraints that have to be solved
-  defaults    :: Defaults               -- current defaults
+  defaults    :: Defaults,              -- current defaults
+  errCtx      :: [Ctx],                 -- context stack for error messages, innermost first
+  cxOrigin    :: IM.IntMap [Ctx]        -- context in which each constraint arose, by dictionary unique
   }
   deriving (Show)
 

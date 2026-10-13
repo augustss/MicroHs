@@ -74,10 +74,6 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
-mhsError :: HasCallStack => String -> a
-mhsError = error
-           -- errorWithoutStackTrace
-
 _usingMhs :: Bool
 _usingMhs = False
 

@@ -82,7 +82,7 @@ parse s = p [] [] s
     lit :: (String -> Literal) -> [(Ident, Exp)] -> [Exp] -> String -> Prog
     lit con defs stk s =
       case tok s of (sn, r) -> p defs (Lit (con sn) : stk) r
-    tok = span (not . isSpace)
+    tok = break isSpace
 
 getByteString :: String -> (ByteString, String)
 getByteString = get []

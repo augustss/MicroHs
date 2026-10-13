@@ -36,7 +36,6 @@ module MHSPrelude(
   module Text.Read,
   module Text.Show,
   first, second,
-  mhsError,
   _usingMhs, _wordSize,
   _isWindows,
   appendDot,
@@ -93,9 +92,7 @@ import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import {-# SOURCE #-} Data.Typeable
 import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
-
-mhsError :: String -> a
-mhsError = errorWithoutStackTrace
+import Control.Exception(Exception, throw)
 
 -- So we can detect mhs vs ghc
 _usingMhs :: Bool

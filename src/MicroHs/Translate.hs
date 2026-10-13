@@ -17,6 +17,7 @@ import Unsafe.Coerce
 
 import PrimTable
 import MicroHs.Desugar(LDef, encodeInteger)
+import MicroHs.Error(mhsError)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.ExpPrint(toStringCMdl, renumberCMdlM)

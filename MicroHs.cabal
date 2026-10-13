@@ -74,6 +74,7 @@ executable mhs
                        MicroHs.Desugar
                        MicroHs.EncodeData
                        MicroHs.Embed
+                       MicroHs.Error
                        MicroHs.Exp
                        MicroHs.ExpPrint
                        MicroHs.Expr

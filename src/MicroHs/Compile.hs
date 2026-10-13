@@ -37,6 +37,7 @@ import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
 import qualified MicroHs.Embed as Embed
+import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Flags
@@ -596,7 +597,7 @@ unlit fn = unlines . un 1 True . lines
     code n (l : ls) = l : code (n+1) ls
     code n [] = err n "unlit: missing \\end{code}"
     err :: Int -> String -> a
-    err n s = error $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s
+    err n s = mhsError $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s
 
 ---------------
 

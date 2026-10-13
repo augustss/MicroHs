@@ -6,6 +6,7 @@ import Data.Function
 import Data.List
 import Data.Maybe(fromMaybe)
 import MicroHs.Builtin
+import MicroHs.Error(mhsError)
 import MicroHs.Expr
 import MicroHs.Fixity(defaultFixity)
 import MicroHs.Ident

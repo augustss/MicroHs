@@ -7,6 +7,7 @@ import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
+import MicroHs.Error(mhsError)
 import MicroHs.Exp(Exp(Var))
 import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags

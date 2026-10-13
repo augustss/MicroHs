@@ -7,6 +7,7 @@ import qualified MicroHs.IdentMap as M
 import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
+import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
 import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)

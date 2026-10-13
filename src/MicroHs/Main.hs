@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
+import Control.Exception
 import Control.Monad
 import Control.Applicative
 import qualified Data.ByteString.Char8 as BS
@@ -15,6 +16,7 @@ import MicroHs.CompileCache
 import MicroHs.Config
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
+import MicroHs.Error
 import MicroHs.Exp(Exp(Var, Lit))
 import MicroHs.Expr(Lit(LInt, LForImp, LBStr))
 import MicroHs.ExpPrint
@@ -66,7 +68,7 @@ main = do
         putStrLn $ "flags = " ++ show flags
       preload' <- mapM (findAPackage flags) (preload flags)
       let flags' = flags { preload = preload' }
-      withArgs rargs $
+      withArgs rargs $ reportErrors $
         case () of
           _ | Just p <- listPkg flags'        -> mainListPkg flags' p
           _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
@@ -232,7 +234,7 @@ findSection :: Flags -> IO [(Key, Value)]
 findSection flags = do
   case lookup (target flags) (config flags) of
     Nothing ->
-      error $ "Cannot find config section: " ++ target flags ++ ", available=" ++ unwords (map fst (config flags))
+      mhsError $ "Cannot find config section: " ++ target flags ++ ", available=" ++ unwords (map fst (config flags))
     Just cs -> do
       when (verbosityGT flags 0) $
         putStrLn $ "Found target: " ++ show (target flags, cs)

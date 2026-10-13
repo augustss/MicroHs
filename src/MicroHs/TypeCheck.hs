@@ -35,6 +35,7 @@ import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
 import MicroHs.Names
+import MicroHs.Lex(readInt)
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
@@ -331,7 +332,9 @@ mkTCState mdlName globs mdls =
           classTable = gClassTable globs,
           ctxTables = (gInstInfo globs, [], [], []),
           constraints = [],
-          defaults = dflts
+          defaults = dflts,
+          errCtx = [],
+          cxOrigin = IM.empty
         }
 
 mergeDefaults :: Defaults -> Defaults -> Defaults
@@ -439,7 +442,11 @@ newDict loc ctx = do
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts }
+  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts, cxOrigin = IM.insert (identUniq d) (errCtx ts) (cxOrigin ts) }
+
+-- The unique number at the end of a generated identifier, e.g. 123 for dict$123.
+identUniq :: Ident -> Int
+identUniq = readInt . reverse . takeWhile isDigit . reverse . unIdent
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -627,7 +634,7 @@ getUVar i = gets (IM.lookup i . uvarSubst)
 munify :: HasCallStack =>
           SLoc -> Expected -> EType -> T ()
 munify loc (Infer r) b = tSetRefType loc r b
-munify loc (Check a) b = unify loc a b
+munify loc (Check a) b = unify loc b a
 
 -- Expand type synonyms, but keep location info
 expandSynLoc :: EType -> T EType
@@ -743,40 +750,68 @@ msgTCMode' TCType = "kind"
 msgTCMode' TCKind = "sort"
 msgTCMode' TCSort = "realm"
 
+-- The convention is  unify loc actual expected.
+-- The original pair is carried along so that a mismatch deep inside
+-- a type is reported in terms of the whole types.
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
-unify loc a b = unifyR loc a b
+unify loc a b = unifyR loc (a, b) a b
+
+type Orig = (EType, EType)   -- (actual, expected) as given to unify
 
 unifyR :: HasCallStack =>
-          SLoc -> EType -> EType -> T ()
-unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = return ()
-unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unifyR loc a1 a2 }
-unifyR loc t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc r2 t1   -- always make higher
-                                       | r1 > r2   = unifyVar loc r1 t2   --   TRefs point to lower
-                                       | otherwise = return ()
-unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
-unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
-unifyR loc t1           t2                         = do
+          SLoc -> Orig -> EType -> EType -> T ()
+unifyR _   _ (EVar x1)    (EVar x2)      | x1 == x2  = return ()
+unifyR loc o (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc o f1 f2; unifyR loc o a1 a2 }
+unifyR loc o t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc o r2 t1   -- always make higher
+                                         | r1 > r2   = unifyVar loc o r1 t2   --   TRefs point to lower
+                                         | otherwise = return ()
+unifyR loc o (EUVar r1)   t2                         = unifyVar loc o r1 t2
+unifyR loc o t1           (EUVar r2)                 = unifyVar loc o r2 t1
+unifyR loc o t1           t2                         = do
   tcm <- gets tcMode
+  eqs <- gets typeEqTable
   case tcm of
-    -- Defer to constraint solver.
+    -- Defer to constraint solver, unless this is a definite mismatch
+    -- that no given equality could resolve.
     -- XXX needs changing if we have kind equalities.
-    TCExpr -> addEqConstraint loc t1 t2
-    _      -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+    TCExpr | not (null eqs) || not (rigidClash t1 t2) -> addEqConstraint loc t1 t2
+    _ -> do
+      ctx <- gets errCtx
+      mismatchError loc ctx o
+
+-- Two types with different rigid heads (or arities) can never unify.
+rigidClash :: EType -> EType -> Bool
+rigidClash t1 t2 =
+  case (splitApp t1, splitApp t2) of
+    ((EVar c1, as1), (EVar c2, as2)) -> c1 /= c2 || length as1 /= length as2
+    _                                -> False
+  where splitApp = go []
+          where go as (EApp f a) = go (a:as) f
+                go as f          = (f, as)
+
+mismatchError :: HasCallStack => SLoc -> [Ctx] -> Orig -> T a
+mismatchError loc ctx (actual, expected) = do
+  tcm <- gets tcMode
+  (a, e) <- niceTypes2 actual expected
+  tcError loc $ msgTCMode' tcm ++ " mismatch" ++
+    "\n    expected: " ++ showTypeUser e ++
+    "\n    actual:   " ++ showTypeUser a ++
+    renderCtx ctx
 
 unifyVar :: HasCallStack =>
-            SLoc -> TRef -> EType -> T ()
-unifyVar loc r t = do
+            SLoc -> Orig -> TRef -> EType -> T ()
+unifyVar loc o r t = do
   mt <- getUVar r
 --  tcTrace $ "unifyVar: " ++ show (r,t)
   case mt of
-    Nothing -> unifyUnboundVar loc r t
-    Just t' -> unify loc t' t
+    Nothing -> unifyUnboundVar loc o r t
+    Just t' -> unifyR loc o t' t
 
 -- Unify an unbount tyvar r1 with the type at2
 unifyUnboundVar :: HasCallStack =>
-                   SLoc -> TRef -> EType -> T ()
-unifyUnboundVar loc r1 at2@(EUVar r2) = do
+                   SLoc -> Orig -> TRef -> EType -> T ()
+unifyUnboundVar loc o r1 at2@(EUVar r2) = do
   -- We know r1 /= r2
   mt2 <- getUVar r2
   case mt2 of
@@ -787,17 +822,88 @@ unifyUnboundVar loc r1 at2@(EUVar r2) = do
         setUVar r1 at2
       else
         setUVar r2 (EUVar r1)
-    Just t2 -> unify loc (EUVar r1) t2
-unifyUnboundVar loc r1 t2 = do
+    Just t2 -> unifyR loc o (EUVar r1) t2
+unifyUnboundVar loc _ r1 t2 = do
   vs <- getMetaTyVars [t2]
-  if r1 `elem` vs then
-    tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
+  if r1 `elem` vs then do
+    (a, b) <- niceTypes2 (EUVar r1) t2
+    tcErrorC loc $ "occurs check: cannot construct the infinite type: " ++ showTypeUser a ++ " ~ " ++ showTypeUser b
    else
     setUVar r1 t2
 
+-----------------------------------------
+-- Error message support
+
+-- Run with an extra entry on the context stack.
+withCtx :: Ctx -> T a -> T a
+withCtx c ta = do
+  old <- gets errCtx
+  modify $ \ ts -> ts{ errCtx = c : old }
+  a <- ta
+  modify $ \ ts -> ts{ errCtx = old }
+  return a
+
+-- Error with the current context appended.
+tcErrorC :: HasCallStack => SLoc -> String -> T a
+tcErrorC loc msg = do
+  ctx <- gets errCtx
+  tcError loc $ msg ++ renderCtx ctx
+
+-- Show the enclosing definition.
+renderCtx :: [Ctx] -> String
+renderCtx ctx =
+  concatMap (\ i -> "\n  in the " ++ showBind i) (take 1 [ i | CtxBind i <- ctx ])
+  where
+    -- Instance methods live in a binding called inst$Class@Type.
+    showBind i | (instPrefix ++ "$") `isPrefixOf` s = "instance: " ++ map (\ c -> if c == '@' then ' ' else c) (drop (length instPrefix + 1) s)
+               | otherwise = "definition of: " ++ s
+      where s = showIdent i
+
+-- Show a literal the way the user wrote it, without the internal markers (#1, %1, &1.0).
+showLitUser :: Lit -> String
+showLitUser = dropWhile (`elem` "#%&") . showLit
+
+-- Show a type for the user, with String instead of [Char].
+showTypeUser :: EType -> String
+showTypeUser = sub . showEType
+  where
+    sub s | "[Char]" `isPrefixOf` s = "String" ++ sub (drop 6 s)
+    sub ('#' : s) | (_:_, r) <- span isDigit s = sub r    -- drop skolem uniques, a#12 shows as a
+    sub (c : s) = c : sub s
+    sub [] = []
+
+-- Dereference and give unification variables readable names.
+niceTypes :: [EType] -> T [EType]
+niceTypes ts = do
+  ts' <- mapM derefUVar ts
+  let vs = nub (concatMap uvarsOf ts')
+      used = concatMap allVarsExpr ts'
+      names = [ n | n <- map (:[]) ['a'..'z'] ++ [ 't' : show k | k <- [1::Int ..] ], mkIdent n `notElem` used ]
+      sub = zip vs names
+      go (EUVar i) | Just n <- lookup i sub = EVar (mkIdent n)
+      go (EApp f a) = EApp (go f) (go a)
+      go (EForall b iks t) = EForall b iks (go t)
+      go (ESign t k) = ESign (go t) k
+      go t = t
+  return (map go ts')
+
+niceTypes2 :: EType -> EType -> T (EType, EType)
+niceTypes2 a b = do
+  ts <- niceTypes [a, b]
+  case ts of
+    [a', b'] -> return (a', b')
+    _        -> impossible
+
+uvarsOf :: EType -> [Int]
+uvarsOf (EUVar i) = [i]
+uvarsOf (EApp f a) = uvarsOf f ++ uvarsOf a
+uvarsOf (EForall _ _ t) = uvarsOf t
+uvarsOf (ESign t _) = uvarsOf t
+uvarsOf _ = []
+
 -- Reset unification map
 tcReset :: T ()
-tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty }
+tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty, cxOrigin = IM.empty }
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -813,15 +919,7 @@ tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> return (setSLocExpr (getSLoc i) e, s)
-    Left            e -> do
-{-
-      tcm <- gets tcMode
-      tcTrace ("TCMode=" ++ show tcm)
-      tcTrace ("Value table:\n" ++ show env)
-      tenv <- gets typeTable
-      tcTrace ("Type table:\n" ++ show tenv)
--}
-      tcError (getSLoc i) e
+    Left            e -> tcErrorC (getSLoc i) e
 
 tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)
@@ -1673,7 +1771,7 @@ tcDefValue :: HasCallStack =>
 tcDefValue adef =
   assertTCMode (==TCExpr) $
   case adef of
-    Fcn i eqns -> do
+    Fcn i eqns -> withCtx (CtxBind i) $ do
       (_, t) <- tLookup "type signature" i
 --      when (isConIdent i) $ do
 --        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t
@@ -1853,7 +1951,11 @@ tGetExpType (Infer r) = tGetRefType r
 
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
-tcExpr mt ae = tcExprR mt ae {-do
+tcExpr mt ae =
+  case ae of
+    -- Only literals are needed in the context, for "arising from the literal".
+    ELit _ _ -> withCtx (CtxExpr ae) $ tcExprR mt ae
+    _        -> tcExprR mt ae {-do
   tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
   tcTrace ("tcExpr exit: " ++ showExpr r)
@@ -3098,7 +3200,7 @@ withFixes fixs ta = do
 tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
-    Fcn i eqns -> do
+    Fcn i eqns -> withCtx (CtxBind i) $ do
       (_, tt) <- tLookupV i
       teqns <- tcEqns False tt eqns
       return $ Fcn i teqns
@@ -3258,11 +3360,24 @@ subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
   (exp1', rho1) <- tInst exp1 arho1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 rho1 rho2 | Just (a2, r2) <- getArrow rho2 = do -- Rule FUN
-  (a1, r1) <- unArrow loc rho1
-  subsCheckFun loc exp1 a1 r1 a2 r2
+  rho1' <- derefUVar rho1
+  case rho1' of
+    -- Not an arrow, unify the whole types so a mismatch reports both.
+    EVar _   -> unify loc rho1' rho2 >> return exp1
+    EApp _ _ | Nothing <- getArrow rho1' -> unify loc rho1' rho2 >> return exp1
+    _ -> do
+      (a1, r1) <- unArrow loc rho1'
+      subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 rho1 rho2 | Just (a1, r1) <- getArrow rho1 = do -- Rule FUN
-  (a2,r2) <- unArrow loc rho2
-  subsCheckFun loc exp1 a1 r1 a2 r2
+  rho2' <- derefUVar rho2
+  case rho2' of
+    -- Not an arrow, unify the whole types so a mismatch reports both
+    -- (and in the right order, unArrow would treat rho2 as the actual type).
+    EVar _   -> unify loc rho1 rho2' >> return exp1
+    EApp _ _ | Nothing <- getArrow rho2' -> unify loc rho1 rho2' >> return exp1
+    _ -> do
+      (a2,r2) <- unArrow loc rho2'
+      subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 tau1 tau2 = do  -- Rule MONO
 --  tcTrace $ "subsCheckRho: MONO " ++ show (tau1, tau2)
   unify loc tau1 tau2 -- Revert to ordinary unification
@@ -3938,6 +4053,15 @@ checkConstraints = do
     [] -> return ()
     (i, t) : _ -> do
       t' <- derefUVar t
+      ctx <- fromMaybe [] . IM.lookup (identUniq i) <$> gets cxOrigin
+      case t' of
+        EApp (EApp (EVar eq) a) e | eq == identTypeEq -> mismatchError (getSLoc i) ctx (a, e)
+        _ -> do
+          c <- head <$> niceTypes [t']
+          let arising = case [ l | CtxExpr (ELit _ l) <- ctx ] of
+                          (l:_) -> "\n    arising from the literal: " ++ showLitUser l
+                          []    -> ""
+          tcError (getSLoc i) $ "no instance for (" ++ showTypeUser c ++ ")" ++ arising ++ renderCtx ctx
 {-
       is <- gets instTable
       traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (xi, ii) -> show xi ++ ":\n  " ++ showInstInfo ii) (M.toList is))
@@ -3948,8 +4072,6 @@ checkConstraints = do
       cs' <- gets constraints
       traceM (show (length cs, length cs'))
 -}
-      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
-                            ++ "\n     fully qualified: " ++ showExprRaw t'
 
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()

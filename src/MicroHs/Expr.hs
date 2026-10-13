@@ -62,6 +62,7 @@ import Data.ByteString(ByteString)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
+import MicroHs.Error(mhsError)
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJLiteClass
 
@@ -838,7 +839,7 @@ setSLocCon l (ConSyn i n m) = ConSyn (setSLocIdent l i) n m
 errorMessage :: forall a .
                 HasCallStack =>
                 SLoc -> String -> a
-errorMessage loc msg = mhsError $ showSLoc loc ++ ": " ++ msg
+errorMessage loc msg = mhsError $ showSLoc loc ++ ": error: " ++ msg
 
 ----------------
 

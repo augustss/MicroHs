@@ -10,6 +10,7 @@ import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
 import Data.Maybe (fromJust, fromMaybe)
+import MicroHs.Error(mhsError)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)

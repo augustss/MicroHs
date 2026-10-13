@@ -11,6 +11,7 @@ import Data.List
 import Data.Maybe
 import Text.ParserComb as P
 import MicroHs.Builtin(builtinMdl)
+import MicroHs.Error(mhsError)
 import MicroHs.Lex
 import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
