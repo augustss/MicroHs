@@ -314,8 +314,7 @@ hGetBuf h p n = withHandleRd h $ c_readb p n
 hIsTerminalDevice :: Handle -> IO Bool
 hIsTerminalDevice h = do
   i <- withHandleAny h c_isattyb
-  if (i < 0) then
+  if i < 0 then
     ioErrH h InvalidArgument "hIsTerminalDevice"
    else
     return (i /= 0)
-
