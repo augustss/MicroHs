@@ -777,12 +777,9 @@ unifyR loc o t1           t2                         = do
 -- Two types with different rigid heads (or arities) can never unify.
 rigidClash :: EType -> EType -> Bool
 rigidClash t1 t2 =
-  case (splitApp t1, splitApp t2) of
-    ((EVar c1, as1), (EVar c2, as2)) -> c1 /= c2 || length as1 /= length as2
+  case (getAppM t1, getAppM t2) of
+    (Just (c1, as1), Just (c2, as2)) -> c1 /= c2 || length as1 /= length as2
     _                                -> False
-  where splitApp = go []
-          where go as (EApp f a) = go (a:as) f
-                go as f          = (f, as)
 
 mismatchError :: HasCallStack => SLoc -> Orig -> T a
 mismatchError loc (actual, expected) = do
@@ -829,7 +826,6 @@ unifyUnboundVar loc _ r1 t2 = do
 showTypeUser :: EType -> String
 showTypeUser = sub . showEType
   where
-    sub s | "[Char]" `isPrefixOf` s = "String" ++ sub (drop 6 s)
     sub ('#' : s) | (_:_, r) <- span isDigit s = sub r    -- drop skolem uniques, a#12 shows as a
     sub (c : s) = c : sub s
     sub [] = []

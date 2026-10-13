@@ -8,7 +8,7 @@ module MicroHs.Error(
   ) where
 import Control.Exception
 import Data.Maybe
-import MicroHs.Ident(SLoc(..), showSLoc)
+import MicroHs.Ident(SLoc(..), showSLoc, isNoSLoc)
 import System.Environment
 import System.Exit
 import System.IO
@@ -50,7 +50,8 @@ formatMhsError col err =
       "\n    found:    " ++ a ++
       "\n    expected: " ++ e
   where
-    locErr loc = bold col (showSLoc loc) ++ ": " ++ redError
+    locErr loc | isNoSLoc loc = redError
+               | otherwise    = bold col (showSLoc loc) ++ ": " ++ redError
     redError = red col "error: "
 
 sgr :: String -> Bool -> String -> String
