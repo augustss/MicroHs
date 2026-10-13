@@ -1,0 +1,101 @@
+module Mhs.Reflect where
+import Data.Int
+import Data.Word
+import System.IO.Serialize
+import System.IO.StringHandle
+
+newtype Exp a = Exp UExp
+  deriving (Eq, Show)
+
+type Label = Int
+
+data UExp
+  = App UExp UExp
+  | Lit Literal
+  | Lbl Label UExp
+  | Ref Label
+  deriving (Eq, Show)
+
+data Literal
+  = Prim    String
+  | Int     Int
+  | Int64   Int64
+  | Integer Integer
+  | Bytes   [Word8]
+  | Float   Float
+  | Double  Double
+  deriving (Eq, Show)
+
+reflect :: a -> IO (Exp a)
+reflect a = Exp . parse . dropHeader <$> handleWriteToString (\ h -> hSerialize h a >> hFlush h)
+
+-- The first two lines are version and number of definitions
+dropHeader = dropWhile (/= '\n') . drop 1 . dropWhile (/= '\n')
+
+str :: a -> IO String
+str a = handleWriteToString (\ h -> hSerialize h a)
+
+parse :: String -> UExp
+parse = parseStk []
+  where
+    nonSP c = c /= ' ' && c /= '\n'
+    lit stk con cs =
+      case span nonSP cs of
+        (p, cs') -> parseStk (Lit (con p) : stk) cs'
+    parseStk stk [] = error "parse: EOF"
+    parseStk stk (c:cs) =
+      case c of
+        ' '  -> parseStk stk cs
+        '\n' -> parseStk stk cs
+        '@'  -> case stk of
+                  x:y:stk' -> parseStk (App y x : stk') cs
+                  _ -> error "parse: App"
+        '}'  -> case stk of
+                  [x] -> x
+                  _ -> error "parse: }"
+        '%' -> lit stk (Integer . read) cs
+        '&' | '&':cs' <- cs -> lit stk (Float  . read) cs'
+            | otherwise     -> lit stk (Double . read) cs
+        '#' | '#':cs' <- cs -> lit stk (Int64  . read) cs'
+            | otherwise     -> lit stk (Int    . read) cs
+        '[' -> undefined -- array
+        '_' ->
+          case span nonSP cs of
+            (l, cs') -> parseStk (Ref (read l) : stk) cs'
+        ':' ->
+          case span nonSP cs of
+            (l, cs') ->
+              case stk of
+                x : stk' -> parseStk (Lbl (read l) x : stk') cs'
+                _ -> error "parse: :"
+        '"' ->
+          case getString cs of
+            (s, cs') -> parseStk (Lit (Bytes s) : stk) cs'
+        '^' -> undefined -- FFI
+        ';' -> undefined -- C function pointer
+        _   -> lit stk Prim (c:cs)
+          
+    getString :: String -> ([Word8], String)
+    getString = get []
+      where
+        get :: [Word8] -> String -> ([Word8], String)
+        get _ [] = error "getString"
+        get bs ('"':cs) = (reverse bs, cs)
+        get bs ('\\':'?':cs) = get (0x7f : bs) cs
+        get bs ('\\':'_':cs) = get (0xff : bs) cs
+        get bs ('\\':  c:cs) = get (byte c : bs) cs
+        get bs ('^':c:cs)    = get (b : bs) cs
+          where b | d < 0x40  =  d `rem` 0x20
+                  | otherwise = (d `rem` 0x20) + 0x80
+                d = byte c
+        get bs ('|':c:cs)    = get (byte c + 0x80 : bs) cs
+        get bs (c:cs)        = get (byte c : bs) cs
+    byte :: Char -> Word8
+    byte = fromIntegral . fromEnum
+
+main :: IO ()
+main = do
+  let f x = x+1 :: Int
+  print (f 5)
+  x <- reflect (f)
+  print x
