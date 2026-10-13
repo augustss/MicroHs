@@ -95,7 +95,6 @@ import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
 import Control.Exception(Exception, throw)
 
--- Errors in the program being compiled, as opposed to bugs in the compiler.
 newtype MhsError = MhsError String
   deriving (Typeable)
 instance Show MhsError where
