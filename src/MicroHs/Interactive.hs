@@ -409,7 +409,7 @@ tryParse :: forall a . -- Show a =>
 tryParse p s ok bad =
   case parse p "" s of
     Right _ -> ok s
-    Left  e -> bad e
+    Left  e -> bad (show e)
 
 tryCompile :: String -> I (Either SomeException ([LDef], TCState))
 tryCompile file = trySIO $ compile file

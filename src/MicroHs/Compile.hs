@@ -37,7 +37,7 @@ import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
 import qualified MicroHs.Embed as Embed
-import MicroHs.Error(mhsError)
+import MicroHs.Error(mhsError, mhsErrorLoc)
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Flags
@@ -216,7 +216,7 @@ compileModule flags impt mn pathfn file = do
   dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ prettyShow pmdl
   when (isNothing (getFileName mn) && mn /= mnn) $
-    mhsError $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
+    mhsErrorLoc (getSLoc mnn) $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)
 
   t4 <- liftIO getTimeMilli
@@ -597,7 +597,7 @@ unlit fn = unlines . un 1 True . lines
     code n (l : ls) = l : code (n+1) ls
     code n [] = err n "unlit: missing \\end{code}"
     err :: Int -> String -> a
-    err n s = mhsError $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s
+    err n s = mhsErrorLoc (SLoc fn n 1) $ "unlit: " ++ s
 
 ---------------
 

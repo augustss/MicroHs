@@ -10,10 +10,9 @@ import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
 import Data.Maybe (fromJust, fromMaybe)
-import MicroHs.Error(mhsError)
+import MicroHs.Error(mhsError, mhsErrorLoc)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 --import Debug.Trace
 
 data Token
@@ -301,7 +300,7 @@ lexLitStr oloc loc mk end post interp acs = loop loc [] [] acs
         remGap l rs tss ('\r':cs) = remGap           l        rs  tss cs
         remGap l rs tss (' ' :cs) = remGap (addCol l 1)       rs  tss cs
         remGap l _  _          _  = --errorMessage oloc "bad string gap"
-                                    mhsError (prettyShow l ++ ": bad string gap")
+                                    mhsErrorLoc l ": bad string gap"
 
 chMark :: Char
 chMark = '\xffff'     -- reserved, and will not occur in text

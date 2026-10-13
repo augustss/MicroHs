@@ -18,6 +18,7 @@ module MicroHs.TypeCheck(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
+import Control.Exception(throw)
 import Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
@@ -26,6 +27,7 @@ import Data.List
 import Data.Maybe
 import MicroHs.Builtin
 import MicroHs.Deriving
+import MicroHs.Error(MhsError(MhsTypeError))
 import MicroHs.Expr
 import MicroHs.Fixity
 import MicroHs.Flags
@@ -794,10 +796,7 @@ mismatchError :: HasCallStack => SLoc -> [Ctx] -> Orig -> T a
 mismatchError loc ctx (actual, expected) = do
   tcm <- gets tcMode
   (a, e) <- niceTypes2 actual expected
-  tcError loc $ msgTCMode' tcm ++ " mismatch" ++
-    "\n    expected: " ++ showTypeUser e ++
-    "\n    actual:   " ++ showTypeUser a ++
-    renderCtx ctx
+  throw $ MhsTypeError loc (msgTCMode' tcm) (showTypeUser a) (showTypeUser e)
 
 unifyVar :: HasCallStack =>
             SLoc -> Orig -> TRef -> EType -> T ()

@@ -4,6 +4,7 @@
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
 import qualified Prelude(); import MHSPrelude hiding ((*>), (<*))
 import Control.Applicative hiding ((*>), (<*))
+import Control.Exception(throw)
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
@@ -11,7 +12,7 @@ import Data.List
 import Data.Maybe
 import Text.ParserComb as P
 import MicroHs.Builtin(builtinMdl)
-import MicroHs.Error(mhsError)
+import MicroHs.Error(MhsError(MhsSyntaxError))
 import MicroHs.Lex
 import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
@@ -35,11 +36,11 @@ parseDie :: forall a . -- (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
   case parse p fn file of
-    Left msg -> mhsError msg
+    Left err -> throw err
     Right a -> a
 
 parse :: forall a . -- (Show a) =>
-         P a -> FilePath -> String -> Either String a
+         P a -> FilePath -> String -> Either MhsError a
 parse p fn file =
   let { ts = lexTopLS fn file } in
   case runPrsr p ts of
@@ -1012,11 +1013,6 @@ qualName loc qs s = mkIdentSLoc loc (intercalate "." (qs ++ [s]))
 
 -------------
 
-formatFailed :: LastFail Token -> String
+formatFailed :: LastFail Token -> MhsError
 formatFailed (LastFail _ ts msgs) =
-  let
-    sloc = tokensLoc ts
-  in
-    showSLoc sloc ++ ":\n"
-      ++ "  found:    " ++ head (map showToken ts ++ ["EOF"]) ++ "\n"
-      ++ "  expected: " ++ unwords (nub msgs)
+  MhsSyntaxError (tokensLoc ts) (head (map showToken ts ++ ["EOF"])) (unwords (nub msgs))

@@ -9,8 +9,8 @@ module MicroHs.CompileCache(
   ) where
 import qualified Prelude(); import MHSPrelude
 import MicroHs.Desugar(LDef)
-import MicroHs.Error(mhsError)
-import MicroHs.Expr(IdentModule)
+import MicroHs.Error(mhsErrorLoc)
+import MicroHs.Expr(IdentModule, getSLoc)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Package
@@ -83,7 +83,7 @@ addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
   let ws = working c
   in  if mn `elem` ws then
-        mhsError $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
+        mhsErrorLoc (getSLoc mn) $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
       else
         c{ working = mn : ws }
 
