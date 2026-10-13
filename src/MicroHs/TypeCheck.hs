@@ -731,7 +731,7 @@ tcErrorTK :: HasCallStack =>
              SLoc -> String -> T ()
 tcErrorTK loc msg = do
   tcm <- gets tcMode
-  tcError loc $ msgTCMode' tcm ++ " error: " ++ msg
+  tcError loc $ msgTCMode' tcm ++ ": " ++ msg
 
 -- For error messages
 msgTCMode :: TCMode -> String

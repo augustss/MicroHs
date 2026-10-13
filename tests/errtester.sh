@@ -40,5 +40,11 @@ while [ "$line" != "END" ]; do
     #echo "next: $line"
     sed -e '/^ *$/d' $terr > $err
     $comp $* $cache -i../lib -i../tmp E 2>&1 | sed -e 's/^gmhs/mhs/' -e '/CallStack/,$d' -e '/^XX/d' -e 's/^.*mhs: error:/mhs:/' -e 's/^.*mhs: uncaught exception: error:/mhs:/' -e 's/^mhs: //' -e '/Uncaught exception/d' -e '/^ *[0-9]* |/d' -e '/^ *$/d'  > $cerr
-    diff $err $cerr || (cat ../tmp/E.hs; exit 1)
+    if diff $err $cerr
+    then
+        :
+    else
+        cat ../tmp/E.hs
+        exit 1
+    fi
 done

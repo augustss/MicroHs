@@ -44,7 +44,7 @@ formatMhsError col err =
       "\n    expected: " ++ green col e ++
       "\n    actual:   " ++ red   col a
     MhsSyntaxError loc a e ->
-      locErr loc ++ "syntax error" ++
+      locErr loc ++ "syntax" ++
       "\n    found:    " ++ a ++
       "\n    expected: " ++ e
   where

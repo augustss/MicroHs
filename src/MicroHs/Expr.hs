@@ -839,7 +839,7 @@ setSLocCon l (ConSyn i n m) = ConSyn (setSLocIdent l i) n m
 errorMessage :: forall a .
                 HasCallStack =>
                 SLoc -> String -> a
-errorMessage loc msg = mhsErrorLoc loc $ ": error: " ++ msg
+errorMessage loc msg = mhsErrorLoc loc msg
 
 ----------------
 

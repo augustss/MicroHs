@@ -1,8 +1,8 @@
 module M() awhere
 -----
-../tmp/E.hs:2:12:
-  found:    awhere
-  expected: where
+../tmp/E.hs:2:12: error: syntax
+    found:    awhere
+    expected: where
 
 =====
 module M() where
@@ -10,9 +10,9 @@ x :: Int
 x = 1 +
 y = 0
 -----
-../tmp/E.hs:5:1:
-  found:    ;
-  expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
+../tmp/E.hs:5:1: error: syntax
+    found:    ;
+    expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
 
 =====
 module E() where
@@ -20,7 +20,6 @@ x :: Int
 x = y
 -----
 ../tmp/E.hs:4:5: error: undefined value: y
-  in the definition of: x
 
 =====
 module E() where
@@ -28,7 +27,6 @@ x :: Int
 x = A
 -----
 ../tmp/E.hs:4:5: error: undefined value: A
-  in the definition of: x
 
 =====
 module E() where
@@ -90,7 +88,6 @@ a :: ()
 a = lookup
 -----
 ../tmp/E.hs:5:5: error: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
-  in the definition of: a
 
 =====
 module E() where
@@ -113,7 +110,6 @@ a = 'a'
 ../tmp/E.hs:4:5: error: type mismatch
     expected: Int
     actual:   Char
-  in the definition of: a
 
 =====
 module E() where
@@ -138,7 +134,6 @@ x = let { C a = C (1::Int) } in a
 ../tmp/E.hs:5:33: error: type mismatch
     expected: Int
     actual:   a
-  in the definition of: x
 
 =====
 module E() where
@@ -192,7 +187,6 @@ module E() where
 x = 0._0001
 -----
 ../tmp/E.hs:3:7: error: no instance for (HasField "_0001" Integer b)
-  in the definition of: x
 
 =====
 module E() where
@@ -244,7 +238,6 @@ f x = x + 1
 ../tmp/E.hs:4:7: error: type mismatch
     expected: String
     actual:   Int
-  in the definition of: f
 
 =====
 module E() where
@@ -254,7 +247,6 @@ g xs = length xs ++ "a"
 ../tmp/E.hs:4:18: error: type mismatch
     expected: Int
     actual:   [a]
-  in the definition of: g
 
 =====
 module E() where
@@ -264,7 +256,6 @@ h x = if x then 1 else 2
 ../tmp/E.hs:4:10: error: type mismatch
     expected: Bool
     actual:   Int
-  in the definition of: h
 
 =====
 module E() where
@@ -272,8 +263,6 @@ k :: Int -> Bool
 k x = x == "foo"
 -----
 ../tmp/E.hs:4:12: error: no instance for (IsString Int)
-    arising from the literal: "foo"
-  in the definition of: k
 
 =====
 module E() where
@@ -281,7 +270,6 @@ p :: Maybe Int -> Int
 p (Just x) = x + y
 -----
 ../tmp/E.hs:4:18: error: undefined value: y
-  in the definition of: p
 
 =====
 module E() where
@@ -291,7 +279,6 @@ q x = show x
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Int
     actual:   String
-  in the definition of: q
 
 =====
 module E() where
@@ -301,7 +288,6 @@ r (a, b, c) = a
 ../tmp/E.hs:4:4: error: type mismatch
     expected: (Int, Bool)
     actual:   (a, b, c)
-  in the definition of: r
 
 =====
 module E() where
@@ -311,7 +297,6 @@ s x = foldr (\a b -> a + b) 0 x
 ../tmp/E.hs:4:31: error: type mismatch
     expected: [Int]
     actual:   Int
-  in the definition of: s
 
 =====
 module E() where
@@ -321,7 +306,6 @@ u x = x : x
 ../tmp/E.hs:4:11: error: type mismatch
     expected: [a]
     actual:   a
-  in the definition of: u
 
 =====
 module E() where
@@ -419,7 +403,6 @@ x = f
 ../tmp/E.hs:6:5: error: type mismatch
     expected: Int
     actual:   a
-  in the definition of: x
 
 =====
 module E() where
@@ -441,7 +424,6 @@ f = (id :: Int -> Int)
 ../tmp/E.hs:4:6: error: type mismatch
     expected: Int
     actual:   a
-  in the definition of: f
 
 =====
 module E() where
@@ -450,8 +432,6 @@ g h = h 1
 x = g (\y -> y + 1)
 -----
 ../tmp/E.hs:5:18: error: no instance for (Num a)
-    arising from the literal: 1
-  in the definition of: x
 
 =====
 module E() where
@@ -489,7 +469,6 @@ module E() where
 x = show id
 -----
 ../tmp/E.hs:3:5: error: no instance for (Show (a -> a))
-  in the definition of: x
 
 =====
 module E() where
@@ -497,7 +476,6 @@ x :: Int
 x = let y = 1 in y y
 -----
 ../tmp/E.hs:4:20: error: occurs check: cannot construct the infinite type: a ~ a -> b
-  in the definition of: x
 
 =====
 module E() where
@@ -507,7 +485,6 @@ f x = case x of { True -> 1; _ -> 2 }
 ../tmp/E.hs:4:19: error: type mismatch
     expected: Bool
     actual:   Int
-  in the definition of: f
 
 =====
 module E() where
@@ -517,7 +494,6 @@ f x = x > 1 && x
 ../tmp/E.hs:4:16: error: type mismatch
     expected: Bool
     actual:   Int
-  in the definition of: f
 
 =====
 module E() where
@@ -527,7 +503,6 @@ f m = fst m
 ../tmp/E.hs:4:11: error: type mismatch
     expected: (Int, a)
     actual:   Maybe (Int, [Bool])
-  in the definition of: f
 
 =====
 module E() where
@@ -537,7 +512,6 @@ f xs = [ x | x <- xs ]
 ../tmp/E.hs:4:10: error: type mismatch
     expected: Int
     actual:   [Int]
-  in the definition of: f
 
 =====
 module E() where
@@ -547,15 +521,12 @@ f x = do { y <- Just x; return y }
 ../tmp/E.hs:4:12: error: type mismatch
     expected: Int
     actual:   Maybe Int
-  in the definition of: f
 
 =====
 module E() where
 f x = x + "a" + 'b'
 -----
 ../tmp/E.hs:3:11: error: no instance for (IsString Char)
-    arising from the literal: "a"
-  in the definition of: f
 
 =====
 module E() where
@@ -565,7 +536,6 @@ f x = g x where g y = y ++ y
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Int
     actual:   [a]
-  in the definition of: f
 
 =====
 module E() where
@@ -575,7 +545,6 @@ f x | x = 1
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Bool
     actual:   Int
-  in the definition of: f
 
 =====
 module E() where
@@ -585,7 +554,6 @@ x = (\ y -> y) True
 ../tmp/E.hs:4:16: error: type mismatch
     expected: Int
     actual:   Bool
-  in the definition of: x
 
 =====
 module E() where
@@ -603,7 +571,6 @@ x = 'c'
 ../tmp/E.hs:4:5: error: type mismatch
     expected: Int
     actual:   Char
-  in the definition of: x
 
 =====
 module E() where
@@ -612,8 +579,6 @@ instance Show T where
   show _ = 1
 -----
 ../tmp/E.hs:5:12: error: no instance for (Num String)
-    arising from the literal: 1
-  in the instance: Text.Show.Show E.T
 
 =====
 END
