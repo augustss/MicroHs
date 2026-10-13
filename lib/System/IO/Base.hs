@@ -30,6 +30,8 @@ module System.IO.Base(
   hGetBuffering,
 
   IOException(..),
+
+  hIsTerminalDevice,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -68,6 +70,7 @@ foreign import ccall "ungetb"       c_ungetb       :: Int ->          Ptr BFILE 
 foreign import ccall "putb"         c_putb         :: Int ->          Ptr BFILE -> IO ()
 foreign import ccall "writeb"       c_writeb       :: Ptr a -> Int -> Ptr BFILE -> IO Int
 foreign import ccall "readb"        c_readb        :: Ptr a -> Int -> Ptr BFILE -> IO Int
+foreign import ccall "isattyb"      c_isattyb      ::                 Ptr BFILE -> IO Int
 
 ----------------------------------------------------------
 
@@ -307,3 +310,12 @@ hPutBuf h p n = do withHandleWr h $ c_writeb p n; return ()
 
 hGetBuf :: Handle -> Ptr a -> Int -> IO Int
 hGetBuf h p n = withHandleRd h $ c_readb p n
+
+hIsTerminalDevice :: Handle -> IO Bool
+hIsTerminalDevice h = do
+  i <- withHandleAny h c_isattyb
+  if (i < 0) then
+    ioErrH h InvalidArgument "hIsTerminalDevice"
+   else
+    return (i /= 0)
+

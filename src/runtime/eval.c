@@ -7728,6 +7728,7 @@ from_t mhs_openrdmem(int s) { return mhs_from_Ptr(s, 2, openb_rd_mem(mhs_to_Ptr(
 from_t mhs_getmem(int s) { get_mem(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_isattyb(int s) { return mhs_from_Int(s, 1, isattyb(mhs_to_Ptr(s, 0))); }
 
 #if WANT_MD5
 from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -8110,6 +8111,7 @@ const struct ffi_entry ffi_table[] = {
   { "get_mem", 3, mhs_getmem},
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
+  { "isattyb", 1, mhs_isattyb},
 
 #if WANT_MD5
   { "md5Array", 3, mhs_md5Array},

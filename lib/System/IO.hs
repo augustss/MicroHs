@@ -123,10 +123,6 @@ data SeekMode = AbsoluteSeek | RelativeSeek | SeekFromEnd
 
 -------
 
--- XXX This currently does nothing.
-hIsTerminalDevice :: Handle -> IO Bool
-hIsTerminalDevice _ = return True
-
 hIsOpen :: Handle -> IO Bool
 hIsOpen (Handle _ r _) = do
   s <- readIORef r

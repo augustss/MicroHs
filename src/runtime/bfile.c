@@ -147,6 +147,14 @@ flushb(BFILE *p)
   p->flushb(p);
 }
 
+static INLINE int
+isattyb(BFILE *p)
+{
+  /* XXX needs a new method */
+  /* XXX for now, just return 1 */
+  return 1;
+}
+
 void
 putsb(const char *str, struct BFILE *p)
 {
