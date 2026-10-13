@@ -138,7 +138,6 @@ x = let { C a = C (1::Int) } in a
 ../tmp/E.hs:5:33: error: type mismatch
     expected: Int
     actual:   a
-  in the expression: let ...
   in the definition of: x
 
 =====
@@ -181,7 +180,6 @@ module E() where
 x = _0.0001
 -----
 ../tmp/E.hs:3:5: error: undefined value: _0
-  in the expression: _0 . 1
 
 =====
 module E() where
@@ -194,8 +192,6 @@ module E() where
 x = 0._0001
 -----
 ../tmp/E.hs:3:7: error: no instance for (HasField "_0001" Integer b)
-  in the expression: ._0001
-  in the expression: (._0001) 0
   in the definition of: x
 
 =====
@@ -209,23 +205,18 @@ module E() where
 x = 1e_+23
 -----
 ../tmp/E.hs:3:6: error: undefined value: e_
-  in the expression: 1 e_
-  in the expression: 1 e_ + 23
 
 =====
 module E() where
 x = 1e+_23
 -----
 ../tmp/E.hs:3:6: error: undefined value: e
-  in the expression: 1 e
-  in the expression: 1 e + _23
 
 =====
 module E() where
 x = 1e_23
 -----
 ../tmp/E.hs:3:6: error: undefined value: e_23
-  in the expression: 1 e_23
 
 =====
 module E() where
@@ -253,7 +244,6 @@ f x = x + 1
 ../tmp/E.hs:4:7: error: type mismatch
     expected: String
     actual:   Int
-  in the expression: x + 1
   in the definition of: f
 
 =====
@@ -264,7 +254,6 @@ g xs = length xs ++ "a"
 ../tmp/E.hs:4:18: error: type mismatch
     expected: Int
     actual:   [a]
-  in the expression: length xs ++ "a"
   in the definition of: g
 
 =====
@@ -275,7 +264,6 @@ h x = if x then 1 else 2
 ../tmp/E.hs:4:10: error: type mismatch
     expected: Bool
     actual:   Int
-  in the expression: if x then 1 else 2
   in the definition of: h
 
 =====
@@ -285,7 +273,6 @@ k x = x == "foo"
 -----
 ../tmp/E.hs:4:12: error: no instance for (IsString Int)
     arising from the literal: "foo"
-  in the expression: x == "foo"
   in the definition of: k
 
 =====
@@ -294,7 +281,6 @@ p :: Maybe Int -> Int
 p (Just x) = x + y
 -----
 ../tmp/E.hs:4:18: error: undefined value: y
-  in the expression: x + y
   in the definition of: p
 
 =====
@@ -305,7 +291,6 @@ q x = show x
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Int
     actual:   String
-  in the expression: show x
   in the definition of: q
 
 =====
@@ -326,7 +311,6 @@ s x = foldr (\a b -> a + b) 0 x
 ../tmp/E.hs:4:31: error: type mismatch
     expected: [Int]
     actual:   Int
-  in the expression: foldr (\a b -> a + b) 0 x
   in the definition of: s
 
 =====
@@ -337,7 +321,6 @@ u x = x : x
 ../tmp/E.hs:4:11: error: type mismatch
     expected: [a]
     actual:   a
-  in the expression: x : x
   in the definition of: u
 
 =====
@@ -359,7 +342,6 @@ instance Int Bool
 ../tmp/E.hs:3:10: error: kind mismatch
     expected: a -> b
     actual:   Type
-  in the expression: Int Bool
 
 =====
 module E() where
@@ -459,7 +441,6 @@ f = (id :: Int -> Int)
 ../tmp/E.hs:4:6: error: type mismatch
     expected: Int
     actual:   a
-  in the expression: id :: (Int -> Int)
   in the definition of: f
 
 =====
@@ -470,8 +451,6 @@ x = g (\y -> y + 1)
 -----
 ../tmp/E.hs:5:18: error: no instance for (Num a)
     arising from the literal: 1
-  in the expression: y + 1
-  in the expression: (\y -> y + 1)
   in the definition of: x
 
 =====
@@ -504,14 +483,12 @@ module E() where
 f x = x x
 -----
 ../tmp/E.hs:3:9: error: occurs check: cannot construct the infinite type: a ~ a -> b
-  in the expression: x x
 
 =====
 module E() where
 x = show id
 -----
 ../tmp/E.hs:3:5: error: no instance for (Show (a -> a))
-  in the expression: show id
   in the definition of: x
 
 =====
@@ -520,8 +497,6 @@ x :: Int
 x = let y = 1 in y y
 -----
 ../tmp/E.hs:4:20: error: occurs check: cannot construct the infinite type: a ~ a -> b
-  in the expression: y y
-  in the expression: let ...
   in the definition of: x
 
 =====
@@ -532,7 +507,6 @@ f x = case x of { True -> 1; _ -> 2 }
 ../tmp/E.hs:4:19: error: type mismatch
     expected: Bool
     actual:   Int
-  in the expression: case x of ...
   in the definition of: f
 
 =====
@@ -543,7 +517,6 @@ f x = x > 1 && x
 ../tmp/E.hs:4:16: error: type mismatch
     expected: Bool
     actual:   Int
-  in the expression: (x > 1) && x
   in the definition of: f
 
 =====
@@ -554,7 +527,6 @@ f m = fst m
 ../tmp/E.hs:4:11: error: type mismatch
     expected: (Int, a)
     actual:   Maybe (Int, [Bool])
-  in the expression: fst m
   in the definition of: f
 
 =====
@@ -565,7 +537,6 @@ f xs = [ x | x <- xs ]
 ../tmp/E.hs:4:10: error: type mismatch
     expected: Int
     actual:   [Int]
-  in the expression: [x | x <- xs]
   in the definition of: f
 
 =====
@@ -576,7 +547,6 @@ f x = do { y <- Just x; return y }
 ../tmp/E.hs:4:12: error: type mismatch
     expected: Int
     actual:   Maybe Int
-  in the expression: do ...
   in the definition of: f
 
 =====
@@ -585,8 +555,6 @@ f x = x + "a" + 'b'
 -----
 ../tmp/E.hs:3:11: error: no instance for (IsString Char)
     arising from the literal: "a"
-  in the expression: x + "a"
-  in the expression: (x + "a") + 'b'
   in the definition of: f
 
 =====
@@ -597,7 +565,6 @@ f x = g x where g y = y ++ y
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Int
     actual:   [a]
-  in the expression: g x
   in the definition of: f
 
 =====
@@ -618,7 +585,6 @@ x = (\ y -> y) True
 ../tmp/E.hs:4:16: error: type mismatch
     expected: Int
     actual:   Bool
-  in the expression: (\y -> y) True
   in the definition of: x
 
 =====
@@ -647,7 +613,6 @@ instance Show T where
 -----
 ../tmp/E.hs:5:12: error: no instance for (Num String)
     arising from the literal: 1
-  in the expression: (\_ -> 1)
   in the instance: Text.Show.Show E.T
 
 =====

@@ -849,47 +849,15 @@ tcErrorC loc msg = do
   ctx <- gets errCtx
   tcError loc $ msg ++ renderCtx ctx
 
--- Show the innermost interesting expressions and the enclosing definition.
+-- Show the enclosing definition.
 renderCtx :: [Ctx] -> String
 renderCtx ctx =
-  let es = take 2 $ nub [ showExprUser e' | CtxExpr e <- ctx, let e' = unParen e, interesting e', not (generated e') ]
-      bs = take 1 [ i | CtxBind i <- ctx ]
-      interesting (EVar _)   = False
-      interesting (ELit _ _) = False
-      interesting (ECon _)   = False
-      interesting _          = True
-      -- Code made by the compiler, e.g., from desugaring do or record dot, mentions
-      -- identifiers like $x and $b that the user never wrote.
-      generated e = any isGen (allVarsExpr e)
-      isGen i = let s = unIdent (unQualIdent i) in '$' `elem` s && any isAlpha s
-      oneLine s =
-        case lines s of
-          [l] | length l <= 72 -> l
-          (l:_)                -> take 72 l ++ " ..."
-          []                   -> ""
-  in  concatMap (\ e -> "\n  in the expression: " ++ oneLine e) es
-   ++ concatMap (\ i -> "\n  in the " ++ showBind i) bs
+  concatMap (\ i -> "\n  in the " ++ showBind i) (take 1 [ i | CtxBind i <- ctx ])
   where
     -- Instance methods live in a binding called inst$Class@Type.
     showBind i | (instPrefix ++ "$") `isPrefixOf` s = "instance: " ++ map (\ c -> if c == '@' then ' ' else c) (drop (length instPrefix + 1) s)
                | otherwise = "definition of: " ++ s
       where s = showIdent i
-
--- Remove the parentheses the user wrote around and inside an expression;
--- the pretty printer adds the ones that are needed.  Only the parts that
--- usually show up in error contexts are traversed.
-unParen :: Expr -> Expr
-unParen ae =
-  case ae of
-    EParen e       -> unParen e
-    EApp f a       -> EApp (unParen f) (unParen a)
-    EOper e ies    -> EOper (unParen e) [ (i, unParen x) | (i, x) <- ies ]
-    ETuple es      -> ETuple (map unParen es)
-    ESign e t      -> ESign (unParen e) (unParen t)
-    EIf c t e      -> EIf (unParen c) (unParen t) (unParen e)
-    ENegApp e      -> ENegApp (unParen e)
-    EListish (LList es) -> EListish (LList (map unParen es))
-    _              -> ae
 
 -- Show an expression the way the user wrote it: without the
 -- internal literal markers (#1, %1, &1.0), and with single spaces.
@@ -2001,10 +1969,9 @@ tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae =
   case ae of
-    -- Variables and constructors never appear in error contexts; skip the bookkeeping.
-    EVar _ -> tcExprR mt ae
-    ECon _ -> tcExprR mt ae
-    _      -> withCtx (CtxExpr ae) $ tcExprR mt ae {-do
+    -- Only literals are needed in the context, for "arising from the literal".
+    ELit _ _ -> withCtx (CtxExpr ae) $ tcExprR mt ae
+    _        -> tcExprR mt ae {-do
   tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
   tcTrace ("tcExpr exit: " ++ showExpr r)

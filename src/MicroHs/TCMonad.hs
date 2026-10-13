@@ -147,7 +147,7 @@ instance NFData ClassInfo where
 -- TCState
 -- Where we are while type checking, for error messages.
 data Ctx
-  = CtxExpr Expr             -- checking this expression
+  = CtxExpr Expr             -- checking this literal
   | CtxBind Ident            -- in the definition of this identifier
   deriving (Show)
 
