@@ -334,9 +334,7 @@ mkTCState mdlName globs mdls =
           classTable = gClassTable globs,
           ctxTables = (gInstInfo globs, [], [], []),
           constraints = [],
-          defaults = dflts,
-          errCtx = [],
-          cxOrigin = IM.empty
+          defaults = dflts
         }
 
 mergeDefaults :: Defaults -> Defaults -> Defaults
@@ -444,11 +442,7 @@ newDict loc ctx = do
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts, cxOrigin = IM.insert (identUniq d) (errCtx ts) (cxOrigin ts) }
-
--- The unique number at the end of a generated identifier, e.g. 123 for dict$123.
-identUniq :: Ident -> Int
-identUniq = readInt . reverse . takeWhile isDigit . reverse . unIdent
+  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -778,9 +772,7 @@ unifyR loc o t1           t2                         = do
     -- that no given equality could resolve.
     -- XXX needs changing if we have kind equalities.
     TCExpr | not (null eqs) || not (rigidClash t1 t2) -> addEqConstraint loc t1 t2
-    _ -> do
-      ctx <- gets errCtx
-      mismatchError loc ctx o
+    _ -> mismatchError loc o
 
 -- Two types with different rigid heads (or arities) can never unify.
 rigidClash :: EType -> EType -> Bool
@@ -792,8 +784,8 @@ rigidClash t1 t2 =
           where go as (EApp f a) = go (a:as) f
                 go as f          = (f, as)
 
-mismatchError :: HasCallStack => SLoc -> [Ctx] -> Orig -> T a
-mismatchError loc ctx (actual, expected) = do
+mismatchError :: HasCallStack => SLoc -> Orig -> T a
+mismatchError loc (actual, expected) = do
   tcm <- gets tcMode
   (a, e) <- niceTypes2 actual expected
   throw $ MhsTypeError loc (msgTCMode' tcm) (showTypeUser a) (showTypeUser e)
@@ -826,41 +818,12 @@ unifyUnboundVar loc _ r1 t2 = do
   vs <- getMetaTyVars [t2]
   if r1 `elem` vs then do
     (a, b) <- niceTypes2 (EUVar r1) t2
-    tcErrorC loc $ "occurs check: cannot construct the infinite type: " ++ showTypeUser a ++ " ~ " ++ showTypeUser b
+    tcError loc $ "occurs check: cannot construct the infinite type: " ++ showTypeUser a ++ " ~ " ++ showTypeUser b
    else
     setUVar r1 t2
 
 -----------------------------------------
 -- Error message support
-
--- Run with an extra entry on the context stack.
-withCtx :: Ctx -> T a -> T a
-withCtx c ta = do
-  old <- gets errCtx
-  modify $ \ ts -> ts{ errCtx = c : old }
-  a <- ta
-  modify $ \ ts -> ts{ errCtx = old }
-  return a
-
--- Error with the current context appended.
-tcErrorC :: HasCallStack => SLoc -> String -> T a
-tcErrorC loc msg = do
-  ctx <- gets errCtx
-  tcError loc $ msg ++ renderCtx ctx
-
--- Show the enclosing definition.
-renderCtx :: [Ctx] -> String
-renderCtx ctx =
-  concatMap (\ i -> "\n  in the " ++ showBind i) (take 1 [ i | CtxBind i <- ctx ])
-  where
-    -- Instance methods live in a binding called inst$Class@Type.
-    showBind i | (instPrefix ++ "$") `isPrefixOf` s = "instance: " ++ map (\ c -> if c == '@' then ' ' else c) (drop (length instPrefix + 1) s)
-               | otherwise = "definition of: " ++ s
-      where s = showIdent i
-
--- Show a literal the way the user wrote it, without the internal markers (#1, %1, &1.0).
-showLitUser :: Lit -> String
-showLitUser = dropWhile (`elem` "#%&") . showLit
 
 -- Show a type for the user, with String instead of [Char].
 showTypeUser :: EType -> String
@@ -902,7 +865,7 @@ uvarsOf _ = []
 
 -- Reset unification map
 tcReset :: T ()
-tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty, cxOrigin = IM.empty }
+tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty }
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -918,7 +881,7 @@ tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> return (setSLocExpr (getSLoc i) e, s)
-    Left            e -> tcErrorC (getSLoc i) e
+    Left            e -> tcError (getSLoc i) e
 
 tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)
@@ -1770,7 +1733,7 @@ tcDefValue :: HasCallStack =>
 tcDefValue adef =
   assertTCMode (==TCExpr) $
   case adef of
-    Fcn i eqns -> withCtx (CtxBind i) $ do
+    Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
 --      when (isConIdent i) $ do
 --        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t
@@ -1953,7 +1916,7 @@ tcExpr :: HasCallStack =>
 tcExpr mt ae =
   case ae of
     -- Only literals are needed in the context, for "arising from the literal".
-    ELit _ _ -> withCtx (CtxExpr ae) $ tcExprR mt ae
+    ELit _ _ -> tcExprR mt ae
     _        -> tcExprR mt ae {-do
   tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
@@ -3199,7 +3162,7 @@ withFixes fixs ta = do
 tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
-    Fcn i eqns -> withCtx (CtxBind i) $ do
+    Fcn i eqns -> do
       (_, tt) <- tLookupV i
       teqns <- tcEqns False tt eqns
       return $ Fcn i teqns
@@ -4052,15 +4015,11 @@ checkConstraints = do
     [] -> return ()
     (i, t) : _ -> do
       t' <- derefUVar t
-      ctx <- fromMaybe [] . IM.lookup (identUniq i) <$> gets cxOrigin
       case t' of
-        EApp (EApp (EVar eq) a) e | eq == identTypeEq -> mismatchError (getSLoc i) ctx (a, e)
+        EApp (EApp (EVar eq) a) e | eq == identTypeEq -> mismatchError (getSLoc i) (a, e)
         _ -> do
           c <- head <$> niceTypes [t']
-          let arising = case [ l | CtxExpr (ELit _ l) <- ctx ] of
-                          (l:_) -> "\n    arising from the literal: " ++ showLitUser l
-                          []    -> ""
-          tcError (getSLoc i) $ "no instance for (" ++ showTypeUser c ++ ")" ++ arising ++ renderCtx ctx
+          tcError (getSLoc i) $ "no instance for (" ++ showTypeUser c ++ ")"
 {-
       is <- gets instTable
       traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (xi, ii) -> show xi ++ ":\n  " ++ showInstInfo ii) (M.toList is))

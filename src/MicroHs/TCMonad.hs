@@ -169,9 +169,7 @@ data TCState = TC {
                   ArgDicts              -- dictionary arguments
                  ),
   constraints :: Constraints,           -- constraints that have to be solved
-  defaults    :: Defaults,              -- current defaults
-  errCtx      :: [Ctx],                 -- context stack for error messages, innermost first
-  cxOrigin    :: IM.IntMap [Ctx]        -- context in which each constraint arose, by dictionary unique
+  defaults    :: Defaults              -- current defaults
   }
   deriving (Show)
 
