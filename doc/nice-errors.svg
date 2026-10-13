@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="238" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+<rect width="720" height="238" rx="8" fill="#0d1117"/>
+<text x="20" y="34" fill="#e6edf3" xml:space="preserve"><tspan>$&#160;mhs&#160;ColorDemo</tspan></text>
+<text x="20" y="56" fill="#e6edf3" xml:space="preserve"><tspan fill="#e6edf3" font-weight="bold">ColorDemo.hs:8:24:</tspan><tspan>&#160;</tspan><tspan fill="#ff7b72" font-weight="bold">error:</tspan><tspan>&#160;type&#160;mismatch</tspan></text>
+<text x="20" y="78" fill="#e6edf3" xml:space="preserve"><tspan>&#160;&#160;&#160;&#160;expected:</tspan><tspan fill="#7ee787">&#160;String</tspan></text>
+<text x="20" y="100" fill="#e6edf3" xml:space="preserve"><tspan>&#160;&#160;&#160;&#160;actual:</tspan><tspan fill="#ff7b72" font-weight="bold">&#160;&#160;&#160;Int</tspan></text>
+<text x="20" y="122" fill="#e6edf3" xml:space="preserve"><tspan>&#160;&#160;in&#160;the&#160;expression:&#160;&quot;Hello,&#160;&quot;&#160;++&#160;n</tspan></text>
+<text x="20" y="144" fill="#e6edf3" xml:space="preserve"><tspan>&#160;&#160;in&#160;the&#160;definition&#160;of:&#160;greet</tspan></text>
+<text x="20" y="166" fill="#e6edf3" xml:space="preserve"><tspan fill="#79c0ff">&#160;&#160;|</tspan></text>
+<text x="20" y="188" fill="#e6edf3" xml:space="preserve"><tspan fill="#79c0ff">8&#160;|&#160;</tspan><tspan>greet&#160;n&#160;=&#160;&quot;Hello,&#160;&quot;&#160;++&#160;n</tspan></text>
+<text x="20" y="210" fill="#e6edf3" xml:space="preserve"><tspan fill="#79c0ff">&#160;&#160;|&#160;</tspan><tspan>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</tspan><tspan fill="#ff7b72" font-weight="bold">^</tspan></text>
+</svg>

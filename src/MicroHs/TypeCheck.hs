@@ -35,6 +35,7 @@ import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
 import MicroHs.Names
+import MicroHs.Lex(readInt)
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
@@ -333,7 +334,7 @@ mkTCState mdlName globs mdls =
           constraints = [],
           defaults = dflts,
           errCtx = [],
-          cxOrigin = M.empty
+          cxOrigin = IM.empty
         }
 
 mergeDefaults :: Defaults -> Defaults -> Defaults
@@ -441,7 +442,11 @@ newDict loc ctx = do
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts, cxOrigin = M.insert d (errCtx ts) (cxOrigin ts) }
+  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts, cxOrigin = IM.insert (identUniq d) (errCtx ts) (cxOrigin ts) }
+
+-- The unique number at the end of a generated identifier, e.g. 123 for dict$123.
+identUniq :: Ident -> Int
+identUniq = readInt . reverse . takeWhile isDigit . reverse . unIdent
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -946,7 +951,7 @@ uvarsOf _ = []
 
 -- Reset unification map
 tcReset :: T ()
-tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty, cxOrigin = M.empty }
+tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty, cxOrigin = IM.empty }
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -1994,7 +1999,12 @@ tGetExpType (Infer r) = tGetRefType r
 
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
-tcExpr mt ae = withCtx (CtxExpr ae) $ tcExprR mt ae {-do
+tcExpr mt ae =
+  case ae of
+    -- Variables and constructors never appear in error contexts; skip the bookkeeping.
+    EVar _ -> tcExprR mt ae
+    ECon _ -> tcExprR mt ae
+    _      -> withCtx (CtxExpr ae) $ tcExprR mt ae {-do
   tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
   tcTrace ("tcExpr exit: " ++ showExpr r)
@@ -4092,7 +4102,7 @@ checkConstraints = do
     [] -> return ()
     (i, t) : _ -> do
       t' <- derefUVar t
-      ctx <- fromMaybe [] . M.lookup i <$> gets cxOrigin
+      ctx <- fromMaybe [] . IM.lookup (identUniq i) <$> gets cxOrigin
       case t' of
         EApp (EApp (EVar eq) a) e | eq == identTypeEq -> mismatchError (getSLoc i) ctx (a, e)
         _ -> do
