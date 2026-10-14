@@ -129,6 +129,7 @@ test:
 	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
 	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
 	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
+	$(TMHS) ExtraComma && $(EVAL) > ExtraComma.out && diff ExtraComma.ref ExtraComma.out
 	$(TMHS) DerivingBuiltin
 
 .PHONY: testpreprocessorpaths

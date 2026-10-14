@@ -278,7 +278,7 @@ q x = show x
 -----
 ../tmp/E.hs:4:7: error: type mismatch
     expected: Int
-    actual:   String
+    actual:   [Char]
 
 =====
 module E() where
@@ -578,7 +578,7 @@ data T = T
 instance Show T where
   show _ = 1
 -----
-../tmp/E.hs:5:12: error: no instance for (Num String)
+../tmp/E.hs:5:12: error: no instance for (Num [Char])
 
 =====
 END

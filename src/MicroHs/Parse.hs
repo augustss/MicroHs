@@ -85,11 +85,19 @@ pModule :: P EModule
 pModule = do
   pKeyword "module"
   mn <- pUQIdentA
-  exps <- (lpar *> sepEndBy pExportItem comma <* rpar)
+  exps <- (lpar *> sepSEBy pExportItem comma <* rpar)
       <|> pure [ExpModule mn]
   pKeyword "where"
   defs <- pBlock pDef
   pure $ EModule mn exps defs
+
+-- Optional leading and trailing
+sepSEBy :: P a -> P b -> P [a]
+sepSEBy p sep = (sep *> sepEndBy1 p sep) <|> sepEndBy p sep
+
+-- Optional leading and trailing, non-empty
+sepSEBy1 :: P a -> P b -> P [a]
+sepSEBy1 p sep = (sep *> sepEndBy1 p sep) <|> sepEndBy1 p sep
 
 pModuleEmpty :: P EModule
 pModuleEmpty = do
@@ -409,15 +417,15 @@ pDef =
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|> Instance <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind <*> (pWhere pInstBind <|> pure [])
-  <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepBy pType comma)
+  <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepSEBy pType comma)
   <|> KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|> mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
-  <|> Sign         <$> (pKeyword "pattern"  *> sepBy1 pUIdentSym comma <* dcolon) <*> pType
+  <|> Sign         <$> (pKeyword "pattern"  *> sepEndBy1 pUIdentSym comma <* dcolon) <*> pType
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                some (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
-    pFunDeps = (bar *> sepBy1 pFunDep comma) <|> pure []
+    pFunDeps = (bar *> sepSEBy1 pFunDep comma) <|> pure []
     pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)
     pField = guardM pFields ((== 1) . either length length)
 
@@ -518,7 +526,7 @@ pDeriving :: P Deriving
 pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
                                     <|> (Deriving <$> pSimpleStrat <*> pDer) )
   where pDer = map ((,) 0) <$>
-                   (    pParens (sepBy pType comma)
+                   (    pParens (sepSEBy pType comma)
                     <|> ((:[]) <$> pAType) )
         pVia = DerVia <$> (pKeyword "via" *> pType)
 
@@ -547,7 +555,7 @@ pConstr = ((\ vs ct t1 c t2 -> Constr vs ct c True (Left [t1, t2])) <$> pForall 
 
 
 pFields :: P (Either [SType] [(Ident, SType)])
-pFields = Right <$> (pSpec '{' *> (concatMap flat <$> sepBy ((,) <$> (sepBy1 pLIdentSym comma <* dcolon) <*> pSType) comma <* pSpec '}'))
+pFields = Right <$> (pSpec '{' *> (concatMap flat <$> sepSEBy ((,) <$> (sepEndBy1 pLIdentSym comma <* dcolon) <*> pSType) comma <* pSpec '}'))
       <|> Left  <$> many pSAType
   where flat (is, t) = [ (i, t) | i <- is ]
 
@@ -582,7 +590,7 @@ pImportSpec =
             <|> ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQualified <|> pure False))
     imp a (b, c) = ImportSpec a b c
   in  imp <$> pSource <*> pQId <*> optional (pKeyword "as" *> pUQIdent) <*>
-              optional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (sepEndBy pImportItem comma))
+              optional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (sepSEBy pImportItem comma))
 
 pImportItem :: P ImportItem
 pImportItem =
@@ -595,7 +603,7 @@ pImportItem =
         impType i is                     = ImpTypeSome i is
 
 pConList :: P [Ident]
-pConList = sepBy (pDotDot <|> pQIdent <|> pUIdentSpecial <|> pParens pSymOper) comma
+pConList = sepSEBy (pDotDot <|> pQIdent <|> pUIdentSpecial <|> pParens pSymOper) comma
   where pDotDot = dotDotIdent <$ pSymbol ".."
 
 dotDotIdent :: Ident
@@ -774,7 +782,7 @@ pAltsL sep =
   <|> ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
 pAlt :: P () -> P EAlt
-pAlt sep = (,) <$> (bar *> sepBy1 pStmt comma) <*> (sep *> pExpr)
+pAlt sep = (,) <$> (bar *> sepSEBy1 pStmt comma) <*> (sep *> pExpr)
 
 pWhere :: P EBind -> P [EBind]
 pWhere pb =
@@ -877,7 +885,7 @@ pAExpr = do
   pure $ sel (foldl EUpdate ee us)
 
 pUpdate :: P [EField]
-pUpdate = pSpec '{' *> sepBy pEField comma <* pSpec '}'
+pUpdate = pSpec '{' *> sepSEBy pEField comma <* pSpec '}'
   where
     pEField = do
       fs <- (:) . unQualIdent <$> pLQIdentSym <*> many pSelect
@@ -911,12 +919,12 @@ pListish = do
   let
     pMore = do
       e2 <- pExpr
-      ((\ es -> LList (e1:e2:es)) <$> some (comma *> pExpr))
+      ((\ es -> LList (e1:e2:es)) <$> (some (comma *> pExpr) <* optional comma) )
        <|> (LFromThenTo e1 e2 <$> (pSymbol ".." *> pExpr))
        <|> (LFromThen e1 e2 <$ pSymbol "..")
        <|> pure (LList [e1,e2])
   (comma *> pMore)
-   <|> (LCompr e1 <$> (bar *> sepBy1 pStmt comma))
+   <|> (LCompr e1 <$> (bar *> sepSEBy1 pStmt comma))
    <|> (LFromTo e1 <$> (pSymbol ".." *> pExpr))
    <|> (LFrom e1 <$ pSymbol "..")
    <|> pure (LList [e1])
@@ -953,8 +961,8 @@ pBind =
 pBind' :: P EBind
 pBind' =
       uncurry Fcn <$> pEqns
-  <|> Sign        <$> (sepBy1 pLIdentSym comma <* dcolon) <*> pType
-  <|> Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> sepBy1 pTypeOper comma
+  <|> Sign        <$> (sepEndBy1 pLIdentSym comma <* dcolon) <*> pType
+  <|> Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> sepEndBy1 pTypeOper comma
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|> (AssocRight <$ pKeyword "infixr") <|> (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -971,7 +979,7 @@ pClsBind =
 pInstBind :: P EBind
 pInstBind =
       uncurry Fcn <$> pEqns
-  <|> Sign        <$> (sepBy1 pLIdentSym comma <* dcolon) <*> pType
+  <|> Sign        <$> (sepEndBy1 pLIdentSym comma <* dcolon) <*> pType
 
 -------------
 
