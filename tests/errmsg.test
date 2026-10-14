@@ -236,7 +236,7 @@ f :: Int -> String
 f x = x + 1
 -----
 ../tmp/E.hs:4:7: error: type mismatch
-    expected: String
+    expected: [Char]
     actual:   Int
 
 =====
