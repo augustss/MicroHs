@@ -212,7 +212,8 @@ void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 
 #if !defined(PACKED)
 #if WORD_SIZE == 32
-#define PACKED __attribute__((packed))
+/* Avoid 64 bit alignment to keep nodes to 12 bytes */
+#define PACKED __attribute__((packed, aligned(4)))
 #else
 #define PACKED
 #endif  /* WORD_SIZE == 32 */
