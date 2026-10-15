@@ -928,6 +928,8 @@ pListish = do
    <|> (LFromTo e1 <$> (pSymbol ".." *> pExpr))
    <|> (LFrom e1 <$ pSymbol "..")
    <|> pure (LList [e1])
+ <|>  -- List with initial comma
+   (comma *> (LList <$> (sepEndBy1 pExpr comma)))
 
 pExprOp :: P Expr
 pExprOp = pOperators pOper pExprArgNeg

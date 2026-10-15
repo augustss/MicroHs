@@ -10,8 +10,13 @@ x,y, :: Int
 x=1
 y=2
 
+infix 3 +++,***,
+a +++ b = a
+a *** b = b
+
 main :: IO ()
 main = do
   print [x*x | x <-[1,2], ]
   print (S1 10){ , x1 = 11 }
   print [1,2,3,]
+  print [,4,5]
