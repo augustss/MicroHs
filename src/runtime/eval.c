@@ -205,6 +205,14 @@ void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 #define INLINE inline
 #endif  /* !define(INLINE) */
 
+#if !defined(NOINLINE)
+#if defined(__GNUC__) || defined(__clang__)
+#define NOINLINE __attribute__((noinline))
+#else
+#define NOINLINE
+#endif
+#endif  /* !defined(NOINLINE) */
+
 #if !defined(NORETURN)
 /*#define NORETURN [[noreturn]]*/
 #define NORETURN _Noreturn
@@ -1160,10 +1168,6 @@ gc_check(size_t k)
 {
   if (k < num_free)
     return;
-#if WANT_STDIO
-  if (verbose > 1)
-    PRINT("gc_check: %d\n", (int)k);
-#endif
   gc();
 }
 
