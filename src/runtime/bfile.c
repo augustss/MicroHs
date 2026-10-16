@@ -116,6 +116,7 @@ typedef struct BFILE {
   size_t (*readb)(uint8_t *, size_t, struct BFILE*); /* optional block read */
   size_t (*writeb)(const uint8_t *, size_t, struct BFILE*); /* optional block write */
   int (*isattyb)(struct BFILE*);                            /* optional tty test */
+  int64_t (*filesizeb)(struct BFILE*);                      /* optional file size */
 } BFILE;
 
 static INLINE int
@@ -156,6 +157,15 @@ isattyb(BFILE *p)
     return p->isattyb(p);
   else
     return 0;                   /* no method, so not a terminal */
+}
+
+static INLINE int64_t
+filesizeb(BFILE *p)
+{
+  if (p->filesizeb)
+    return p->filesizeb(p);
+  else
+    return -1;                  /* no method, so size unknown */
 }
 
 void
@@ -457,6 +467,18 @@ isattyb_file(BFILE *bp)
 #endif
 }
 
+int64_t
+filesizeb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
+#if WANT_DIR
+  return get_FILE_size(p->file);
+#else
+  return -1;
+#endif
+}
+
 void
 freeb_file(BFILE *bp)
 {
@@ -495,6 +517,7 @@ add_FILE(FILE *f)
   p->mets.readb  = readb_file;
   p->mets.writeb = writeb_file;
   p->mets.isattyb = isattyb_file;
+  p->mets.filesizeb = filesizeb_file;
   p->file = f;
   return (BFILE*)p;
 }
@@ -566,6 +589,18 @@ isattyb_fd(BFILE *bp)
   return isatty(p->fd);
 }
 
+int64_t
+filesizeb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+#if WANT_DIR
+  return get_fd_size(p->fd);
+#else
+  return -1;
+#endif
+}
+
 void
 freeb_fd(BFILE *bp)
 {
@@ -604,6 +639,7 @@ add_fd(int fd)
   p->mets.readb  = readb_fd;
   p->mets.writeb = writeb_fd;
   p->mets.isattyb = isattyb_fd;
+  p->mets.filesizeb = filesizeb_fd;
   p->fd = fd;
   p->unget = -1;
   return (BFILE*)p;
@@ -728,6 +764,7 @@ add_lz77_decompressor(BFILE *file)
   p->mets.readb = readb_lz77;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_lz77;
+  p->mets.filesizeb = 0;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -765,6 +802,7 @@ add_lz77_compressor(BFILE *file)
   p->mets.readb = 0;
   p->mets.writeb = writeb_lz77;
   p->mets.isattyb = isattyb_lz77;
+  p->mets.filesizeb = 0;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -1192,6 +1230,7 @@ add_bwt_decompressor(BFILE *file)
   p->mets.readb = readb_bwt;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_bwt;
+  p->mets.filesizeb = 0;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -1231,6 +1270,7 @@ add_bwt_compressor(BFILE *file)
   p->mets.readb = 0;
   p->mets.writeb = writeb_bwt;
   p->mets.isattyb = isattyb_bwt;
+  p->mets.filesizeb = 0;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -1384,6 +1424,15 @@ isattyb_utf8(BFILE *bp)
   return isattyb(p->bfile);
 }
 
+int64_t
+filesizeb_utf8(BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
+
+  return filesizeb(p->bfile);
+}
+
 BFILE *
 add_utf8(BFILE *file)
 {
@@ -1399,6 +1448,7 @@ add_utf8(BFILE *file)
   p->mets.readb = 0;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_utf8;
+  p->mets.filesizeb = filesizeb_utf8;
   p->bfile = file;
   p->unget = -1;
 
@@ -1511,6 +1561,15 @@ isattyb_buf(BFILE *bp)
   return isattyb(p->bfile);
 }
 
+int64_t
+filesizeb_buf(BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  return filesizeb(p->bfile);
+}
+
 /* bufsize==0 no buffering, bufsize<0 linebuffered, bufsize>0 regular */
 BFILE *
 add_buf(BFILE *file, int bufsize)
@@ -1527,6 +1586,7 @@ add_buf(BFILE *file, int bufsize)
   p->mets.readb = 0;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_buf;
+  p->mets.filesizeb = filesizeb_buf;
   p->bfile = file;
   p->unget = -1;
   p->pos = 0;
@@ -1621,6 +1681,15 @@ isattyb_crlf(BFILE *bp)
   return isattyb(p->bfile);
 }
 
+int64_t
+filesizeb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  CHECKBFILE(bp, getb_crlf);
+
+  return filesizeb(p->bfile);
+}
+
 BFILE *
 add_crlf(BFILE *file)
 {
@@ -1636,6 +1705,7 @@ add_crlf(BFILE *file)
   p->mets.readb = 0;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_crlf;
+  p->mets.filesizeb = filesizeb_crlf;
   p->bfile = file;
   return (BFILE*)p;
 }
@@ -1840,6 +1910,14 @@ isattyb_b64(BFILE *bp) {
   return isattyb(p->bfile);
 }
 
+static int64_t
+filesizeb_b64(BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+
+  return filesizeb(p->bfile);
+}
+
 BFILE *
 add_base64_encoder(BFILE *file) {
   struct BFILE_b64 *p = MALLOC(sizeof(struct BFILE_b64));
@@ -1854,6 +1932,7 @@ add_base64_encoder(BFILE *file) {
   p->mets.readb  = 0;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_b64;
+  p->mets.filesizeb = filesizeb_b64;
 
   p->bfile  = file;
   p->read   = 0;
@@ -1882,6 +1961,7 @@ add_base64_decoder(BFILE *file) {
   p->mets.readb  = 0;
   p->mets.writeb = 0;
   p->mets.isattyb = isattyb_b64;
+  p->mets.filesizeb = filesizeb_b64;
   p->bfile = file;
   p->read = 1;
   p->unget = -1;
@@ -2187,6 +2267,7 @@ add_lzma_decompressor(BFILE *file)
   p->mets.readb   = readb_lzma_dec;
   p->mets.writeb  = 0;
   p->mets.isattyb = isattyb_lzma_dec;
+  p->mets.filesizeb = 0;
   p->bfile        = file;
   p->unget        = -1;
 
@@ -2222,6 +2303,7 @@ add_lzma_compressor(BFILE *file)
   p->mets.readb   = 0;
   p->mets.writeb  = writeb_lzma_enc;
   p->mets.isattyb = isattyb_lzma_enc;
+  p->mets.filesizeb = 0;
   p->bfile        = file;
   p->flushed      = 0;
 

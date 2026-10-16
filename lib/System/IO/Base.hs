@@ -32,6 +32,7 @@ module System.IO.Base(
   IOException(..),
 
   hIsTerminalDevice,
+  hFileSize,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -46,6 +47,9 @@ import Data.Eq
 import Data.Function
 import Data.Functor
 import Data.Int.Int
+import Data.Int.Int64
+import Data.Integer_Type
+import Data.Integral
 import Data.List
 import Data.Maybe
 import Data.Num
@@ -71,6 +75,7 @@ foreign import ccall "putb"         c_putb         :: Int ->          Ptr BFILE 
 foreign import ccall "writeb"       c_writeb       :: Ptr a -> Int -> Ptr BFILE -> IO Int
 foreign import ccall "readb"        c_readb        :: Ptr a -> Int -> Ptr BFILE -> IO Int
 foreign import ccall "isattyb"      c_isattyb      ::                 Ptr BFILE -> IO Int
+foreign import ccall "filesizeb"    c_filesizeb    ::                 Ptr BFILE -> IO Int64
 
 ----------------------------------------------------------
 
@@ -318,3 +323,11 @@ hIsTerminalDevice h = do
     ioErrH h InvalidArgument "hIsTerminalDevice"
    else
     return (i /= 0)
+
+hFileSize :: Handle -> IO Integer
+hFileSize h = do
+  i <- withHandleAny h c_filesizeb
+  if i < 0 then
+    ioErrH h InvalidArgument "hFileSize"
+   else
+    return (toInteger i)

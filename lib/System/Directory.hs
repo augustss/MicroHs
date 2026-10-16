@@ -71,7 +71,7 @@ module System.Directory(
 --  , isSymbolicLink
   ) where
 import qualified Prelude(); import MiniPrelude
-import Data.Word.Word64
+import Data.Int.Int64
 import Control.Exception(bracket)
 import Control.Monad(when)
 import Data.Bits
@@ -96,7 +96,7 @@ foreign import ccall "mkdir"    c_mkdir    :: CString -> Int -> IO Int
 foreign import ccall "getcwd"   c_getcwd   :: CString -> Int -> IO CString
 foreign import ccall "get_permissions"   c_getPermissions   :: CString -> IO Int
 foreign import ccall "set_permissions"   c_setPermissions   :: CString -> Int -> IO Int
-foreign import ccall "get_file_size"     c_getFileSize      :: CString -> IO Word64
+foreign import ccall "get_file_size"     c_getFileSize      :: CString -> IO Int64
 
 
 -- XXX Use Foreign.C.Error

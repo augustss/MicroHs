@@ -385,10 +385,38 @@ set_permissions(const char *path, int perms)
   return result;
 }
 
-uint64_t
+int64_t
 get_file_size(const char *path)
 {
-  return 0;
+  struct stat st;
+
+  if (stat(path, &st) < 0) {
+    return -1;
+  }
+  return st.st_size;
 }
+
+int64_t
+get_fd_size(int fd)
+{
+  struct stat st;
+
+  if (fstat(fd, &st) < 0) {
+    return -1;
+  }
+  return st.st_size;
+}
+
+#if WANT_STDIO
+int64_t
+get_FILE_size(FILE *f)
+{
+  int fd = fileno(f);
+  if (fd < 0) {
+    return -1;
+  }
+  return get_fd_size(fd);
+}
+#endif  /* WANT_STDIO */
 
 #endif  /* WANT_DIR */

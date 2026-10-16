@@ -7741,6 +7741,9 @@ from_t mhs_getmem(int s) { get_mem(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Pt
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_isattyb(int s) { return mhs_from_Int(s, 1, isattyb(mhs_to_Ptr(s, 0))); }
+#if WANT_INT64
+from_t mhs_filesizeb(int s) { return mhs_from_Int64(s, 1, filesizeb(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_INT64 */
 
 #if WANT_MD5
 from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -7855,7 +7858,7 @@ from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, MKDIR(mhs_to_Ptr(s, 0), mhs_
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_get_permissions(int s) { return mhs_from_Int(s, 1, get_permissions(mhs_to_Ptr(s, 0))); }
 from_t mhs_set_permissions(int s) { return mhs_from_Int(s, 2, set_permissions(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-from_t mhs_get_file_size(int s) { return mhs_from_Word64(s, 1, get_file_size(mhs_to_Ptr(s, 0))); }
+from_t mhs_get_file_size(int s) { return mhs_from_Int64(s, 1, get_file_size(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_DIR */
 from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_ENV
@@ -8125,6 +8128,7 @@ const struct ffi_entry ffi_table[] = {
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
   { "isattyb", 1, mhs_isattyb},
+  { "filesizeb", 1, mhs_filesizeb},
 
 #if WANT_MD5
   { "md5Array", 3, mhs_md5Array},
