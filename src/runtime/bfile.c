@@ -1911,129 +1911,261 @@ add_base64_decoder(BFILE *file) {
  * To use, #define LZMA_IMPLEMENTATION before including lzma.h,
  * then compile with this file.
  *
- * Wire format (same envelope style as the lz77 transducer):
+ * Wire format:
  *   "LZ2"          -- 3-byte magic / version tag
- *   uint32 olen    -- compressed length (little-endian, 4 bytes)
- *   <olen bytes>   -- lzma_compress output (includes the 13-byte
- *                     LZMA properties+size header)
- *
- * Both compressor and decompressor buffer the entire payload in
- * memory, matching the existing lz77 design in bfile.c.
+ *   <5 bytes>      -- LZMA properties header
+ *   <stream>       -- LZMA compressed bitstream with end-of-stream marker
  */
 
-struct BFILE_lzma {
+#define LZMA_IN_BUF_SIZE 4096
+
+struct BFILE_lzma_dec {
   BFILE          mets;
   BFILE         *bfile;    /* underlying BFILE */
-  struct bfbuffer bf;
-  int            read;     /* 1 = decompressor, 0 = compressor */
-  int            numflush;
+  CLzmaDec       dec;
+  SizeT          read_pos; /* read cursor in dec.dic */
+  SizeT          in_pos;   /* read cursor in in_buf */
+  SizeT          in_len;   /* valid bytes in in_buf */
+  int            eof;      /* end of LZMA stream reached */
+  int            unget;    /* >= 0 if an ungot byte is pending */
+  Byte           in_buf[LZMA_IN_BUF_SIZE];
 };
 
-/* ---- shared getb / ungetb / putb / readb / writeb ---- */
+struct BFILE_lzma_enc {
+  BFILE          mets;
+  BFILE         *bfile;    /* underlying BFILE */
+  CLzmaEnc      *enc;
+  ISeqOutStream  out_stream;
+  int            flushed;
+};
 
-int
-getb_lzma(BFILE *bp)
+static size_t
+lzma_seq_out_write(const ISeqOutStream *pp, const void *data, size_t size)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-  return bfbuffer_get(&p->bf);
+  struct BFILE_lzma_enc *p = CONTAINER_FROM_VTBL(pp, struct BFILE_lzma_enc, out_stream);
+  return writeb((const uint8_t *)data, size, p->bfile);
 }
 
-void
-ungetb_lzma(int c, BFILE *bp)
+static SRes
+lzma_seq_in_read(const ISeqInStream *pp, void *buf, size_t *size)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-  p->bf.pos--;
+  (void)pp;
+  (void)buf;
+  *size = 0;
+  return SZ_OK;
 }
 
-void
-putb_lzma(int b, BFILE *bp)
+static const ISeqInStream lzma_dummy_in_stream = { lzma_seq_in_read };
+
+/* Fill more decoded bytes into p->dec.dic */
+static void
+lzma_dec_fill(struct BFILE_lzma_dec *p)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-  bfbuffer_snoc(&p->bf, b);
+  while (p->read_pos == p->dec.dicPos && !p->eof) {
+    if (p->dec.dicPos == p->dec.dicBufSize) {
+      p->dec.dicPos = 0;
+      p->read_pos = 0;
+    }
+    if (p->in_pos == p->in_len) {
+      p->in_pos = 0;
+      p->in_len = readb(p->in_buf, LZMA_IN_BUF_SIZE, p->bfile);
+    }
+    SizeT in_rem = p->in_len - p->in_pos;
+    ELzmaStatus status = LZMA_STATUS_NOT_SPECIFIED;
+    SRes res = LzmaDec_DecodeToDic(&p->dec, p->dec.dicBufSize,
+                                   p->in_buf + p->in_pos, &in_rem,
+                                   LZMA_FINISH_ANY, &status);
+    if (res != SZ_OK)
+      ERR("LzmaDec_DecodeToDic");
+    p->in_pos += in_rem;
+    if (status == LZMA_STATUS_FINISHED_WITH_MARK) {
+      p->eof = 1;
+    } else if (status == LZMA_STATUS_NEEDS_MORE_INPUT &&
+               in_rem == 0 && p->in_len == 0 &&
+               p->read_pos == p->dec.dicPos) {
+      ERR("LZMA unexpected EOF");
+    }
+  }
 }
 
-size_t
-readb_lzma(uint8_t *buf, size_t size, BFILE *bp)
+static int
+getb_lzma_dec(BFILE *bp)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-  return bfbuffer_read(&p->bf, buf, size);
+  struct BFILE_lzma_dec *p = (struct BFILE_lzma_dec *)bp;
+  CHECKBFILE(bp, getb_lzma_dec);
+  if (p->unget >= 0) {
+    int c = p->unget;
+    p->unget = -1;
+    return c;
+  }
+  if (p->read_pos == p->dec.dicPos) {
+    lzma_dec_fill(p);
+    if (p->read_pos == p->dec.dicPos)
+      return -1;
+  }
+  return p->dec.dic[p->read_pos++];
 }
 
-size_t
-writeb_lzma(const uint8_t *str, size_t size, BFILE *bp)
+static void
+ungetb_lzma_dec(int c, BFILE *bp)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-  return bfbuffer_write(&p->bf, str, size);
-}
-
-/* ---- compressor flush / close ---- */
-
-void
-flushb_lzma(BFILE *bp)
-{
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
-
-  /* Nothing new since last flush — skip. */
-  if (p->numflush++ && !p->bf.pos)
+  struct BFILE_lzma_dec *p = (struct BFILE_lzma_dec *)bp;
+  CHECKBFILE(bp, getb_lzma_dec);
+  if (c < 0)
     return;
-
-  /*
-   * Worst-case LZMA output is slightly larger than input.
-   * The lzma.h docs don't give an exact bound, but input_size + (input_size/3)
-   * + LZMA_HEADER_SIZE is a safe over-estimate used by many wrappers.
-   */
-  size_t ilen  = p->bf.pos;
-  size_t olen  = ilen + (ilen / 3) + LZMA_HEADER_SIZE + 128;
-  uint8_t *obuf = MALLOC(olen);
-  if (!obuf)
-    memerr();
-
-  if (lzma_compress(obuf, &olen, p->bf.buf, ilen) != 0)
-    ERR("lzma_compress");
-  /* Put the size in place */
-  ilen = p->bf.pos;
-  for (int i = 0; i < 8; i++) {
-    obuf[LZMA_PROPS_SIZE + i] = ilen & 0xff;
-    ilen >>= 8;
-  }
-
-  putsb("LZ2", p->bfile);        /* magic / version */
-  putint32((value_t)olen, p->bfile); /* compressed length */
-  for (size_t i = 0; i < olen; i++)
-    putb(obuf[i], p->bfile);
-
-  FREE(obuf);
-  p->bf.pos = 0;
-  flushb(p->bfile);
+  if (p->unget >= 0)
+    ERR("ungetb_lzma_dec: double unget");
+  p->unget = c;
 }
 
-void
-closeb_lzma(BFILE *bp)
+static size_t
+readb_lzma_dec(uint8_t *buf, size_t size, BFILE *bp)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
+  struct BFILE_lzma_dec *p = (struct BFILE_lzma_dec *)bp;
+  CHECKBFILE(bp, getb_lzma_dec);
+  size_t total = 0;
 
-  if (!p->read) {
-    /* Write mode: compress whatever is buffered. */
-    flushb_lzma(bp);
-    bfbuffer_free(&p->bf);
+  if (size == 0)
+    return 0;
+
+  if (p->unget >= 0) {
+    *buf++ = (uint8_t)p->unget;
+    p->unget = -1;
+    total++;
+    size--;
   }
+
+  while (size > 0) {
+    if (p->read_pos == p->dec.dicPos) {
+      lzma_dec_fill(p);
+      if (p->read_pos == p->dec.dicPos)
+        break;
+    }
+    size_t avail = p->dec.dicPos - p->read_pos;
+    if (avail > size)
+      avail = size;
+    memcpy(buf, p->dec.dic + p->read_pos, avail);
+    p->read_pos += avail;
+    buf += avail;
+    total += avail;
+    size -= avail;
+  }
+  return total;
+}
+
+static void
+closeb_lzma_dec(BFILE *bp)
+{
+  struct BFILE_lzma_dec *p = (struct BFILE_lzma_dec *)bp;
+  CHECKBFILE(bp, getb_lzma_dec);
+  LzmaDec_Free(&p->dec, &LZMA_ALLOC);
   closeb(p->bfile);
   FREE(p);
 }
 
-int
-isattyb_lzma(BFILE *bp)
+static int
+isattyb_lzma_dec(BFILE *bp)
 {
-  struct BFILE_lzma *p = (struct BFILE_lzma *)bp;
-  CHECKBFILE(bp, getb_lzma);
+  struct BFILE_lzma_dec *p = (struct BFILE_lzma_dec *)bp;
+  CHECKBFILE(bp, getb_lzma_dec);
+  return isattyb(p->bfile);
+}
 
+/* ---- streaming compressor ---- */
+
+static void
+lzma_enc_feed(struct BFILE_lzma_enc *p, const uint8_t *str, size_t size)
+{
+  CLzmaEnc *enc = p->enc;
+  CMatchFinder *mf = &enc->matchFinderBase;
+
+  while (size > 0) {
+    if (MatchFinder_NeedMove(mf))
+      MatchFinder_MoveBlock(mf);
+    Byte *dest = mf->buffer + GET_AVAIL_BYTES(mf);
+    size_t space = (size_t)(mf->bufferBase + mf->blockSize - dest);
+    size_t chunk = size < space ? size : space;
+    memcpy(dest, str, chunk);
+    mf->streamPos += (UInt32)chunk;
+    str += chunk;
+    size -= chunk;
+
+    while (GET_AVAIL_BYTES(mf) + enc->additionalOffset > (1 << 17) + (1 << 12) + mf->keepSizeAfter) {
+      mf->streamEndWasReached = 0;
+      enc->needInit = 0;
+      MatchFinder_SetLimits(mf);
+      if (LzmaEnc_CodeOneBlock(enc, 0, 0) != SZ_OK)
+        ERR("LzmaEnc_CodeOneBlock");
+      if (enc->finished)
+        break;
+    }
+  }
+}
+
+static int
+getb_lzma_enc(BFILE *bp)
+{
+  ERR("getb on lzma compressor");
+  return -1;
+}
+
+static void
+putb_lzma_enc(int b, BFILE *bp)
+{
+  struct BFILE_lzma_enc *p = (struct BFILE_lzma_enc *)bp;
+  CHECKBFILE(bp, getb_lzma_enc);
+  uint8_t ch = (uint8_t)b;
+  lzma_enc_feed(p, &ch, 1);
+}
+
+static size_t
+writeb_lzma_enc(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_lzma_enc *p = (struct BFILE_lzma_enc *)bp;
+  CHECKBFILE(bp, getb_lzma_enc);
+  lzma_enc_feed(p, str, size);
+  return size;
+}
+
+static void
+flushb_lzma_enc(BFILE *bp)
+{
+  struct BFILE_lzma_enc *p = (struct BFILE_lzma_enc *)bp;
+  CHECKBFILE(bp, getb_lzma_enc);
+
+  if (p->flushed)
+    return;
+  p->flushed = 1;
+
+  CLzmaEnc *enc = p->enc;
+  CMatchFinder *mf = &enc->matchFinderBase;
+  mf->streamEndWasReached = 1;
+  enc->needInit = 0;
+  MatchFinder_SetLimits(mf);
+  while (!enc->finished) {
+    if (LzmaEnc_CodeOneBlock(enc, 0, 0) != SZ_OK)
+      ERR("LzmaEnc_CodeOneBlock flush");
+  }
+  LzmaEnc_Finish(enc);
+  flushb(p->bfile);
+}
+
+static void
+closeb_lzma_enc(BFILE *bp)
+{
+  struct BFILE_lzma_enc *p = (struct BFILE_lzma_enc *)bp;
+  CHECKBFILE(bp, getb_lzma_enc);
+  flushb_lzma_enc(bp);
+  LzmaEnc_Destroy(p->enc, &LZMA_ALLOC, &LZMA_ALLOC);
+  closeb(p->bfile);
+  FREE(p);
+}
+
+static int
+isattyb_lzma_enc(BFILE *bp)
+{
+  struct BFILE_lzma_enc *p = (struct BFILE_lzma_enc *)bp;
+  CHECKBFILE(bp, getb_lzma_enc);
   return isattyb(p->bfile);
 }
 
@@ -2042,61 +2174,34 @@ isattyb_lzma(BFILE *bp)
 BFILE *
 add_lzma_decompressor(BFILE *file)
 {
-  struct BFILE_lzma *p = MALLOC(sizeof(struct BFILE_lzma));
+  struct BFILE_lzma_dec *p = MALLOC(sizeof(struct BFILE_lzma_dec));
   if (!p)
     memerr();
-  memset(p, 0, sizeof(struct BFILE_lzma));
+  memset(p, 0, sizeof(struct BFILE_lzma_dec));
 
-  p->mets.getb   = getb_lzma;
-  p->mets.ungetb = ungetb_lzma;
-  p->mets.putb   = 0;
-  p->mets.flushb = 0;
-  p->mets.closeb = closeb_lzma;
-  p->mets.readb  = readb_lzma;
-  p->mets.writeb = 0;
-  p->mets.isattyb = isattyb_lzma;
-  p->read        = 1;
-  p->bfile       = file;
-  p->numflush    = 0;
+  p->mets.getb    = getb_lzma_dec;
+  p->mets.ungetb  = ungetb_lzma_dec;
+  p->mets.putb    = 0;
+  p->mets.flushb  = 0;
+  p->mets.closeb  = closeb_lzma_dec;
+  p->mets.readb   = readb_lzma_dec;
+  p->mets.writeb  = 0;
+  p->mets.isattyb = isattyb_lzma_dec;
+  p->bfile        = file;
+  p->unget        = -1;
 
   /* Check the 3-byte magic tag. */
-  if (getb(file) != 'L' || getb(file) != 'Z' || getb(file) != '2')
+  if (getb(file) != 'L' || getb(file) != 'Z' || getb(file) != '3')
     ERR("Bad LZMA signature");
 
-  /* Read the compressed payload length, then the payload itself. */
-  size_t clen = (size_t)getint32(file);
-  uint8_t *cbuf = MALLOC(clen);
-  if (!cbuf)
-    memerr();
-  for (size_t i = 0; i < clen; i++)
-    cbuf[i] = getb(file);
+  Byte props[LZMA_PROPS_SIZE];
+  if (readb(props, LZMA_PROPS_SIZE, file) != LZMA_PROPS_SIZE)
+    ERR("LZMA header too short");
 
-  /*
-   * The LZMA header (bytes 5–12 of cbuf) encodes the uncompressed size.
-   * Read it as a little-endian 64-bit value so we can pre-allocate the
-   * output buffer without guessing.
-   */
-  if (clen < LZMA_HEADER_SIZE)
-    ERR("LZMA payload too short");
-
-  uint64_t ulen64 = 0;
-  for (int i = 0; i < 8; i++)
-    ulen64 |= (uint64_t)cbuf[LZMA_PROPS_SIZE + i] << (8 * i);
-
-  size_t ulen = (size_t)ulen64;
-  uint8_t *ubuf = MALLOC(ulen);
-  if (!ubuf)
-    memerr();
-
-  size_t src_len = clen;
-  if (lzma_uncompress(ubuf, &ulen, cbuf, &src_len) != 0)
-    ERR("lzma_uncompress");
-
-  FREE(cbuf);
-
-  p->bf.buf  = ubuf;
-  p->bf.size = ulen;
-  p->bf.pos  = 0;
+  LzmaDec_Construct(&p->dec);
+  if (LzmaDec_Allocate(&p->dec, props, LZMA_PROPS_SIZE, &LZMA_ALLOC) != SZ_OK)
+    ERR("LzmaDec_Allocate");
+  LzmaDec_Init(&p->dec);
 
   return (BFILE *)p;
 }
@@ -2104,24 +2209,51 @@ add_lzma_decompressor(BFILE *file)
 BFILE *
 add_lzma_compressor(BFILE *file)
 {
-  struct BFILE_lzma *p = MALLOC(sizeof(struct BFILE_lzma));
+  struct BFILE_lzma_enc *p = MALLOC(sizeof(struct BFILE_lzma_enc));
   if (!p)
     memerr();
-  memset(p, 0, sizeof(struct BFILE_lzma));
+  memset(p, 0, sizeof(struct BFILE_lzma_enc));
 
-  p->mets.getb   = getb_lzma;
-  p->mets.ungetb = 0;
-  p->mets.putb   = putb_lzma;
-  p->mets.flushb = flushb_lzma;
-  p->mets.closeb = closeb_lzma;
-  p->mets.readb  = 0;
-  p->mets.writeb = writeb_lzma;
-  p->mets.isattyb = isattyb_lzma;
-  p->read        = 0;
-  p->bfile       = file;
-  p->numflush    = 0;
+  p->mets.getb    = getb_lzma_enc;
+  p->mets.ungetb  = 0;
+  p->mets.putb    = putb_lzma_enc;
+  p->mets.flushb  = flushb_lzma_enc;
+  p->mets.closeb  = closeb_lzma_enc;
+  p->mets.readb   = 0;
+  p->mets.writeb  = writeb_lzma_enc;
+  p->mets.isattyb = isattyb_lzma_enc;
+  p->bfile        = file;
+  p->flushed      = 0;
 
-  bfbuffer_init(&p->bf, 25000);  /* same initial size as lz77 */
+  p->out_stream.Write = lzma_seq_out_write;
+
+  CLzmaEnc *enc = (CLzmaEnc *)LzmaEnc_Create(&LZMA_ALLOC);
+  if (!enc)
+    memerr();
+  p->enc = enc;
+
+  CLzmaEncProps props;
+  LzmaEncProps_Init(&props);
+  props.writeEndMark = 1;
+  if (LzmaEnc_SetProps(enc, &props) != SZ_OK)
+    ERR("LzmaEnc_SetProps");
+
+  Byte props_buf[LZMA_PROPS_SIZE];
+  SizeT props_size = LZMA_PROPS_SIZE;
+  if (LzmaEnc_WriteProperties(enc, props_buf, &props_size) != SZ_OK)
+    ERR("LzmaEnc_WriteProperties");
+
+  putsb("LZ3", file);
+  writeb(props_buf, props_size, file);
+
+  if (LzmaEnc_Prepare(enc, &p->out_stream, (ISeqInStream *)&lzma_dummy_in_stream, &LZMA_ALLOC, &LZMA_ALLOC) != SZ_OK)
+    ERR("LzmaEnc_Prepare");
+
+  CMatchFinder *mf = &enc->matchFinderBase;
+  MatchFinder_Init_HighHash(mf);
+  MatchFinder_Init_LowHash(mf);
+  MatchFinder_Init_4(mf);
+  mf->cyclicBufferPos = (mf->pos - CYC_TO_POS_OFFSET);
 
   return (BFILE *)p;
 }
