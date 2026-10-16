@@ -4105,10 +4105,13 @@ parse(struct parse_ctx *pc, BFILE *f)
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
-      for (j = 1; (buf[j] = getNT(f)); j++)
-        ;
+      for (j = 1; (buf[j] = getNT(f)); j++) {
+        if (j >= sizeof buf) {
+          DESER_ERR("bad input");
+        }
+      }
 
-        // Look up the primop (O(1) hash lookup) and use the preallocated node.
+      /* Look up the primop (O(1) hash lookup) and use the preallocated node. */
       {
         int t = lookup_primop(buf);
         if (t < 0)
@@ -4148,7 +4151,7 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
     /* exception */
     if (pc->shared_table)
       FREE(pc->shared_table);
-    raise_rts(exn_deserialize);
+    return NIL;
   } else {
     checkversion(pc, f);
     numLabels = parse_int(f);
@@ -6159,6 +6162,8 @@ evali(NODEPTR an)
     bfile = (struct BFILE*)evalptr(x);
     gc();                     /* make sure we have room.  GC during parse is dodgy. */
     x = parse_top(bfile, 0);
+    if (x == NIL)
+      raise_rts(exn_deserialize);
     POP(2);
     GOPAIR(x);                /* allocates a cell, but we did a GC above */
 #endif
@@ -7332,6 +7337,8 @@ MHS_INIT_ARGS(
       ungetb(c, bf);
     }
     prog = parse_top(bf, xffe_table);
+    if (prog == NIL)
+      ERR("deser failed");
     closeb(bf);
   }
 
