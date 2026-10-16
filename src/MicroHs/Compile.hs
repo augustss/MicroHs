@@ -19,7 +19,6 @@ module MicroHs.Compile(
   loadEmbedded,
   ) where
 import qualified Prelude(); import MHSPrelude
-import Control.Exception
 import qualified Data.ByteString as BS
 import Data.Char
 import Data.List

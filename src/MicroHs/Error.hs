@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module MicroHs.Error(
   MhsError(..),
   mhsError,
@@ -6,18 +7,23 @@ module MicroHs.Error(
   formatMhsError,
   errLoc,
   ) where
-import Control.Exception
+import qualified Prelude(); import MHSPrelude
 import Data.Maybe
-import MicroHs.Ident(SLoc(..), showSLoc, isNoSLoc)
+import MicroHs.Ident({-SLoc(..),-} showSLoc, isNoSLoc)
 import System.Environment
 import System.Exit
 import System.IO
 
+-- This belongs in MicroHs.Error, but Hugs cannot derive Tyoeable
+-- and GHC doesn't allow explicit Typeable instances.
+-- Instead it lives in {ghc,hugs,mhs}/MHSPrelude.hs
+{-
 data MhsError
   = MhsSyntaxError SLoc String String
   | MhsTypeError   SLoc String String String  -- header, expected, actual
   | MhsOtherError  SLoc String
   | MhsError            String                -- no location
+-}
 
 instance Show MhsError where
   show = formatMhsError False

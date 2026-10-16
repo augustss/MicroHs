@@ -3,7 +3,6 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe
-import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
@@ -11,7 +10,7 @@ import MicroHs.Error(mhsError, errLoc, formatMhsError)
 import MicroHs.Exp(Exp(Var))
 import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, SLoc(..), slocIdent, isNoSLoc)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, {-SLoc(..),-} slocIdent, isNoSLoc)
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -383,7 +382,7 @@ oneline aline = do
   -- building up multiple imports.
   if take 1 (words line) == ["import"] && line `elem` lines ls then
     reload
-   else 
+   else
     -- First try to parse as a definition,
     tryParse pTopModule (ls ++ line ++ "\n") def $ \ _ ->
       -- if that fails, parse as an expression.

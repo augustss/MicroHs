@@ -1,5 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+{-# LANGUAGE DeriveDataTypeable #-}
 module MHSPrelude(
   module Prelude,
   module MHSPrelude,
@@ -11,17 +12,17 @@ module MHSPrelude(
   module Data.Version,
   Int64,
   (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
-  getExecutablePath,
-  listDirectory
+  Exc.evaluate,
   ) where
 import Hugs.Prelude()
 import Prelude hiding(catch, fail)
 import qualified Prelude
 import Control.Arrow(first, second)
 import Control.Applicative
-import Control.Exception(Exception, try)
+import qualified Control.Exception as Exc
 --import Control.Monad.Fail
 import Data.ByteString(ByteString)
+import Data.Dynamic
 import Data.Int
 import Data.List
 import Data.Maybe
@@ -29,6 +30,7 @@ import Data.Monoid
 import Data.Ratio
 import Data.Semigroup
 import Data.Text(Text, append, pack)
+import Data.Typeable
 import Data.Word
 import Data.Version
 import Debug.Trace
@@ -99,12 +101,7 @@ stripSuffix s t =
 
 ------- IO --------
 
-type SomeException = Exception
-
 data TextEncoding = UTF8
-
-displayException :: Exception -> String
-displayException = show
 
 utf8 :: TextEncoding
 utf8 = UTF8
@@ -119,21 +116,21 @@ hSetEncoding _ _ = return ()
 
 lookupEnv :: String -> IO (Maybe String)
 lookupEnv var = do
-  r <- try $ getEnv var
+  r <- Exc.try $ getEnv var
   case r of
     Left _ -> return Nothing
     Right s -> return (Just s)
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM path m = do
-  r <- try $ openFile path m
+  r <- Exc.try $ openFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
 
 openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openBinaryFileM path m = do
-  r <- try $ openBinaryFile path m
+  r <- Exc.try $ openBinaryFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
@@ -167,10 +164,10 @@ openTmpFile :: String -> IO (String, Handle)
 openTmpFile tmplt = do
   mtmp <- lookupEnv "TMPDIR"
   let tmp = fromMaybe "/tmp" mtmp
-  res <- try $ openTempFile tmp tmplt
+  res <- Exc.try $ openTempFile tmp tmplt
   case res of
     Right x -> return x
-    Left (_::SomeException) -> openTempFile "." tmplt
+    Left (_::Exc.Exception) -> openTempFile "." tmplt
 
 ------- Read --------
 
@@ -178,9 +175,6 @@ readMaybe :: Read a => String -> Maybe a
 readMaybe s = case reads s of
     [(r, _)] -> Just r
     _ -> Nothing
-
-mhsError :: String -> a
-mhsError = error
 
 _usingMhs :: Bool
 _usingMhs = False
@@ -271,9 +265,63 @@ f <=< g = \ a -> do
 (>=>) = flip (<=<)
 
 getExecutablePath :: forall a . IO a
-getExecutablePath = error "unimplemented"
+getExecutablePath = error "unimplemented getExecutablePath"
 
 listDirectory :: FilePath -> IO [FilePath]
 listDirectory dir = do
   r <- getDirectoryContents dir
   return $ filter (\s -> s /= "." && s /= "..") r
+
+-----------------
+-- Emulate modern exceptions
+
+type SomeException = Exc.Exception
+
+-- NOTE: The runtime system knows about this class.
+-- It uses displayException to show an uncaught exception.
+-- Any changes here must be reflected in eval.c
+class (Typeable e, Show e) => Exception e where
+    toException      :: e -> SomeException
+    fromException    :: SomeException -> Maybe e
+    displayException :: e -> String
+
+    toException e = Exc.DynException (toDyn e)
+    fromException (Exc.DynException e) = fromDynamic e
+    fromException e                    = cast e
+    displayException = show
+
+--instance Show SomeException where
+--  showsPrec p (SomeException e) = showString "SomeException"
+
+instance Exception SomeException where
+  toException e = e
+
+throw :: Exception e => e -> a
+throw e = Exc.throw (toException e)
+
+catch   :: Exception e
+        => IO a
+        -> (e -> IO a)
+        -> IO a
+catch m k = Exc.catch m h
+  where h e = case fromException e of
+                Just e' -> k e'
+                Nothing -> Exc.throw e
+
+try :: Exception e => IO a -> IO (Either e a)
+try ioa = catch (fmap Right ioa) (return . Left)
+
+---
+-- This belongs in MicroHs.Error, but Hugs cannot derive Tyoeable
+-- and GHC doesn't allow explicit Typeable instances.
+data MhsError
+  = MhsSyntaxError SLoc String String
+  | MhsTypeError   SLoc String String String  -- header, expected, actual
+  | MhsOtherError  SLoc String
+  | MhsError            String                -- no location
+
+instance Typeable MhsError where
+  typeOf _ = mkTyConApp (mkTyCon "MicroHs.Error.MhsError") []
+
+data SLoc = SLoc FilePath Int Int
+  deriving (Show, Eq)

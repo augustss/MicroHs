@@ -4,6 +4,7 @@ module MHSPrelude(
   module Control.Error,
   module Control.Monad,
   module Control.Monad.Fail,
+  module Control.Exception,
   module Data.Bool,
   module Data.Bounded,
   module Data.Char,
@@ -43,12 +44,14 @@ module MHSPrelude(
   compiledWithMhs,
   Int64,
   HasCallStack,
+  MhsError(..), SLoc(..),
   ) where
 import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
 import Control.Error(error, undefined, errorWithoutStackTrace)
+import Control.Exception
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
@@ -129,3 +132,14 @@ second f (a, b) = (a, f b)
 
 class HasCallStack
 instance HasCallStack
+
+---
+-- This belongs in MicroHs.Error, but Hugs cannot derive Tyoeable
+-- and GHC doesn't allow explicit Typeable instances.
+data MhsError
+  = MhsSyntaxError SLoc String String
+  | MhsTypeError   SLoc String String String  -- header, expected, actual
+  | MhsOtherError  SLoc String
+  | MhsError            String                -- no location
+data SLoc = SLoc FilePath Int Int
+  deriving (Show, Eq)

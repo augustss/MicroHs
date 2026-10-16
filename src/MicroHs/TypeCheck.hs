@@ -18,7 +18,6 @@ module MicroHs.TypeCheck(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
-import Control.Exception(throw)
 import Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
@@ -1535,6 +1534,12 @@ expandInst dinst@(Instance act bs extra) = do
       else "ambiguous instance binding"
       )
 
+{-
+  if qiCls == identDataTypeableTypeable then
+    trace ("instance Typeable ignored"
+    return []
+   else
+-}
   return (dinst : concat defs)
 
 expandInst d = return [d]

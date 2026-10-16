@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
-import Control.Exception
 import Control.Monad
 import Control.Applicative
 import qualified Data.ByteString.Char8 as BS

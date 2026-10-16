@@ -2,8 +2,9 @@
 {-# LANGUAGE CPP #-}
 module MHSPrelude(
   module Prelude,
-  module Control.DeepSeq,
   module Control.Arrow,
+  module Control.DeepSeq,
+  module Control.Exception,
   module Data.Version,
   module Text.Read,
   module MHSPrelude,
@@ -94,3 +95,14 @@ wantImath = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
+
+---
+-- This belongs in MicroHs.Error, but Hugs cannot derive Tyoeable
+-- and GHC doesn't allow explicit Typeable instances.
+data MhsError
+  = MhsSyntaxError SLoc String String
+  | MhsTypeError   SLoc String String String  -- header, expected, actual
+  | MhsOtherError  SLoc String
+  | MhsError            String                -- no location
+data SLoc = SLoc FilePath Int Int
+  deriving (Show, Eq)

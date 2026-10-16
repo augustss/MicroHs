@@ -2,7 +2,7 @@ module MicroHs.Fixity(defaultFixity, resolveFixity) where
 import qualified Prelude(); import MHSPrelude
 import MicroHs.Builtin
 import MicroHs.Expr
-import MicroHs.Ident
+--import MicroHs.Ident
 
 -- Operators resolution
 --  Input:  A sequence of binary infix operators, prefix operators, and operands

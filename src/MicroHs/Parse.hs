@@ -4,7 +4,6 @@
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
 import qualified Prelude(); import MHSPrelude hiding ((*>), (<*))
 import Control.Applicative hiding ((*>), (<*))
-import Control.Exception(throw)
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
@@ -12,7 +11,7 @@ import Data.List
 import Data.Maybe
 import Text.ParserComb as P
 import MicroHs.Builtin(builtinMdl)
-import MicroHs.Error(MhsError(MhsSyntaxError))
+--import MicroHs.Error(MhsError(MhsSyntaxError))
 import MicroHs.Lex
 import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)

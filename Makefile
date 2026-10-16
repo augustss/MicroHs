@@ -413,4 +413,9 @@ bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
 
-
+testhugs: newmhs
+	rm -f generated/hmhs.c
+	make bin/hmhs
+	bin/hmhs $(MHSINC) $(MAINMODULE) -ohugs-mhs.comb
+	bin/mhs  $(MHSINC) $(MAINMODULE) -omhs-mhs.comb
+	cmp hugs-mhs.comb mhs-mhs.comb

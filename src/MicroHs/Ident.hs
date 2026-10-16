@@ -1,5 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+{-# OPTIONS_GHC -Wno-orphans #-}
 module MicroHs.Ident(
   Line, Col,
   Ident,
@@ -49,8 +50,10 @@ appendDot x y = x ++ ('.':y)
 type Line = Int
 type Col  = Int
 
+{- Move to MHSPrelude
 data SLoc = SLoc FilePath Line Col
   deriving (Show, Eq)
+-}
 
 -- instance Show SLoc where
 --  show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c

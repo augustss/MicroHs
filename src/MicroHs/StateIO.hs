@@ -10,7 +10,6 @@ module MicroHs.StateIO(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
-import Control.Exception
 import Control.Monad
 import Data.Functor hiding(unzip)
 
