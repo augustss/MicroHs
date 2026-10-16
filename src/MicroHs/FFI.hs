@@ -328,7 +328,7 @@ runtimeFFI = [
   "environ",
   "get_executable_path",
   "setenv", "unsetenv",
-  "set_permissions", "get_permissions",
+  "set_permissions", "get_permissions", "get_file_size",
   "F_SETFL", "O_NONBLOCK", "SOL_SOCKET", "SO_DEBUG", "SO_ERROR", "SO_REUSEADDR", "SO_TYPE",
   "accept", "bind", "close", "connect", "fcntl", "getsockopt", "listen", "recv", "send", "setsockopt", "socket"
   ]

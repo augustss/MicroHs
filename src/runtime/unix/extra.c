@@ -384,4 +384,11 @@ set_permissions(const char *path, int perms)
   close(fd);
   return result;
 }
+
+uint64_t
+get_file_size(const char *path)
+{
+  return 0;
+}
+
 #endif  /* WANT_DIR */

@@ -336,4 +336,11 @@ set_permissions(const char *path, int perms)
 
   return _chmod(path, wperms);
 }
+
+uint64_t
+get_file_size(const char *path)
+{
+  return 0;
+}
+
 #endif  /* defined(WANT_DIR) */

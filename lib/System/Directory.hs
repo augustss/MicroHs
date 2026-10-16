@@ -27,7 +27,7 @@ module System.Directory(
 --  , renamePath
   , copyFile
 --  , copyFileWithMetadata
---  , getFileSize
+  , getFileSize
 
 --  , canonicalizePath
 --  , makeAbsolute
@@ -71,9 +71,11 @@ module System.Directory(
 --  , isSymbolicLink
   ) where
 import qualified Prelude(); import MiniPrelude
+import Data.Word.Word64
 import Control.Exception(bracket)
 import Control.Monad(when)
 import Data.Bits
+import Data.Integer
 import Foreign.C.Error
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -94,6 +96,7 @@ foreign import ccall "mkdir"    c_mkdir    :: CString -> Int -> IO Int
 foreign import ccall "getcwd"   c_getcwd   :: CString -> Int -> IO CString
 foreign import ccall "get_permissions"   c_getPermissions   :: CString -> IO Int
 foreign import ccall "set_permissions"   c_setPermissions   :: CString -> Int -> IO Int
+foreign import ccall "get_file_size"     c_getFileSize      :: CString -> IO Word64
 
 
 -- XXX Use Foreign.C.Error
@@ -247,3 +250,7 @@ setPermissions fp p = throwErrnoIfMinus1_ "setPermissions" $ withCAString fp $ \
 
 copyPermissions :: FilePath -> FilePath -> IO ()
 copyPermissions src dst = getPermissions src >>= setPermissions dst
+
+getFileSize :: FilePath -> IO Integer
+getFileSize fp = toInteger <$>
+  (withCAString fp $ \ cp -> throwErrnoIfMinus1 "getFileSize" $ c_getFileSize cp)
