@@ -4867,32 +4867,40 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return c1;
   }
-  if (bs.bs_size == 1)
-    ERR("headUTF8 1");
-  int c2 = *p++;
-  if ((c1 & 0xe0) == 0xc0) {
-    if (ret)
-      *ret = p;
-    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  if ((c1 & 0xe0) == 0xc0 && bs.bs_size >= 2) {
+    int c2 = p[0];
+    if ((c2 & 0xc0) == 0x80) {
+      int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+      if (c == 0 || c >= 0x80) {
+        if (ret)
+          *ret = p + 1;
+        return c;
+      }
+    }
+  } else if ((c1 & 0xf0) == 0xe0 && bs.bs_size >= 3) {
+    int c2 = p[0], c3 = p[1];
+    if ((c2 & 0xc0) == 0x80 && (c3 & 0xc0) == 0x80) {
+      int c = ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+      if (c >= 0x800 && (c < 0xd800 || c > 0xdfff)) {
+        if (ret)
+          *ret = p + 2;
+        return c;
+      }
+    }
+  } else if ((c1 & 0xf8) == 0xf0 && bs.bs_size >= 4) {
+    int c2 = p[0], c3 = p[1], c4 = p[2];
+    if ((c2 & 0xc0) == 0x80 && (c3 & 0xc0) == 0x80 && (c4 & 0xc0) == 0x80) {
+      int c = ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+      if (c >= 0x10000 && c < 0x110000) {
+        if (ret)
+          *ret = p + 3;
+        return c;
+      }
+    }
   }
-  if (bs.bs_size == 2)
-    ERR("headUTF8 2");
-  int c3 = *p++;
-  if ((c1 & 0xf0) == 0xe0) {
-    if (ret)
-      *ret = p;
-    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
-  }
-  if (bs.bs_size == 3)
-    ERR("headUTF8 3");
-  int c4 = *p++;
-  if ((c1 & 0xf8) == 0xf0) {
-    if (ret)
-      *ret = p;
-    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
-  }
-  ERR("headUTF8 4");
-  NOTREACHED;
+  if (ret)
+    *ret = p;
+  return 0xdc00 | c1;
 #endif  /* WANT_UTF8 */
 }
 
@@ -5979,6 +5987,10 @@ evali(NODEPTR an)
     CHKARG3NP;
     xfp = evalbstr(x);
     xi = evalint(y);
+    if (0xdc80 <= xi && xi <= 0xdcff) {
+      /* Using dc80-dcff to roundtrip bad bytes */
+      xi &= 0xff;
+    }
     if ((xi & 0x1ff800) == 0xd800) {
       /* xi is a surrogate */
       xi = 0xfffd; /* replacement character */

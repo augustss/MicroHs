@@ -1294,7 +1294,24 @@ struct BFILE_utf8 {
   BFILE    mets;
   BFILE    *bfile;
   int      unget;
+  uint8_t  pend[3];
+  int      npend;
 };
+
+static int
+next_raw_utf8(struct BFILE_utf8 *p)
+{
+  if (p->npend > 0)
+    return p->pend[--p->npend];
+  return getb(p->bfile);
+}
+
+static void
+push_raw_utf8(struct BFILE_utf8 *p, int b)
+{
+  if (b >= 0)
+    p->pend[p->npend++] = (uint8_t)b;
+}
 
 /* XXX: This is not right with WORD_SIZE==16 */
 int
@@ -1310,7 +1327,7 @@ getb_utf8(BFILE *bp)
     p->unget = -1;
     return c1;
   }
-  c1 = getb(p->bfile);
+  c1 = next_raw_utf8(p);
 #if !WANT_UTF8
   return c1;                   /* one Char per raw byte, no decoding */
 #else
@@ -1319,33 +1336,50 @@ getb_utf8(BFILE *bp)
     return -1;
   if ((c1 & 0x80) == 0)
     return c1;
-  c2 = getb(p->bfile);
-  if (c2 < 0)
-    return -1;
   if ((c1 & 0xe0) == 0xc0) {
-    int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
-    /* accept overlong encoding of 0, modified UTF-8 uses that */
-    if (0 < c && c < 0x80) ERR("getb_utf8: overlong encoding");
-    return c;
+    c2 = next_raw_utf8(p);
+    if ((c2 & 0xc0) == 0x80) {
+      int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+      /* accept overlong encoding of 0, modified UTF-8 uses that */
+      if (c == 0 || c >= 0x80)
+        return c;
+    }
+    push_raw_utf8(p, c2);
+    return 0xdc00 | c1;
   }
-  c3 = getb(p->bfile);
-  if (c3 < 0)
-    return -1;
   if ((c1 & 0xf0) == 0xe0) {
-    int c = ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
-    if (c < 0x800) ERR("getb_utf8: overlong encoding");
-    return c;
+    c2 = next_raw_utf8(p);
+    if ((c2 & 0xc0) == 0x80) {
+      c3 = next_raw_utf8(p);
+      if ((c3 & 0xc0) == 0x80) {
+        int c = ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+        if (c >= 0x800 && (c < 0xd800 || c > 0xdfff))
+          return c;
+      }
+      push_raw_utf8(p, c3);
+    }
+    push_raw_utf8(p, c2);
+    return 0xdc00 | c1;
   }
-  c4 = getb(p->bfile);
-  if (c4 < 0)
-    return -1;
   if ((c1 & 0xf8) == 0xf0) {
-    int c = ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
-    if (c < 0x10000) ERR("getb_utf8: overlong encoding");
-    return c;
+    c2 = next_raw_utf8(p);
+    if ((c2 & 0xc0) == 0x80) {
+      c3 = next_raw_utf8(p);
+      if ((c3 & 0xc0) == 0x80) {
+        c4 = next_raw_utf8(p);
+        if ((c4 & 0xc0) == 0x80) {
+          int c = ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+          if (c >= 0x10000 && c < 0x110000)
+            return c;
+        }
+        push_raw_utf8(p, c4);
+      }
+      push_raw_utf8(p, c3);
+    }
+    push_raw_utf8(p, c2);
+    return 0xdc00 | c1;
   }
-  ERR("getb_utf8");
-  NOTREACHED;
+  return 0xdc00 | c1;
 #endif  /* WANT_UTF8 */
 }
 
@@ -1370,6 +1404,12 @@ putb_utf8(int c, BFILE *bp)
   putb(c, p->bfile);            /* one raw byte per Char, no encoding */
   return;
 #else
+  if (0xdc80 <= c && c <= 0xdcff) {
+    putb(c & 0xff, p->bfile);
+    return;
+  }
+  if ((c & 0x1ff800) == 0xd800)
+    c = 0xfffd;
   if (0 < c && c < 0x80) {      /* modified UTF-8 avoids 0 */
     putb(c, p->bfile);
     return;
@@ -1451,6 +1491,7 @@ add_utf8(BFILE *file)
   p->mets.filesizeb = filesizeb_utf8;
   p->bfile = file;
   p->unget = -1;
+  p->npend = 0;
 
   return (BFILE*)p;
 }
