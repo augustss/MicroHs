@@ -471,7 +471,7 @@ runCPP flags infile outfile = do
   let datadir = mhsdir flags
       cpphs = fromMaybe "cpphs" mcpphs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
-      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
+      args = mhsDefines ++ cppArgs flags ++ mhsIncludes
       cmd = unwords $ map quote $ [cpphs, "--strip"] ++ args ++ [infile, "-O" ++ outfile]
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
