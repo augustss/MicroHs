@@ -252,5 +252,4 @@ copyPermissions :: FilePath -> FilePath -> IO ()
 copyPermissions src dst = getPermissions src >>= setPermissions dst
 
 getFileSize :: FilePath -> IO Integer
-getFileSize fp = toInteger <$>
-  (withCAString fp $ \ cp -> throwErrnoIfMinus1 "getFileSize" $ c_getFileSize cp)
+getFileSize fp = toInteger <$> withCAString fp (throwErrnoIfMinus1 "getFileSize" . c_getFileSize)

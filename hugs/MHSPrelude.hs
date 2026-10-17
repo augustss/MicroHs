@@ -1,6 +1,5 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# LANGUAGE DeriveDataTypeable #-}
 module MHSPrelude(
   module Prelude,
   module MHSPrelude,
