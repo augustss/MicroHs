@@ -401,7 +401,7 @@ pBraces p =
 
 pBlock :: forall a . P a -> P [a]
 pBlock p = pBraces body
-  where body = sepBy p (some semi) <* optional semi
+  where body = optional semi *> sepBy p (some semi) <* optional semi
 
 
 pDef :: P EDef
@@ -963,13 +963,19 @@ pBind =
 pBind' :: P EBind
 pBind' =
       uncurry Fcn <$> pEqns
-  <|> Sign        <$> (sepEndBy1 pLIdentSym comma <* dcolon) <*> pType
+  <|> Sign        <$> (sepEndBy1 pLIdentSym comma <* dcolon) <*> (pType <* notEqual)
   <|> Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> sepEndBy1 pTypeOper comma
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|> (AssocRight <$ pKeyword "infixr") <|> (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig <|> pure 9
+    notEqual :: P ()
+    notEqual = do
+      t <- nextToken
+      case t of
+        TSpec _ '=' -> Control.Monad.Fail.fail "notEqual"
+        _           -> return ()
 
 -- Bindings allowed in a class definition
 pClsBind :: P EBind
