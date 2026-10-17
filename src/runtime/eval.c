@@ -8128,7 +8128,9 @@ const struct ffi_entry ffi_table[] = {
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
   { "isattyb", 1, mhs_isattyb},
+#if WANT_INT64
   { "filesizeb", 1, mhs_filesizeb},
+#endif  /* WANT_INT64 */
 
 #if WANT_MD5
   { "md5Array", 3, mhs_md5Array},
