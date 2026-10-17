@@ -316,6 +316,7 @@ pLit = do
   let
     elit = maybe ELit (flip EQLit) mqual
     is (TString loc s) = Just (elit loc (LStr s))
+    is (TBStr   loc s) = Just (elit loc (LBStr s))
     is (TChar   loc a) = Just (elit loc (LChar a))
     is (TInt    loc i) = Just (elit loc (LInteger i))
     is (TRat    loc d) = Just (elit loc (LRat d))
