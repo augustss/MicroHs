@@ -9,6 +9,7 @@ module MicroHs.Exp(
   allVarsExp, freeVars,
   lams, apps,
   mkForExp, getForExp, IsJavascript,
+  showDumpIdent,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
@@ -48,13 +49,31 @@ instance Pretty Exp where
 
 ppExp :: Exp -> Doc
 ppExp (App (Lam i b) e) =
-  parens $ sep [text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b]
+  parens $ sep [text "let" <+> ppDumpIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b]
 ppExp ae =
   case ae of
-    Var i -> ppIdent i
+    Var i -> ppDumpIdent i
     App f a -> parens $ ppExp f <+> ppExp a
-    Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e
+    Lam i e -> parens $ text "\\" <> ppDumpIdent i <> text "." <+> ppExp e
     Lit l -> text (showLit l)
+
+-- An identifier as the dumps (-ddump-desugar, -ddump-combinator) print it.
+-- Most identifiers print as they are. One that contains a character the dump
+-- syntax uses (a parenthesis, a quote, a backquote, or white space), such as
+-- the instance name inst$Data.Records.HasField@"x"@(T@a)@a, is enclosed in
+-- backquotes, with backquotes and backslashes in it escaped by a backslash,
+-- so that a dump can be parsed back unambiguously.
+showDumpIdent :: Ident -> String
+showDumpIdent i
+  | any special s = '`' : concatMap esc s ++ "`"
+  | otherwise = s
+  where
+    s = unIdent i
+    special c = c `elem` "()\"`" || isSpace c
+    esc c = if c == '`' || c == '\\' then ['\\', c] else [c]
+
+ppDumpIdent :: Ident -> Doc
+ppDumpIdent = text . showDumpIdent
 
 substExp :: Ident -> Exp -> Exp -> Exp
 substExp si se ae =

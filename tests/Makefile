@@ -131,6 +131,7 @@ test:
 	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
 	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
 	$(TMHS) ExtraComma && $(EVAL) > ExtraComma.out && diff ExtraComma.ref ExtraComma.out
+	$(TMHS) -ddump-desugar DumpIdent | grep '^`' > DumpIdent-dump.out && diff DumpIdent-dump.ref DumpIdent-dump.out && $(EVAL) > DumpIdent.out && diff DumpIdent.ref DumpIdent.out
 	$(TMHS) DerivingBuiltin
 
 .PHONY: testpreprocessorpaths

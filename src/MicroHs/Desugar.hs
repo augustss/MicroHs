@@ -311,7 +311,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ prettyShow e
+    (i, e) -> showDumpIdent i ++ " = " ++ prettyShow e
 
 ----------------
 
