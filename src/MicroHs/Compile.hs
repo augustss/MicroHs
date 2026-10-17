@@ -585,7 +585,7 @@ unlit fn = unlines . un 1 True . lines
     un :: Int -> Bool -> [String] -> [String]
     un _ _ [] = []
     un n _ (l:ls) | all isSpace l = un (n+1) True ls
-    un n _ ("\\begin{code}":ls) = "" : code (n+1) ls
+                  | Just r <- stripPrefix "\\begin{code}" l, all isSpace r = "" : code (n+1) ls
     un n spc (l@('#':_) : ls) = l : un (n+1) spc ls
     un n spc (('>':l):ls) | spc = (' ':l) : un (n+1) True ls
                           | otherwise = err n "missing blank before >"
