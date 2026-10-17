@@ -43,7 +43,8 @@ data Flags = Flags {
   iPrint     :: Maybe String, -- interactive print function
   config     :: Config,       -- from mhs.config file
   embedFFIs  :: [String],     -- embed FFI stubs from these packages
-  embedPkgs  :: [String]      -- embed these packages
+  embedPkgs  :: [String],     -- embed these packages
+  combNames  :: Bool          -- also write the name of every label to OUTPUT.names
   }
   deriving (Show)
 
@@ -89,7 +90,8 @@ defaultFlags = Flags {
   iPrint      = Nothing,
   config      = [],
   embedFFIs   = [],
-  embedPkgs   = []
+  embedPkgs   = [],
+  combNames   = False
   }
 
 data DumpFlag = Dpreproc | Dparse | Dderive | DexpandInst | Dtypecheck | Ddesugar | Dlinked | Dtoplevel | Dcombinator | Dall

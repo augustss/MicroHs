@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl, renumberCMdlM) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl, renumberCMdlM, renumberCMdlNames) where
 import qualified Prelude(); import MHSPrelude
 import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
@@ -37,35 +37,42 @@ removeUnused (ds, emain) = dfs roots M.empty
                                   where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
 renumberCMdl :: CMdl -> (ForExpTable, CMdl)
-renumberCMdl (ds, emain) =
+renumberCMdl cmdl = let (fexps, out, _) = renumberCMdlNames cmdl in (fexps, out)
+
+-- Also return the original name of every label, in label order.
+renumberCMdlNames :: CMdl -> (ForExpTable, CMdl, [(Int, Ident)])
+renumberCMdlNames (ds, emain) =
   let fexps = [ (i, t, js) | (i, e) <- ds, Just (js, _, t) <- [getForExp e] ]
       dMap = M.fromList ds
-  in  renumberCMdlM fexps dMap emain
+  in  renumberCMdlNamesM fexps dMap emain
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- This is the "linking" of the program.
 -- Returns the renamed foreign exports and the "linked" CNdl
 renumberCMdlM :: [(Ident, CType, IsJavascript)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl)
-renumberCMdlM fexps dMap emain =
+renumberCMdlM fexps dMap emain = let (fexps', out, _) = renumberCMdlNamesM fexps dMap emain in (fexps', out)
+
+renumberCMdlNamesM :: [(Ident, CType, IsJavascript)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl, [(Int, Ident)])
+renumberCMdlNamesM fexps dMap emain =
   let
     roots = freeVars emain ++ [ i | (i, _, _) <- fexps ]
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
-    dfs :: Ident -> State (Int, M.Map Exp, [LDef]) ()
+    dfs :: Ident -> State (Int, M.Map Exp, [LDef], [(Int, Ident)]) ()
     dfs n = do
-      (i, seen, r) <- get
+      (i, seen, r, ns) <- get
       case M.lookup n seen of
         Just _ -> return ()
         Nothing -> do
           -- Put placeholder for n in seen.
-          put (i, M.insert n (Var n) seen, r)
+          put (i, M.insert n (Var n) seen, r, ns)
           -- Walk n's children
           let e = findIdentIn n dMap
           mapM_ dfs $ freeVars e
           -- Now that n's children are done, compute its actual entry.
-          (i', seen', r') <- get
-          put (i'+1, M.insert n (ref i') seen', (mkIdent $ show i', substv e) : r')
-    (_, (_, defs, res)) = runState (mapM_ dfs roots) (0, M.empty, [])
+          (i', seen', r', ns') <- get
+          put (i'+1, M.insert n (ref i') seen', (mkIdent $ show i', substv e) : r', (i', n) : ns')
+    (_, (_, defs, res, names)) = runState (mapM_ dfs roots) (0, M.empty, [], [])
     ref i = Var $ mkIdent $ "_" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
@@ -79,7 +86,7 @@ renumberCMdlM fexps dMap emain =
       where unVar (Var n) = n
             unVar _ = undefined
   in
-    (fexps', (checkDupInstances res, substv emain))
+    (fexps', (checkDupInstances res, substv emain), reverse names)
 
 -- The argument is all definitions and the main expression.
 -- The result is the program as a string.

@@ -83,7 +83,7 @@ mHSPKG :: String
 mHSPKG = "MHSPKG"
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [--comb-names] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -96,6 +96,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-C[PATH]           Read and write compilation cache, optionally at PATH (default .mhscache)\n\
       \-CR[PATH]          Read compilation cache, optionally from PATH\n\
       \-CW[PATH]          Write compilation cache, optionally to PATH\n\
+      \--comb-names       Also write the name of every label of the program to FILE.names\n\
       \-c                 Do not generate executable\n\
       \-Dxxx              Pass -Dxxx to cpphs\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
@@ -176,6 +177,7 @@ decodeArgs f mdls (arg:args) =
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
+    "--comb-names" -> decodeArgs f{combNames = True} mdls args
     "--embed-ffis" | s : args' <- args
                 -> decodeArgs f{embedFFIs = embedFFIs f ++ splitColonPath s} mdls args'
     "--embed-packages" | s : args' <- args, let ps = splitColonPath s
@@ -360,7 +362,7 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
-    (forExps, outCMdl@(outDefs, _)) = renumberCMdl cmdl
+    (forExps, outCMdl@(outDefs, _), labelNames) = renumberCMdlNames cmdl
     outData = toStringCMdl outCMdl
     numOutDefs = length outData
     numDefs = length allDefs
@@ -393,6 +395,9 @@ mainCompile flags mn = do
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
     let outFile = output flags
+    -- The name of every label, one "label name" per line.
+    when (combNames flags) $
+      writeFile (outFile ++ ".names") $ unlines [ show i ++ " " ++ showIdent n | (i, n) <- labelNames ]
     -- Generate stub file for 'foreign export'
     unless (null forExps) $ do
       let stubName = takeDirectory outFile </> dropExtension (showIdent mn) ++ "_stub.h"
