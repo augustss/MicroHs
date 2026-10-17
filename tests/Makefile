@@ -33,6 +33,7 @@ test:
 	$(TMHS) RecordBind && $(EVAL) > RecordBind.out && diff RecordBind.ref RecordBind.out
 	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
+	$(TMHS) WordSize   && $(EVAL) > WordSize.out   && diff WordSize.ref WordSize.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
 	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
