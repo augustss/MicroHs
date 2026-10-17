@@ -1,5 +1,6 @@
 -- Test fake unboxed tuples and sums
 module Unboxed where
+import Data.Typeable
 
 f# :: Int -> (# Int, Int #)
 f# x = (# x , x+1 #)
@@ -16,11 +17,9 @@ d :: (# Int | Bool #) -> String
 d (# x | #) = show x
 d (# | x #) = show x
 
-{-
 -- Test that regular # still work
 (#) :: Int -> Int -> Int
 x # y = 2*x - y
--}
 
 main :: IO ()
 main = do
@@ -28,9 +27,11 @@ main = do
     (# x, y #) -> print (x, y)
   putStrLn $ d $ g 2
   putStrLn $ d $ h True
-{-
+  print ('a', 'b'#)
+  print "abc"#
+  print $ typeOf "ab"#
+  print $ typeOf "ab"
   print $ 3 # 2
   print $ (#) 3 2
   print $ (3 #) 2
   print $ (# 2) 3
--}
