@@ -43,6 +43,7 @@ module MHSPrelude(
   wantGMP, wantImath,
   compiledWithMhs,
   Int64,
+  Word,
   HasCallStack,
   MhsError(..), SLoc(..),
   ) where
@@ -88,6 +89,7 @@ import Data.Semigroup
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Version
+import Data.Word(Word)
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                       FilePath, readFile, writeFile, appendFile)
 import Text.Read(readMaybe)

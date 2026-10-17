@@ -2,11 +2,11 @@ module System.IO.TimeMilli(getTimeMilli, getTimeMicro, getBootTimeMicro) where
 import Data.Time
 import Data.Time.Clock.POSIX
 
-getTimeMilli :: IO Int
+getTimeMilli :: IO Word
 getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
 
-getTimeMicro :: IO Int
+getTimeMicro :: IO Word
 getTimeMicro  = floor . (1000000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
 
-getBootTimeMicro :: IO Int
+getBootTimeMicro :: IO Word
 getBootTimeMicro = return 0

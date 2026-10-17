@@ -10,6 +10,7 @@ module MHSPrelude(
   module Data.Semigroup,
   module Data.Version,
   Int64,
+  Word,
   (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
   Exc.evaluate,
   ) where

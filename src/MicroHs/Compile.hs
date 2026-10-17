@@ -55,7 +55,7 @@ import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 mhsVersion :: String
 mhsVersion = showVersion version
 
-type Time = Int
+type Time = Word
 
 type CM a = StateIO Cache a
 

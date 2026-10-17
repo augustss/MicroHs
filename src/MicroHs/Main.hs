@@ -381,7 +381,7 @@ mainCompile flags mn = do
 
     when (speed flags) $ do
       let fns = filter (isSuffixOf ".hs") $ map (slocFile . slocIdent) $ cachedNonPkgModuleNames cash
-      locs <- sum . map (length . lines) <$> mapM readFile fns
+      locs <- fromIntegral . sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
     -- embedPkg are the packages we are embedding in the binary.
