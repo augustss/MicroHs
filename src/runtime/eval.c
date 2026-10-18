@@ -6704,8 +6704,10 @@ evali(NODEPTR an)
       case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
       case T_QUOT:  if (yu == 0)
                       raise_rts(exn_dividebyzero);
+#if WANT_OVERFLOW
                     else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
                       raise_rts(exn_overflow);
+#endif
                     else
                       ru = (uvalue_t)((value_t)xu / (value_t)yu);
                     break;
@@ -6768,7 +6770,11 @@ evali(NODEPTR an)
     unint:
       switch (GETTAG(p)) {
       case T_IND:      p = GETINDIR(p); goto unint;
-      case T_NEG:      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
+      case T_NEG:
+#if WANT_OVERFLOW
+                       if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow);
+#endif
+                       ru = -xu; break;
       case T_UNEG:     ru = -xu; break;
       case T_INV:      ru = ~xu; break;
       case T_POPCOUNT: ru = POPCOUNT(xu); break;
