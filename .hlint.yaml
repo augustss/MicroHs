@@ -60,6 +60,8 @@
 - ignore: {name: "Use &&", within: [ListTest]}
 - ignore: {name: Use id, within: [Rank2]}
 - ignore: {name: Use newtype instead of data, within: [Typeable]}
+# Exercise data and newtype field exports separately.
+- ignore: {name: Use newtype instead of data, within: [RecordExportDefs]}
 - ignore: {name: Use typeRep, within: [Typeable]}
 - ignore: {name: Use newtype instead of data, within: [Via]}
 - ignore: {name: Use const, within: [Control.Exception.Internal]}
