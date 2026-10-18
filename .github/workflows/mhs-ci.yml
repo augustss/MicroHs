@@ -163,5 +163,4 @@ jobs:
         make
         make install
     - name: test build with hugs
-        run: |
-        make HUGS=$(HOME)/tmp/runhugs testhugs
+      run: make HUGS=$(HOME)/tmp/runhugs testhugs
