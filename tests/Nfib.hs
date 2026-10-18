@@ -14,7 +14,7 @@ timeNFib n = do
   let r = nfib n
   print r
   t2 <- getTimeMilli
-  putStrLn $ "nfib/s = " ++ show (r `quot` (t2 - t1)) ++ "k"
+  putStrLn $ "nfib/s = " ++ show (fromIntegral r `quot` (t2 - t1)) ++ "k"
 
 main :: IO ()
 main = do

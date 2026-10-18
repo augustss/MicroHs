@@ -121,7 +121,8 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            allMdls = thisMdl : impMdls
            (texps, vexps) =
-             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
+             let tys = typeTable tcs; vals = valueTable tcs; ast = assocTable tcs in
+             unzip $ map (getTVExps impMap tys vals ast) (gatherAssoc tys ast exps)
              where impMap = M.fromListWith (++) [(i, [m]) | (i, m) <- allMdls]
            fexps = map (tFixDefs . snd) allMdls
            sexps = synTable tcs
@@ -191,6 +192,23 @@ checkBad [] a = a
 checkBad (i:_) _ =
   errorMessage (getSLoc i) $ "not exported: " ++ showIdent i
 
+-- When eporting a data type the associated selectors can be exported
+-- with the type or not.  E.g.
+--   module M(T, a) where data T = T { a :: Int }
+-- behaves the same as
+--   module M(T(a)) ...
+-- So for each type export item we gather up the associated selectors and add them.
+gatherAssoc :: TypeTable -> AssocTable -> [ExportItem] -> [ExportItem]
+gatherAssoc tys ast exps =
+  let vs = [ i | ExpValue i <- exps ]
+      gather :: ExportItem -> ExportItem
+      gather (ExpTypeSome ti is) | is /= [dotDotIdent] =
+        let assc = [ i | ValueExport i _ <- getAssocs ast $ tyQIdent $ expLookup ti tys ]
+            xs = (assc `intersect` vs) \\ is
+        in  ExpTypeSome ti (xs ++ is)
+      gather e = e
+  in  map gather exps
+
 -- Type and value exports
 getTVExps :: forall a . M.Map [TModule a] -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
              ([TypeExport], [ValueExport])
@@ -203,7 +221,7 @@ getTVExps impMap _ _ _ (ExpModule m) =
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast (ExpTypeSome ti is) =
   let e = expLookup ti tys
-      assc = getAssocs vals ast $ tyQIdent e   -- all associated values
+      assc = getAssocs ast $ tyQIdent e   -- all associated values
       ves = concatMap one is
       one i | i == dotDotIdent = assc          -- '..' means all associated values
             | otherwise =
@@ -251,7 +269,7 @@ mkTModule tds tcs =
         _       -> Entry (EVar qi) t  -- XXX A hack for boot modules
 
     -- Find all value Entry for names associated with a type.
-    assoc i = getAssocs vt at (qualIdent mn i)
+    assoc i = getAssocs at (qualIdent mn i)
 
     -- All top level values possible to export.
     ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ] ++
@@ -275,8 +293,8 @@ mkTModule tds tcs =
 
 -- Find all value Entry for names associated with a type.
 -- XXX join stLookup code with tentry
-getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
-getAssocs _vt at ai = fromMaybe [] $ M.lookup ai at
+getAssocs :: (HasCallStack) => AssocTable -> Ident -> [ValueExport]
+getAssocs at ai = fromMaybe [] $ M.lookup ai at
 
 mkTCState :: IdentModule -> GlobTables -> [(ImportSpec, TModule a)] -> TCState
 mkTCState mdlName globs mdls =
