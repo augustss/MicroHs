@@ -70,6 +70,9 @@ deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllB
 deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
+deleteAlls :: forall a . Eq a => [a] -> [a] -> [a]
+deleteAlls = deleteAllsBy (==)
+
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
 

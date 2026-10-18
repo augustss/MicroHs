@@ -182,8 +182,8 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
     (if hide then
        id -- don't complain about missing hidden identifiers; we use it for compatibility
      else
-       checkBad (ivs \\ allVs) .
-       checkBad (its \\ allTs))
+       checkBad (ivs `deleteAlls` allVs) .
+       checkBad (its `deleteAlls` allTs))
     (imp, TModule mn fx ts' vs' ds a)
 
 checkBad :: forall a . [Ident] -> a -> a
