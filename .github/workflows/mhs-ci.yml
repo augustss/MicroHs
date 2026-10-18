@@ -150,7 +150,7 @@ jobs:
 
   build-with-hugs:
     runs-on: ubuntu-latest
-      steps:
+    steps:
     - name: checkout hugs repo
       uses: actions/checkout@v4
       with:
