@@ -151,13 +151,16 @@ jobs:
   build-with-hugs:
     runs-on: ubuntu-latest
     steps:
+    - name: checkout repo
+      uses: actions/checkout@v4
     - name: checkout hugs repo
       uses: actions/checkout@v4
       with:
         repository: augustss/hugs98-plus-Sep2006
+        path: hugs
     - name: configure, make, install hugs
       run: |
-        cd hugs98-plus-Sep2006
+        cd hugs
         mkdir $HOME/tmp
         ./configure --prefix=$HOME/tmp
         make
