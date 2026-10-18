@@ -157,13 +157,13 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: augustss/hugs98-plus-Sep2006
-        path: hugs
+        path: hugs-repo
     - name: configure, make, install hugs
       run: |
-        cd hugs
+        cd hugs-repo
         mkdir $HOME/tmp
         ./configure --prefix=$HOME/tmp
         make
         make install
     - name: test build with hugs
-      run: make HUGS=$(HOME)/tmp/runhugs testhugs
+      run: make HUGS=$HOME/tmp/runhugs testhugs
