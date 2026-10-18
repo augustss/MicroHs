@@ -14,4 +14,4 @@ newtype UTCTime = UTCTime Int
 getCurrentTime :: IO UTCTime
 getCurrentTime = do
   t <- getTimeMilli
-  return $ UTCTime $ t `quot` 1000
+  return $ UTCTime $ fromIntegral $ t `quot` 1000
