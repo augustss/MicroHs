@@ -147,3 +147,21 @@ jobs:
       run: make newmhs
     - name: run emscripten tests
       run: make runtestemscripten
+
+  build-with-hugs:
+    runs-on: ubuntu-latest
+      steps:
+    - name: checkout hugs repo
+      uses: actions/checkout@v4
+      with:
+        repository: augustss/hugs98-plus-Sep2006
+    - name: configure, make, install hugs
+      run: |
+        cd hugs98-plus-Sep2006
+        mkdir $HOME/tmp
+        ./configure --prefix=$HOME/tmp
+        make
+        make install
+    - name: test build with hugs
+        run: |
+        make HUGS=$(HOME)/tmp/runhugs testhugs
