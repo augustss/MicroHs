@@ -27,6 +27,22 @@ CCLIBS= $(MHSGMPCCLIBS) -lm
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 #
+# The compiler binary gets a bigger default heap than the runtime's 50M cells:
+# fewer GCs make compiling a few percent faster, at the cost of RSS
+# (16 bytes per cell on 64-bit hosts; lower this on small or 32-bit machines).
+# This is deliberately only here and not in unix/config.h, which is shared
+# by mhseval, emscripten and 32-bit targets.
+MHSHEAP= -DHEAP_CELLS=75000000
+CCMHS= $(CCEVAL) $(MHSHEAP)
+#
+# Profile-guided optimisation for bin/mhs (clang only, see the pgo target).
+# PGO_PROFDATA must be the llvm-profdata matching the clang in use; Apple's is
+# only reachable via xcrun, Debian/Ubuntu name it llvm-profdata-NN, so override
+# with e.g. `make pgo PGO_PROFDATA=llvm-profdata-18`.
+PGODIR= generated/pgo
+PGO_PROFDATA= `command -v llvm-profdata || echo xcrun llvm-profdata`
+PGOTRAIN= $(MHSINCNP) AllOfLib
+#
 GHC= ghc
 GHCINCS= -ighc -isrc
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
@@ -52,18 +68,18 @@ MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP)
 MAINMODULE=MicroHs.Main
 #
-.PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
+.PHONY:	clean bootstrap install ghcgen newmhs newmhsz pgo cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
 
 all:	bin/mhs bin/cpphs bin/mcabal
 
 newmhs:	ghcgen mhs.conf
-	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
+	$(CCMHS) generated/mhs.c $(CCLIBS) -o bin/mhs
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g $(RTSINC) $(RTS)/eval.c $(MAINC) generated/mhs.c $(CCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
 	@rm -f generated/mhs.c
 	$(MAKE) generated/mhs.c
-	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
+	$(CCMHS) generated/mhs.c $(CCLIBS) -o bin/mhs
 
 sanitizemhs:	ghcgen mhs.conf
 	$(CCEVAL) $(CCSANITIZE) generated/mhs.c $(CCLIBS) -o bin/mhssane
@@ -71,7 +87,24 @@ sanitizemhs:	ghcgen mhs.conf
 # Compile mhs from distribution, with C compiler
 bin/mhs:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf #generated/mhs.c
 	@mkdir -p bin
-	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
+	$(CCMHS) generated/mhs.c $(CCLIBS) -o bin/mhs
+
+# Compile mhs from distribution with profile-guided optimisation (clang).
+# Stage 1 is an instrumented binary, trained by compiling the whole library;
+# stage 2 uses the merged profile.  About 5% faster than plain -O3.
+# The instrumented binary lives in bin/ because mhs finds mhs.conf relative
+# to its own executable, so training sees the same configuration as bin/mhs.
+# The profile is tied to the compiler version and the exact source text, so it
+# is regenerated every time and must not be committed.
+pgo:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h mhs.conf
+	@$(PGO_PROFDATA) --version > /dev/null || (echo "*** no llvm-profdata found; set PGO_PROFDATA" && false)
+	@mkdir -p bin $(PGODIR)
+	rm -f $(PGODIR)/*.profraw $(PGODIR)/mhs.profdata
+	$(CCMHS) -fprofile-instr-generate generated/mhs.c $(CCLIBS) -o bin/mhs-instr
+	LLVM_PROFILE_FILE=$(PGODIR)/mhs-%p.profraw bin/mhs-instr $(PGOTRAIN) -o$(PGODIR)/train.comb
+	rm -f bin/mhs-instr
+	$(PGO_PROFDATA) merge -output=$(PGODIR)/mhs.profdata $(PGODIR)/*.profraw
+	$(CCMHS) -fprofile-instr-use=$(PGODIR)/mhs.profdata -Wno-backend-plugin generated/mhs.c $(CCLIBS) -o bin/mhs
 
 # Compile cpphs from distribution, with C compiler
 bin/cpphs:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/cpphs.c
@@ -167,7 +200,7 @@ bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
 	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage1.c
-	$(CCEVAL) generated/mhs-stage1.c $(CCLIBS) -o bin/mhs-stage1
+	$(CCMHS) generated/mhs-stage1.c $(CCLIBS) -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
@@ -176,7 +209,7 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	bin/mhs-stage1 -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	@echo "*** stage2 equal to stage1"
-	$(CCEVAL) generated/mhs-stage2.c $(CCLIBS) -o bin/mhs-stage2
+	$(CCMHS) generated/mhs-stage2.c $(CCLIBS) -o bin/mhs-stage2
 
 # Fetch cpphs submodule
 cpphssrc/malcolm-wallace-universe/.git:

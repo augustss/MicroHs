@@ -85,6 +85,7 @@
 #define GCRED    0              /* do some reductions during GC */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
 #define SANITY   1              /* do some sanity checks */
+#define MARK_PFQ 0              /* no GC prefetch ring: tiny heap, small C stack */
 #define STACKOVL 1              /* check for stack overflow */
 
 #define HEAP_CELLS 4000

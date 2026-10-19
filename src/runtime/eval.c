@@ -133,6 +133,13 @@ size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #define REGISTER(dcl, reg) dcl
 #endif
 
+/* Branch layout hint for the few branches where the compiler cannot guess. */
+#if defined(__GNUC__)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
+#else
+#define LIKELY(x) (x)
+#endif
+
 const struct ffi_entry ffi_table[];
 int num_ffi;
 #define FFI_IX(i) ((i) < num_ffi ? ffi_table[i] : xffi_table[i - num_ffi])
@@ -783,6 +790,8 @@ struct forptr {
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
 //REGISTER(counter_t num_reductions,r19);
+/* Counts dispatches in evali (one per non-AP node reached after unwinding
+ * a spine), not the AP nodes pushed on the way down. */
 counter_t num_reductions = 0;
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
@@ -2925,13 +2934,45 @@ gc_red_ok(NODEPTR n)
   return 1;
 }
 
+/*
+ * Marking is a DRAM-latency bound pointer chase: a cell is visited once per
+ * GC and almost never in cache, so each visit costs a full miss.
+ * The work stack lets us know the next MARK_PFQ cells in advance, so we
+ * prefetch them and keep that many misses in flight (a FIFO prefetch queue
+ * as in Cher et al., "Software prefetching for mark-sweep GC").
+ * On an Apple M1 this cut mark time by about 3x; 16 entries was the knee.
+ * Set -DMARK_PFQ=0 to get the plain stack-driven loop (e.g. embedded targets).
+ */
+#if !defined(MARK_PFQ)
+#define MARK_PFQ 16
+#endif
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_prefetch)
+#define MARK_PREFETCH(p) __builtin_prefetch(p)
+#endif
+#elif defined(__GNUC__)
+#define MARK_PREFETCH(p) __builtin_prefetch(p)
+#endif
+#if !defined(MARK_PREFETCH)
+/* No prefetch available, so the ring would be pure overhead. */
+#undef MARK_PFQ
+#define MARK_PFQ 0
+#endif
+
 /* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR n;
-  NODEPTR *to_push = 0;         /* silence warning by initializing */
+#if MARK_PFQ > 0
+  /* Ring of pending slots whose cells have been prefetched.
+   * Every (possibly nested) mark() call owns its own ring and drains it
+   * before returning, so recursion through GCRED and the
+   * thread/mvar side structures is unaffected. */
+  NODEPTR *pfq[MARK_PFQ];
+  unsigned pfq_head = 0, pfq_tail = 0, pfq_n = 0;
+#endif
 #if GCRED
   value_t val;
 #endif
@@ -3093,10 +3134,34 @@ mark(NODEPTR *np)
 #else   /* GCRED */
    case T_AP:
 #endif  /* GCRED */
-    /* Avoid tail recursion */
+#if MARK_PFQ > 0
+    /* The probe keeps already-marked (shared) nodes off the work stack;
+     * it only touches the bitmap, not the cell.  The cell itself is not read
+     * until the ring has prefetched it, which is why the mark-integer-leaves
+     * shortcut of the plain loop below (it needs the cell's tag) is not used. */
+    if (!is_marked_used(ARG(n)))
+      PUSH((NODEPTR)&ARG(n));
+    /* FUN becomes a work item too, so the ring can prefetch it.
+     * It is pushed last so that the spine is still walked first. */
+    if (!is_marked_used(FUN(n)))
+      PUSH((NODEPTR)&FUN(n));
+    goto fin;
+#else  /* MARK_PFQ */
+    /* Mark integer leaves immediately instead of deferring them while walking
+     * the other branch.  In particular, a string can contain a distinct integer
+     * node (behind an indirection) for every character read from a handle.
+     */
+    if (GETTAG(indir(&ARG(n))) == T_INT) {
+      mark(&ARG(n));
+    } else if (!is_marked_used(ARG(n))) {
+      /* The probe keeps already-marked (shared) nodes off the work stack. */
+      PREFETCH_READ(ARG(n));   /* won't be popped and dereferenced until later */
+      PUSH((NODEPTR)&ARG(n));
+    }
+    /* Iterate straight down the spine; keeps the work stack shallow. */
     np = &FUN(n);
-    to_push = &ARG(n);
-    break;
+    goto top;
+#endif  /* MARK_PFQ */
    case T_ARR:
     {
       struct ioarray *arr = ARR(n);
@@ -3109,9 +3174,11 @@ mark(NODEPTR *np)
       // as there's more entries to scan.
       mark_unused(n);
       num_marked--;
-      to_push = np;
-      np = &arr->array[arr->marked++];
-      break;
+      PUSH((NODEPTR)np);
+      if (!is_marked_used(arr->array[arr->marked]))
+        PUSH((NODEPTR)&arr->array[arr->marked]);
+      arr->marked++;
+      goto fin;
     }
 
    case T_FORPTR:
@@ -3134,27 +3201,30 @@ mark(NODEPTR *np)
      goto fin;
   }
 
-  /* Mark integer leaves immediately instead of deferring them while walking
-   * the other branch.  In particular, a string can contain a distinct integer
-   * node (behind an indirection) for every character read from a handle.
-   */
-  if (GETTAG(indir(to_push)) == T_INT) {
-    mark(to_push);
-  } else if (!is_marked_used(*to_push)) {
-    //  mark_depth++;
-    PREFETCH_READ(*to_push);   /* won't be popped and dereferenced until later */
-    PUSH((NODEPTR)to_push);
-  }
-  goto top;
  fin:
-  //  if (mark_depth > max_mark_depth) {
-  //    max_mark_depth = mark_depth;
-  //  }
-  //  mark_depth--;
+#if MARK_PFQ > 0
+  /* Top up the ring from the work stack, issuing a prefetch for each
+   * pending cell, then process the oldest entry: by now its cell has had
+   * MARK_PFQ-1 other visits worth of time to arrive in cache. */
+  while (pfq_n < MARK_PFQ && stack_ptr > stk) {
+    NODEPTR *slot = (NODEPTR *)POPTOP();
+    MARK_PREFETCH(*slot);
+    pfq[pfq_tail] = slot;
+    pfq_tail = (pfq_tail + 1) % MARK_PFQ;
+    pfq_n++;
+  }
+  if (pfq_n > 0) {
+    np = pfq[pfq_head];
+    pfq_head = (pfq_head + 1) % MARK_PFQ;
+    pfq_n--;
+    goto top;
+  }
+#else  /* MARK_PFQ */
   if (stack_ptr > stk) {
     np = (NODEPTR *)POPTOP();
     goto top;
   }
+#endif  /* MARK_PFQ */
   return;
 }
 
@@ -5211,9 +5281,6 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   struct forptr *xfp;
   char *msg;
-#if 0
-  heapoffs_t l;
-#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -5277,43 +5344,61 @@ evali(NODEPTR an)
 
  top:
   /*pp(stdout, an);*/
+  /*
+   * Unwind the spine down to the next non-AP node.
+   * This is the hottest loop in the runtime (about 60% of all node visits
+   * are plain T_AP pushes), so it is kept to a few instructions per node:
+   *  - the tag is decoded straight from the first word: AP has the two
+   *    low bits clear (it is a pointer), BIT_IN marks an indirection,
+   *    otherwise the word holds a shifted tag (this mirrors GETTAG()).
+   *    Permanent nodes carry their tag as well (init_nodes SETTAGs them),
+   *    so no address range check is needed.
+   *  - the stack pointer and overflow limit live in locals, and stack_ptr
+   *    is written back once when the loop exits, so the globals are not
+   *    reloaded and stored for every pushed node.
+   *  - the time slice is charged once per dispatch, as before, but the
+   *    check now sits after the unwind instead of before it.  A yield
+   *    discards the stack and restarts the thread from its root, and the
+   *    unwind only short-circuits indirections, so the interleaving of
+   *    threads is unchanged.
+   */
+  {
+    NODEPTR *sp = stack + stack_ptr;
+#if STACKOVL
+    NODEPTR * const splim = stack + stack_size - 2;
+#endif  /* STACKOVL */
+    for (;;) {
+      intptr_t w = n->ufun.uuifun;
+      if (LIKELY((w & BIT_MASK) == BIT_AP)) {
+        /* T_AP: push the node and continue with its function */
+#if STACKOVL
+        if (sp >= splim) {
+          stack_ptr = sp - stack;
+          stackerr();
+        }
+#endif  /* STACKOVL */
+        *++sp = n;
+        n = (NODEPTR)w;
+        continue;
+      }
+      if ((w & BIT_MASK) == BIT_IN) {
+        /* Follow indirections, and short-circuit them */
+        NODEPTR on = n;
+        do {
+          n = GETINDIR(n);
+        } while(ISINDIR(n));
+        SETINDIR(on, n);
+        continue;
+      }
+      tag = (enum node_tag)((uintptr_t)w >> TAG_SHIFT);
+      break;
+    }
+    stack_ptr = sp - stack;
+    MAXSTACK;
+  }
   if (--glob_slice <= 0)
     yield();
-#if 0
-  /* This increases the cycle count */
-  l = LABEL(n);
-  if (l < T_IO_STDIN) {
-    /* The node is one of the permanent nodes; the address offset is the tag */
-    tag = l;
-  } else
-#endif
-    {
-    tag_t ut;
-    /* first follow AP nodes down the spine */
-    for(;;) {
-      ut = n->ufun.uutag;
-      if ((ut & BIT_MASK) != BIT_AP)
-        break;
-      PUSH(n);
-      n = (NODEPTR)ut;
-    }
-    /* Skip idirections */
-    if ((ut & BIT_MASK) == BIT_IN) {
-      /* Follow and short-circuit the chain. */
-      NODEPTR on = n;
-      do {
-        n = GETINDIR(n);
-      } while(ISINDIR(n));
-      SETINDIR(on, n);          /* and short-circuit them */
-      tag = GETTAG(n);
-    } else {
-      /* The tag is the rest of the bits we fetched */
-      tag = ut >> TAG_SHIFT;
-    }
-  }
-  /* Invariant: at this point n=current node, tag=GETTAG(n) */
-
-  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {

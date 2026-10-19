@@ -29,3 +29,4 @@ timing
 mdist/*
 dist-mcabal/
 generated/mhs-stage*.c
+generated/pgo/
