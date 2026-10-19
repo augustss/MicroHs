@@ -1982,20 +1982,7 @@ tcExprR mt ae =
     EQVar e t ->  -- already resolved, just instantiate
              instSigma loc e t mt
 
-    EApp f e ->
-      case f of
-        -- If we have parsed a e.lbl as a record select,
-        -- but it turns out that the lbl is not a label,
-        -- then we rejig the expression into function compositions,
-        -- i.e., e . lbl.
-        ESelect is@(lbl:_) -> do
-          b <- isLabel lbl
-          if b then
-            tcExprAp mt ae []
-           else
-            --trace ("convert to . " ++ show (f, e)) $
-            tcExpr mt (EOper e $ map (\ i -> (mkIdentSLoc (getSLoc i) ".", EVar i)) is)
-        _ -> tcExprAp mt ae []
+    EApp _ _ -> tcExprAp mt ae []
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam _ qs -> tcExprLam mt loc qs
@@ -2303,10 +2290,10 @@ isLabel :: Ident -> T Bool
 isLabel i = do
   env <- gets valueTable
   case stLookup "" i env of
-    Left _ -> return True
-    Right (Entry (EVar g) t) ->
-      return $ isInfixOf "get$." (unIdent g) || countArrows t == 0
-    Right _ -> undefined -- return True
+    Left _ -> return True  --
+    Right (Entry e t) ->
+      return $ isGetExpr e || countArrows t == 0
+
 isGetExpr :: Expr -> Bool
 isGetExpr (EVar g) = isInfixOf (getPrefix ++ ".") (unIdent g)
 isGetExpr _ = False
@@ -2315,6 +2302,9 @@ tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr
 --tcExprAp _ ae args | trace ("tcExprAp: " ++ show (ae, args)) False = undefined
 tcExprAp mt ae args = do
+  let rest = do
+        (f, t) <- tInferExpr ae
+        tcExprApFn mt f t args
   case ae of
     EApp f a -> tcExprAp mt f (a : args)
     EParen f -> tcExprAp mt f args
@@ -2338,9 +2328,23 @@ tcExprAp mt ae args = do
                _ -> tcExprApFn mt fn t' args
     EQVar f t ->  -- already resolved
       tcExprApFn mt f t args
-    _ -> do
-      (f, t) <- tInferExpr ae
-      tcExprApFn mt f t args
+
+    ESelect is@(lbl:_) | (e:args') <- args -> do
+      -- If we have parsed a e.lbl as a record select,
+      -- but it turns out that the lbl is not a label,
+      -- then we rejig the expression into function compositions,
+      -- i.e., e . lbl.
+      -- This is dodgy, since it will already have been parsed with
+      -- the wrong fixity.
+      b <- isLabel lbl
+      if b then
+        rest
+       else
+        let eoper = EOper e $ map (\ i -> (mkIdentSLoc (getSLoc i) ".", EVar i)) is
+        in  --trace ("convert " ++ show (EApp ae e) ++ " to " ++ show eoper) $
+            tcExprAp mt eoper args'
+
+    _ -> rest
 
 data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
 --  deriving Show
