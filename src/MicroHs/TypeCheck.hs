@@ -900,7 +900,16 @@ tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)
 tLookupV i = do
   tcm <- gets tcMode
-  tLookup (msgTCMode tcm) i
+  env <- gets valueTable
+  let sloc e = setSLocExpr (getSLoc i) e
+  case stLookupST i env of
+    STOne (Entry e s) -> return (sloc e, s)
+    -- If the identifier is ambiguous we use a pretty gruesome hack:
+    -- if there is only one hit that is not a record getter, we use that.
+    -- This allows ordinary functions/methods to have the same name as a
+    -- field, and they will be preferred.
+    STMany es | [Entry e s] <- filter (\ (Entry e' _) -> not (isGetExpr e')) es -> return (sloc e, s)
+    _ -> tLookup (msgTCMode tcm) i       -- generate the error normally
 
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
 --tInst ae t | trace ("tInst: " ++ show (ae, t)) False = undefined
@@ -2298,6 +2307,9 @@ isLabel i = do
     Right (Entry (EVar g) t) ->
       return $ isInfixOf "get$." (unIdent g) || countArrows t == 0
     Right _ -> undefined -- return True
+isGetExpr :: Expr -> Bool
+isGetExpr (EVar g) = isInfixOf (getPrefix ++ ".") (unIdent g)
+isGetExpr _ = False
 
 tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr

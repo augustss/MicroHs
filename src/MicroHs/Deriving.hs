@@ -1,4 +1,4 @@
-module MicroHs.Deriving(deriveStrat, expandField, mkGetName, etaReduce, mkTypeableInst) where
+module MicroHs.Deriving(deriveStrat, expandField, mkGetName, getPrefix, etaReduce, mkTypeableInst) where
 import qualified Prelude(); import MHSPrelude
 import Control.Monad
 import Data.Char
@@ -170,7 +170,10 @@ genHasField (tycon, iks) cs (fld, fldty) = do
 -- Given a (qualified) type name and a field name,
 -- return the name of the selector function.
 mkGetName :: Ident -> Ident -> Ident
-mkGetName tycon fld = qualIdent (mkIdent "get$") $ qualIdent tycon fld
+mkGetName tycon fld = qualIdent (mkIdent getPrefix) $ qualIdent tycon fld
+
+getPrefix :: String
+getPrefix = "get$"
 
 --------------------------------------------
 

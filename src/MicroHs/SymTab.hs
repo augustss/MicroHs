@@ -1,8 +1,10 @@
 module MicroHs.SymTab(
   Entry(..), entryType,
   SymTab,
+  STLookup(..),
   stEmpty,
   stLookup,
+  stLookupST,
   stLookupGlbUnqMany,
   stFromList,
   stInsertGlbU,
@@ -101,17 +103,26 @@ stEmpty = SymTab [] M.empty M.empty
 stLookupGlbUnqMany :: Ident -> SymTab -> Maybe [Entry]
 stLookupGlbUnqMany i (SymTab _ ug _) = M.lookup i ug
 
-stLookup :: String -> Ident -> SymTab -> Either String Entry
-stLookup msg i (SymTab l ug qg) =
+data STLookup = STNone | STOne Entry | STMany [Entry]
+
+stLookupST :: Ident -> SymTab -> STLookup
+stLookupST i (SymTab l ug qg) =
   case lookup i l of
-    Just e -> Right e
+    Just e -> STOne e
     Nothing ->
       case M.lookup i ug <|> M.lookup i qg <|> M.lookup (hackBuiltin i) ug of
-        Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
-                           showListS showIdent [ getIdent e | Entry e _ <- es ]
-        Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+        Just [e] -> STOne e
+        Just es  -> STMany es
+        Nothing  -> STNone
+
+stLookup :: String -> Ident -> SymTab -> Either String Entry
+stLookup msg i st =
+  case stLookupST i st of
+    STNone    -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
+    STOne e   -> Right e
+    STMany es -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
+                        showListS showIdent [ getIdent e | Entry e _ <- es ]
 
 -- When a module uses 'import quakified Prelude()' the Mhs.Builtin (aka B@) will
 -- also not be imported.  So as a last recourse, look for the identifier
