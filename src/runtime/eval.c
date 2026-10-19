@@ -4112,7 +4112,10 @@ parse(struct parse_ctx *pc, BFILE *f)
       }
 
       /* Look up the primop (O(1) hash lookup) and use the preallocated node. */
-      {
+      if (strcmp(buf, "wordsize") == 0) {
+        /* The size of Word in bits, a constant. */
+        r = mkInt((value_t)(sizeof(uvalue_t) * 8));
+      } else {
         int t = lookup_primop(buf);
         if (t < 0)
           DESER_ERR("unknown primop");

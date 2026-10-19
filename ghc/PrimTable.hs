@@ -68,6 +68,7 @@ primOps =
   , arithwi "shl" shiftL
   , arithwi "shr" shiftR
   , arith "ashr" shiftR
+  , comb "wordsize" (finiteBitSize (0 :: Word))
   , arithu "popcount" popCount
   , arithu "clz" countLeadingZeros
   , arithu "ctz" countTrailingZeros
