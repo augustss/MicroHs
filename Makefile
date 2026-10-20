@@ -32,7 +32,7 @@ CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/ev
 # (16 bytes per cell on 64-bit hosts; lower this on small or 32-bit machines).
 # This is deliberately only here and not in unix/config.h, which is shared
 # by mhseval, emscripten and 32-bit targets.
-MHSHEAP= -DHEAP_CELLS=100000000 
+MHSHEAP= -DHEAP_CELLS=75000000 
 CCMHS= $(CCEVAL) $(MHSHEAP)
 #
 # Profile-guided optimisation for bin/mhs (clang only, see the pgo target).

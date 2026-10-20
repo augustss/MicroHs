@@ -2940,7 +2940,7 @@ gc_red_ok(NODEPTR n)
  * The work stack lets us know the next MARK_PFQ cells in advance, so we
  * prefetch them and keep that many misses in flight (a FIFO prefetch queue
  * as in Cher et al., "Software prefetching for mark-sweep GC").
- * On an Apple M1 this cut mark time by about 3x; 16 entries was the knee.
+ * On an Apple M1 this cut mark time by about 3x; Setting MARK_PFQ to 32 does not improve it further.
  * Set -DMARK_PFQ=0 to get the plain stack-driven loop (e.g. embedded targets).
  */
 #if !defined(MARK_PFQ)
