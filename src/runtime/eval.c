@@ -518,7 +518,7 @@ islinux(void)
 #define NOTREACHED
 #endif
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK, T_CON,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -588,7 +588,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
-    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
+    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK", "CON" };
 #define TAGNAME(t) tag_names[t]
 
 struct ioarray;
@@ -675,6 +675,27 @@ static INLINE void SETTAG(NODEPTR p, tag_t t)
 #define GETFLTVALUE(p) (p)->uarg.uuflt32value
 #define GETDBLVALUE(p) (p)->uarg.uuflt64value
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
+
+/*
+ * T_CON: generic Scott constructor, written CON_i_n_k in the combinator file.
+ *   CON_i_n_k x_0 .. x_{k-1} f_0 .. f_{n-1}  =  f_i x_0 .. x_{k-1}
+ * i.e. constructor number i (0-based) of n, with k lazy fields.  The compiler
+ * (EncodeData.hs) emits it for every constructor that has no dedicated
+ * combinator (K, A, O, P, Tn, ...).  The equivalent lambda compiles to a
+ * chain of B/C/S' plumbing combinators that costs k+n dispatches and about
+ * as many allocations per construction-plus-match; T_CON does it in one
+ * dispatch with k-1 allocations.  The three numbers are packed into the
+ * node's value field (there is one T_CON node per occurrence in the source,
+ * allocated when the combinator file is parsed).
+ */
+#define CON_K_BITS 10
+#define CON_N_BITS 10
+#define CON_MAX_K  ((1 << CON_K_BITS) - 1)
+#define CON_MAX_N  ((1 << CON_N_BITS) - 1)
+#define CON_PACK(i, n, k) (((value_t)(i) << (CON_K_BITS + CON_N_BITS)) | ((value_t)(n) << CON_K_BITS) | (value_t)(k))
+#define CON_I(v) ((int)((uvalue_t)(v) >> (CON_K_BITS + CON_N_BITS)))
+#define CON_N(v) ((int)(((uvalue_t)(v) >> CON_K_BITS) & CON_MAX_N))
+#define CON_K(v) ((int)((uvalue_t)(v) & CON_MAX_K))
 #define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
 #define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
@@ -4098,6 +4119,35 @@ find_label(struct parse_ctx *pc, heapoffs_t label)
 
 #define DESER_ERR(s) do { pc->message = (s); longjmp(pc->deser_err, 1); } while(0);
 
+/* Parse "i_n_k" (the part after CON_) into a fresh T_CON node. */
+static NODEPTR
+parse_con(struct parse_ctx *pc, const char *s)
+{
+  int v[3];
+  int j;
+  NODEPTR r;
+
+  for (j = 0; j < 3; j++) {
+    if (j > 0) {
+      if (*s++ != '_')
+        DESER_ERR("bad CON");
+    }
+    if (!('0' <= *s && *s <= '9'))
+      DESER_ERR("bad CON");
+    v[j] = 0;
+    while ('0' <= *s && *s <= '9') {
+      v[j] = v[j] * 10 + (*s++ - '0');
+      if (v[j] > CON_MAX_K)       /* also bounds i and n: CON_MAX_K == CON_MAX_N */
+        DESER_ERR("bad CON");
+    }
+  }
+  if (*s != 0 || v[1] < 1 || v[0] >= v[1] || v[1] > CON_MAX_N)
+    DESER_ERR("bad CON");
+  r = alloc_node(T_CON);
+  SETVALUE(r, CON_PACK(v[0], v[1], v[2]));
+  return r;
+}
+
 NODEPTR
 parse(struct parse_ctx *pc, BFILE *f)
 {
@@ -4283,6 +4333,13 @@ parse(struct parse_ctx *pc, BFILE *f)
         }
       }
 
+      if (buf[0] == 'C' && buf[1] == 'O' && buf[2] == 'N' && buf[3] == '_') {
+        /* Generic constructor CON_i_n_k; it carries parameters, so it cannot
+         * use a preallocated node like the fixed primops.  One alloc_node,
+         * covered by the GCCHECK(1) at the top of the loop. */
+        PUSH(parse_con(pc, buf + 4));
+        break;
+      }
       /* Look up the primop (O(1) hash lookup) and use the preallocated node. */
       {
         int t = lookup_primop(buf);
@@ -4679,6 +4736,12 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+  case T_CON:
+    /* Same spelling the parser accepts, so caches and .pkg files round-trip. */
+    putsb("CON_", f); putdecb(CON_I(GETVALUE(n)), f);
+    putb('_', f);     putdecb(CON_N(GETVALUE(n)), f);
+    putb('_', f);     putdecb(CON_K(GETVALUE(n)), f);
+    break;
 #if WANT_TICK
   case T_TICK:
     putb('!', f);
@@ -5558,6 +5621,35 @@ evali(NODEPTR an)
   case T_R:    if(!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
                GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                                     /* R x y z = y z x */
+  case T_CON:
+    {
+      /* CON_i_n_k x_0 .. x_{k-1} f_0 .. f_{n-1} = f_i x_0 .. x_{k-1}
+       * Stack layout: TOP(j) is the application node holding argument j,
+       * so TOP(0) holds x_0, TOP(k+i) holds f_i, and TOP(k+n-1) is the root
+       * that gets overwritten with the result (same shape as CHKARGn). */
+      value_t cv = GETVALUE(n);
+      int ck = CON_K(cv), cn = CON_N(cv), ci = CON_I(cv);
+      int cj;
+      NODEPTR croot, cf;
+      CHECK(ck + cn);
+      if (ck == 0) {
+        /* Nullary: the result is f_i itself, so indirect like K does. */
+        croot = TOP(cn - 1);
+        cf = ARG(TOP(ci));
+        POP(cn);
+        n = croot;
+        GOIND(cf);
+      }
+      GCCHECK(ck - 1);          /* before any ARG is read, as CHKARGn do */
+      croot = TOP(ck + cn - 1);
+      cf = ARG(TOP(ck + ci));
+      for (cj = 0; cj < ck - 1; cj++)
+        cf = new_ap(cf, ARG(TOP(cj)));
+      x = ARG(TOP(ck - 1));
+      POP(ck + cn);
+      n = croot;
+      GOAP(cf, x);
+    }
   case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                       /* O x y z w = w x y */
   case T_K2:   if (!HASNARGS(3)) {
                            CHKARG2; COUNT(red_k2); GOAP(combK, x); } else {               /* K2 x y = K x */

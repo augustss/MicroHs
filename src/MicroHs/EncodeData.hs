@@ -105,8 +105,16 @@ encConstrScottLazy i n l =
     (0, 3, 0) -> comb "K2"      -- LT/...
     (1, 3, 0) -> comb "KK"      -- EQ/...
     (2, 3, 0) -> comb "KA"      -- GT/...
+    -- Everything else becomes the runtime's generic constructor node
+    -- CON_i_n_l (eval.c T_CON): one dispatch and l-1 allocations instead of
+    -- the l+n plumbing reductions the lambda below turns into.
+    _ | l <= conArityLimit -> comb ("CON_" ++ show i ++ "_" ++ show n ++ "_" ++ show l)
     _ -> encConstrScottLambda i n l
   where comb = Lit . LPrim
+
+-- The runtime packs i, n and the arity into one word (CON_MAX_K in eval.c).
+conArityLimit :: Int
+conArityLimit = 1023
 
 encConstrScottLambda :: Int -> Int -> Int -> Exp
 encConstrScottLambda i n l =
