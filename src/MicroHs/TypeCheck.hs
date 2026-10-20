@@ -2295,7 +2295,7 @@ isLabel i = do
       return $ isGetExpr e || countArrows t == 0
 
 isGetExpr :: Expr -> Bool
-isGetExpr (EVar g) = isInfixOf (getPrefix ++ ".") (unIdent g)
+isGetExpr (EVar g) = (getPrefix ++ ".") `isInfixOf` unIdent g
 isGetExpr _ = False
 
 tcExprAp :: HasCallStack =>
