@@ -17,6 +17,7 @@ import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
 import System.IO.Unsafe(unsafePerformIO)
+import Text.PrettyPrint.HughesPJLiteClass
 import Unsafe.Coerce
 import Debug.Trace
 
@@ -76,6 +77,13 @@ data ValueExport = ValueExport
 
 instance NFData ValueExport where
   rnf (ValueExport a b) = rnf a `seq` rnf b
+
+instance Pretty ValueExport where
+  pPrintPrec l _ (ValueExport i (Entry e t)) = pPrintPrec l 0 i <+> text "=" <+> pPrintPrec l 0 e <+> text "::" <+> pPrintPrec l 0 t
+
+instance Pretty TypeExport where
+  pPrintPrec l _ (TypeExport i (Entry e t) vs) =
+    pPrintPrec l 0 i <+> text "=" <+> pPrintPrec l 0 e <+> text "::" <+> pPrintPrec l 0 t <+> pPrintPrec l 0 vs
 
 -----------------------------------------------
 -- Tables
