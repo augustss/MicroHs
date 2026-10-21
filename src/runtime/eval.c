@@ -133,6 +133,13 @@ size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #define REGISTER(dcl, reg) dcl
 #endif
 
+/* Branch layout hint for the few branches where the compiler cannot guess. */
+#if defined(__GNUC__)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
+#else
+#define LIKELY(x) (x)
+#endif
+
 const struct ffi_entry ffi_table[];
 int num_ffi;
 #define FFI_IX(i) ((i) < num_ffi ? ffi_table[i] : xffi_table[i - num_ffi])
@@ -5211,9 +5218,6 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   struct forptr *xfp;
   char *msg;
-#if 0
-  heapoffs_t l;
-#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -5277,43 +5281,61 @@ evali(NODEPTR an)
 
  top:
   /*pp(stdout, an);*/
+  /*
+   * Unwind the spine down to the next non-AP node.
+   * This is the hottest loop in the runtime (about 60% of all node visits
+   * are plain T_AP pushes), so it is kept to a few instructions per node:
+   *  - the tag is decoded straight from the first word: AP has the two
+   *    low bits clear (it is a pointer), BIT_IN marks an indirection,
+   *    otherwise the word holds a shifted tag (this mirrors GETTAG()).
+   *    Permanent nodes carry their tag as well (init_nodes SETTAGs them),
+   *    so no address range check is needed.
+   *  - the stack pointer and overflow limit live in locals, and stack_ptr
+   *    is written back once when the loop exits, so the globals are not
+   *    reloaded and stored for every pushed node.
+   *  - the time slice is charged once per dispatch, as before, but the
+   *    check now sits after the unwind instead of before it.  A yield
+   *    discards the stack and restarts the thread from its root, and the
+   *    unwind only short-circuits indirections, so the interleaving of
+   *    threads is unchanged.
+   */
+  {
+    NODEPTR *sp = stack + stack_ptr;
+#if STACKOVL
+    NODEPTR * const splim = stack + stack_size - 2;
+#endif  /* STACKOVL */
+    for (;;) {
+      intptr_t w = n->ufun.uuifun;
+      if (LIKELY((w & BIT_MASK) == BIT_AP)) {
+        /* T_AP: push the node and continue with its function */
+#if STACKOVL
+        if (sp >= splim) {
+          stack_ptr = sp - stack;
+          stackerr();
+        }
+#endif  /* STACKOVL */
+        *++sp = n;
+        n = (NODEPTR)w;
+        continue;
+      }
+      if ((w & BIT_MASK) == BIT_IN) {
+        /* Follow indirections, and short-circuit them */
+        NODEPTR on = n;
+        do {
+          n = GETINDIR(n);
+        } while(ISINDIR(n));
+        SETINDIR(on, n);
+        continue;
+      }
+      tag = (enum node_tag)((uintptr_t)w >> TAG_SHIFT);
+      break;
+    }
+    stack_ptr = sp - stack;
+    MAXSTACK;
+  }
   if (--glob_slice <= 0)
     yield();
-#if 0
-  /* This increases the cycle count */
-  l = LABEL(n);
-  if (l < T_IO_STDIN) {
-    /* The node is one of the permanent nodes; the address offset is the tag */
-    tag = l;
-  } else
-#endif
-    {
-    tag_t ut;
-    /* first follow AP nodes down the spine */
-    for(;;) {
-      ut = n->ufun.uutag;
-      if ((ut & BIT_MASK) != BIT_AP)
-        break;
-      PUSH(n);
-      n = (NODEPTR)ut;
-    }
-    /* Skip idirections */
-    if ((ut & BIT_MASK) == BIT_IN) {
-      /* Follow and short-circuit the chain. */
-      NODEPTR on = n;
-      do {
-        n = GETINDIR(n);
-      } while(ISINDIR(n));
-      SETINDIR(on, n);          /* and short-circuit them */
-      tag = GETTAG(n);
-    } else {
-      /* The tag is the rest of the bits we fetched */
-      tag = ut >> TAG_SHIFT;
-    }
-  }
-  /* Invariant: at this point n=current node, tag=GETTAG(n) */
-
-  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
