@@ -52,6 +52,7 @@ install flags = do
   time "copyRTS" $ copyRTS flags'
   time "copyBase" $ copyBase flags'
   time "checkPath" $ checkPath flags'
+  time "pgo" $ optMhs flags'
 
 instBin :: Flags -> IO ()
 instBin flags = do
@@ -61,10 +62,14 @@ instBin flags = do
   mkdir flags "bin"
   mapM_ (buildBin flags) exes
   mkdir flags mcabalBin
-  let cpbin pgm = do
-        let exe = pgm <.> exeSuffix flags
-        copy flags ("bin" </> exe) (mcabalBin </> exe)
-  mapM_ cpbin exes
+  mapM_ (cpbin flags mcabalBin) exes
+
+cpbin :: Flags -> FilePath -> String -> IO FilePath
+cpbin flags mcabalBin pgm = do
+  let exe = pgm <.> exeSuffix flags
+      dst = mcabalBin </> exe
+  copy flags ("bin" </> exe) dst
+  return dst
 
 mkMachdep :: Flags -> IO ()
 mkMachdep flags =
@@ -110,9 +115,9 @@ buildBin flags pgm = do
       ccf = cconf flags
       rts = "src" </> "runtime"
   time ("buildBin " ++ pgm) $
-   cc flags [get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
-            rts </> "main.c", rts </> "eval.c",
-            src, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
+   cc flags [xflags flags, get ccf "ccflags", "-I" ++ rts, "-I" ++ (rts </> get ccf "conf"),
+             rts </> "main.c", rts </> "eval.c",
+             src, get ccf "cclibs", getD ccf "-o" "cout" ++ dst]
 
 mhsOut :: Flags -> [String] -> IO String
 mhsOut flags args = do
@@ -212,6 +217,7 @@ data Flags = Flags
   , dryRun    :: Bool
   , verbose   :: Bool
   , quiet     :: Bool
+  , pgo       :: Bool
   , macros    :: [(String, String)]
   , goals     :: [String]
   , confFile  :: FilePath
@@ -222,6 +228,7 @@ data Flags = Flags
   , cconf     :: CConf
   , version   :: String
   , conf      :: String
+  , xflags    :: String
   }
   deriving (Show)
 
@@ -232,6 +239,7 @@ defaultFlags =
     , dryRun    = False
     , verbose   = False
     , quiet     = False
+    , pgo       = False
     , macros    = []
     , goals     = []
     , confFile  = "mhs.conf.in"
@@ -242,6 +250,7 @@ defaultFlags =
     , cconf     = undefined
     , version   = undefined
     , conf      = undefined
+    , xflags    = ""
     }
 
 decodeArgs :: Flags -> [String] -> Flags
@@ -252,6 +261,7 @@ decodeArgs f (arg:args) =
     "-v"               -> decodeArgs f{verbose = True} args
     "-q"               -> decodeArgs f{quiet = True} args
     "--dryrun"         -> decodeArgs f{dryRun = True} args
+    "--pgo"            -> decodeArgs f{pgo = True} args
     '-':'t':s          -> decodeArgs f{target = s} args
     '-':'i':s          -> decodeArgs f{instDirM = Just s} args
     '-':_              -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
@@ -260,7 +270,7 @@ decodeArgs f (arg:args) =
       | otherwise      -> decodeArgs f{goals = goals f ++ [arg]} args
 
 usage :: String
-usage = "\ninstall [--help] [-v] [--dryrun] [-tTARGET] [-iDIR] [NAME=MACRO] [GOAL]\n"
+usage = "\ninstall [--help] [-v] [--dryrun] [--pgo] [-tTARGET] [-iDIR] [NAME=MACRO] [GOAL]\n"
 
 copyFileBS :: FilePath -> FilePath -> IO ()
 copyFileBS src dst = BS.readFile src >>= BS.writeFile dst
@@ -274,3 +284,43 @@ time s ioa = do
   t2 <- getTimeMilli
   printf "***** %s %fs\n" s (fromIntegral (t2 - t1) / 1000)
   return a
+
+-- Do Profile Guided Optimization
+optMhs :: Flags -> IO ()
+optMhs flags | not (pgo flags) = return ()
+             | otherwise = do
+  let mCabal = instDir flags
+      mcabalBin = mCabal </> "bin"
+  mpf <- pgoFlags flags
+  case mpf of
+    Nothing -> putStrLn "Not clang nor gcc, so no PGO"
+    Just (genFlag, useFlag, merge) -> do
+      putStrLn "*** Doing Profile Guided Optimization..."
+      -- Build with flag to generate profile info
+      buildBin flags{xflags = genFlag} "mhs"
+      -- Copy to target location
+      mhs <- cpbin flags mcabalBin "mhs"
+      -- Invoke mhs, compiling itself
+      let mhsArgs = ["-i", "-imhs", "-isrc", "MicroHs.Main"]
+      msg flags $ unwords (mhs : mhsArgs)
+      callProcess mhs mhsArgs
+      -- Extra profile processing
+      merge
+      -- Compile again with profiling info
+      buildBin flags{xflags = useFlag} "mhs"
+      -- And install it again
+      _ <- cpbin flags mcabalBin "mhs"
+      return ()
+
+pgoFlags :: Flags -> IO (Maybe (String, String, IO ()))
+pgoFlags flags = do
+  -- figure out which C compiler this is
+  let c = get (cconf flags) "cc"
+  out <- readProcess c ["--version"] ""
+  if "gcc" `isInfixOf` out then
+    return $ Just ("-fprofile-generate -flto=auto", "-fprofile-use -flto=auto", return ())
+   else if "clang" `isInfixOf` out then
+    return $ Just ("-fprofile-generate -flto=thin", "-fprofile-use=mhs.profdata -flto=thin",
+                   callProcess "llvm-profdata" ["merge", "-output=mhs.profdata", "*.profraw"])
+   else
+    return Nothing
