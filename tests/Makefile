@@ -131,6 +131,7 @@ test:
 	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
 	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
 	$(TMHS) ExtraComma && $(EVAL) > ExtraComma.out && diff ExtraComma.ref ExtraComma.out
+	$(TMHS) --comb-names CombNames && $(EVAL) > CombNames.out && diff CombNames.ref CombNames.out && test $$(wc -l < out.comb.names) -eq $$(sed -n 2p out.comb) && grep -c ' CombNames\.\(fac\|main\)$$' out.comb.names | grep -qx 2
 	$(TMHS) DerivingBuiltin
 
 .PHONY: testpreprocessorpaths
@@ -188,4 +189,4 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
-	rm -f *.out *.tmp *.js *.exe *.so a.out *_stub.h .mhscache
+	rm -f *.out *.tmp *.js *.exe *.so a.out *_stub.h .mhscache *.names
