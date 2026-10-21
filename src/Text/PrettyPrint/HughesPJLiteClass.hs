@@ -54,7 +54,7 @@ class Pretty a where
   pPrint = pPrintPrec prettyNormal 0
 
   pPrintList :: PrettyLevel -> [a] -> Doc
-  pPrintList l = brackets . fsep . punctuate comma . map (pPrintPrec l 0)
+  pPrintList l = brackets . sep . punctuate comma . map (pPrintPrec l 0)
 
 -- | Pretty print a value with the 'prettyNormal' level.
 prettyShow :: (Pretty a) => a -> String
