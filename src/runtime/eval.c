@@ -2077,24 +2077,103 @@ static INLINE int is_marked_used(NODEPTR n)
   return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
 
+/*
+ * Bump allocation inside a run of free cells (BUMP_ALLOC, default on).
+ *
+ * The free map is scanned first-fit in address order, so consecutive
+ * allocations almost always come from consecutive cells anyway.  Finding the
+ * cell one at a time costs a word load, FFS, a bit clear and a store to
+ * next_scan_index per allocation, and the store-forwarding chain through
+ * free_map[i] and next_scan_index serialises back-to-back allocations.
+ * Instead bump_refill() claims a whole run of free cells at once (clearing
+ * their map bits eagerly) and alloc_node just bumps a pointer through it.
+ * Runs average a few dozen cells on the self-compile, so the refill is cold.
+ *
+ * Invariants: num_free still counts exactly the unallocated cells (the
+ * claimed-but-unused tail of the run is included), so gc_check's budget is
+ * unchanged.  The map overstates "used" by that tail, which is harmless
+ * because the map is only read by the GC, and gc() rebuilds it from scratch.
+ * bump_ptr/bump_end are globals, never cached in evali locals: longjmp
+ * (T_CATCHR, resched) and nested GCs would otherwise see stale values.
+ */
+#if !defined(BUMP_ALLOC)
+#define BUMP_ALLOC 1
+#endif
+
+#if BUMP_ALLOC
+static NODEPTR bump_ptr, bump_end;    /* current run: [bump_ptr, bump_end) */
+#endif
+
 static INLINE void mark_all_free(void)
 {
   memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
   next_scan_index = heap_start;
+#if BUMP_ALLOC
+  /* The map is about to be rebuilt by the marker (or is fresh at init), so a
+   * run claimed from the old map is stale: its cells may now be live. */
+  bump_ptr = bump_end = 0;
+#endif
 }
+
+#if BUMP_ALLOC
+/* Claim the next run of free cells.  Out of line: it runs once per run, and
+ * keeping it out of alloc_node keeps the hot path to a compare and a bump. */
+static NOINLINE void
+bump_refill(void)
+{
+  heapoffs_t i = next_scan_index / BITS_PER_WORD;
+  heapoffs_t pos;
+  bits_t word, inv, mask;
+  int k, run;
+
+  for(;;) {
+    /* Not just under SANITY: the caller only checked num_free > 0, and an
+     * inconsistent num_free must not turn into a read past the map. */
+    if (i >= free_map_nwords)
+      ERR("bump_refill: free_map");
+    word = free_map[i];
+    if (word)
+      break;
+    i++;
+  }
+  k = FFS(word) - 1;            /* bit index of the first free cell */
+  /* Run length = number of consecutive 1 bits starting at k.  Bit 0 of
+   * word >> k is set, so inv is 0 only for k == 0 with every bit set; that
+   * case is handled explicitly because CTZ(0) is not portable. */
+  inv = ~(word >> k);
+  run = inv ? (int)CTZ(inv) : (int)(BITS_PER_WORD - k);
+  pos = i * BITS_PER_WORD + k;
+  /* The last map word has bits past heap_size when heap_size is not a
+   * multiple of the word size; those bits are set but the cells do not exist. */
+  if (pos + run > heap_size)
+    run = (int)(heap_size - pos);
+  mask = (run == (int)BITS_PER_WORD ? ~(bits_t)0 : (((bits_t)1 << run) - 1)) << k;
+  free_map[i] = word & ~mask;   /* claim the whole run now */
+  next_scan_index = pos + run;
+  bump_ptr = HEAPREF(pos);
+  bump_end = bump_ptr + run;
+}
+#endif  /* BUMP_ALLOC */
 
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
 {
+  NODEPTR n;
+
+  /* This can happen if we run out of memory when parsing.
+   * It also guarantees bump_refill() finds a free cell. */
+  if (num_free <= 0)
+    ERR("alloc_node");
+
+#if BUMP_ALLOC
+  if (bump_ptr == bump_end)
+    bump_refill();
+  n = bump_ptr++;
+#else  /* BUMP_ALLOC */
   heapoffs_t i = next_scan_index / BITS_PER_WORD;
   int k;                        /* will contain bit pos + 1 */
   heapoffs_t pos;
-  NODEPTR n;
   heapoffs_t word;
-
-  /* This can happen if we run out of memory when parsing. */
-  if (num_free <= 0)
-    ERR("alloc_node");
 
   for(;;) {
     word = free_map[i];
@@ -2117,6 +2196,7 @@ alloc_node(enum node_tag t)
   // mark_used(n); // equivalent to:
   free_map[i] = word & (word-1);
   next_scan_index = pos;
+#endif  /* BUMP_ALLOC */
 
   SETTAG(n, t);
   COUNT(num_alloc);
