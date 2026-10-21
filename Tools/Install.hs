@@ -320,7 +320,7 @@ pgoFlags flags = do
   if "gcc" `isInfixOf` out then
     return $ Just ("-fprofile-generate -flto=auto", "-fprofile-use -flto=auto", return ())
    else if "clang" `isInfixOf` out then
-    return $ Just ("-fprofile-generate -flto=thin", "-fprofile-use=mhs.profdata -flto=thin",
+    return $ Just ("-fcs-profile-generate -flto=full", "-fprofile-use=mhs.profdata -flto=full",
                    callProcess "llvm-profdata" ["merge", "-output=mhs.profdata", "*.profraw"])
    else
     return Nothing
