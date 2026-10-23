@@ -375,6 +375,9 @@ oldminstall:	bin/mhs bin/cpphs bin/mcabal machdep
 	bin/mhs -Q generated/base.pkg $(MCABALMHS)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
+install-pgo: bin/install
+	bin/install --pgo -i$(MCABAL) GMPFLAGS=$(MHSGMPCCFLAGS) GMPLIBS=$(MHSGMPCCLIBS)
+
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
