@@ -9,4 +9,4 @@ unsafeDupablePerformIO :: IO a -> a
 unsafeDupablePerformIO = primPerformIO
 
 unsafeInterleaveIO :: IO a -> IO a
-unsafeInterleaveIO ioa = primReturn (primPerformIO ioa)
+unsafeInterleaveIO ioa = primLazyBind ioa primReturn
