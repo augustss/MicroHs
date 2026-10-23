@@ -268,10 +268,15 @@ primThen         :: forall a b . IO a -> IO b -> IO b
 primThen          = _primitive "IO.>>"
 primReturn       :: forall a . a -> IO a
 primReturn        = _primitive "IO.return"
-primGetArgRef    :: IO (IOArray [[Char]])
-primGetArgRef     = _primitive "IO.getArgRef"
+primLazyBind     :: IO a -> (a -> IO b) -> IO b
+primLazyBind      = _primitive "IO.lazyBind"
+primStrictIO     :: IO a -> IO a
+primStrictIO      = _primitive "IO.strict"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = _primitive "IO.performIO"
+
+primGetArgRef    :: IO (IOArray [[Char]])
+primGetArgRef     = _primitive "IO.getArgRef"
 
 primRnfErr       :: forall a . a -> ()
 primRnfErr        = _primitive "rnf" (0::Int)
