@@ -23,7 +23,7 @@ import qualified Prelude(); import MHSPrelude
 import Control.Applicative
 import Data.List
 import MicroHs.Builtin(builtinMdl)
-import MicroHs.Expr(Expr(..), EType, conIdent)
+import MicroHs.Expr(Expr(..), EType, conIdent, getSLoc)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
@@ -115,14 +115,13 @@ stLookupST i (SymTab l ug qg) =
         Just es  -> STMany es
         Nothing  -> STNone
 
-stLookup :: String -> Ident -> SymTab -> Either String Entry
+stLookup :: String -> Ident -> SymTab -> Either MhsError Entry
 stLookup msg i st =
   case stLookupST i st of
-    STNone    -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+    STNone    -> Left $ MhsUndefError (getSLoc i) msg (showIdent i)
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
+    STMany es -> Left $ MhsAmbigError (getSLoc i) msg (showIdent i) (showListS showIdent [ getIdent e | Entry e _ <- es ])
     STOne e   -> Right e
-    STMany es -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
-                        showListS showIdent [ getIdent e | Entry e _ <- es ]
 
 -- When a module uses 'import quakified Prelude()' the Mhs.Builtin (aka B@) will
 -- also not be imported.  So as a last recourse, look for the identifier

@@ -545,7 +545,9 @@ finds str = do
   (ts, vs) <- gets isSymbols
   let i = mkIdent str
   case stLookup "type" i vs `alt` stLookup "value" i ts of
-    Left s -> putStrLnI s
+    Left s -> do
+      color <- gets isColor
+      putStrLnI $ formatMhsError color s
     Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
       ed <- getEditor
       _ <- liftIO $ system $ printf ed l f

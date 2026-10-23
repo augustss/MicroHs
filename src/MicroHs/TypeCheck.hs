@@ -237,7 +237,7 @@ getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup
 getTVExps _ _ _ _ (ExpDefault _) = ([], [])
 
 expLookup :: Ident -> SymTab -> Entry
-expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
+expLookup i m = either throw id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
@@ -894,7 +894,7 @@ tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> return (setSLocExpr (getSLoc i) e, s)
-    Left            e -> tcError (getSLoc i) e
+    Left            e -> throw e
 
 tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)

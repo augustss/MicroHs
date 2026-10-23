@@ -33,6 +33,8 @@ instance Exception MhsError
 errLoc :: MhsError -> Maybe SLoc
 errLoc (MhsSyntaxError l _ _) = Just l
 errLoc (MhsTypeError l _ _ _) = Just l
+errLoc (MhsUndefError l _ _) = Just l
+errLoc (MhsAmbigError l _ _ _) = Just l
 errLoc (MhsOtherError l _) = Just l
 errLoc (MhsError _) = Nothing
 
@@ -55,6 +57,10 @@ formatMhsError col err =
       locErr loc ++ "syntax" ++
       "\n    found:    " ++ a ++
       "\n    expected: " ++ e
+    MhsUndefError loc k i ->
+      locErr loc ++ "undefined " ++ k ++ ": " ++ i
+    MhsAmbigError loc k i alts ->
+      locErr loc ++ "ambiguous " ++ k ++ ": " ++ i ++ " " ++ alts
   where
     locErr loc | isNoSLoc loc = redError
                | otherwise    = bold col (showSLoc loc) ++ ": " ++ redError

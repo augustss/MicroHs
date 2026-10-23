@@ -141,6 +141,8 @@ instance HasCallStack
 data MhsError
   = MhsSyntaxError SLoc String String
   | MhsTypeError   SLoc String String String  -- header, expected, actual
+  | MhsUndefError  SLoc String String         -- name space, ident
+  | MhsAmbigError  SLoc String String String  -- name space, ident, alts
   | MhsOtherError  SLoc String
   | MhsError            String                -- no location
 data SLoc = SLoc FilePath Int Int
