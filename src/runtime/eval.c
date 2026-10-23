@@ -6300,11 +6300,13 @@ evali(NODEPTR an)
     /* Lazy bind, used for the lazy ST monad.
      * DO NOT USE FOR IO, because effects are not guaranteed to happen.
      *   (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
+     * since the actual state token doesn't matter we use the more efficient
+     *   (x `lazyBind` y) z = let w = x z in y (fst w) z
      */
     GCCHECK(4);
     CHKARG3;
     w = new_ap(x, z);
-    GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
+    GOAP2(y, new_ap(combFst, w), z);
   case T_IO_STRICT:
     CHKARG2;
     /* Force the world argument before executing the IO.
