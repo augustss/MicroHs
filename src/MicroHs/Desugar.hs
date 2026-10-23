@@ -577,7 +577,7 @@ lazier def@(fcn, l@(Lam _ _)) =
       minn a 0 = a
       minn a b = min a b
       minMatch :: [Ident] -> Exp -> Int
-      minMatch _ (Lam i _) | i `elem` as = 0   -- name capture, so ignore matches
+      minMatch _ (Lam i _) | i == fcn || i `elem` as = 0   -- name capture, so ignore matches
       minMatch _ (Lam _ e) = minMatch [] e
       minMatch vs (App f (Var v)) = minMatch (v:vs) f
       minMatch _ (App f a) = minMatch [] f `minn` minMatch [] a
@@ -591,7 +591,9 @@ lazier def@(fcn, l@(Lam _ _)) =
       app vs e = apps e (map Var vs)
       -- Replace n recursive args with call to vfcn'
       repl :: [Ident] -> Exp -> Exp
-      repl vs (Lam i e) = app vs $ Lam i $ repl [] e
+      repl vs (Lam i e)
+        | i == fcn || i `elem` drops = app vs $ Lam i e
+        | otherwise                  = app vs $ Lam i $ repl [] e
       repl vs (App f (Var v)) = repl (v:vs) f
       repl vs (App f a) = app vs $ App (repl [] f) (repl [] a)
       repl [] (Var v) = Var v
