@@ -10,7 +10,7 @@ import MicroHs.Error(mhsError, errLoc, formatMhsError)
 import MicroHs.Exp(Exp(Var))
 import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, {-SLoc(..),-} slocIdent, isNoSLoc)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, {-SLoc(..),-} slocIdent, isNoSLoc, unQualString)
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -356,7 +356,6 @@ wrapColor c s = do
 oneline :: String -> I ()
 oneline aline = do
   let line = dropWhile isSpace aline
-  ls <- gets isLines
   stats <- gets isStats
   let def lls = do
         defTest <- tryCompile lls
@@ -367,6 +366,7 @@ oneline aline = do
       expr ln = do
 --        t1 <- liftIO getTimeMilli
         flgs <- gets isFlags
+        ls <- gets isLines
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats ln)
         case exprTest of
           Right (m, _) -> do
@@ -376,10 +376,31 @@ oneline aline = do
             when (stats) $
               liftIO $ putStrLn $ "total " ++ show (t2 - t1) ++ "ms"
 -}
-          Left  e -> err e
+          Left  e -> do
+            case fromException e of
+              Just (MhsUndefError _ _ i) | let u = unQualString i, i /= u -> do
+                -- We have an undefined qualified identifier.
+                -- Add a qualified import for the module (if it doesn't exist),
+                -- if that succeeds, rerun the expression.
+                let mdl = fromJust $ stripSuffix ("." ++ u) i
+                    imp = "import qualified " ++ mdl
+                if imp `elem` lines ls then
+                  -- Already imported
+                  err e
+                 else do
+                  let lls = ls ++ imp ++ "\n"
+                  defTest <- tryCompile lls
+                  case defTest of
+                    Right _ -> do
+                      -- Adding the import succeeded, so try again
+                      updateLines (const lls)
+                      expr ln
+                    Left  _ -> err e
+              _ -> err e
   -- A small hack, if we import something we have already imported
   -- in exactly the same way, we just reload instead.  This is to avoid
   -- building up multiple imports.
+  ls <- gets isLines
   if take 1 (words line) == ["import"] && line `elem` lines ls then
     reload
    else
