@@ -270,6 +270,8 @@ primReturn       :: forall a . a -> IO a
 primReturn        = _primitive "IO.return"
 primLazyBind     :: IO a -> (a -> IO b) -> IO b
 primLazyBind      = _primitive "IO.lazyBind"
+primLazyBindST   :: IO a -> (a -> IO b) -> IO b
+primLazyBindST    = _primitive "IO.lazyBindST"
 primStrictIO     :: IO a -> IO a
 primStrictIO      = _primitive "IO.strict"
 primPerformIO    :: forall a . IO a -> a

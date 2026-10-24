@@ -556,7 +556,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
-                T_IO_LAZYBIND, T_IO_STRICT,
+                T_IO_LAZYBIND, T_IO_STRICT, T_IO_LAZYBINDST,
                 T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -2513,6 +2513,7 @@ struct {
   { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
   { "IO.lazyBind", T_IO_LAZYBIND },
+  { "IO.lazyBindST", T_IO_LAZYBINDST },
   { "IO.strict", T_IO_STRICT },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
@@ -2624,7 +2625,11 @@ enum node_tag flip_ops[T_LAST_TAG+1];
  * Use a hash table with open linear probing for the lookup of primpo names.
  * Make the hash table twice the size of the number of primops so we get a load factor of 0.5.
  */
-#define PRIMOP_HASH_SIZE (2 * sizeof primops / sizeof primops[0])
+#define PRIMOP_HASH_SIZE (2 * sizeof primops / sizeof primops[0] + 5)
+/*
+ * Without the + 5 above the time on my MacBook more that doubles!
+ * It's a mystery why.
+ */
 static struct {
   const char   *name;           /* NULL marks an empty slot */
   enum node_tag tag;
@@ -6296,9 +6301,17 @@ evali(NODEPTR an)
     GCCHECK(2);
     CHKARG2;
     GOAP2(combIOBIND, x, new_ap(combK, y));
-  case T_IO_LAZYBIND:
+  case T_IO_LAZYBINDST:
     /* Lazy bind, used for the lazy ST monad.
      * DO NOT USE FOR IO, because effects are not guaranteed to happen.
+     *   (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
+     */
+    GCCHECK(4);
+    CHKARG3;
+    w = new_ap(x, z);
+    GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
+  case T_IO_LAZYBIND:
+    /* Lazy bind, used for unsafeInterleaveIO.
      *   (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
      * since the actual state token doesn't matter we use the more efficient
      *   (x `lazyBind` y) z = let w = x z in y (fst w) z

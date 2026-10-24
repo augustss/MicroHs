@@ -8,7 +8,7 @@ module Control.Monad.ST.Lazy(
   RealWorld, stToIO,  -- GHC compat
   ) where
 import qualified Prelude(); import MiniPrelude
-import Primitives(primPerformIO, primLazyBind, primStrictIO)
+import Primitives(primPerformIO, primLazyBindST, primStrictIO)
 import Control.Monad.Fix
 import Control.Monad.ST(RealWorld)
 import qualified Control.Monad.ST_Type as S
@@ -39,7 +39,7 @@ instance Applicative (ST s) where
   (<*>) = ap                     -- defined in terms on >>=, so it becomes lazy
 
 instance Monad (ST s) where
-  ma >>= k = ST $ S.ST $ primLazyBind (S.unST (unST ma)) (S.unST . unST . k)
+  ma >>= k = ST $ S.ST $ primLazyBindST (S.unST (unST ma)) (S.unST . unST . k)
 
 instance MonadFix (ST s) where
   mfix = fixST
