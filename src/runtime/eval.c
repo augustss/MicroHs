@@ -2661,13 +2661,8 @@ init_primop_hash(void)
     while (primop_hash[k].name) {
       k = (k + 1) % PRIMOP_HASH_SIZE;
     }
-    /* Found the first empty slot for this hash.
-     * Insert the (name,tag) pair.
-     */
-    if (primop_hash[k].name == NULL) {
-      primop_hash[k].name = primops[i].name;
-      primop_hash[k].tag  = primops[i].tag;
-    }
+    primop_hash[k].name = primops[i].name;
+    primop_hash[k].tag  = primops[i].tag;
   }
 }
 
@@ -6157,8 +6152,8 @@ evali(NODEPTR an)
     xi = evalint(y);
     if (0xdc80 <= xi && xi <= 0xdcff) {
       /* Using dc80-dcff to roundtrip bad bytes */
-      xi &= 0xff;
-    }
+      bsappbyte(xfp, xi & 0xff);
+    } else {
     if ((xi & 0x1ff800) == 0xd800) {
       /* xi is a surrogate */
       xi = 0xfffd; /* replacement character */
@@ -6180,6 +6175,7 @@ evali(NODEPTR an)
       bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
     } else {
       ERR("invalid char");
+    }
     }
     POP(3);
     GOPAIRUNIT;
