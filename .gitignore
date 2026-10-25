@@ -17,7 +17,6 @@ a.out
 dist-newstyle/
 dist/
 .mhsi
-Interactive.hs
 .mhscache
 *.js
 *.wasm
