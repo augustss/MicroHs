@@ -106,10 +106,12 @@ import Control.DeepSeq.Class
 import qualified Data.Char as C
 import qualified Data.Char.Unicode as U
 import qualified Data.List as L
+import Data.List.NonEmpty_Type(NonEmpty(..))
 import Data.String
 import qualified Data.ByteString.Internal as BS
 import Data.Text.Internal
 import Text.Read.Internal
+import Primitives(primChr)
 
 type StrictText = Text
 
@@ -154,9 +156,14 @@ instance IsString Text where
 
 instance Semigroup Text where
   (<>) = append
+  sconcat (t :| ts) = concat (t : ts)
+  stimes n t
+    | n <= 0    = error "stimes: positive multiplier expected"
+    | otherwise = replicate (fromIntegral n) t
 
 instance Monoid Text where
   mempty = empty
+  mconcat = concat
 
 instance NFData Text where
   rnf (T bs) = seq bs ()
@@ -180,7 +187,7 @@ null :: Text -> Bool
 null (T bs) = BS.null bs
 
 length :: Text -> Int
-length = L.length . unpack
+length (T b) = BS.primUTF8length b
 
 head :: Text -> Char
 head (T t)
@@ -203,30 +210,38 @@ uncons t | null t    = Nothing
          | otherwise = Just (head t, tail t)
 
 replicate :: Int -> Text -> Text
-replicate = stimes
+replicate n t@(T b) | n <= 0    = empty
+                    | otherwise = T (BS.concatBS (L.replicate n b))
 
 splitOn :: Text -> Text -> [Text]
-splitOn s t = L.map pack $ splitOnList (unpack s) (unpack t)
+splitOn p@(T pb) t@(T tb)
+  | null p    = error "splitOn: empty"
+  | otherwise = go 0
+  where
+    n = bytes t
+    go i = case BS.primBSfind pb tb i of
+             j | j < 0     -> [slice i n t]
+               | otherwise -> slice i j t : go (j + bytes p)
 
 dropWhileEnd :: (Char -> Bool) -> Text -> Text
-dropWhileEnd p = pack . L.dropWhileEnd p . unpack
-
-splitOnList :: Eq a => [a] -> [a] -> [[a]]
-splitOnList [] = error "splitOn: empty"
-splitOnList sep = loop []
-  where
-    loop r  [] = [L.reverse r]
-    loop r  s@(c:cs) | Just t <- L.stripPrefix sep s = L.reverse r : loop [] t
-                     | otherwise = loop (c:r) cs
+dropWhileEnd p t@(T b) = slice 0 (suffixStart p b) t
 
 words :: Text -> [Text]
-words = L.map pack . L.words . unpack
+words t@(T b) = go 0
+  where
+    n = bytes t
+    go i = case BS.primUTF8skipSpace b i of
+             s | s >= n    -> []
+               | otherwise -> case BS.primUTF8skipNonSpace b s of
+                                e -> slice s e t : go e
 
 unwords :: [Text] -> Text
-unwords = pack . L.unwords . L.map unpack
+unwords = intercalate (singleton ' ')
 
 toLower :: Text -> Text
-toLower = pack . L.concatMap U._toLowers . unpack
+toLower t@(T b)
+  | isAsciiText t = T (BS.primBSasciiCase b 0)
+  | otherwise     = pack . L.concatMap U._toLowers . unpack $ t
 
 toTitle :: Text -> Text
 toTitle = pack . f . unpack
@@ -238,52 +253,63 @@ toTitle = pack . f . unpack
                  | otherwise   = c : f cs
 
 toUpper :: Text -> Text
-toUpper = pack . L.concatMap U._toUppers . unpack
+toUpper t@(T b)
+  | isAsciiText t = T (BS.primBSasciiCase b 1)
+  | otherwise     = pack . L.concatMap U._toUppers . unpack $ t
 
 toCaseFold :: Text -> Text
-toCaseFold = pack . L.concatMap U._toFolds . unpack
+toCaseFold t@(T b)
+  | isAsciiText t = T (BS.primBSasciiCase b 0)
+  | otherwise     = pack . L.concatMap U._toFolds . unpack $ t
 
 foldr :: (Char -> a -> a) -> a -> Text -> a
 foldr f z = L.foldr f z . unpack
 
 concat :: [Text] -> Text
-concat = L.foldr append empty
+concat []  = empty
+concat [t] = t
+concat ts  = T (BS.concatBS (L.map (\ (T b) -> b) ts))
 
 unlines :: [Text] -> Text
-unlines = L.foldr (\ l -> append (append l (pack "\n"))) empty
+unlines ls = concat (L.concatMap (\ l -> [l, newline]) ls)
 
 lines :: Text -> [Text]
-lines = L.map pack . L.lines . unpack
+lines t@(T b) = go 0
+  where
+    n = bytes t
+    go i | i >= n    = []
+         | otherwise = case BS.primBSfind newlineBS b i of
+                         j | j < 0     -> [slice i n t]
+                           | otherwise -> slice i j t : go (j + 1)
 
 take :: Int -> Text -> Text
-take n = pack . L.take n . unpack
+take n t@(T b) = slice 0 (BS.primUTF8offset b n) t
 
 drop :: Int -> Text -> Text
-drop n = pack . L.drop n . unpack
+drop n t@(T b) = slice (BS.primUTF8offset b n) (bytes t) t
 
 intercalate :: Text -> [Text] -> Text
-intercalate _ [] = empty
-intercalate _ [x] = x
-intercalate s (x:xs) = x `append` s `append` intercalate s xs
+intercalate s ts = concat (L.intersperse s ts)
 
 replace :: Text -> Text -> Text -> Text
-replace s r = intercalate r . splitOn s
+replace s r
+  | null s    = error "Data.Text.replace: empty input"
+  | otherwise = intercalate r . splitOn s
 
--- XXX Should make the BS version efficient and go via that
 isPrefixOf :: Text -> Text -> Bool
-isPrefixOf p s = L.isPrefixOf (unpack p) (unpack s)
+isPrefixOf p t = bytes p <= bytes t && slice 0 (bytes p) t == p
 
 isSuffixOf :: Text -> Text -> Bool
-isSuffixOf p s = L.isSuffixOf (unpack p) (unpack s)
+isSuffixOf p t = bytes p <= bytes t && slice (bytes t - bytes p) (bytes t) t == p
 
 isInfixOf :: Text -> Text -> Bool
-isInfixOf p s = L.isInfixOf (unpack p) (unpack s)
+isInfixOf (T p) (T t) = BS.primBSfind p t 0 >= 0
 
 dropWhile :: (Char -> Bool) -> Text -> Text
-dropWhile p = pack . L.dropWhile p . unpack
+dropWhile p t@(T b) = slice (prefixEnd p b 0) (bytes t) t
 
 takeWhile :: (Char -> Bool) -> Text -> Text
-takeWhile p = pack . L.takeWhile p . unpack
+takeWhile p t@(T b) = slice 0 (prefixEnd p b 0) t
 
 map :: (Char -> Char) -> Text -> Text
 map f = pack . L.map f . unpack
@@ -292,28 +318,32 @@ dropAround :: (Char -> Bool) -> Text -> Text
 dropAround p = dropWhile p . dropWhileEnd p
 
 stripStart :: Text -> Text
-stripStart = dropWhile C.isSpace
+stripStart t@(T b) = slice (BS.primUTF8skipSpace b 0) (bytes t) t
 
 stripEnd :: Text -> Text
-stripEnd = dropWhileEnd C.isSpace
+stripEnd t@(T b) = slice 0 (BS.primUTF8trimSpaceEnd b) t
 
 strip :: Text -> Text
-strip = dropAround C.isSpace
+strip t@(T b) = slice (BS.primUTF8skipSpace b 0) (BS.primUTF8trimSpaceEnd b) t
 
 stripPrefix :: Text -> Text -> Maybe Text
-stripPrefix p t = pack <$> L.stripPrefix (unpack p) (unpack t)
+stripPrefix p t
+  | p `isPrefixOf` t = Just (slice (bytes p) (bytes t) t)
+  | otherwise      = Nothing
 
 stripSuffix :: Text -> Text -> Maybe Text
-stripSuffix p t = pack <$> L.stripSuffix (unpack p) (unpack t)
+stripSuffix p t
+  | p `isSuffixOf` t = Just (slice 0 (bytes t - bytes p) t)
+  | otherwise      = Nothing
 
 all :: (Char -> Bool) -> Text -> Bool
-all p = L.all p . unpack
+all p (T b) = L.all (L.all p) (chunksFrom b)
 
 any :: (Char -> Bool) -> Text -> Bool
-any p = L.any p . unpack
+any p (T b) = L.any (L.any p) (chunksFrom b)
 
 concatMap :: (Char -> Text) -> Text -> Text
-concatMap f = L.foldr (append . f) empty . unpack
+concatMap f t = concat [ f c | c <- unpack t ]
 
 foldl :: (a -> Char -> a) -> a -> Text -> a
 foldl f z = L.foldl f z . unpack
@@ -325,50 +355,72 @@ filter :: (Char -> Bool) -> Text -> Text
 filter p = pack . L.filter p . unpack
 
 reverse :: Text -> Text
-reverse = pack . L.reverse . unpack
+reverse (T b) = T (BS.primUTF8reverse b)
 
 last :: Text -> Char
-last = L.last . unpack
+last t@(T b)
+  | null t    = error "Data.Text.last: empty"
+  | otherwise = charOf (BS.primUTF8decodeEnd b (bytes t))
 
 init :: Text -> Text
-init = pack . L.init . unpack
+init t@(T b)
+  | null t    = error "Data.Text.init: empty"
+  | otherwise = slice 0 (BS.primUTF8offsetEnd b 1) t
 
 elem :: Char -> Text -> Bool
-elem c = L.elem c . unpack
+elem c t
+  | c >= '\xD800' && c <= '\xDFFF' = False   -- never in a Text ('pack' replaces them)
+  | otherwise = singleton c `isInfixOf` t
 
 zip :: Text -> Text -> [(Char, Char)]
 zip a b = L.zip (unpack a) (unpack b)
 
 span :: (Char -> Bool) -> Text -> (Text, Text)
-span p t = case L.span p (unpack t) of (a, b) -> (pack a, pack b)
+span p t@(T b) = case prefixEnd p b 0 of i -> (slice 0 i t, slice i (bytes t) t)
 
 break :: (Char -> Bool) -> Text -> (Text, Text)
 break p = span (not . p)
 
 -- | Split at the first occurrence of the pattern (which is part of the second component).
 breakOn :: Text -> Text -> (Text, Text)
-breakOn p t = go [] (unpack t)
-  where ps = unpack p
-        go acc s@(c:cs) | ps `L.isPrefixOf` s = (pack (L.reverse acc), pack s)
-                        | otherwise = go (c:acc) cs
-        go acc [] = (pack (L.reverse acc), empty)
+breakOn p'@(T p) t@(T b)
+  | null p'   = error "Data.Text.breakOn: empty input"
+  | otherwise =
+      case BS.primBSfind p b 0 of
+        i | i < 0     -> (t, empty)
+          | otherwise -> (slice 0 i t, slice i (bytes t) t)
 
 takeWhileEnd :: (Char -> Bool) -> Text -> Text
-takeWhileEnd p = pack . L.reverse . L.takeWhile p . L.reverse . unpack
+takeWhileEnd p t@(T b) = slice (suffixStart p b) (bytes t) t
 
 -- | Number of non-overlapping occurrences of the pattern.
 count :: Text -> Text -> Int
-count p t = L.length (splitOn p t) - 1
+count p@(T pb) (T b)
+  | null p    = error "Data.Text.count: empty pattern"
+  | otherwise = go 0 0
+  where
+    go k i = case BS.primBSfind pb b i of
+               j | j < 0     -> k
+                 | otherwise -> go (k + 1) (j + bytes p)
 
 index :: Text -> Int -> Char
-index t i = unpack t L.!! i
+index t@(T b) i
+  | i < 0     = error "Data.Text.index: negative index"
+  | o >= bytes t = error "Data.Text.index: index too large"
+  | otherwise = charOf (BS.primUTF8decode b o)
+  where o = BS.primUTF8offset b i
 
 chunksOf :: Int -> Text -> [Text]
 chunksOf n t | n <= 0 || null t = []
              | otherwise = take n t : chunksOf n (drop n t)
 
 breakOnEnd :: Text -> Text -> (Text, Text)
-breakOnEnd p t = case breakOn (reverse p) (reverse t) of (a, b) -> (reverse b, reverse a)
+breakOnEnd p@(T pb) t@(T b)
+  | null p    = error "Data.Text.breakOnEnd: empty input"
+  | otherwise =
+      case BS.primBSrfind pb b of
+        i | i < 0     -> (empty, t)
+          | otherwise -> case i + bytes p of j -> (slice 0 j t, slice j (bytes t) t)
 
 replicateChar :: Int -> Char -> Text
 replicateChar n c = pack (L.replicate n c)
@@ -392,31 +444,46 @@ justifyRight k c t | len >= k  = t
   where len = length t
 
 compareLength :: Text -> Int -> Ordering
-compareLength t n = compare (length t) n
+compareLength t@(T b) n
+  | n < 0 = GT
+  -- more than n characters: stop after the first n
+  | BS.primUTF8offset b n < bytes t = GT
+  | otherwise = compare (length t) n
 
 dropEnd :: Int -> Text -> Text
-dropEnd n = pack . L.reverse . L.drop n . L.reverse . unpack
+dropEnd n t@(T b) = slice 0 (BS.primUTF8offsetEnd b n) t
 
 takeEnd :: Int -> Text -> Text
-takeEnd n = pack . L.reverse . L.take n . L.reverse . unpack
+takeEnd n t@(T b) = slice (BS.primUTF8offsetEnd b n) (bytes t) t
 
 find :: (Char -> Bool) -> Text -> Maybe Char
-find p = L.find p . unpack
+find p (T b) = go (chunksFrom b)
+  where
+    go []     = Nothing
+    go (c:cs) = case L.find p c of
+                  Nothing -> go cs
+                  r       -> r
 
 findIndex :: (Char -> Bool) -> Text -> Maybe Int
-findIndex p = L.findIndex p . unpack
+findIndex p (T b) = go 0 (chunkSizes `L.zip` chunksFrom b)
+  where
+    -- every chunk before the last one has exactly its size in characters
+    go k []            = k `seq` Nothing
+    go k ((m, c) : cs) = k `seq` case L.findIndex p c of
+                                   Just j  -> Just (k + j)
+                                   Nothing -> go (k + m) cs
 
 group :: Text -> [Text]
-group = L.map pack . L.group . unpack
+group = groupBy (==)
 
 groupBy :: (Char -> Char -> Bool) -> Text -> [Text]
 groupBy f = L.map pack . L.groupBy f . unpack
 
 inits :: Text -> [Text]
-inits = L.map pack . L.inits . unpack
+inits t = L.map (\ i -> slice 0 i t) (boundaries t)
 
 tails :: Text -> [Text]
-tails = L.map pack . L.tails . unpack
+tails t = L.map (\ i -> slice i (bytes t) t) (boundaries t)
 
 intersperse :: Char -> Text -> Text
 intersperse c = pack . L.intersperse c . unpack
@@ -450,7 +517,7 @@ split p t = L.map pack (go (unpack t))
                  (a, _ : rest) -> a : go rest
 
 splitAt :: Int -> Text -> (Text, Text)
-splitAt n t = case L.splitAt n (unpack t) of (a, b) -> (pack a, pack b)
+splitAt n t@(T b) = case BS.primUTF8offset b n of i -> (slice 0 i t, slice i (bytes t) t)
 
 transpose :: [Text] -> [Text]
 transpose = L.map pack . L.transpose . L.map unpack
@@ -462,9 +529,8 @@ unfoldrN :: Int -> (a -> Maybe (Char, a)) -> a -> Text
 unfoldrN n f = pack . L.take n . L.unfoldr f
 
 unsnoc :: Text -> Maybe (Text, Char)
-unsnoc t = case unpack t of
-             [] -> Nothing
-             s  -> Just (pack (L.init s), L.last s)
+unsnoc t | null t    = Nothing
+         | otherwise = Just (init t, last t)
 
 zipWith :: (Char -> Char -> Char) -> Text -> Text -> Text
 zipWith f a b = pack (L.zipWith f (unpack a) (unpack b))
@@ -480,3 +546,117 @@ scanl1 f = pack . L.scanl1 f . unpack
 
 scanr1 :: (Char -> Char -> Char) -> Text -> Text
 scanr1 f = pack . L.scanr1 f . unpack
+
+-----------------------------------------------------------------------------
+-- Byte-level helpers.  A Text is a (modified) UTF-8 ByteString; the
+-- primitives in Data.ByteString.Internal work on byte offsets, so most
+-- functions slice the original bytes instead of going through a String.
+
+bytes :: Text -> Int
+bytes (T b) = BS.primBSlength b
+
+-- | The bytes from offset @i@ up to (not including) offset @j@.
+slice :: Int -> Int -> Text -> Text
+slice i j t@(T b)
+  | i <= 0 && j >= BS.primBSlength b = t
+  | j <= i    = empty
+  | otherwise = T (BS.primBSsubstr b i (j - i))
+
+-- | The character and byte count in a result of 'BS.primUTF8decode'.
+charOf :: Int -> Char
+charOf r = primChr (r `quot` 8)
+
+widthOf :: Int -> Int
+widthOf r = r `rem` 8
+
+-- The predicate is Haskell, so these look at every character in turn.
+-- Decoding one character per primitive call costs about three times as
+-- much as walking a String that the runtime has unpacked, so the bytes
+-- are unpacked in chunks: 16 characters first, doubling up to 'maxChunk',
+-- which keeps an early exit cheap and a long walk linear.  The last
+-- 'smallRest' bytes are unpacked at once.
+
+maxChunk :: Int
+maxChunk = 4096
+
+smallRest :: Int
+smallRest = 256
+
+-- | The next chunk of @b@ from byte offset @i@: at most @sz@ characters
+-- (or all of a small rest).
+chunkOf :: Int -> BS.ByteString -> Int -> BS.ByteString
+chunkOf sz b i
+  | n - i <= smallRest = if i == 0 then b else BS.primBSsubstr b i (n - i)
+  | otherwise = BS.primBSsubstr b i (BS.primUTF8offsetFrom b i sz - i)
+  where n = BS.primBSlength b
+
+-- | Where the chunk of @b@ that ends at byte offset @i@ starts: at most
+-- @sz@ characters (or all of a small front).
+chunkStartBefore :: Int -> BS.ByteString -> Int -> Int
+chunkStartBefore sz b i
+  | i <= smallRest = 0
+  | otherwise = BS.primUTF8offsetEndBefore b i sz
+
+-- | Offset of the first character at or after @i@ that does not satisfy @p@.
+prefixEnd :: (Char -> Bool) -> BS.ByteString -> Int -> Int
+prefixEnd p b = go 16
+  where
+    n = BS.primBSlength b
+    go sz i
+      | i >= n    = n
+      | otherwise =
+          case chunkOf sz b i of
+            chunk -> case leading p (BS.primBSfromUTF8 chunk) of
+              k | k < 0     -> go (min maxChunk (sz * 2)) (i + BS.primBSlength chunk)
+                | otherwise -> i + BS.primUTF8offset chunk k
+
+-- | Offset where the longest suffix whose characters satisfy @p@ starts.
+suffixStart :: (Char -> Bool) -> BS.ByteString -> Int
+suffixStart p b = go 16 (BS.primBSlength b)
+  where
+    go sz i
+      | i <= 0    = 0
+      | otherwise =
+          case chunkStartBefore sz b i of
+            s -> case (if s == 0 && i == BS.primBSlength b then b else BS.primBSsubstr b s (i - s)) of
+              chunk -> case leading p (L.reverse (BS.primBSfromUTF8 chunk)) of
+                k | k < 0     -> go (min maxChunk (sz * 2)) s
+                  | otherwise -> s + BS.primUTF8offsetEnd chunk k
+
+-- | The number of leading characters that satisfy @p@, or -1 if all do.
+leading :: (Char -> Bool) -> String -> Int
+leading p = go 0
+  where
+    go k []     = k `seq` (-1)
+    go k (c:cs) = k `seq` (if p c then go (k + 1) cs else k)
+
+-- | The characters, unpacked lazily in chunks of 'chunkSizes' characters.
+chunksFrom :: BS.ByteString -> [String]
+chunksFrom b = go chunkSizes 0
+  where
+    n = BS.primBSlength b
+    go (sz:szs) i
+      | i >= n    = []
+      | otherwise = case chunkOf sz b i of
+                      chunk -> BS.primBSfromUTF8 chunk : go szs (i + BS.primBSlength chunk)
+    go [] _ = []
+
+chunkSizes :: [Int]
+chunkSizes = L.takeWhile (< maxChunk) (L.iterate (* 2) 16) ++ L.repeat maxChunk
+
+-- | The offset of every character, and the end.
+boundaries :: Text -> [Int]
+boundaries t@(T b) = go 0
+  where
+    n = bytes t
+    go i | i >= n    = [n]
+         | otherwise = i : go (i + widthOf (BS.primUTF8decode b i))
+
+isAsciiText :: Text -> Bool
+isAsciiText (T b) = BS.primBSisAscii b /= 0
+
+newline :: Text
+newline = pack "\n"
+
+newlineBS :: BS.ByteString
+newlineBS = case newline of T b -> b
