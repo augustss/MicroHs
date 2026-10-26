@@ -1,0 +1,68 @@
+length ok
+compareLength ok
+take ok
+drop ok
+splitAt ok
+takeEnd ok
+dropEnd ok
+index ok
+last ok
+init ok
+unsnoc ok
+chunksOf ok
+inits ok
+tails ok
+reverse ok
+isPrefixOf ok
+isSuffixOf ok
+isInfixOf ok
+isInfixOf empty ok
+stripPrefix ok
+stripSuffix ok
+breakOn ok
+breakOnEnd ok
+splitOn ok
+count ok
+replace ok
+elem ok
+lines ok
+words ok
+unlines ok
+unwords ok
+concat ok
+intercalate ok
+concatMap ok
+replicate ok
+strip ok
+stripStart ok
+stripEnd ok
+isSpace ok
+takeWhile ok
+dropWhile ok
+takeWhileEnd ok
+dropWhileEnd ok
+dropAround ok
+span ok
+break ok
+all ok
+any ok
+find ok
+findIndex ok
+split ok
+group ok
+groupBy ok
+words (long) ok
+lines (long) ok
+toLower ok
+toUpper ok
+toCaseFold ok
+toLower ASCII ok
+toUpper ASCII ok
+justifyLeft ok
+justifyRight ok
+(240000,20000,60000,20000)
+(160000,240000)
+(True,True,1,True)
+([97,0,65],[0,240,159,152,128])
+200000
+60000

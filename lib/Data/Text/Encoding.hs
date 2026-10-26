@@ -20,6 +20,7 @@ module Data.Text.Encoding (
 import Data.Bits.Base
 import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
+import qualified Data.ByteString.Internal as BSI
 import Data.Char
 import Data.Text (Text, pack, unpack)
 import Data.Text.Internal
@@ -33,16 +34,16 @@ decodeLatin1 :: ByteString -> Text
 decodeLatin1 = pack . unsafeCoerce BS.unpack -- Safety: Char and Word8 have the same representation & a Latin-1 byte is the correct Unicode code point
 
 decodeASCIIPrefix :: ByteString -> (Text, ByteString)
-decodeASCIIPrefix bs = let (a, b) = BS.span (< 0x80) bs in (unsafeCoerce a, b) -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
+decodeASCIIPrefix bs = let (a, b) = BS.span (< 0x80) bs in (fromUtf8Bytes a, b) -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
 
 decodeASCII :: ByteString -> Text
 decodeASCII bs
-    | isValidASCII bs = T bs -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
+    | isValidASCII bs = fromUtf8Bytes bs -- Safety: the ByteString is valid ASCII, which is also valid UTF-8 and Text uses UTF-8 encoding
     | otherwise = error "Data.Text.Encoding.decodeASCII: invalid"
 
 decodeUtf8 :: ByteString -> Text
 decodeUtf8 bs
-    | isValidUtf8 bs = T bs -- Safety: the ByteString is valid UTF-8 and Text uses UTF-8 encoding
+    | isValidUtf8 bs = fromUtf8Bytes bs -- Safety: the ByteString is valid UTF-8 and Text uses UTF-8 encoding
     | otherwise = error "Data.Text.Encoding.decodeUtf8: invalid"
 
 decodeUtf16LE :: ByteString -> Text
@@ -90,7 +91,35 @@ decodeUtf32BE bs
     decode _ = error "Data.Text.Encoding.decodeUtf32BE: impossible" -- length is not a multiple of 4
 
 encodeUtf8 :: Text -> ByteString
-encodeUtf8 (T bs) = bs -- Safety: Text uses UTF-8 encoding
+encodeUtf8 (T bs) = replaceBytes modifiedNul nulByte bs -- Safety: Text uses (modified) UTF-8 encoding
+
+-- Text stores NUL as the two bytes C0 80 (modified UTF-8), as 'pack'
+-- does; standard UTF-8 has the single byte 00.  Keeping one form means
+-- that the byte-level functions in Data.Text (search, equality) see the
+-- same character the same way.
+fromUtf8Bytes :: ByteString -> Text
+fromUtf8Bytes bs = T (replaceBytes nulByte modifiedNul bs)
+
+nulByte :: ByteString
+nulByte = BS.pack [0]
+
+modifiedNul :: ByteString
+modifiedNul = BS.pack [0xC0, 0x80]
+
+-- | Replace every occurrence of the first string.
+replaceBytes :: ByteString -> ByteString -> ByteString -> ByteString
+replaceBytes old new s =
+  case BSI.primBSfind old s 0 of
+    j | j < 0     -> s
+      | otherwise -> BSI.concatBS (from 0 j)
+  where
+    n = BSI.primBSlength s
+    m = BSI.primBSlength old
+    -- the piece from i up to the match at j, then the rest
+    from i j = BSI.primBSsubstr s i (j - i) : new : go (j + m)
+    go i = case BSI.primBSfind old s i of
+             j | j < 0     -> [BSI.primBSsubstr s i (n - i)]
+               | otherwise -> from i j
 
 encodeUtf16LE :: Text -> ByteString
 encodeUtf16LE = BS.pack . concatMap f . unpack
