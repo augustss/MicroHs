@@ -569,6 +569,10 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
                 T_BSFROMUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
+                T_UTF8LENGTH, T_UTF8OFFSET, T_UTF8OFFSETEND, T_UTF8OFFSETFROM, T_UTF8OFFSETENDBEFORE,
+                T_UTF8DECODE, T_UTF8DECODEEND,
+                T_UTF8REVERSE, T_UTF8SKIPSPACE, T_UTF8SKIPNONSPACE, T_UTF8TRIMSPACEEND,
+                T_BSFIND, T_BSRFIND, T_BSASCIICASE, T_BSISASCII, T_BSCONCAT,
                 T_BSAPPENDDOT, T_BSGRAB, T_BSGRABLEN,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
@@ -2496,6 +2500,23 @@ struct {
   { "fromUTF8", T_BSFROMUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
   { "tailUTF8", T_BSTAILUTF8 },
+  /* Data.Text helpers: lengths and offsets are in code points and bytes */
+  { "utf8length", T_UTF8LENGTH },
+  { "utf8offset", T_UTF8OFFSET },
+  { "utf8offsetend", T_UTF8OFFSETEND },
+  { "utf8offsetfrom", T_UTF8OFFSETFROM },
+  { "utf8offsetendbefore", T_UTF8OFFSETENDBEFORE },
+  { "utf8decode", T_UTF8DECODE },
+  { "utf8decodeend", T_UTF8DECODEEND },
+  { "utf8reverse", T_UTF8REVERSE },
+  { "utf8skipspace", T_UTF8SKIPSPACE },
+  { "utf8skipnonspace", T_UTF8SKIPNONSPACE },
+  { "utf8trimspaceend", T_UTF8TRIMSPACEEND },
+  { "bsfind", T_BSFIND },
+  { "bsrfind", T_BSRFIND },
+  { "bsasciicase", T_BSASCIICASE },
+  { "bsisascii", T_BSISASCII },
+  { "bsconcat", T_BSCONCAT },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -5067,6 +5088,247 @@ headutf8(struct bytestring bs, void **ret)
 #endif  /* WANT_UTF8 */
 }
 
+/*
+ * Helpers for Data.Text, whose Text is a (modified) UTF-8 ByteString.
+ * Positions are byte offsets; counts are in characters.  A character
+ * starts at every byte that is not a continuation byte (10xxxxxx).
+ * Without WANT_UTF8 every byte is a character.
+ */
+#if WANT_UTF8
+#define UTF8CONT(b) (((b) & 0xc0) == 0x80)
+#else
+#define UTF8CONT(b) ((void)(b), 0)
+#endif
+
+/* Number of characters. */
+static value_t
+utf8length(struct bytestring bs)
+{
+  const uint8_t *p = bs.bs_array;
+  value_t n = 0;
+  for (size_t i = 0; i < bs.bs_size; i++)
+    n += !UTF8CONT(p[i]);
+  return n;
+}
+
+/* Byte offset after the first k characters from byte offset i (clamped
+ * to the string). */
+static value_t
+utf8offsetfrom(struct bytestring bs, value_t i0, value_t k)
+{
+  const uint8_t *p = bs.bs_array;
+  size_t n = bs.bs_size;
+  size_t i = i0 < 0 ? 0 : (size_t)i0 > n ? n : (size_t)i0;
+  for (; k > 0 && i < n; k--) {
+    i++;
+    while (i < n && UTF8CONT(p[i]))
+      i++;
+  }
+  return i;
+}
+
+/* Byte offset where the last k characters before byte offset i start
+ * (clamped to the string). */
+static value_t
+utf8offsetendbefore(struct bytestring bs, value_t i0, value_t k)
+{
+  const uint8_t *p = bs.bs_array;
+  size_t n = bs.bs_size;
+  size_t i = i0 < 0 ? 0 : (size_t)i0 > n ? n : (size_t)i0;
+  for (; k > 0 && i > 0; k--) {
+    i--;
+    while (i > 0 && UTF8CONT(p[i]))
+      i--;
+  }
+  return i;
+}
+
+/* Byte offset after the first k characters (clamped to the string). */
+static value_t
+utf8offset(struct bytestring bs, value_t k)
+{
+  return utf8offsetfrom(bs, 0, k);
+}
+
+/* Byte offset where the last k characters start (clamped to the string). */
+static value_t
+utf8offsetend(struct bytestring bs, value_t k)
+{
+  return utf8offsetendbefore(bs, bs.bs_size, k);
+}
+
+/* Decode the character starting at byte offset i (which must be < size).
+ * Returns (code point << 3) | (bytes used). */
+static value_t
+utf8decode(struct bytestring bs, value_t i)
+{
+  struct bytestring rest;
+  void *out;
+  value_t c;
+  if (i < 0 || (size_t)i >= bs.bs_size)
+    ERR("utf8decode");
+  rest.bs_array = (uint8_t *)bs.bs_array + i;
+  rest.bs_size = bs.bs_size - i;
+  rest.bs_capacity = 0;
+  c = headutf8(rest, &out);
+  return (c << 3) | ((uint8_t *)out - (uint8_t *)rest.bs_array);
+}
+
+/* Decode the character that ends at byte offset e (which must be > 0).
+ * Returns (code point << 3) | (bytes used). */
+static value_t
+utf8decodeend(struct bytestring bs, value_t e)
+{
+  const uint8_t *p = bs.bs_array;
+  value_t s;
+  if (e <= 0 || (size_t)e > bs.bs_size)
+    ERR("utf8decodeend");
+  for (s = e - 1; s > 0 && UTF8CONT(p[s]); s--)
+    ;
+  return (utf8decode(bs, s) & ~(value_t)7) | (e - s);
+}
+
+/* Data.Char.isSpace: the ASCII spaces and the Unicode Space_Separator (Zs)
+ * characters. */
+static int
+utf8isspace(value_t c)
+{
+  if (c < 0x80)
+    return c == ' ' || (c >= '\t' && c <= '\r');
+  return c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) ||
+         c == 0x202f || c == 0x205f || c == 0x3000;
+}
+
+/* First byte offset >= i whose character is (if want is 0: is not) a space. */
+static value_t
+utf8skip(struct bytestring bs, value_t i, int want)
+{
+  const uint8_t *p = bs.bs_array;
+  value_t n = bs.bs_size;
+  if (i < 0)
+    i = 0;
+  while (i < n) {
+    if (p[i] < 0x80) {          /* ASCII fast path */
+      if (utf8isspace(p[i]) == want)
+        return i;
+      i++;
+    } else {
+      value_t r = utf8decode(bs, i);
+      if (utf8isspace(r >> 3) == want)
+        return i;
+      i += r & 7;
+    }
+  }
+  return n;
+}
+
+/* Byte offset after the string with trailing spaces removed. */
+static value_t
+utf8trimspaceend(struct bytestring bs)
+{
+  const uint8_t *p = bs.bs_array;
+  value_t e = bs.bs_size;
+  while (e > 0) {
+    if (p[e-1] < 0x80) {
+      if (!utf8isspace(p[e-1]))
+        break;
+      e--;
+    } else {
+      value_t r = utf8decodeend(bs, e);
+      if (!utf8isspace(r >> 3))
+        break;
+      e -= r & 7;
+    }
+  }
+  return e;
+}
+
+/* The characters in reverse order. */
+static struct bytestring
+utf8reverse(struct bytestring bs)
+{
+  struct bytestring r = mk_ro_bytestring(bs.bs_size, NULL);
+  const uint8_t *p = bs.bs_array;
+  uint8_t *q = (uint8_t *)r.bs_array + bs.bs_size;
+  size_t i = 0, n = bs.bs_size;
+  while (i < n) {
+    size_t s = i++;
+    while (i < n && UTF8CONT(p[i]))
+      i++;
+    q -= i - s;
+    memcpy(q, p + s, i - s);
+  }
+  return r;
+}
+
+/* Byte offset of the first occurrence of pat in str at or after i, or -1.
+ * Since UTF-8 is self-synchronizing, a match of a valid encoding always
+ * starts at a character boundary. */
+static value_t
+bsfind(struct bytestring pat, struct bytestring str, value_t i)
+{
+  const uint8_t *p = pat.bs_array, *s = str.bs_array;
+  size_t m = pat.bs_size, n = str.bs_size;
+  if (i < 0)
+    i = 0;
+  if ((size_t)i > n || m > n - i)
+    return -1;
+  if (m == 0)
+    return i;
+  for (const uint8_t *q = s + i, *end = s + (n - m); q <= end; q++) {
+    q = memchr(q, p[0], end - q + 1);
+    if (!q)
+      return -1;
+    if (memcmp(q + 1, p + 1, m - 1) == 0)
+      return q - s;
+  }
+  return -1;
+}
+
+/* Byte offset of the last occurrence of pat in str, or -1.
+ * An empty pattern occurs at the end. */
+static value_t
+bsrfind(struct bytestring pat, struct bytestring str)
+{
+  const uint8_t *p = pat.bs_array, *s = str.bs_array;
+  size_t m = pat.bs_size, n = str.bs_size;
+  if (m > n)
+    return -1;
+  if (m == 0)
+    return n;
+  for (size_t i = n - m + 1; i-- > 0; )
+    if (s[i] == p[0] && memcmp(s + i + 1, p + 1, m - 1) == 0)
+      return i;
+  return -1;
+}
+
+/* 1 if every byte is ASCII, else 0. */
+static value_t
+bsisascii(struct bytestring bs)
+{
+  const uint8_t *p = bs.bs_array;
+  for (size_t i = 0; i < bs.bs_size; i++)
+    if (p[i] >= 0x80)
+      return 0;
+  return 1;
+}
+
+/* ASCII lower case (upper == 0) or upper case (upper != 0). */
+static struct bytestring
+bsasciicase(struct bytestring bs, value_t upper)
+{
+  struct bytestring r = mk_ro_bytestring(bs.bs_size, NULL);
+  const uint8_t *p = bs.bs_array;
+  uint8_t *q = r.bs_array;
+  for (size_t i = 0; i < bs.bs_size; i++) {
+    uint8_t c = p[i];
+    if (upper ? (c >= 'a' && c <= 'z') : (c >= 'A' && c <= 'Z'))
+      c ^= 0x20;
+    q[i] = c;
+  }
+  return r;
+}
+
 /* Evaluate to a Bool */
 static INLINE value_t
 evalbool(NODEPTR n)
@@ -5283,6 +5545,57 @@ evalstring(NODEPTR n)
   }
   buf[offs] = 0;                /* in case we use it as a C string */
   return mk_ro_bytestring(offs, buf);
+}
+
+/*
+ * Concatenate a list of ByteStrings with a single copy.
+ * The spine and the elements must already be evaluated (concatBS in
+ * Data.ByteString.Internal does that): evaluating here could yield to
+ * another thread, which restarts the primitive from the beginning.
+ * Without evaluation there is no allocation of nodes, so no GC either.
+ */
+static NODEPTR
+bsconcat_follow(NODEPTR n)
+{
+  while (GETTAG(n) == T_IND)
+    n = GETINDIR(n);
+  return n;
+}
+
+struct bytestring
+bsconcat(NODEPTR list)
+{
+  struct bytestring r;
+  size_t size = 0;
+  uint8_t *q = 0;
+  int pass;
+
+  for (pass = 0; pass < 2; pass++) {
+    NODEPTR n = list, x, e;
+    if (pass == 1) {
+      r = mk_ro_bytestring(size, NULL);
+      q = r.bs_array;
+    }
+    for (;;) {
+      n = bsconcat_follow(n);
+      if (GETTAG(n) == T_K)     /* Nil */
+        break;
+      if (!(GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O))
+        ERR("bsconcat: list not evaluated");
+      e = bsconcat_follow(ARG(x));
+      if (GETTAG(e) != T_FORPTR)
+        ERR("bsconcat: element not evaluated");
+      struct bytestring bs = FORPTR(e)->payload;
+      if (pass == 0) {
+        size += bs.bs_size;
+      } else {
+        memcpy(q, bs.bs_array, bs.bs_size);
+        q += bs.bs_size;
+      }
+      n = ARG(n);
+    }
+  }
+  return r;
 }
 
 struct bytestring
@@ -6051,6 +6364,97 @@ evali(NODEPTR an)
       xi = (char*)out - (char*)xfp->payload.bs_array; /* offset */
       yi = xfp->payload.bs_size - xi;                 /* remaining length */
       SETBSTR(n, bssubstr(xfp, xi, yi));              /* make a substring */
+    }
+    RET;
+
+    /* Data.Text helpers on one ByteString */
+  case T_UTF8LENGTH:
+  case T_UTF8TRIMSPACEEND:
+  case T_UTF8REVERSE:
+  case T_BSISASCII:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    switch (tag) {
+    case T_UTF8LENGTH:       SETINT(n, utf8length(xfp->payload)); break;
+    case T_UTF8TRIMSPACEEND: SETINT(n, utf8trimspaceend(xfp->payload)); break;
+    case T_BSISASCII:        SETINT(n, bsisascii(xfp->payload)); break;
+    default:                 SETBSTR(n, mkForPtrFree(utf8reverse(xfp->payload))); break;
+    }
+    RET;
+
+    /* Data.Text helpers on a ByteString and an Int */
+  case T_UTF8OFFSET:
+  case T_UTF8OFFSETEND:
+  case T_UTF8DECODE:
+  case T_UTF8DECODEEND:
+  case T_UTF8SKIPSPACE:
+  case T_UTF8SKIPNONSPACE:
+  case T_BSASCIICASE:
+    CHECK(2);
+    xfp = evalbstr(ARG(TOP(0)));
+    xi = evalint(ARG(TOP(1)));
+    POP(2);
+    n = TOP(-1);
+    switch (tag) {
+    case T_UTF8OFFSET:       SETINT(n, utf8offset(xfp->payload, xi)); break;
+    case T_UTF8OFFSETEND:    SETINT(n, utf8offsetend(xfp->payload, xi)); break;
+    case T_UTF8DECODE:       SETINT(n, utf8decode(xfp->payload, xi)); break;
+    case T_UTF8DECODEEND:    SETINT(n, utf8decodeend(xfp->payload, xi)); break;
+    case T_UTF8SKIPSPACE:    SETINT(n, utf8skip(xfp->payload, xi, 0)); break;
+    case T_UTF8SKIPNONSPACE: SETINT(n, utf8skip(xfp->payload, xi, 1)); break;
+    default:                 SETBSTR(n, mkForPtrFree(bsasciicase(xfp->payload, xi))); break;
+    }
+    RET;
+
+  case T_UTF8OFFSETFROM:
+  case T_UTF8OFFSETENDBEFORE:
+    CHECK(3);
+    {
+      value_t xk;
+      xfp = evalbstr(ARG(TOP(0)));
+      xi = evalint(ARG(TOP(1)));
+      xk = evalint(ARG(TOP(2)));
+      POP(3);
+      n = TOP(-1);
+      if (tag == T_UTF8OFFSETFROM)
+        SETINT(n, utf8offsetfrom(xfp->payload, xi, xk));
+      else
+        SETINT(n, utf8offsetendbefore(xfp->payload, xi, xk));
+    }
+    RET;
+
+  case T_BSFIND:
+    CHECK(3);
+    {
+      struct forptr *pfp = evalbstr(ARG(TOP(0)));
+      struct forptr *sfp = evalbstr(ARG(TOP(1)));
+      xi = evalint(ARG(TOP(2)));
+      POP(3);
+      n = TOP(-1);
+      SETINT(n, bsfind(pfp->payload, sfp->payload, xi));
+    }
+    RET;
+
+  case T_BSCONCAT:
+    CHECK(1);
+    {
+      struct bytestring rb = bsconcat(ARG(TOP(0)));   /* evaluates nothing */
+      POP(1);
+      n = TOP(-1);
+      SETBSTR(n, mkForPtrFree(rb));
+    }
+    RET;
+
+  case T_BSRFIND:
+    CHECK(2);
+    {
+      struct forptr *pfp = evalbstr(ARG(TOP(0)));
+      struct forptr *sfp = evalbstr(ARG(TOP(1)));
+      POP(2);
+      n = TOP(-1);
+      SETINT(n, bsrfind(pfp->payload, sfp->payload));
     }
     RET;
 

@@ -98,6 +98,69 @@ primBSheadUTF8 = _primitive "headUTF8"
 primBStailUTF8 :: ByteString -> ByteString
 primBStailUTF8 = _primitive "tailUTF8"
 
+-- Helpers for Data.Text, on (modified) UTF-8 encoded ByteStrings.
+-- Offsets are in bytes, counts are in characters.
+
+-- | Number of characters.
+primUTF8length :: ByteString -> Int
+primUTF8length = _primitive "utf8length"
+
+-- | Byte offset after the first n characters (clamped).
+primUTF8offset :: ByteString -> Int -> Int
+primUTF8offset = _primitive "utf8offset"
+
+-- | Byte offset where the last n characters start (clamped).
+primUTF8offsetEnd :: ByteString -> Int -> Int
+primUTF8offsetEnd = _primitive "utf8offsetend"
+
+-- | @primUTF8offsetFrom bs i n@: byte offset after the first n characters
+-- from byte offset i (clamped).
+primUTF8offsetFrom :: ByteString -> Int -> Int -> Int
+primUTF8offsetFrom = _primitive "utf8offsetfrom"
+
+-- | @primUTF8offsetEndBefore bs i n@: byte offset where the last n
+-- characters before byte offset i start (clamped).
+primUTF8offsetEndBefore :: ByteString -> Int -> Int -> Int
+primUTF8offsetEndBefore = _primitive "utf8offsetendbefore"
+
+-- | Decode the character starting at a byte offset.
+-- The result is @ord c * 8 + bytes@.
+primUTF8decode :: ByteString -> Int -> Int
+primUTF8decode = _primitive "utf8decode"
+
+-- | Decode the character ending at a byte offset.
+-- The result is @ord c * 8 + bytes@.
+primUTF8decodeEnd :: ByteString -> Int -> Int
+primUTF8decodeEnd = _primitive "utf8decodeend"
+
+-- | The characters in reverse order.
+primUTF8reverse :: ByteString -> ByteString
+primUTF8reverse = _primitive "utf8reverse"
+
+-- | First offset at or after the given one that is not a space ('Data.Char.isSpace').
+primUTF8skipSpace :: ByteString -> Int -> Int
+primUTF8skipSpace = _primitive "utf8skipspace"
+
+-- | First offset at or after the given one that is a space.
+primUTF8skipNonSpace :: ByteString -> Int -> Int
+primUTF8skipNonSpace = _primitive "utf8skipnonspace"
+
+-- | Offset after the string without its trailing spaces.
+primUTF8trimSpaceEnd :: ByteString -> Int
+primUTF8trimSpaceEnd = _primitive "utf8trimspaceend"
+
+-- | @primBSfind pat str i@: offset of the first @pat@ in @str@ at or after @i@, or -1.
+primBSfind :: ByteString -> ByteString -> Int -> Int
+primBSfind = _primitive "bsfind"
+
+-- | Offset of the last @pat@ in @str@, or -1.
+primBSrfind :: ByteString -> ByteString -> Int
+primBSrfind = _primitive "bsrfind"
+
+-- | ASCII lower case (0) or upper case (1).
+primBSasciiCase :: ByteString -> Int -> ByteString
+primBSasciiCase = _primitive "bsasciicase"
+
 -----------------------------------------
 
 instance NFData ByteString
@@ -194,3 +257,19 @@ w2c = primChr . word8ToInt
 
 toForeignPtr :: ByteString -> (ForeignPtr Word8, Int, Int)
 toForeignPtr bs = (primUnsafeCoerce (primBS2FPtr bs), 0, primBSlength bs)
+
+-- | 1 if every byte is below 0x80, else 0.
+primBSisAscii :: ByteString -> Int
+primBSisAscii = _primitive "bsisascii"
+
+-- | Concatenate with a single copy.  The list and its elements must
+-- already be evaluated; use 'concatBS'.
+primBSconcatEvaluated :: [ByteString] -> ByteString
+primBSconcatEvaluated = _primitive "bsconcat"
+
+-- | Concatenate with a single copy.
+concatBS :: [ByteString] -> ByteString
+concatBS bss = forceAll bss `primSeq` primBSconcatEvaluated bss
+  where
+    forceAll []     = ()
+    forceAll (b:bs) = b `primSeq` forceAll bs
