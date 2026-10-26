@@ -1,0 +1,5 @@
+Error99.hs:4:14: error: No definition found for: Error99.x
+  |
+4 | main = print x
+  |              ^
+

@@ -1,0 +1,5 @@
+Error104.hs:3:19: error: not a class Error104.C
+  |
+3 | deriving instance C
+  |                   ^
+

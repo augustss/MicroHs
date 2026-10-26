@@ -1,0 +1,5 @@
+Error95.hs:2:19: error: malformed standalone deriving
+  |
+2 | deriving instance Show (forall a . a -> a)
+  |                   ^
+

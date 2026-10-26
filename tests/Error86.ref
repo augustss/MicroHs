@@ -1,0 +1,5 @@
+Error86.hs:4:10: error: ambiguous type: First [Data.Monoid.First,Data.Semigroup.First]
+  |
+4 | type X = First Int
+  |          ^
+

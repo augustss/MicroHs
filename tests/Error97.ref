@@ -1,0 +1,5 @@
+Error97.hs:2:9: error: Bad newtype deriving
+  |
+2 | newtype T a = T Int deriving newtype Functor
+  |         ^
+

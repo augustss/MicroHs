@@ -1,0 +1,7 @@
+Error82.hs:2:5: error: syntax
+    found:    unterminated Char/String literal
+    expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
+  |
+2 | x = "unterminated
+  |     ^
+

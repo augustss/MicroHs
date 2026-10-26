@@ -1,0 +1,5 @@
+Error91.hs:4:7: error: Unknown field f2
+  |
+4 | g r = r { f1 = 1, f2 = 2 }
+  |       ^
+

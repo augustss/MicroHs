@@ -1,0 +1,5 @@
+Error90.hs:3:13: error: rec not allowed
+  |
+3 | f x | rec { y <- Just x } = x
+  |             ^
+
