@@ -1,0 +1,5 @@
+Error22.hs:2:12: error: _ cannot be used as a variable
+  |
+2 | x = 1000000_
+  |            ^
+

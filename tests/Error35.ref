@@ -1,0 +1,7 @@
+Error35.hs:3:18: error: type mismatch
+    expected: Int
+    actual:   [a]
+  |
+3 | g xs = length xs ++ "a"
+  |                  ^
+

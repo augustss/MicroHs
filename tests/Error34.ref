@@ -1,0 +1,7 @@
+Error34.hs:3:7: error: type mismatch
+    expected: [Char]
+    actual:   Int
+  |
+3 | f x = x + 1
+  |       ^
+

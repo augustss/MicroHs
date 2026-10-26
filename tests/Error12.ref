@@ -1,0 +1,5 @@
+Error12.hs:1:16: error: ambiguous export: lookup [Data.List.lookup,TestMap.lookup]
+  |
+1 | module Error12(lookup) where
+  |                ^
+

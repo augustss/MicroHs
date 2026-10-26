@@ -1,0 +1,7 @@
+Error67.hs:3:19: error: type mismatch
+    expected: Bool
+    actual:   Int
+  |
+3 | f x = case x of { True -> 1; _ -> 2 }
+  |                   ^
+

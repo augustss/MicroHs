@@ -1,0 +1,7 @@
+Error75.hs:3:16: error: type mismatch
+    expected: Int
+    actual:   Bool
+  |
+3 | x = (\ y -> y) True
+  |                ^
+

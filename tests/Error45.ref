@@ -1,0 +1,7 @@
+Error45.hs:2:10: error: kind mismatch
+    expected: a -> b
+    actual:   Type
+  |
+2 | instance Int Bool
+  |          ^
+

@@ -1,0 +1,5 @@
+Error11.hs:1:16: error: undefined export: x
+  |
+1 | module Error11(x) where
+  |                ^
+

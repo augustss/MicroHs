@@ -1,0 +1,5 @@
+Error25.hs:2:6: error: _ cannot be used as a variable
+  |
+2 | x = 0_.0001
+  |      ^
+

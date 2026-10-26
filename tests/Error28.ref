@@ -1,0 +1,5 @@
+Error28.hs:2:6: error: undefined value: e_
+  |
+2 | x = 1e_+23
+  |      ^
+

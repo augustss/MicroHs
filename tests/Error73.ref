@@ -1,0 +1,7 @@
+Error73.hs:3:7: error: type mismatch
+    expected: Int
+    actual:   [a]
+  |
+3 | f x = g x where g y = y ++ y
+  |       ^
+

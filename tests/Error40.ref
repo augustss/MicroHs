@@ -1,0 +1,7 @@
+Error40.hs:3:4: error: type mismatch
+    expected: (Int, Bool)
+    actual:   (a, b, c)
+  |
+3 | r (a, b, c) = a
+  |    ^
+

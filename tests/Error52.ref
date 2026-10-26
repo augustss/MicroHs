@@ -1,0 +1,5 @@
+Error52.hs:3:9: error: Nested fields not allowed
+  |
+3 | x = R { a.b = 1 }
+  |         ^
+

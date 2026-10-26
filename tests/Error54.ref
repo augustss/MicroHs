@@ -1,0 +1,5 @@
+Error54.hs:2:12: error: Bad section fixity
+  |
+2 | x = (1 + 2 *)
+  |            ^
+

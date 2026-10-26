@@ -1,0 +1,7 @@
+Error42.hs:3:11: error: type mismatch
+    expected: [a]
+    actual:   a
+  |
+3 | u x = x : x
+  |           ^
+

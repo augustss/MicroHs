@@ -1,0 +1,5 @@
+Error24.hs:2:5: error: undefined value: _0
+  |
+2 | x = _0.0001
+  |     ^
+

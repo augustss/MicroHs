@@ -1,0 +1,5 @@
+Error4.hs:3:5: error: undefined value: A
+  |
+3 | x = A
+  |     ^
+

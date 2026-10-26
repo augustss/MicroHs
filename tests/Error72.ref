@@ -1,0 +1,5 @@
+Error72.hs:2:11: error: no instance for (IsString Char)
+  |
+2 | f x = x + "a" + 'b'
+  |           ^
+

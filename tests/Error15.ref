@@ -1,0 +1,7 @@
+Error15.hs:3:5: error: type mismatch
+    expected: Int
+    actual:   Char
+  |
+3 | a = 'a'
+  |     ^
+

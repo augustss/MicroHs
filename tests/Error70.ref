@@ -1,0 +1,7 @@
+Error70.hs:3:10: error: type mismatch
+    expected: Int
+    actual:   [Int]
+  |
+3 | f xs = [ x | x <- xs ]
+  |          ^
+

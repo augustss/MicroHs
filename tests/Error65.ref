@@ -1,0 +1,5 @@
+Error65.hs:2:5: error: no instance for (Show (a -> a))
+  |
+2 | x = show id
+  |     ^
+

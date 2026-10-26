@@ -1,0 +1,7 @@
+Error69.hs:3:11: error: type mismatch
+    expected: (Int, a)
+    actual:   Maybe (Int, [Bool])
+  |
+3 | f m = fst m
+  |           ^
+

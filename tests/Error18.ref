@@ -1,0 +1,7 @@
+Error18.hs:4:33: error: type mismatch
+    expected: Int
+    actual:   a
+  |
+4 | x = let { C a = C (1::Int) } in a
+  |                                 ^
+

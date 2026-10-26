@@ -1,0 +1,5 @@
+Error49.hs:2:10: error: bad final do statement
+  |
+2 | x = do { y <- return 1 }
+  |          ^
+

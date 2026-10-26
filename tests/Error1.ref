@@ -1,0 +1,7 @@
+Error1.hs:1:17: error: syntax
+    found:    awhere
+    expected: where
+  |
+1 | module Error1() awhere
+  |                 ^
+

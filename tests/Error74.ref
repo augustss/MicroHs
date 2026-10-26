@@ -1,0 +1,7 @@
+Error74.hs:3:7: error: type mismatch
+    expected: Bool
+    actual:   Int
+  |
+3 | f x | x = 1
+  |       ^
+

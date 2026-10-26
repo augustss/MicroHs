@@ -1,0 +1,5 @@
+Error61.hs:6:5: error: Multiple constraint solutions for: C (Int, Int)
+  |
+6 | x = m (1::Int, 2::Int)
+  |     ^
+

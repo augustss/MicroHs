@@ -1,0 +1,5 @@
+Error78.hs:4:12: error: no instance for (Num [Char])
+  |
+4 |   show _ = 1
+  |            ^
+

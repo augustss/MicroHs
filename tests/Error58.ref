@@ -1,0 +1,5 @@
+Error58.hs:2:4: error: too many arguments
+  |
+2 | f (Just 1 2) = 1
+  |    ^
+

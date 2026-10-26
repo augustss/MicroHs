@@ -1,0 +1,7 @@
+Error36.hs:3:10: error: type mismatch
+    expected: Bool
+    actual:   Int
+  |
+3 | h x = if x then 1 else 2
+  |          ^
+

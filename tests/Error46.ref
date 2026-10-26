@@ -1,0 +1,5 @@
+Error46.hs:3:24: error: superflous instance binding
+  |
+3 | instance C Int where { n = 2 }
+  |                        ^
+

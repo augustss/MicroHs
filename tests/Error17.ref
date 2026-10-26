@@ -1,0 +1,5 @@
+Error17.hs:2:14: error: undefined kind: X
+  |
+2 | data T (a :: X) = T
+  |              ^
+

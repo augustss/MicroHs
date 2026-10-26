@@ -1,0 +1,5 @@
+Error44.hs:2:19: error: missing method signature: m
+  |
+2 | class C a where { m = 1 }
+  |                   ^
+

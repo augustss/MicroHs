@@ -1,0 +1,7 @@
+Error39.hs:3:7: error: type mismatch
+    expected: Int
+    actual:   [Char]
+  |
+3 | q x = show x
+  |       ^
+

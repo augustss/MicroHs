@@ -1,0 +1,7 @@
+Error16.hs:2:12: error: kind mismatch
+    expected: Type
+    actual:   Type -> Type
+  |
+2 | data T = C Maybe
+  |            ^
+

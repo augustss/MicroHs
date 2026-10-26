@@ -1,0 +1,5 @@
+Error51.hs:3:5: error: record wildcard not allowed
+  |
+3 | x = id {..}
+  |     ^
+

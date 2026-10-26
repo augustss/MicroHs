@@ -1,0 +1,7 @@
+Error62.hs:2:19: error: kind mismatch
+    expected: Constraint
+    actual:   Type -> Constraint
+  |
+2 | deriving instance Show
+  |                   ^
+

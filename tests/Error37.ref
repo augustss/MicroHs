@@ -1,0 +1,5 @@
+Error37.hs:3:12: error: no instance for (IsString Int)
+  |
+3 | k x = x == "foo"
+  |            ^
+

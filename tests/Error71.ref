@@ -1,0 +1,7 @@
+Error71.hs:3:12: error: type mismatch
+    expected: Int
+    actual:   Maybe Int
+  |
+3 | f x = do { y <- Just x; return y }
+  |            ^
+

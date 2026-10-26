@@ -1,0 +1,7 @@
+Error56.hs:5:5: error: type mismatch
+    expected: Int
+    actual:   a
+  |
+5 | x = f
+  |     ^
+

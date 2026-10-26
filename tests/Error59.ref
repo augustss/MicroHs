@@ -1,0 +1,7 @@
+Error59.hs:3:6: error: type mismatch
+    expected: Int
+    actual:   a
+  |
+3 | f = (id :: Int -> Int)
+  |      ^
+

@@ -1,0 +1,5 @@
+Error43.hs:2:21: error: Bad deriving
+  |
+2 | data T = T deriving Functor
+  |                     ^
+

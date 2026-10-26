@@ -1,0 +1,5 @@
+Error13.hs:4:5: error: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
+  |
+4 | a = lookup
+  |     ^
+

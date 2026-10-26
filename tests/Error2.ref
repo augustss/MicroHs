@@ -1,0 +1,7 @@
+Error2.hs:4:1: error: syntax
+    found:    ;
+    expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
+  |
+4 | y = 0
+  | ^
+

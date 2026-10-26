@@ -1,0 +1,5 @@
+Error60.hs:4:18: error: no instance for (Num a)
+  |
+4 | x = g (\y -> y + 1)
+  |                  ^
+

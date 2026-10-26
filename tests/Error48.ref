@@ -1,0 +1,5 @@
+Error48.hs:2:5: error: _ cannot be used as a variable
+  |
+2 | x = _
+  |     ^
+

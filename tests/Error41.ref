@@ -1,0 +1,7 @@
+Error41.hs:3:31: error: type mismatch
+    expected: [Int]
+    actual:   Int
+  |
+3 | s x = foldr (\a b -> a + b) 0 x
+  |                               ^
+
