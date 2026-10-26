@@ -98,6 +98,7 @@ module Data.Text(
   foldr1,
   scanl1,
   scanr1,
+  copy,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map,
   concatMap, foldl, any, all, filter, reverse, last, init, elem, zip, span, break,
@@ -660,3 +661,7 @@ newline = pack "\n"
 
 newlineBS :: BS.ByteString
 newlineBS = case newline of T b -> b
+
+-- Force the text to be copied.
+copy :: Text -> Text
+copy (T t) = T (BS.concatBS [t])

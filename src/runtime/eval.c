@@ -5193,9 +5193,8 @@ utf8decodeend(struct bytestring bs, value_t e)
 static int
 utf8isspace(value_t c)
 {
-  if (c < 0x80)
-    return c == ' ' || (c >= '\t' && c <= '\r');
-  return c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) ||
+  return c == ' ' || (c >= '\t' && c <= '\r') ||
+         c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) ||
          c == 0x202f || c == 0x205f || c == 0x3000;
 }
 

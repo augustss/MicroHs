@@ -5,4 +5,4 @@ module MicroHs.Version(
 import qualified Prelude(); import MHSPrelude
 
 version :: Version
-version = makeVersion [0,16,11,0]
+version = makeVersion [0,16,12,0]
