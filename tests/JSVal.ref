@@ -1,0 +1,32 @@
+7
+12.0
+(False,True)
+("yes","no")
+("x","\955")
+('a','\955')
+5050
+{"a":42,"b":"hello, λ world"}
+42
+"number"
+"object"
+(True,False,False,True)
+"{\"a\":42,\"b\":null}"
+(True,False)
+"text \955"
+"nul\NULbyte"
+True
+"[2,4,6]"
+45
+nested: [2,4,6]
+"\"nested done\""
+GC frees handles
+caught TypeError
+rethrown TypeError
+42
+caught nope
+main done
+async callback called
+woken by callback
+async callback called
+promise resolved
+timer thread ran

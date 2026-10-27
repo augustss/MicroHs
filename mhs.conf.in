@@ -50,7 +50,49 @@ conf = "unix"
 [emscripten]
 cc = "emcc"
 js = "--pre-js"
-ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+cclibs = "-lm"
+conf = "unix"
+
+-- As above, but generating JavaScript only (no Wasm)
+[emscripten_js]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-O3 -sWASM=0 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+cclibs = "-lm"
+conf = "unix"
+
+-- Generate JavaScript&Wasm for the browser (no file system)
+[browser]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-Oz -sSUPPORT_LONGJMP=wasm -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000"
+cclibs = "-lm"
+conf = "unix"
+
+-- As browser, but the program is fetched at run time (app.comb by
+-- default) instead of compiled in; see src/runtime/web/rts-web.js.  The
+-- runtime is built once, then programs only need: mhs -o app.comb Main
+[browser_rts]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-Oz -sSUPPORT_LONGJMP=wasm -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000 -sINVOKE_RUN=0"
+cclibs = "-lm"
+conf = "unix"
+
+-- As above, but generating JavaScript only (no Wasm)
+[browser_js]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-O3 -sWASM=0 -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000"
+cclibs = "-lm"
+conf = "unix"
+
+-- Generate JavaScript only, for a plain JavaScript shell, e.g. qjs
+[quickjs]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-O3 -sWASM=0 -sENVIRONMENT=shell -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
 cclibs = "-lm"
 conf = "unix"
 

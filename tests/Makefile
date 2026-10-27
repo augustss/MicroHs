@@ -7,7 +7,7 @@ TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
 .PHONY: testpreprocessorpaths testcacheinstance
 
-alltest: info cache test errtest testforimp testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
+alltest: info cache test errtest testforimp testforimpforall testjsnative testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
 # interactivetest
 
 cache:
@@ -39,6 +39,11 @@ testforimp:
 testforimpforall:
 	$(TMHS) ForImpForall -of.exe && ./f.exe > ForImpForall.out && diff ForImpForall.ref ForImpForall.out
 
+# A program that creates JavaScript callbacks also compiles (and runs, as long as it
+# does not use them) for a native target.
+testjsnative:
+	$(TMHS) JSNative -of.exe && ./f.exe > JSNative.out && diff JSNative.ref JSNative.out
+
 # Imports in different modules whose C names come from their position in the module.
 testffiname:
 	$(TMHS) -optc -I. FFIName -of.exe && ./f.exe > FFIName.out && diff FFIName.ref FFIName.out
@@ -52,6 +57,22 @@ testforexpjs:
 	$(TMHS) -c ForExpJS -oForExpJS_c.c
 	emcc -O1 -I../src/runtime -I../src/runtime/unix -DUSE_SYSTEM_RAW -Wno-address-of-packed-member ForExpJS_c.c ../src/runtime/eval.c -lm -sEXPORTED_FUNCTIONS=_mhs_init -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -sMODULARIZE=1 -sEXPORT_NAME=FEJS -ofejs.mjs
 	node ForExpJS.mjs > ForExpJS.out && diff ForExpJS.ref ForExpJS.out && rm -f fejs.mjs ForExpJS_c.c
+
+testjsval:
+	MHSDIR=.. $(TMHS) -temscripten JSVal -of.js && node f.js > JSVal.out && diff JSVal.ref JSVal.out
+
+# The browser runtime (target browser_rts) is built once, from JSVal (so its
+# FFI table has the JavaScript imports of JSVal), and then runs combinator
+# programs: JSVal.comb, and a program that is not compiled into it.  In node
+# rts-web.js reads the program named by MHS_COMB instead of fetching it.
+testbrowserrts:
+	MHSDIR=.. $(TMHS) -tbrowser_rts -optc -sENVIRONMENT=web,node JSVal ../src/runtime/web/rts-web.js -orts.js
+	MHSDIR=.. $(TMHS) JSVal -oJSVal.comb && MHS_COMB=JSVal.comb node rts.js > JSVal.out && diff JSVal.ref JSVal.out
+	MHSDIR=.. $(TMHS) BrowserRtsOther -oBrowserRtsOther.comb && MHS_COMB=BrowserRtsOther.comb node rts.js > BrowserRtsOther.out && diff BrowserRtsOther.ref BrowserRtsOther.out
+	rm -f rts.js JSVal.comb BrowserRtsOther.comb
+
+testjscallback:
+	MHSDIR=.. $(TMHS) -temscripten JSCallback -of.js && node f.js > JSCallback.out 2>&1 && diff JSCallback.ref JSCallback.out
 
 testforexp:
 	$(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out

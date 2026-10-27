@@ -1,0 +1,44 @@
+main: waiting
+callback: caught divide by zero
+callback: masking state Unmasked
+callback: own thread True
+forked thread ran
+main: got callback 1
+callback: throwing
+JavaScript caught: error: boom
+main: got callback 3
+main: got callback 4
+promise rejected: error: async boom
+promise resolved
+thread got: thread killed
+main: got callback 5
+callback: during await
+callback: nested await done 42
+main: await done 42
+use after free: caught
+handle table bounded
+value callback: returned 1, ran 1 time(s)
+freed callback: caught, no callback ran
+same code, sync and async: (2,2)
+dying callbacks: no leak
+main: got callback 12
+Uncaught child exception: error: one
+throwTo twice from a callback: target killed
+JavaScript caught: uncaught exception (and showing it raised an exception)
+JavaScript caught: uncaught exception (and showing it raised an exception)
+JavaScript caught: uncaught exception (and showing it raised an exception)
+JavaScript caught: uncaught exception (and showing it raised an exception)
+JavaScript caught: uncaught exception (and showing it raised an exception)
+unshowable exception in a callback: 55
+callback: blocking
+main: opening the gate
+callback: unblocked
+main: got callback 17
+Uncaught exception in a JavaScript callback: error: late boom
+main: got callback 15
+value callback from the event loop: result arrived
+callback 19b: result arrived
+JavaScript caught: error: boom 19
+main: done
+JavaScript caught: unsafe boom
+JavaScript caught: mhs: the Haskell runtime has stopped (an exception unwound the runtime: unsafe boom)
