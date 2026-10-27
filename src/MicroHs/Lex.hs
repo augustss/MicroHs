@@ -333,8 +333,11 @@ decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs
 decodeEsc cs@(c:_) | isDigit c = conv 10 0 cs
 decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
 decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
-decodeEsc (c  :cs) = c : decodeEscs cs
-decodeEsc []       = mhsError "Bad \\ escape"
+decodeEsc ('\\':cs) = '\\' : decodeEscs cs
+decodeEsc ('\'':cs) = '\'' : decodeEscs cs
+decodeEsc ('"':cs)  = '"' : decodeEscs cs
+decodeEsc (c:_)     = mhsError $ "Bad \\ escape: " ++ show c
+decodeEsc _ = undefined
 
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]
