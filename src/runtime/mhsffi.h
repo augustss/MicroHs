@@ -73,6 +73,9 @@ from_t mhs_from_CTime(intptr_t, int, time_t); /* XXX wrong */
 from_t mhs_from_CIntPtr(intptr_t, int, intptr_t);
 from_t mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
 from_t mhs_from_Unit(intptr_t, int);
+#if defined(__EMSCRIPTEN__)
+from_t mhs_from_JSVal(intptr_t, int, int);
+#endif
 
 flt64_t            mhs_to_Double(intptr_t, int);
 flt32_t            mhs_to_Float(intptr_t, int);
@@ -100,6 +103,11 @@ time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 // ssize_t            mhs_to_CSSize(intptr_t, int);
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
+uintptr_t          mhs_to_HsStablePtr(intptr_t, int);
+#if defined(__EMSCRIPTEN__)
+int                mhs_to_JSVal(intptr_t, int);
+void               mhs_js_check_error(void);
+#endif
 
 void       ffe_push(NODEPTR);
 void       ffe_pop(void);

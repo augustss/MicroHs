@@ -9,7 +9,7 @@ module MicroHs.Expr(
   Deriving(..), DerStrategy(..), doNotDerive,
   Expr(..), eLam, eLamWithSLoc, eEqn, oneAlt, eEqns, showExpr, eqExpr,
   XTCState,
-  CallConv(..),
+  CallConv(..), Safety(..),
   QForm(..),
   Listish(..),
   Lit(..), showLit,
@@ -59,6 +59,7 @@ module MicroHs.Expr(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.ByteString(ByteString)
+import Data.Char(toLower)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
@@ -89,7 +90,7 @@ data EDef
   | Sign [Ident] EType
   | KindSign Ident EKind
   | Import ImportSpec
-  | ForImp CallConv (Maybe String) Ident EType
+  | ForImp CallConv Safety (Maybe String) Ident EType
   | ForExp CallConv (Maybe String) Expr EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
@@ -114,7 +115,7 @@ instance NFData EDef where
   rnf (Sign a b) = rnf a `seq` rnf b
   rnf (KindSign a b) = rnf a `seq` rnf b
   rnf (Import a) = rnf a
-  rnf (ForImp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (ForImp a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
   rnf (ForExp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (Infix a b) = rnf a `seq` rnf b
   rnf (Class a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
@@ -138,6 +139,11 @@ data CallConv = Cccall | Ccapi | Cjavascript
   deriving (Eq, Show)
 
 instance NFData CallConv where rnf x = x `seq` ()
+
+data Safety = Unsafe | Safe | Interruptible
+  deriving (Eq, Show)
+
+instance NFData Safety where rnf x = x `seq` ()
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
   deriving (Show)
@@ -387,14 +393,14 @@ data ImpEnt
   = ImpStatic [String] ImpVal String   -- includes, type of value, C name/expr
   | ImpDynamic
   | ImpWrapper
-  | ImpJS String
+  | ImpJS Safety String
   deriving (Eq, Show)
 
 instance NFData ImpEnt where
   rnf (ImpStatic a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf ImpDynamic = ()
   rnf ImpWrapper = ()
-  rnf (ImpJS s) = rnf s
+  rnf (ImpJS a s) = rnf a `seq` rnf s
 
 data ImpVal = IPtr | IValue | IFunc
   deriving (Eq, Show)
@@ -904,7 +910,7 @@ instance Pretty EDef where
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (ppCommaSep (map (pPrint0 l) is))
-    ForImp cc ie i t -> text "foreign import" <+> text (drop 1 $ show cc) <+> maybe empty (text . show) ie <+> pPrint0 l i <+> text "::" <+> pPrint0 l t
+    ForImp cc sf ie i t -> text "foreign import" <+> text (drop 1 $ show cc) <+> text (map toLower $ show sf) <+> maybe empty (text . show) ie <+> pPrint0 l i <+> text "::" <+> pPrint0 l t
     ForExp cc ie e t -> text "foreign export" <+> text (drop 1 $ show cc) <+> maybe empty (text . show) ie <+> pPrint0 l e   <+> text "::" <+> pPrint0 l t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> ppCommaSep (map (pPrint0 l) is)
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""

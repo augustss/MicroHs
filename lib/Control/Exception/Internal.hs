@@ -17,6 +17,7 @@ module Control.Exception.Internal(
   BlockedIndefinitelyOnMVar(..),
   BlockedIndefinitelyOnSTM(..),
   ErrorCall(ErrorCallWithLocation, ErrorCall),
+  JSException(..),
 
   uninterruptibleMask,
   uninterruptibleMask_,
@@ -50,9 +51,10 @@ catch   :: forall e a .
         -> (e -> IO a)
         -> IO a
 catch io handler = primCatch io handler'
-    where handler' e = case fromException (rtsExn e) of
+    where handler' e = let se = rtsExn e in
+                       case fromException se of
                        Just e' -> handler e'
-                       Nothing -> primRaise e
+                       Nothing -> primRaise se
 
 -- The runtime system sometimes needs to generate exceptions.
 -- It is quite difficult to create SomeException value since
@@ -64,6 +66,7 @@ catch io handler = primCatch io handler'
 -- The translation here has to be kept in sync with the enum rts_exn
 -- in eval.c.
 -- The magic primIsInt primitive returns the Int if it is one, otherwise -1.
+-- A JavaScript exception is raised as the JSVal itself, and primIsInt gives 10 for it.
 rtsExn :: SomeException -> SomeException
 rtsExn e =
   let n = primIsInt e
@@ -77,7 +80,21 @@ rtsExn e =
       else if primIntEQ n (7::Int) then SomeException Overflow
       else if primIntEQ n (8::Int) then SomeException Serialize
       else if primIntEQ n (9::Int) then SomeException Deserialize
+      else if primIntEQ n (10::Int) then SomeException (JSException (primUnsafeCoerce e))
       else e
+
+-- A JavaScript exception, only with the emscripten target.
+-- See GHC.Wasm.Prim.
+newtype JSException = JSException JSVal
+  deriving (Typeable)
+
+instance Show JSException where
+  showsPrec _ (JSException v) r = showString "JSException: " (showString (primPerformIO (primJSExnString v)) r)
+
+instance Exception JSException
+
+-- This is in the runtime system.
+foreign import ccall "js_exn_string" primJSExnString :: JSVal -> IO String
 
 -- Throw an exception when executed, not when evaluated
 throwIO :: forall a e . Exception e => e -> IO a
