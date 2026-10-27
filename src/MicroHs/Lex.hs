@@ -11,7 +11,7 @@ import Data.ByteString.Char8(ByteString, pack)
 import Data.Char
 import Data.List
 import Data.Maybe (fromJust, fromMaybe)
-import MicroHs.Error(mhsError, mhsErrorLoc)
+import MicroHs.Error(mhsErrorLoc)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 --import Debug.Trace
@@ -287,7 +287,7 @@ lexLitStr :: ([[Token]] -> String -> SLoc -> String -> [Token]) ->
 lexLitStr cont oloc loc end post interp acs = loop loc [] [] acs
   where
         loop :: SLoc -> String -> [[Token]] -> String -> [Token]
-        loop l rs tss cs | Just k <- end cs   = cont (reverse tss) (decodeEscs $ post $ reverse rs) (addCol l k) (drop k cs)
+        loop l rs tss cs | Just k <- end cs   = cont (reverse tss) (decodeEscs l $ post $ reverse rs) (addCol l k) (drop k cs)
                          | Just (ts, cs', l') <- interp l cs = loop l' (chMark : rs) (ts : tss) cs'
         loop l rs tss ('\\':c:cs) | isSpace c = remGap l rs tss cs
         loop l rs tss ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) tss cs  -- special hack for unescaped \
@@ -313,31 +313,31 @@ lexLitStr cont oloc loc end post interp acs = loop loc [] [] acs
 chMark :: Char
 chMark = '\xffff'     -- reserved, and will not occur in text
 
-decodeEscs :: String -> String
-decodeEscs [] = []
-decodeEscs ('\\':cs) = decodeEsc cs
-decodeEscs (c:cs) = c : decodeEscs cs
+decodeEscs :: SLoc -> String -> String
+decodeEscs _ [] = []
+decodeEscs loc ('\\':cs) = decodeEsc loc cs
+decodeEscs loc (c:cs) = c : decodeEscs loc cs
 
-decodeEsc :: String -> String
-decodeEsc ('n':cs) = '\n' : decodeEscs cs
-decodeEsc ('a':cs) = '\a' : decodeEscs cs
-decodeEsc ('b':cs) = '\b' : decodeEscs cs
-decodeEsc ('f':cs) = '\f' : decodeEscs cs
-decodeEsc ('r':cs) = '\r' : decodeEscs cs
-decodeEsc ('t':cs) = '\t' : decodeEscs cs
-decodeEsc ('v':cs) = '\v' : decodeEscs cs
-decodeEsc ('&':cs) = decodeEscs cs
-decodeEsc ('x':cs) = conv 16 0 cs
-decodeEsc ('o':cs) = conv 8 0 cs
-decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs cs
-decodeEsc cs@(c:_) | isDigit c = conv 10 0 cs
-decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
-decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
-decodeEsc ('\\':cs) = '\\' : decodeEscs cs
-decodeEsc ('\'':cs) = '\'' : decodeEscs cs
-decodeEsc ('"':cs)  = '"' : decodeEscs cs
-decodeEsc (c:_)     = mhsError $ "Bad \\ escape: " ++ show c
-decodeEsc _ = undefined
+decodeEsc :: SLoc -> String -> String
+decodeEsc loc ('n':cs) = '\n' : decodeEscs loc cs
+decodeEsc loc ('a':cs) = '\a' : decodeEscs loc cs
+decodeEsc loc ('b':cs) = '\b' : decodeEscs loc cs
+decodeEsc loc ('f':cs) = '\f' : decodeEscs loc cs
+decodeEsc loc ('r':cs) = '\r' : decodeEscs loc cs
+decodeEsc loc ('t':cs) = '\t' : decodeEscs loc cs
+decodeEsc loc ('v':cs) = '\v' : decodeEscs loc cs
+decodeEsc loc ('&':cs) = decodeEscs loc cs
+decodeEsc loc ('x':cs) = conv loc 16 0 cs
+decodeEsc loc ('o':cs) = conv loc 8 0 cs
+decodeEsc loc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs loc cs
+decodeEsc loc cs@(c:_) | isDigit c = conv loc 10 0 cs
+decodeEsc loc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs loc cs
+decodeEsc loc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs loc cs
+decodeEsc loc ('\\':cs) = '\\' : decodeEscs loc cs
+decodeEsc loc ('\'':cs) = '\'' : decodeEscs loc cs
+decodeEsc loc ('"':cs)  = '"' : decodeEscs loc cs
+decodeEsc loc (c:_)     = mhsErrorLoc loc $ "Bad \\ escape: " ++ show c
+decodeEsc _ _ = undefined
 
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]
@@ -352,10 +352,10 @@ ctlCodes =
    ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'),
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
-conv :: Int -> Int -> String -> String
-conv b r (c:ds) | isHexDigit c && n < b = conv b (r * b + n) ds
+conv :: SLoc -> Int -> Int -> String -> String
+conv loc b r (c:ds) | isHexDigit c && n < b = conv loc b (r * b + n) ds
   where n = digitToInt c
-conv _ r ds = chr r : decodeEscs ds
+conv loc _ r ds = chr r : decodeEscs loc ds
 
 -- Multiline string literals
 multiLine :: String -> String
