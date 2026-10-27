@@ -90,3 +90,4 @@
     - --ignore-glob=tests/TypeOp.hs
     - --ignore-glob=tests/Interpolate.hs
     - --ignore-glob=tests/ExtraComma.hs
+    - --ignore-glob=tests/Error*.hs
