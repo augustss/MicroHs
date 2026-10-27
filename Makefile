@@ -83,10 +83,15 @@ bin/mcabal:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mcabal.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o bin/mcabal
 
-# Compile cpphs from distribution, with C compiler
+# Compile install from distribution, with C compiler
 bin/install:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/install.c
 	@mkdir -p bin
 	$(CCEVAL) generated/install.c $(CCLIBS) -o bin/install
+
+# Compile tester from distribution, with C compiler
+bin/tester:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/tester.c
+	@mkdir -p bin
+	$(CCEVAL) generated/tester.c $(CCLIBS) -o bin/tester
 
 # Compile combinator evaluator
 bin/mhseval:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
@@ -139,6 +144,10 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 generated/install.c:	bin/mhs Tools/Install.hs
 	@mkdir -p generated
 	bin/mhs -z $(MHSINC) -iTools Install -ogenerated/install.c
+
+generated/tester.c:	bin/mhs Tools/Tester.hs
+	@mkdir -p generated
+	bin/mhs -z $(MHSINC) -iTools Tester -ogenerated/tester.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
