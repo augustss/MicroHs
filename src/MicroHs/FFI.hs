@@ -215,6 +215,13 @@ mkHdr (ImpJS sf s, f, ty, _) =
       n = length as
       ixs = [0 .. n-1]
       param i = '$' : show (i + 1)
+      -- A $k in the code that is not a parameter would be an undefined variable when the
+      -- code runs.  In particular the parameters used to be $0, $1, ...: $0 is an error.
+      badParams = nub [ w | (_, Word w@('$':ds@(_:_))) <- jsTokens s, all isDigit ds,
+                            let k = foldl (\ a c -> a * 10 + digitToInt c) 0 ds, k < 1 || k > n ]
+      paramsAre | n == 0    = "the import has no arguments"
+                | n == 1    = "the argument is $1"
+                | otherwise = "the arguments are $1 .. $" ++ show n
       jsName = "mhs_js_" ++ f
       ctypeOf t =
         case jsKind t of
@@ -271,37 +278,59 @@ mkHdr (ImpJS sf s, f, ty, _) =
         case rk of
           KUnit -> call ++ "; " ++ check ++ ret ""
           _     -> cret ++ " r = " ++ call ++ "; " ++ check ++ ret "r"
-  in  if sf == Interruptible then
+  in  if not (null badParams) then
+        errorMessage (getSLoc ty) $ "foreign import javascript: " ++ intercalate ", " badParams ++
+          " is not an argument: " ++ paramsAre ++
+          (if any (all (== '0') . tail) badParams then " (they start at $1, not $0)" else "")
+      else if sf == Interruptible then
         emjs ++ mkMhsFun f ("int r = " ++ call ++ "; return mhs_from_JSVal(s, " ++ show n ++ ", r)")
       else
         emjs ++ mkMhsFun f fbody
 mkHdr _ = undefined
 
 -- Is the JavaScript code statements (a function body) rather than an expression?
--- Yes if, outside brackets, strings and comments, it has a ';' or the word 'return',
--- or it starts with a word that only starts a statement.  This is the same choice
--- as trying the code as an expression first and as statements if that is a syntax
--- error, which is what the code did when it was compiled at run time.
+-- Yes if, at the top level (outside brackets, strings and comments), it has a ';'
+-- or the word 'return' (not as a property name, as in x.return), or it starts with
+-- a word that only starts a statement.  Code that starts with 'function' or 'class'
+-- is a function or class expression, unless more code follows, as in
+-- "function f(x) { ... } f(1)".  This is the same choice as trying the code as an
+-- expression first and as statements if that is a syntax error, which is what the
+-- code did when it was compiled at run time.
 jsIsStatements :: String -> Bool
 jsIsStatements src =
-  case tokens (0 :: Int) src of
-    ts -> any topStmt ts || (case [ w | (0, Word w) <- take 1 ts ] of
-                               [w] -> w `elem` stmtWords
-                               _   -> False)
+  any (\ t -> t == Semi || t == Word "return") top ||
+  case top of
+    Word w : rest | w `elem` stmtWords -> True
+                  | w `elem` ["function", "class"] -> any isWord (drop 1 (dropWhile (/= Close) rest))
+    _ -> False
   where
-    topStmt (0, Semi) = True
-    topStmt (0, Word "return") = True
-    topStmt _ = False
+    -- The top level tokens, without property names.
+    top = noProps [ t | (0, t) <- jsTokens src ]
+    noProps (Dot : Word _ : ts) = noProps ts
+    noProps (t : ts) = t : noProps ts
+    noProps [] = []
+    isWord (Word _) = True
+    isWord _ = False
     stmtWords = ["if", "for", "while", "do", "switch", "try", "throw", "let", "const", "var",
-                 "function", "class", "return", "break", "continue"]
+                 "return", "break", "continue"]
+
+-- The tokens of JavaScript code that matter to jsIsStatements and the check of the
+-- parameters, with their bracket depth: words, ';', '.', and the closing bracket
+-- that gets back to the top level.  Strings and comments are skipped.
+jsTokens :: String -> [(Int, JSToken)]
+jsTokens = tokens 0
+  where
+    tokens :: Int -> String -> [(Int, JSToken)]
     tokens _ [] = []
     tokens d ('/':'/':cs) = tokens d (dropWhile (/= '\n') cs)
     tokens d ('/':'*':cs) = tokens d (skipComment cs)
     tokens d (c:cs)
       | c `elem` "\"'`" = tokens d (skipString c cs)
       | c `elem` "([{"   = tokens (d + 1) cs
-      | c `elem` ")]}"   = tokens (max 0 (d - 1)) cs
+      | c `elem` ")]}"   = let d' = max 0 (d - 1)
+                           in  (if d' == 0 then ((0, Close) :) else id) (tokens d' cs)
       | c == ';'         = (d, Semi) : tokens d cs
+      | c == '.'         = (d, Dot) : tokens d cs
       | isAlpha c || c == '_' || c == '$' =
           case span (\ x -> isAlphaNum x || x == '_' || x == '$') (c:cs) of
             (w, r) -> (d, Word w) : tokens d r
@@ -314,7 +343,8 @@ jsIsStatements src =
                         | otherwise = skipString q cs
     skipString _ [] = []
 
-data JSToken = Semi | Word String
+data JSToken = Semi | Dot | Close | Word String
+  deriving (Eq)
 
 arity :: EType -> Int
 arity = length . fst . getArrows . dropForallContext
