@@ -41,7 +41,7 @@
 #endif  /* WANT_MATH */
 #if defined(__EMSCRIPTEN__)
 #include "emscripten.h"
-extern int mhs_js_keep_alive;
+extern int mhs_js_keep_alive;   /* the number of live JavaScript callbacks */
 /* JavaScript values referenced by JSVal handles are only released by the GC
  * finalizers, so a GC is forced after this many new handles even if the heap
  * is not full (a large heap could otherwise keep them alive for a long time). */
@@ -91,7 +91,7 @@ EM_JS(void, mhs_js_init, (void), {
       if (k === 0) return;
       var v = M.kv.get(k);
       if (typeof v === "function" && v.mhs_sp) {
-        _mhs_js_free_sp(v.mhs_sp);
+        _mhs_js_free_callback(v.mhs_sp);
         v.mhs_sp = 0;
         if (M.registry) M.registry.unregister(v);
       }
@@ -214,7 +214,7 @@ EM_JS(void, mhs_js_init, (void), {
     }
   };
   M.registry = (typeof FinalizationRegistry !== "undefined") ?
-    new FinalizationRegistry(function(sp) { _mhs_js_free_sp(sp); }) : null;
+    new FinalizationRegistry(function(sp) { _mhs_js_free_callback(sp); }) : null;
   Module.mhsjs = M;
 });
 
@@ -1568,6 +1568,8 @@ check_pollq(int timeout)
  * may block there: the calling thread's C stack has been discarded, so there is
  * nothing to return to.  throwTo therefore does not wait for delivery. */
 int in_js_callback = 0;
+/* The slice of a callback: it is not preempted, see run_callback(). */
+#define CALLBACK_SLICE 1000000000
 
 /* Wake every thread that is blocked in throwTo waiting for mt to take its
  * exception.  Called when mt takes one, and when mt finishes or dies. */
@@ -1762,8 +1764,11 @@ yield(void)
   }
 
 // printf("yield %p %d\n", runq, (int)stack_ptr);
-  if (in_js_callback)           /* a callback runs to completion: nothing to switch to */
+  if (in_js_callback) {         /* a callback runs to completion: nothing to switch to */
+    glob_slice = CALLBACK_SLICE;
+    num_reductions += glob_slice-1;
     return;
+  }
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
 #if THREAD_DEBUG
@@ -2446,6 +2451,7 @@ struct mthread *main_thread = 0;
 static void run_threads(void);
 #if defined(__EMSCRIPTEN__)
 static void report_callback_exn(NODEPTR exn);
+static NODEPTR run_callback(char **msgp, int may_block);
 #endif
 
 /* Set when the main thread has finished (the other threads may keep running
@@ -2454,6 +2460,23 @@ static int main_finished = 0;
 
 #if defined(__EMSCRIPTEN__)
 static void main_finish(void);
+
+/* Set when main has started (mhs_main), as opposed to a program without main
+ * whose foreign exports are called by JavaScript. */
+static int main_started = 0;
+
+/* Can something on the JavaScript side still wake up a blocked thread: a callback
+ * (until it is freed), a Promise being awaited, a timer for a threadDelay, or a
+ * file descriptor being polled? */
+static int
+js_can_wake(void)
+{
+  return mhs_js_keep_alive || mhs_js_awaiting || timeq.mq_head
+#if WANT_IO_POLL
+    || pollq.mq_head
+#endif
+    ;
+}
 
 EM_JS(void, mhs_js_set_timer, (int ms), {
   if (typeof setTimeout !== "function") return;
@@ -2501,6 +2524,8 @@ mhs_js_run_threads(void)
     check_pollq(0);
 #endif
   if (!runq.mq_head) {
+    if (!main_finished && !js_can_wake())
+      pause_exec();             /* nothing can wake the threads: reports the deadlock */
     arm_timer();
     return;
   }
@@ -2585,11 +2610,10 @@ run_threads(void)
           continue;
       }
 #endif  /* WANT_IO_POLL */
-      if (mhs_js_keep_alive || mhs_js_awaiting || timeq.mq_head
-#if WANT_IO_POLL
-          || pollq.mq_head
-#endif
-          ) {
+      if (js_can_wake()) {
+        /* Flush standard handles in case there is some BFILE buffering */
+        flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
+        flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
         arm_timer();
         main_thread = 0;
         return;
@@ -8082,6 +8106,8 @@ rts_exn_msg(enum rts_exn eexn)
   return msgs[eexn];
 }
 
+NORETURN static void die_msg(const char *msg);
+
 NORETURN
 void
 die_exn(NODEPTR exn)
@@ -8113,6 +8139,14 @@ die_exn(NODEPTR exn)
     msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
+  die_msg(msg);
+}
+
+/* End the program because of an uncaught exception, with message msg. */
+NORETURN
+static void
+die_msg(const char *msg)
+{
 #if WANT_STDIO
   /* A horrible hack until we get proper exceptions */
   if (strcmp(msg, "ExitSuccess") == 0) {
@@ -8517,6 +8551,9 @@ mhs_main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_KPERF */
+#if defined(__EMSCRIPTEN__)
+  main_started = 1;
+#endif
   start_exec(prog);
 #if defined(__EMSCRIPTEN__)
   if (!main_finished) {
@@ -8584,6 +8621,27 @@ ffe_eval(void)
   if (main_thread) {
     /* threading active, run on current stack */
     (void)evali(TOP(0));
+#if defined(__EMSCRIPTEN__)
+  } else if (main_started) {
+    /* JavaScript calls the export while the threads wait in the JavaScript event
+     * loop (main is blocked, or has finished while callbacks keep the program alive).
+     * Run it like a callback, as a thread of its own: as the main thread (start_exec)
+     * it would end the program when it finishes, and if it blocked, start_exec would
+     * return before it is done.  So, like a callback that returns a value, it must not
+     * block.  run_callback() runs an IO action. */
+    char *msg;
+    NODEPTR x;
+    GCCHECK(1);
+    x = TOP(0);
+    if (GETTAG(x) == T_AP && FUN(x) == combPERFORMIO)
+      TOP(0) = ARG(x);                      /* ffe_exec(): the IO action */
+    else
+      TOP(0) = new_ap(combIORETURN, x);     /* a value */
+    if (run_callback(&msg, 0) != NIL)
+      die_msg(msg);             /* as for the main thread, which an export used to be */
+    if (runq.mq_head)
+      mhs_js_set_timer(0);      /* run the threads it made runnable */
+#endif  /* __EMSCRIPTEN__ */
   } else {
     /* start up the threading to evaluate the node */
     start_exec(TOP(0));
@@ -8845,8 +8903,20 @@ mhs_run_web(const uint8_t *comb, int len)
   return mhs_main(1, argv);
 }
 EMSCRIPTEN_KEEPALIVE void mhs_js_free_mem(void *p) { FREE(p); }
-EMSCRIPTEN_KEEPALIVE void mhs_js_free_sp(uvalue_t sp) { free_stableptr(sp); }
-EMSCRIPTEN_KEEPALIVE void mhs_js_keepalive(void) { mhs_js_keep_alive = 1; }
+EMSCRIPTEN_KEEPALIVE void mhs_js_keepalive(void) { mhs_js_keep_alive++; }
+
+/* A callback has been freed (freeJSVal), or collected by the JavaScript GC. */
+EMSCRIPTEN_KEEPALIVE void
+mhs_js_free_callback(uvalue_t sp)
+{
+  free_stableptr(sp);
+  if (mhs_js_keep_alive > 0)
+    mhs_js_keep_alive--;
+  /* If that was the last one while the threads wait in the JavaScript event loop,
+   * nothing may be able to wake them any more: let mhs_js_run_threads() check. */
+  if (!mhs_js_keep_alive && main_started && !main_thread && !main_finished)
+    mhs_js_set_timer(0);
+}
 
 EM_JS(void, mhs_js_set_callback_error, (const char *msg), {
   Module.mhsjs.callbackError = new Error(UTF8ToString(msg));
@@ -8984,7 +9054,8 @@ run_callback(char **msgp, int may_block)
   if (!main_thread)
     main_thread = ct;           /* the threading system is now active */
   cur_handler = 0;              /* the callback starts without exception handlers */
-  glob_slice = 1000000000;      /* no preemption: other threads must not run now */
+  glob_slice = CALLBACK_SLICE;  /* no preemption: other threads must not run now */
+  num_reductions += glob_slice-1;
   in_js_callback++;             /* see throwto() and yield() */
 
   switch (setjmp(sched)) {
@@ -9007,7 +9078,7 @@ run_callback(char **msgp, int may_block)
     }
     /* We cannot run other threads while JavaScript waits for the result of the
      * callback, or while a thread that called JavaScript is on the C stack. */
-    ERR("a JavaScript callback into Haskell blocked (a callback that returns a value, or is called from a JavaScript import, must not block)");
+    ERR("a JavaScript callback into Haskell blocked (a callback that returns a value, or is called from a JavaScript import, and a foreign export called from JavaScript, must not block)");
     break;
   case mt_raise:
     /* Uncaught exception in the callback; ct is still at the head of the runq */
@@ -9032,6 +9103,7 @@ run_callback(char **msgp, int may_block)
   }
 
   in_js_callback--;
+  num_reductions -= glob_slice;
   memcpy(&sched, &saved_sched, sizeof(jmp_buf));
   glob_slice = saved_slice;
   cur_handler = saved_handler;

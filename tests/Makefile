@@ -64,6 +64,13 @@ testbrowserrts:
 testjscallback:
 	MHSDIR=.. $(TMHS) -temscripten JSCallback -of.js && node f.js > JSCallback.out 2>&1 && diff JSCallback.ref JSCallback.out
 
+# A deadlock is reported (exit status 1) once the only callback has been freed.
+testjsdeadlock:
+	MHSDIR=.. $(TMHS) -temscripten JSDeadlock -of.js && { node f.js > JSDeadlock.out 2>&1; test $$? -eq 1; } && diff JSDeadlock.ref JSDeadlock.out
+
+testjsexportblocked:
+	MHSDIR=.. $(TMHS) -temscripten JSExportBlocked -of.js && node f.js > JSExportBlocked.out 2>&1 && diff JSExportBlocked.ref JSExportBlocked.out
+
 testforexp:
 	$(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
 
