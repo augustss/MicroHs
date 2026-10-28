@@ -58,7 +58,7 @@ instBin :: Flags -> IO ()
 instBin flags = do
   let mCabal = instDir flags
       mcabalBin = mCabal </> "bin"
-      exes = ["mhs", "cpphs", "mcabal"]
+      exes = ["mhs", "cpphs", "mcabal", "tester"]
   mkdir flags "bin"
   mapM_ (buildBin flags) exes
   mkdir flags mcabalBin

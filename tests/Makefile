@@ -1,141 +1,32 @@
 MHSTARGET=
 MHSOUTPUT=
-MHS=../bin/gmhs
+MHS=../bin/mhs
 TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
+TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
+.PHONY: testpreprocessorpaths
 
-alltest: info test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
+alltest: info cache test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
 # interactivetest
 
 cache:
 	rm -f .mhscache
-	$(TMHS) -CW AllOfLib
+	MHSDIR=.. $(TMHS) -CW AllOfLib
 
 info:
-	$(TMHS) Info       && $(EVAL)
+	MHSDIR=.. $(TMHS) -r Info
 
-test:
-	$(TMHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
-#	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
-	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
-	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
-	$(TMHS) LargeGetLine && $(EVAL) > LargeGetLine.out && diff LargeGetLine.ref LargeGetLine.out
-	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
-	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out
-	$(TMHS) Misc       && $(EVAL) > Misc.out       && diff Misc.ref Misc.out
-	$(TMHS) Case       && $(EVAL) > Case.out       && diff Case.ref Case.out
-	$(TMHS) Arith      && $(EVAL) > Arith.out      && diff Arith.ref Arith.out
-	$(TMHS) Arith64    && $(EVAL) > Arith64.out    && diff Arith64.ref Arith64.out
-	$(TMHS) Guard      && $(EVAL) > Guard.out      && diff Guard.ref Guard.out
-	$(TMHS) Newtype    && $(EVAL) > Newtype.out    && diff Newtype.ref Newtype.out
-	$(TMHS) HashOper   && $(EVAL) > HashOper.out   && diff HashOper.ref HashOper.out
-	$(TMHS) RecordBind && $(EVAL) > RecordBind.out && diff RecordBind.ref RecordBind.out
-	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out
-	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
-	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
-	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
-	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
-	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
-	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
-	$(TMHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
-	$(TMHS) DArith     && $(EVAL) > DArith.out     && diff DArith.ref DArith.out
-	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
-	$(TMHS) RealFloat  && $(EVAL) > RealFloat.out  && diff RealFloat.ref RealFloat.out
-	$(TMHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
-	$(TMHS) Class      && $(EVAL) > Class.out      && diff Class.ref Class.out
-	$(TMHS) Eq         && $(EVAL) > Eq.out         && diff Eq.ref Eq.out
-	$(TMHS) Floating   && $(EVAL) > Floating.out   && diff Floating.ref Floating.out
-	$(TMHS) Default    && $(EVAL) > Default.out    && diff Default.ref Default.out
-	$(TMHS) Multi      && $(EVAL) > Multi.out      && diff Multi.ref Multi.out
-	$(TMHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
-	$(TMHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
-	$(TMHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
-	$(TMHS) Dict       && $(EVAL) > Dict.out       && diff Dict.ref Dict.out
-	$(TMHS) Symbol     && $(EVAL) > Symbol.out     && diff Symbol.ref Symbol.out
-	$(TMHS) FunDep     && $(EVAL) > FunDep.out     && diff FunDep.ref FunDep.out
-	$(TMHS) TypeLits   && $(EVAL) > TypeLits.out   && diff TypeLits.ref TypeLits.out
-	$(TMHS) View       && $(EVAL) > View.out       && diff View.ref View.out
-	$(TMHS) IOArray    && $(EVAL) > IOArray.out    && diff IOArray.ref IOArray.out
-	$(TMHS) ST         && $(EVAL) > ST.out         && diff ST.ref ST.out
-	$(TMHS) HigherKind && $(EVAL) > HigherKind.out && diff HigherKind.ref HigherKind.out
-	$(TMHS) PolyKind   && $(EVAL) > PolyKind.out   && diff PolyKind.ref PolyKind.out
-	$(TMHS) Record     && $(EVAL) > Record.out     && diff Record.ref Record.out
-	$(TMHS) RecordExport && $(EVAL) > RecordExport.out && diff RecordExport.ref RecordExport.out
-	$(TMHS) Deriving   && $(EVAL) > Deriving.out   && diff Deriving.ref Deriving.out
-	$(TMHS) Unicode    && $(EVAL) > Unicode.out    && diff Unicode.ref Unicode.out
-	$(TMHS) BindPat    && $(EVAL) > BindPat.out    && diff BindPat.ref BindPat.out
-	$(TMHS) Read       && $(EVAL) > Read.out       && diff Read.ref Read.out
-	$(TMHS) ListCompr  && $(EVAL) > ListCompr.out  && diff ListCompr.ref ListCompr.out
-	$(TMHS) ParseInd   && $(EVAL) > ParseInd.out   && diff ParseInd.ref ParseInd.out
-	$(TMHS) Infer      && $(EVAL) > Infer.out      && diff Infer.ref Infer.out
-	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
-	$(TMHS) RecMdl     && $(EVAL) > RecMdl.out     && diff RecMdl.ref RecMdl.out
-	$(TMHS) ForeignPtr && $(EVAL) > ForeignPtr.out && diff ForeignPtr.ref ForeignPtr.out
-	$(TMHS) Array      && $(EVAL) > Array.out      && diff Array.ref Array.out
-	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
-	$(TMHS) Irref      && $(EVAL) > Irref.out      && diff Irref.ref Irref.out
-	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
-	$(TMHS) Bytestring && $(EVAL) > Bytestring.out && diff Bytestring.ref Bytestring.out
-	$(TMHS) Text       && $(EVAL) > Text.out       && diff Text.ref Text.out
-	$(TMHS) TextOps    && $(EVAL) > TextOps.out    && diff TextOps.ref TextOps.out
-	$(TMHS) ByteStringLow && $(EVAL) > ByteStringLow.out && diff ByteStringLow.ref ByteStringLow.out
-	$(TMHS) ImpMet     && $(EVAL) > ImpMet.out     && diff ImpMet.ref ImpMet.out
-	$(TMHS) MultiIf    && $(EVAL) > MultiIf.out    && diff MultiIf.ref MultiIf.out
-	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
-	$(TMHS) NoForall   && $(EVAL) > NoForall.out   && diff NoForall.ref NoForall.out
-	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
-	$(TMHS) MString    && $(EVAL) > MString.out    && diff MString.ref MString.out
-	$(TMHS) OrPat      && $(EVAL) > OrPat.out      && diff OrPat.ref OrPat.out
-	$(TMHS) PartRed    && $(EVAL) > PartRed.out    && diff PartRed.ref PartRed.out
-	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
-	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
-	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
-	$(TMHS) NumUnder   && $(EVAL) > NumUnder.out   && diff NumUnder.ref NumUnder.out
-	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
-	$(TMHS) TypeApp    && $(EVAL) > TypeApp.out    && diff TypeApp.ref TypeApp.out
-	$(TMHS) Do         && $(EVAL) > Do.out         && diff Do.ref Do.out
-	$(TMHS) Via        && $(EVAL) > Via.out        && diff Via.ref Via.out
-	$(TMHS) ByteStringIO && $(EVAL) > ByteStringIO.out && diff ByteStringIO.ref ByteStringIO.out
-	$(TMHS) BitCount   && $(EVAL) > BitCount.out   && diff BitCount.ref BitCount.out
-	$(TMHS) Bounded    && $(EVAL) > Bounded.out    && diff Bounded.ref Bounded.out
-	$(TMHS) Typeable   && $(EVAL) > Typeable.out   && diff Typeable.ref Typeable.out
-	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
-	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
-	MHSCPPHS=../bin/cpphs \
-	$(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
-	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
-	$(TMHS) TypeOp     && $(EVAL) > TypeOp.out     && diff TypeOp.ref TypeOp.out
-	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
-	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
-	$(TMHS) Fork       && $(EVAL) > Fork.out       && diff Fork.ref Fork.out
-#	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
-	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
-	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out
-	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
-	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
-	$(TMHS) ThrowMVar  && $(EVAL) > ThrowMVar.out  && diff ThrowMVar.ref ThrowMVar.out
-	$(TMHS) ThrowToSync && $(EVAL) > ThrowToSync.out && diff ThrowToSync.ref ThrowToSync.out
-	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
-	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
-	$(TMHS) EmptyData  && $(EVAL) > EmptyData.out  && diff EmptyData.ref EmptyData.out
-	$(TMHS) QualDo     && $(EVAL) > QualDo.out     && diff QualDo.ref QualDo.out
-	$(TMHS) Weak       && $(EVAL) > Weak.out       && diff Weak.ref Weak.out
-	$(TMHS) Fix        && $(EVAL) > Fix.out        && diff Fix.ref Fix.out
-	$(TMHS) Pat        && $(EVAL) > Pat.out        && diff Pat.ref Pat.out
-	$(TMHS) Logarithms && $(EVAL) > Logarithms.out && diff Logarithms.ref Logarithms.out
-	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
-	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
-	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
-	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
-	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
-	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
-	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
-	$(TMHS) ExtraComma && $(EVAL) > ExtraComma.out && diff ExtraComma.ref ExtraComma.out
-	$(TMHS) InterleaveIO && $(EVAL) > InterleaveIO.out && diff InterleaveIO.ref InterleaveIO.out
-	$(TMHS) DerivingBuiltin
+test:	cache
+	MHSDIR=.. $(TESTER) all.tests
 
-.PHONY: testpreprocessorpaths
+errtest: cache
+	MHSDIR=.. $(TESTER) err.tests
+
+interactivetest:
+	$(TMHS) --stdin < itest.in | sed -e '1,/^mhs>/d' > itest.out && diff itest.ref itest.out
+
+
 testpreprocessorpaths:
 	sh preprocessor-paths.sh $(TMHS)
 
@@ -179,12 +70,6 @@ testjsbits:
 	$(MHS) -ijsbitspkg -PJSBits-1.0 -oJSBits-1.0.pkg JSBitsLib && $(MHS) -Q JSBits-1.0.pkg jsbitsdb
 	mkdir -p jsbitsdb/packages/JSBits-1.0/jsbits && cp jsbitspkg/jsbitslib.pre jsbitsdb/packages/JSBits-1.0/jsbits/jsbitslib.js
 	$(TMHS) -ajsbitsdb JSBits && $(EVAL) > JSBits.out && diff JSBits.ref JSBits.out && rm -rf jsbitsdb JSBits-1.0.pkg
-
-errtest:
-	sh errtester.sh $(MHS) < errmsg.test
-
-interactivetest:
-	$(TMHS) --stdin < itest.in | sed -e '1,/^[a-z]*>/d' > itest.out && diff itest.ref itest.out
 
 nfib:
 	$(TMHS) Nfib && $(EVAL)

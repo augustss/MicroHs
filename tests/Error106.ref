@@ -1,4 +1,4 @@
-tests/Error106.hs:2:8: error: Bad \ escape: 'z'
+Error106.hs:2:8: error: Bad \ escape: 'z'
   |
 2 | x = '\z'
   |        ^

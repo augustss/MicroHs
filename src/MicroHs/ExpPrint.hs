@@ -3,6 +3,8 @@ module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, remo
 import qualified Prelude(); import MHSPrelude
 import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
+import Data.Function(on)
+import Data.List(nubBy)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
 import MicroHs.Desugar(LDef)
@@ -39,7 +41,7 @@ removeUnused (ds, emain) = dfs roots M.empty
 renumberCMdl :: CMdl -> (ForExpTable, CMdl)
 renumberCMdl (ds, emain) =
   let fexps = [ (i, t, js) | (i, e) <- ds, Just (js, _, t) <- [getForExp e] ]
-      dMap = M.fromList ds
+      dMap = M.fromList $ checkDupInstances ds
   in  renumberCMdlM fexps dMap emain
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
@@ -64,7 +66,7 @@ renumberCMdlM fexps dMap emain =
           mapM_ dfs $ freeVars e
           -- Now that n's children are done, compute its actual entry.
           (i', seen', r') <- get
-          put (i'+1, M.insert n (ref i') seen', (mkIdent $ show i', substv e) : r')
+          put (i'+1, M.insert n (ref i') seen', (mkIdent $ '_':show i', substv e) : r')
     (_, (_, defs, res)) = runState (mapM_ dfs roots) (0, M.empty, [])
     ref i = Var $ mkIdent $ "_" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
@@ -79,7 +81,7 @@ renumberCMdlM fexps dMap emain =
       where unVar (Var n) = n
             unVar _ = undefined
   in
-    (fexps', (checkDupInstances res, substv emain))
+    (fexps', (res, substv emain))
 
 -- The argument is all definitions and the main expression.
 -- The result is the program as a string.
@@ -89,7 +91,7 @@ toStringCMdl (ds, emain) =
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
     def (i, e) r | Just (_, e', _) <- getForExp e = def (i, e') r
     def (i, e) r =
-      ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
+      ("A " ++) . toStringP e . ((":" ++ tail (showIdent i) ++  " @\n") ++) . r . ("@" ++)
 
     res :: String -> String
     res = foldr def (toStringP emain) ds
@@ -99,12 +101,12 @@ toStringCMdl (ds, emain) =
 checkDupInstances :: [LDef] -> [LDef]
 checkDupInstances ds =
   case dupInstances ds of
-    (n1 : n2 : _) : _ ->
+    (n2 : n1 : _) : _ ->
       errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
     _ -> ds
 
 dupInstances :: [LDef] -> [[Ident]]
-dupInstances = filter ((> 1) . length) . groupSort . filter isInstId . map fst
+dupInstances = filter ((> 1) . length) . map (nubBy ((==) `on` getSLoc)) . groupSort . filter isInstId . map fst
 
 -- XXX not nice
 unmangleInst :: String -> String

@@ -290,9 +290,10 @@ oldinstall:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	newmhs bin/cpphs exampletest info runtest cachetest bootcombtest nfibtest
+everytest:	bin/mhs bin/cpphs bin/mhseval bin/tester exampletest cachetest runtest bootstrap nfibtest
 
-everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest info cachetest bootstrap runtestmhs nfibtest
+#everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest info cachetest bootstrap runtestmhs nfibtest
+everytestmhs:	everytest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs $(MHSINC) -ogmhs.comb $(MAINMODULE)
@@ -348,6 +349,7 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/install.c
+	$(MAKE) generated/tester.c
 	$(MAKE) generated/mhseval.js
 	$(MAKE) generated/base.pkg
 

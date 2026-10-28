@@ -360,7 +360,7 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
-    (forExps, outCMdl@(outDefs, _)) = renumberCMdl cmdl
+    (forExps, outCMdl@(outDefs, _xxx)) = renumberCMdl cmdl
     outData = toStringCMdl outCMdl
     numOutDefs = length outData
     numDefs = length allDefs
@@ -371,8 +371,8 @@ mainCompile flags mn = do
     putStrLn "linked:"; printLDefs (removeUnused cmdl)
   dumpIf flags Dtoplevel $ do
     putStrLn "toplevel:"; printLDefs allDefs
-  if runIt flags then do
-    translateAndRun cmdl
+  if runIt flags then
+    translateAndRun outCMdl
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
