@@ -70,8 +70,9 @@ foreign import javascript "$1 === undefined" isUndefined :: JSVal -> Bool
 
 -- The lengths are explicit, so a NUL character in the text survives the conversion
 -- (TextDecoder decodes exactly the n bytes; UTF8ToString stops at a NUL in some
--- emscripten versions).
-foreign import javascript "new TextDecoder().decode(Module.HEAPU8.subarray($1, $1 + $2))" js_fromUTF8 :: Ptr a -> Int -> IO JSString
+-- emscripten versions).  The decoder is created once, with ignoreBOM: a default
+-- TextDecoder drops a leading U+FEFF (a byte order mark) from the decoded text.
+foreign import javascript "(mhsjs.utf8Decoder || (mhsjs.utf8Decoder = new TextDecoder('utf-8', { ignoreBOM: true }))).decode(Module.HEAPU8.subarray($1, $1 + $2))" js_fromUTF8 :: Ptr a -> Int -> IO JSString
 foreign import javascript "Module.lengthBytesUTF8($1)" js_utf8Length :: JSString -> IO Int
 foreign import javascript "Module.stringToUTF8($1, $2, $3)" js_toUTF8 :: JSString -> Ptr a -> Int -> IO ()
 
