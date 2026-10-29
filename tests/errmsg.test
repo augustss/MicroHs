@@ -581,4 +581,27 @@ instance Show T where
 ../tmp/E.hs:5:12: error: no instance for (Num [Char])
 
 =====
+module E() where
+import Data.STRef
+data Ex = forall r. Ex (STRef r Int)
+wrong :: Ex -> forall r. STRef r Int
+wrong (Ex ref) = ref
+-----
+../tmp/E.hs:6:18: error: type mismatch
+    expected: STRef r Int
+    actual:   STRef r Int
+
+=====
+module E() where
+import Control.Monad.ST
+import Data.STRef
+data Ex = forall r. Ex (STRef r Int)
+wrong2 :: Ex -> forall r. ST r Int
+wrong2 (Ex ref) = readSTRef ref
+-----
+../tmp/E.hs:7:29: error: type mismatch
+    expected: STRef r Int
+    actual:   STRef r Int
+
+=====
 END
