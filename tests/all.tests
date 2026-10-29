@@ -47,6 +47,7 @@ HigherKind      HigherKind.ref
 PolyKind        PolyKind.ref
 Record          Record.ref
 RecordExport    RecordExport.ref
+ClassFieldExport ClassFieldExport.ref
 Deriving        Deriving.ref
 Unicode         Unicode.ref
 BindPat         BindPat.ref
