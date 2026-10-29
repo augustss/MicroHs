@@ -68,6 +68,7 @@ main = do
   setProp o (toJSString "b") jsNull
   stringify o >>= print . fromJSString
   print (fromJSString (toJSString "abc") == "abc", fromJSString (toJSString "abc") == "abd")
+  print (fromJSString (toJSString ('\xFEFF' : "bom")) == '\xFEFF' : "bom")   -- a leading byte order mark survives
   print (textFromJSString (textToJSString "text \955"))
   print (textFromJSString (textToJSString "nul\0byte"))
   idPtr (nullPtr `plusPtr` 12) >>= \ p -> print (p == nullPtr `plusPtr` 12)

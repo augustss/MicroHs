@@ -13,6 +13,7 @@
 (True,False,False,True)
 "{\"a\":42,\"b\":null}"
 (True,False)
+True
 "text \955"
 "nul\NULbyte"
 True
