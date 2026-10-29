@@ -221,7 +221,7 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs bin/tester
-	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest testpipenonblockioem testjsflag testjsbits testforimpjs testjsval testbrowserrts testjscallback testjsdeadlock testjsexportblocked
+	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest testpipenonblockioem testjsflag testjsbits testforimpjs testjsval testbrowserrts testjscallback testjsdeadlock testjsexportblocked testjsexittimer
 
 runtestinstemscripten:
 	cd tests; $(MAKE) MHSTARGET="-temscripten" MHS="mhs.js -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" test

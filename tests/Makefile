@@ -68,6 +68,11 @@ testjscallback:
 testjsdeadlock:
 	MHSDIR=.. $(TMHS) -temscripten JSDeadlock -of.js && { node f.js > JSDeadlock.out 2>&1; test $$? -eq 1; } && diff JSDeadlock.ref JSDeadlock.out
 
+# The program ends when main does (exit status 0, right away): the timer armed for a
+# thread still in threadDelay must not fire into the stopped runtime.
+testjsexittimer:
+	MHSDIR=.. $(TMHS) -temscripten JSExitTimer -of.js && node f.js > JSExitTimer.out 2>&1 && diff JSExitTimer.ref JSExitTimer.out
+
 testjsexportblocked:
 	MHSDIR=.. $(TMHS) -temscripten JSExportBlocked -of.js && node f.js > JSExportBlocked.out 2>&1 && diff JSExportBlocked.ref JSExportBlocked.out
 

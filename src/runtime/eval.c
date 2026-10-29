@@ -114,7 +114,14 @@ EM_JS(void, mhs_js_init, (void), {
       if (M.dead) return;
       var why = (e && e.name === "ExitStatus") ? "the program has exited with status " + e.status
               : "an exception unwound the runtime: " + (e && e.message !== undefined ? e.message : String(e));
-      M.dead = new Error("mhs: the Haskell runtime has stopped (" + why + ")");
+      M.died(new Error("mhs: the Haskell runtime has stopped (" + why + ")"));
+    },
+    /* The runtime has stopped: later entries are refused (check), and the timer
+     * armed for a threadDelay (mhs_js_set_timer) is dropped, since it has nothing
+     * to run any more and no caller to throw to. */
+    died: function(err) {
+      M.dead = err;
+      if (M.timer) { clearTimeout(M.timer); M.timer = null; }
     },
     /* Called by an unsafe import when its JavaScript code has thrown: the exception
      * is about to unwind the C stack (fatal), so mark the runtime as stopped first. */
@@ -136,8 +143,9 @@ EM_JS(void, mhs_js_init, (void), {
         throw e;
       }
     },
-    /* Run the runnable Haskell threads from the JavaScript event loop, see mhs_js_run_threads. */
-    runThreads: function() { M.enter(_mhs_js_run_threads); },
+    /* Run the runnable Haskell threads from the JavaScript event loop, see mhs_js_run_threads.
+     * Nothing to do once the runtime has stopped: a timer has no caller to throw to. */
+    runThreads: function() { if (!M.dead) M.enter(_mhs_js_run_threads); },
     /* An interruptible import: when the Promise p settles, store its value (converted
      * as kind says, see mhs_js_settle) or its error in the MVar behind the stable
      * pointer sp, and run the thread that waits for it. */
@@ -2489,7 +2497,7 @@ EM_JS(void, mhs_js_set_timer, (int ms), {
  * runtime has stopped; later callbacks are then refused (Module.mhsjs.check). */
 EM_JS(void, mhs_js_exited, (void), {
   var M = Module.mhsjs;
-  if (M && !M.dead) M.dead = new Error("mhs: the Haskell runtime has stopped (the program has exited)");
+  if (M && !M.dead) M.died(new Error("mhs: the Haskell runtime has stopped (the program has exited)"));
 });
 
 /* Arrange for mhs_js_run_threads() to be called from a JavaScript timer when
