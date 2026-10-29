@@ -97,7 +97,9 @@
 /*
  * Use GMP for bignums
  */
+#if !defined(WANT_GMP)
 #define WANT_GMP 0
+#endif
 
 /*
  * Use imath for bignums

@@ -9011,6 +9011,7 @@ hs_init(int *argc, char **argv[])
 void
 hs_exit(void)
 {
+  extern void _exit(int);       /* XXX why do we need this */
   _exit(0);
 }
 

@@ -220,7 +220,7 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 	cd tests; $(MAKE) EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 # Run test examples going via JavaScript
-runtestemscripten: bin/mhseval bin/mhs bin/cpphs
+runtestemscripten: bin/mhseval bin/mhs bin/cpphs bin/tester
 	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest testpipenonblockioem testjsflag testjsbits
 
 runtestinstemscripten:
