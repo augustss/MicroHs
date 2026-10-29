@@ -239,6 +239,8 @@ mkHdr (ImpJS sf s, f, ty, _) =
         case jsKind t of
           KJSVal -> param i ++ " = Module.mhsjs.getJSVal(" ++ param i ++ "); "
           KBool  -> param i ++ " = !!" ++ param i ++ "; "
+          -- A wasm i32 arrives as a signed number, so a Word >= 2^31 would be negative.
+          KWord  -> param i ++ " = " ++ param i ++ " >>> 0; "
           _      -> ""
       -- The code can use mhsjs, the JSVal table.
       convs = "var mhsjs = Module.mhsjs; " ++ concat (zipWith conv as ixs)

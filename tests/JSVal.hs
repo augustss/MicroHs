@@ -14,6 +14,7 @@ foreign import javascript "$1 > 3"                      gt3        :: Int -> Boo
 foreign import javascript "$1 ? 'yes' : 'no'"           boolStr    :: Bool -> JSString
 foreign import javascript "String.fromCodePoint($1)"    charStr    :: Char -> JSString
 foreign import javascript "$1.codePointAt(0)"           firstChar  :: JSString -> Char
+foreign import javascript "String($1)"                  wordStr    :: Word -> JSString
 foreign import javascript "({ a: $1, b: $2 })"          mkObj      :: Int -> JSString -> IO JSVal
 foreign import javascript "$1[$2]"                      getProp    :: JSVal -> JSString -> IO JSVal
 foreign import javascript "$1[$2] = $3"                 setProp    :: JSVal -> JSString -> JSVal -> IO ()
@@ -54,6 +55,7 @@ main = do
   print (fromJSString (charStr 'x'), fromJSString (charStr '\955'))
   print (firstChar (toJSString "abc"), firstChar (toJSString "\955"))
   print (sumTo 100)
+  print (fromJSString (wordStr 4000000000))   -- a Word >= 2^31 must not arrive negative
 
   o <- mkObj 42 (toJSString "hello, \955 world")
   stringify o >>= putStrLn . fromJSString
