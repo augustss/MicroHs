@@ -62,8 +62,8 @@ runOne tmhs (prog, mOutRef, mErrRef) = do
   let rflag = case mOutRef of
                 Nothing -> ""
                 Just _  -> " -r"
-      cmd = tmhs ++ rflag ++ " " ++ prog ++ " > " ++ tmpOut ++ " 2> " ++ tmpErr
-  putStrLn $ tmhs ++ rflag ++ " " ++ prog
+      cmd = tmhs ++ " -a" ++ rflag ++ " " ++ prog ++ " > " ++ tmpOut ++ " 2> " ++ tmpErr
+  putStrLn $ tmhs ++ " -a" ++ rflag ++ " " ++ prog
   hFlush stdout
   rc <- system cmd
   actOut <- readFileClean tmpOut

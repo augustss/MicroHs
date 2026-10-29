@@ -1,6 +1,6 @@
 Error100.hs:2:8: error: Module not found: NoSuchModule
 search path=[".","../lib"]
-package path=["/Users/augustss/.mcabal-user/mhs-0.16.12.0"]
+package path=[]
   |
 2 | import NoSuchModule
   |        ^
