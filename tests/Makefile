@@ -73,6 +73,12 @@ testjsdeadlock:
 testjsexittimer:
 	MHSDIR=.. $(TMHS) -temscripten JSExitTimer -of.js && node f.js > JSExitTimer.out 2>&1 && diff JSExitTimer.ref JSExitTimer.out
 
+# A wasm trap while main runs (an out of bounds read) stops the runtime: a callback
+# called later is refused instead of running on the wreckage (exit status 1).
+testjstrap:
+	cp JSTrap.pre jstrap.js
+	MHSDIR=.. $(TMHS) -temscripten jstrap.js JSTrap -of.js && { node f.js > JSTrap.out 2>&1; test $$? -eq 1; } && diff JSTrap.ref JSTrap.out && rm -f jstrap.js
+
 testjsexportblocked:
 	MHSDIR=.. $(TMHS) -temscripten JSExportBlocked -of.js && node f.js > JSExportBlocked.out 2>&1 && diff JSExportBlocked.ref JSExportBlocked.out
 

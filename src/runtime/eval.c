@@ -56,6 +56,19 @@ EM_JS(void, mhs_js_await, (int p, uvalue_t sp, int kind), {
   try { v = M.getJSVal(p); } catch (e) { v = Promise.reject(e); }
   M.await(v, sp, kind);
 });
+/* main() runs inside this JavaScript frame (see mhs_main): an exception that unwinds
+ * it, e.g. a wasm trap when the evaluator exceeds the stack, marks the runtime as
+ * stopped, so later callbacks are refused (Module.mhsjs.check) instead of running
+ * on the wreckage.  'unwind' is emscripten_exit_with_live_runtime(): the runtime goes
+ * on in the event loop.  Module.mhsjs exists once MHS_INIT_ARGS has run. */
+EM_JS(int, mhs_js_enter_main, (int argc, char **argv), {
+  try {
+    return _mhs_main_body(argc, argv);
+  } catch (e) {
+    if (e !== "unwind" && Module.mhsjs) Module.mhsjs.stop(e);
+    throw e;
+  }
+});
 EM_JS(char *, mhs_js_exn_cstring, (int k), {
   var v = Module.mhsjs.getJSVal(k);
   var s = String(v);
@@ -8415,8 +8428,11 @@ static size_t main_file_size = 0;
 static heapoffs_t main_start_size;
 #endif
 
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
 int
-mhs_main(int argc, char **argv)
+mhs_main_body(int argc, char **argv)
 {
   NODEPTR prog;
   char *outname = 0;
@@ -8474,6 +8490,16 @@ mhs_main(int argc, char **argv)
   emscripten_exit_with_live_runtime();
 #endif
   return 0;
+}
+
+int
+mhs_main(int argc, char **argv)
+{
+#if defined(__EMSCRIPTEN__)
+  return mhs_js_enter_main(argc, argv); /* records a trap that unwinds main */
+#else
+  return mhs_main_body(argc, argv);
+#endif
 }
 
 /* The end of the program: flush, run the finalizers, print the statistics,
