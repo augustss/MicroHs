@@ -39,6 +39,8 @@ main: got callback 15
 value callback from the event loop: result arrived
 callback 19b: result arrived
 JavaScript caught: error: boom 19
+freed result: error
+callback 20: the runtime still runs
 main: done
 JavaScript caught: unsafe boom
 JavaScript caught: mhs: the Haskell runtime has stopped (an exception unwound the runtime: unsafe boom)
