@@ -157,8 +157,8 @@ A fatal runtime error, or a JavaScript exception from an `unsafe` import, inside
 in the browser the page lives on, so every later call into Haskell then throws an `Error` saying that the
 runtime has stopped (instead of running on a corrupted runtime).
 See `tests/JSVal.hs` and `tests/JSCallback.hs` for examples.
-The targets `emscripten_js` (for node) and `quickjs` (for a plain JavaScript shell, e.g., `qjs out.js`)
-generate JavaScript only (`-sWASM=0`) instead of WebAssembly; the JavaScript FFI works the same way.
+The target `emscripten_js` (for node) generates JavaScript only (`-sWASM=0`) instead of WebAssembly;
+the JavaScript FFI works the same way.
 The targets `browser` and `browser_js` are for the browser (no node file system access);
 they use a 4M cell heap (about 60MB) instead of the default 50M, so that garbage collection (which also
 releases the JavaScript values referenced from Haskell) happens regularly; change it with `-optc -DHEAP_CELLS=N`.
