@@ -415,6 +415,7 @@ cString :: String -> String
 cString str = '"' : concatMap esc str ++ "\""
   where esc '"'  = "\\\""
         esc '\\' = "\\\\"
+        esc '?'  = "\\?"    -- so that JavaScript's ?? cannot form a trigraph
         esc c | c < ' ' || c == '\DEL' = '\\' : oct (fromEnum c)
               | otherwise = [c]
         oct n = [toEnum (fromEnum '0' + n `div` 64), toEnum (fromEnum '0' + (n `div` 8) `mod` 8), toEnum (fromEnum '0' + n `mod` 8)]
