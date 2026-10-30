@@ -125,3 +125,4 @@ Interpolate
 ExtraComma
 InterleaveIO
 DerivingBuiltin  - - -
+-                itest.ref   -   itest.in   --stdin -q
