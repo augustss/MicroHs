@@ -2465,10 +2465,9 @@ static NODEPTR run_callback(char **msgp, int may_block);
 /* Set when the main thread has finished (the other threads may keep running
  * under emscripten, when JavaScript callbacks keep the program alive). */
 static int main_finished = 0;
-
-#if defined(__EMSCRIPTEN__)
 static void main_finish(void);
 
+#if defined(__EMSCRIPTEN__)
 /* Set when main has started (mhs_main), as opposed to a program without main
  * whose foreign exports are called by JavaScript. */
 static int main_started = 0;
@@ -8416,6 +8415,67 @@ static size_t main_file_size = 0;
 static heapoffs_t main_start_size;
 #endif
 
+int
+mhs_main(int argc, char **argv)
+{
+  NODEPTR prog;
+  char *outname = 0;
+  size_t file_size = 0;
+  boot_time = GETTIMEMICRO();
+
+  prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
+  main_file_size = file_size;
+
+#if WANT_STDIO
+  heapoffs_t start_size = num_marked;
+  main_start_size = start_size;
+  if (outname) {
+    /* Save GCed file (smaller), and exit. */
+    FILE *out = fopen(outname, "wb");
+    if (!out)
+      ERR1("cannot open output file %s", outname);
+    struct BFILE *bf = add_FILE(out);
+    printb(bf, prog, true);
+    closeb(bf);
+    EXIT(0);
+  }
+  if (verbose > 2) {
+    pp(stdout, prog);
+  }
+#endif
+  run_time -= GETTIMEMILLI();
+
+#if 0
+  topnode = &prog;
+#endif
+#if WANT_KPERF
+  if (!start_kperf()) {
+    // ERR("kperf init failed");
+#if WANT_STDIO
+    fprintf(stderr, "start_kperf() failed, ignored\n");
+#endif
+  }
+#endif  /* WANT_KPERF */
+#if defined(__EMSCRIPTEN__)
+  main_started = 1;
+#endif
+  start_exec(prog);
+#if defined(__EMSCRIPTEN__)
+  if (!main_finished) {
+    /* The main thread is blocked, waiting for a JavaScript callback, a timer or
+     * a Promise: return to the JavaScript event loop, which resumes the threads
+     * with mhs_js_run_threads(); that also finishes the program. */
+    emscripten_exit_with_live_runtime();
+  }
+#endif
+  main_finish();
+#if defined(__EMSCRIPTEN__)
+  /* JavaScript callbacks keep the program alive after main has finished. */
+  emscripten_exit_with_live_runtime();
+#endif
+  return 0;
+}
+
 /* The end of the program: flush, run the finalizers, print the statistics,
  * and exit.  Under emscripten this can also run from mhs_js_run_threads(),
  * when the main thread finishes after main() has returned to the JavaScript
@@ -8516,67 +8576,6 @@ main_finish(void)
   }
 #endif
   EXIT(0);
-}
-
-int
-mhs_main(int argc, char **argv)
-{
-  NODEPTR prog;
-  char *outname = 0;
-  size_t file_size = 0;
-  boot_time = GETTIMEMICRO();
-
-  prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
-  main_file_size = file_size;
-
-#if WANT_STDIO
-  heapoffs_t start_size = num_marked;
-  main_start_size = start_size;
-  if (outname) {
-    /* Save GCed file (smaller), and exit. */
-    FILE *out = fopen(outname, "wb");
-    if (!out)
-      ERR1("cannot open output file %s", outname);
-    struct BFILE *bf = add_FILE(out);
-    printb(bf, prog, true);
-    closeb(bf);
-    EXIT(0);
-  }
-  if (verbose > 2) {
-    pp(stdout, prog);
-  }
-#endif
-  run_time -= GETTIMEMILLI();
-
-#if 0
-  topnode = &prog;
-#endif
-#if WANT_KPERF
-  if (!start_kperf()) {
-    // ERR("kperf init failed");
-#if WANT_STDIO
-    fprintf(stderr, "start_kperf() failed, ignored\n");
-#endif
-  }
-#endif  /* WANT_KPERF */
-#if defined(__EMSCRIPTEN__)
-  main_started = 1;
-#endif
-  start_exec(prog);
-#if defined(__EMSCRIPTEN__)
-  if (!main_finished) {
-    /* The main thread is blocked, waiting for a JavaScript callback, a timer or
-     * a Promise: return to the JavaScript event loop, which resumes the threads
-     * with mhs_js_run_threads(); that also finishes the program. */
-    emscripten_exit_with_live_runtime();
-  }
-#endif
-  main_finish();
-#if defined(__EMSCRIPTEN__)
-  /* JavaScript callbacks keep the program alive after main has finished. */
-  emscripten_exit_with_live_runtime();
-#endif
-  return 0;
 }
 
 #if WANT_MD5
