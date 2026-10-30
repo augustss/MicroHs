@@ -37,6 +37,9 @@ foreign import javascript safe "throw new Error('callback boom')" jsThrow :: IO 
 foreign import javascript "throw new Error('unsafe boom')" jsThrowUnsafe :: IO ()
 -- Call the callback n times, ignoring the errors it throws.
 foreign import javascript "for (var i = 0; i < $2; i++) { try { $1() } catch (e) {} }" callMany :: JSVal -> Int -> IO ()
+-- Call the value callback $1, and report whether it threw an error about a freed JSVal.
+foreign import javascript "try { $1(); console.log('freed result: no error?') } catch (e) { console.log('freed result: ' + (e.message.indexOf('freed') >= 0 ? 'error' : e.message)) }"
+  callFreed :: JSVal -> IO ()
 -- Call the callback now, and report an exception thrown by it.
 foreign import javascript "try { $1() } catch (e) { console.log('JavaScript caught: ' + e.message) }" callCatch :: JSVal -> IO ()
 
@@ -242,6 +245,13 @@ main = do
   laterCatch cb19 50   -- after test 13's timer, so the output order is fixed
   takeMVar done19
   threadDelay 20000
+
+  -- 20. A value callback that returns a JSVal it has already freed: its JavaScript
+  --     caller gets an error, but nothing unwound the runtime, so it keeps running.
+  cb20 <- syncCallback' $ mkObj 20 >>= \ o -> freeJSVal o >> return o
+  callFreed cb20
+  cb20' <- syncCallback $ putStrLn "callback 20: the runtime still runs"
+  callCatch cb20'
 
   -- 16. A JavaScript exception from an unsafe import in a callback unwinds the C
   --     stack of the runtime (fatal): later callbacks are refused with an error

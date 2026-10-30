@@ -188,18 +188,19 @@ EM_JS(void, mhs_js_init, (void), {
           throw new Error("mhs: callback called after being freed");
         var p = _mhs_js_alloc(4 * (n + 1));
         for (var i = 0; i < n; i++) HEAP32[(p >> 2) + i] = M.newJSVal(args[i]);
-        var v, err = null;
+        var v, r, err = null;
         M.enter(function() {
-          var r = _mhs_js_callback(f.mhs_sp, ret, n, p);
-          /* Take this callback's error, and its result, before any other Haskell
-           * thread runs: those threads can run other callbacks, which use the same
-           * callbackError slot, and nothing on the Haskell side references the
-           * result now, so a GC would drop its handle. */
+          r = _mhs_js_callback(f.mhs_sp, ret, n, p);
+          /* Take this callback's error before any other Haskell thread runs: those
+           * threads can run other callbacks, which use the same callbackError slot. */
           err = M.callbackError;
           M.callbackError = null;
-          if (ret && !err) v = M.getJSVal(r);
         });
         if (M.dead) return v;
+        /* Take the result now too: nothing on the Haskell side references it any more,
+         * so a GC would drop its handle.  An error here (the callback returned a JSVal
+         * it had freed) is the caller's: nothing unwound, the runtime goes on. */
+        if (ret && !err) { try { v = M.getJSVal(r); } catch (e) { err = e; } }
         _mhs_js_free_mem(p);
         /* If JavaScript called us from its event loop, run the threads the callback
          * may have made runnable, or left blocked (does nothing if the threads are
