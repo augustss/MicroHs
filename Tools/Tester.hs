@@ -15,9 +15,9 @@ main = do
         case args of
           "-temscripten":r -> (r, True)
           _ -> (args, False)
-  file <- case args of
+  file <- case args' of
     [f] -> return f
-    _   -> error "Usage: Tester [-temscripten] <test-file>"
+    _   -> error "Usage: tester [-temscripten] FILE"
   tmhs <- fromMaybe "../bin/mhs +RTS -H10M -RTS -CR" <$> lookupEnv "TMHS"
   content <- readFile file
   let specs = parseTests (lines content)
@@ -64,16 +64,15 @@ readRef fn  = readFileClean fn
 
 runOne :: String -> Bool -> TestSpec -> IO ()
 runOne tmhs ems (prog, inRef, outRef, errRef, flags) = do
-  let --emsflag = if ems then " -temscripten -oout.js" else ""
-      cmd = [tmhs, "-a"] ++ flags ++ [prog]
+  let emsflags | ems = filter (/= "-r") flags ++ ["-temscripten", "-oout.js", "&&", "node", "out.js"]
+               | otherwise = flags
+      cmd = [tmhs, prog, "-a"] ++ emsflags
       cmd' = unwords $ cmd ++ ["<", tmpIn, ">", tmpOut, "2>", tmpErr]
   infile <- readRef inRef
   writeFile tmpIn infile
   putStrLn $ unwords cmd
   hFlush stdout
   rc <- system cmd'
---  when ems $
---    system $ "node out.js" ++ " > " ++ tmpOut
   actOut <- readFileClean tmpOut
   actErr <- readFileClean tmpErr
   expOut <- readRef outRef
