@@ -46,7 +46,7 @@ import Data.Text(Text, pack, unpack)
 import Data.Text.Encoding(encodeUtf8, decodeUtf8)
 import Foreign.Marshal.Alloc(allocaBytes)
 import Foreign.Ptr(Ptr)
-import Primitives(JSVal)
+import Primitives(JSVal, primForeignPtrToPtr, primUnsafeCoerce)
 import System.IO.Unsafe(unsafePerformIO)
 
 -- | A JavaScript string.
@@ -58,7 +58,14 @@ newtype JSString = JSString JSVal
 -- | Drop the table entry of a JSVal, so the JavaScript value can be garbage collected.
 -- The JSVal must not be used after this.
 -- If the JSVal is a callback, the Haskell function is released as well.
-foreign import ccall "js_free_jsval" freeJSVal :: JSVal -> IO ()
+freeJSVal :: JSVal -> IO ()
+freeJSVal v = c_js_free_jsval (jsvalHandle v)
+
+-- The handle of a JSVal: the payload of its foreign pointer (an int on the C side).
+jsvalHandle :: JSVal -> Ptr ()
+jsvalHandle v = primForeignPtrToPtr (primUnsafeCoerce v)
+
+foreign import ccall "js_free_jsval" c_js_free_jsval :: Ptr () -> IO ()
 
 foreign import javascript "null" jsNull :: JSVal
 foreign import javascript "undefined" jsUndefined :: JSVal

@@ -33,6 +33,7 @@ foreign import javascript "globalThis"                  global     :: JSVal
 foreign import javascript "typeof globalThis.mhsjs_free_test"
                                                         freeTest   :: IO JSString
 foreign import javascript safe "$1.no.such"             badProp    :: JSVal -> IO JSVal
+foreign import javascript safe "throw new Error('\955 boom')" throwUni :: IO ()
 foreign import javascript interruptible "await $1"      await      :: JSVal -> IO JSVal
 foreign import javascript interruptible "$1"            idPtr      :: Ptr a -> IO (Ptr a)
 foreign import javascript "new Promise(function (r) { Promise.resolve().then(function () { r($1) }) })"
@@ -113,6 +114,9 @@ main = do
   case r1' of
     Left e@(JSException _) -> putStrLn $ "rethrown " ++ (if "TypeError" `isInfixOf` show e then "TypeError" else show e)
     Right _ -> putStrLn "no exception"
+  -- the message of a JavaScript exception is decoded as UTF-8
+  r1u <- try throwUni
+  putStrLn $ either (\ e -> if "\955 boom" `isInfixOf` show (e :: JSException) then "unicode message: ok" else show e) (const "no exception") r1u
   -- interruptible imports wait for a Promise
   v <- await =<< delayed 42
   jsValToInt v >>= print

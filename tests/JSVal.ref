@@ -24,6 +24,7 @@ nested: [2,4,6]
 GC frees handles
 caught TypeError
 rethrown TypeError
+unicode message: ok
 42
 caught nope
 main done
