@@ -1,4 +1,4 @@
-Error23.hs:2:5: error: undefined value: _1000000
+./Error23.hs:2:5: error: undefined value: _1000000
   |
 2 | x = _1000000
   |     ^

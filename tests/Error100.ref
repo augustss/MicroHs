@@ -1,4 +1,4 @@
-Error100.hs:2:8: error: Module not found: NoSuchModule
+./Error100.hs:2:8: error: Module not found: NoSuchModule
 search path=[".","../lib"]
 package path=[]
   |

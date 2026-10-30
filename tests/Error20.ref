@@ -1,4 +1,4 @@
-Error20.hs:4:7: error: too few arguments
+./Error20.hs:4:7: error: too few arguments
   |
 4 |       C -> True
   |       ^

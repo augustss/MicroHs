@@ -1,4 +1,4 @@
-Error64.hs:2:9: error: occurs check: cannot construct the infinite type: a ~ a -> b
+./Error64.hs:2:9: error: occurs check: cannot construct the infinite type: a ~ a -> b
   |
 2 | f x = x x
   |         ^

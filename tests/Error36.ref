@@ -1,4 +1,4 @@
-Error36.hs:3:10: error: type mismatch
+./Error36.hs:3:10: error: type mismatch
     expected: Bool
     actual:   Int
   |

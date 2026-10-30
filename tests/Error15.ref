@@ -1,4 +1,4 @@
-Error15.hs:3:5: error: type mismatch
+./Error15.hs:3:5: error: type mismatch
     expected: Int
     actual:   Char
   |

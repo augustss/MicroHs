@@ -1,4 +1,4 @@
-Error19.hs:3:24: error: superflous instance binding
+./Error19.hs:3:24: error: superflous instance binding
   |
 3 | instance C Int where { x = 1 }
   |                        ^

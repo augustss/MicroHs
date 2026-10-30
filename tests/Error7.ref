@@ -1,4 +1,4 @@
-Error7.hs:4:8: error: bad synonym use: Error7.T in D T
+./Error7.hs:4:8: error: bad synonym use: Error7.T in D T
   |
 4 | x :: D T
   |        ^

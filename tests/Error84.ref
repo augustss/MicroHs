@@ -1,4 +1,4 @@
-Error84.hs:2:15: error: syntax
+./Error84.hs:2:15: error: syntax
     found:    layout error }
     expected: { . LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo QSymOper ` :: ∷ where ; in
   |

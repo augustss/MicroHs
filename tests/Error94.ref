@@ -1,4 +1,4 @@
-Error94.hs:2:7: error: inconsistent type equality Int ~ Bool
+./Error94.hs:2:7: error: inconsistent type equality Int ~ Bool
   |
 2 | f :: (Int ~ Bool, a ~ b) => a -> b
   |       ^

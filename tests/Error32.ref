@@ -1,4 +1,4 @@
-Error32.hs:2:5: error: undefined value: _0xffff
+./Error32.hs:2:5: error: undefined value: _0xffff
   |
 2 | x = _0xffff
   |     ^

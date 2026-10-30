@@ -1,4 +1,4 @@
-Error14.hs:9:13: error: ambiguous operator expression
+./Error14.hs:9:13: error: ambiguous operator expression
   |
 9 | x = 1 +++ 2 *** 3
   |             ^

@@ -1,4 +1,4 @@
-Error53.hs:3:9: error: extra field(s) b
+./Error53.hs:3:9: error: extra field(s) b
   |
 3 | x = R { b = 1 }
   |         ^

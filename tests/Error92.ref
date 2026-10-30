@@ -1,4 +1,4 @@
-Error92.hs:5:8: error: type: not polymorphic enough: a#7
+./Error92.hs:5:8: error: type: not polymorphic enough: a#7
   |
 5 | y = f (\ a b -> b) 2
   |        ^

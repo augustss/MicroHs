@@ -1,4 +1,4 @@
-Error96.hs:2:25: error: Cannot derive Enum T
+./Error96.hs:2:25: error: Cannot derive Enum T
   |
 2 | data T = C Int deriving Enum
   |                         ^

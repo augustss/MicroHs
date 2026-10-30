@@ -1,4 +1,4 @@
-Error71.hs:3:12: error: type mismatch
+./Error71.hs:3:12: error: type mismatch
     expected: Int
     actual:   Maybe Int
   |

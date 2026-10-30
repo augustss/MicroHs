@@ -1,4 +1,4 @@
-Error93.hs:2:4: error: Multiply defined: x
+./Error93.hs:2:4: error: Multiply defined: x
   |
 2 | f (x, x) = x
   |    ^

@@ -1,4 +1,4 @@
-Error89.hs:5:26: error: ambiguous instance binding
+./Error89.hs:5:26: error: ambiguous instance binding
   |
 5 | instance C12 Int where { m = 1 }
   |                          ^

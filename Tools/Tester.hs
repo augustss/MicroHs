@@ -1,4 +1,5 @@
 module Tester(main) where
+import Control.Exception
 import Control.Monad
 import Data.Maybe
 import System.Directory
@@ -10,15 +11,23 @@ import System.Process
 main :: IO ()
 main = do
   args <- getArgs
+  let (args', ems) =
+        case args of
+          "-temscripten":r -> (r, True)
+          _ -> (args, False)
   file <- case args of
     [f] -> return f
-    _   -> error "Usage: Tester <test-file>"
+    _   -> error "Usage: Tester [-temscripten] <test-file>"
   tmhs <- fromMaybe "../bin/mhs +RTS -H10M -RTS -CR" <$> lookupEnv "TMHS"
   content <- readFile file
   let specs = parseTests (lines content)
-  mapM_ (runOne tmhs) specs
+  mapM_ (runOne tmhs ems) specs
+  removeFileM tmpIn
   removeFileM tmpOut
   removeFileM tmpErr
+
+tmpIn :: FilePath
+tmpIn = "tester.in"
 
 tmpOut :: FilePath
 tmpOut = "tester.out"
@@ -27,49 +36,47 @@ tmpErr :: FilePath
 tmpErr = "tester.err"
 
 removeFileM :: FilePath -> IO ()
-removeFileM fn = do
-  b <- doesFileExist fn
-  when b $ removeFile fn
+removeFileM fn = catch (removeFile fn) (\ (_ :: SomeException) -> return ())
 
--- (program, Maybe stdoutRef, Maybe stderrRef)
--- If stdoutRef is Nothing, only compile (no -r) and expect empty stdout and stderr.
--- A ref file of "-" means empty output is expected.
-type TestSpec = (String, Maybe FilePath, Maybe FilePath)
+type TestSpec = (String, FilePath, FilePath, FilePath, [String])
 
 parseTests :: [String] -> [TestSpec]
 parseTests = mapMaybe parseLine . zip [1 :: Int ..]
   where
     parseLine (n, line) =
       case words (takeWhile (/= '#') line) of
-        []                 -> Nothing
-        [prog]             -> Just (prog, Nothing, Nothing)
-        [prog, oref]       -> Just (prog, Just oref, Nothing)
-        [prog, oref, eref] -> Just (prog, Just oref, Just eref)
-        _                  -> error $ "Bad test specification on line " ++ show n ++ ": " ++ line
+        []                                -> Nothing
+        prog : []                         -> Just (prog, "-",  prog ++ ".ref" , "-",      ["-r"])
+        prog : oref : eref : iref : flags -> Just (prog, iref, sub oref,        sub eref, flags)
+          where sub "=" = prog ++ ".ref"
+                sub s   = s
+        _                                 -> error $ "Bad test specification on line " ++ show n ++ ": " ++ line
 
 readFileClean :: FilePath -> IO String
 readFileClean fn = do
   s <- filter (/= '\r') <$> readFile fn
   seq (length s) (return s)
 
-readRef :: Maybe FilePath -> IO String
-readRef Nothing    = return ""
-readRef (Just "-") = return ""
-readRef (Just fn)  = readFileClean fn
+readRef :: FilePath -> IO String
+readRef "-" = return ""
+readRef fn  = readFileClean fn
 
-runOne :: String -> TestSpec -> IO ()
-runOne tmhs (prog, mOutRef, mErrRef) = do
-  let rflag = case mOutRef of
-                Nothing -> ""
-                Just _  -> " -r"
-      cmd = tmhs ++ " -a" ++ rflag ++ " " ++ prog ++ " > " ++ tmpOut ++ " 2> " ++ tmpErr
-  putStrLn $ tmhs ++ " -a" ++ rflag ++ " " ++ prog
+runOne :: String -> Bool -> TestSpec -> IO ()
+runOne tmhs ems (prog, inRef, outRef, errRef, flags) = do
+  let --emsflag = if ems then " -temscripten -oout.js" else ""
+      cmd = [tmhs, "-a"] ++ flags ++ [prog]
+      cmd' = unwords $ cmd ++ ["<", tmpIn, ">", tmpOut, "2>", tmpErr]
+  infile <- readRef inRef
+  writeFile tmpIn infile
+  putStrLn $ unwords cmd
   hFlush stdout
-  rc <- system cmd
+  rc <- system cmd'
+--  when ems $
+--    system $ "node out.js" ++ " > " ++ tmpOut
   actOut <- readFileClean tmpOut
   actErr <- readFileClean tmpErr
-  expOut <- readRef mOutRef
-  expErr <- readRef mErrRef
+  expOut <- readRef outRef
+  expErr <- readRef errRef
   when (null expErr && rc /= ExitSuccess) $ do
     putStrLn $ "FAILED (exit code " ++ show rc ++ "): " ++ prog
     unless (null actOut) $ putStrLn $ "stdout:\n" ++ actOut

@@ -1,4 +1,4 @@
-Error88.hs:4:13: error: not a class c
+./Error88.hs:4:13: error: not a class c
   |
 4 | instance Id c
   |             ^

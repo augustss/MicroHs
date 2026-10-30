@@ -1,4 +1,4 @@
-Error21.hs:4:7: error: too many arguments
+./Error21.hs:4:7: error: too many arguments
   |
 4 |       C _ _ -> True
   |       ^

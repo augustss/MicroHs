@@ -1,4 +1,4 @@
-Error6.hs:3:1: error: duplicate definition Error6.x
+./Error6.hs:3:1: error: duplicate definition Error6.x
   |
 3 | x = 1
   | ^

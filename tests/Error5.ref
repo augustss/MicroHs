@@ -1,4 +1,4 @@
-Error5.hs:2:6: error: undefined type: T
+./Error5.hs:2:6: error: undefined type: T
   |
 2 | x :: T
   |      ^

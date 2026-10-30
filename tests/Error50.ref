@@ -1,4 +1,4 @@
-Error50.hs:2:8: error: Bad type application
+./Error50.hs:2:8: error: Bad type application
   |
 2 | x = 1 @Int
   |        ^

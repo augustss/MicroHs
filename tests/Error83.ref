@@ -1,4 +1,4 @@
-Error83.hs:2:9: error: : bad string gap
+./Error83.hs:2:9: error: : bad string gap
   |
 2 | x = "abc\ x\def"
   |         ^
