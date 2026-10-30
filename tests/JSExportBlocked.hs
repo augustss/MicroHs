@@ -5,7 +5,7 @@ import Control.Concurrent
 import System.IO.Unsafe
 
 foreign export javascript ping :: Int -> IO Int
-foreign import javascript "setTimeout(() => console.log('js: ping ->', Module._ping(41)), 10)" schedule :: IO ()
+foreign import javascript "setTimeout(() => console.log('js: ping -> ' + Module._ping(41)), 10)" schedule :: IO ()
 
 box :: MVar Int
 box = unsafePerformIO newEmptyMVar
