@@ -109,6 +109,10 @@ int                mhs_to_JSVal(intptr_t, int);
 void               mhs_js_check_error(void);
 #endif
 
+/* The JavaScript FFI (GHC.Wasm.Prim, Control.Exception.Internal); do nothing without JavaScript. */
+void      *js_exn_string(void *);
+void       js_free_jsval(void *);
+
 void       ffe_push(NODEPTR);
 void       ffe_pop(void);
 stackptr_t ffe_alloc(void);
