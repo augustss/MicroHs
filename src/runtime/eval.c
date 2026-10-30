@@ -12,6 +12,10 @@
 #define WANT_IMATH 1
 #endif /* defined(WANT_MATH) */
 
+#if WANT_GMP && WANT_IMATH
+#error "Cannot have both WANT_GMP and WANT_IMATH"
+#endif
+
 #if !defined(WANT_OVERFLOW)
 #define WANT_OVERFLOW 0
 #endif /* defined(WANT_OVERFLOW) */

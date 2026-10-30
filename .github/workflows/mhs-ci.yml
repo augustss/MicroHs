@@ -44,8 +44,8 @@ jobs:
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
+    - name: make install
+      run: make install
     - name: make everytestmhs
       run: make everytestmhs
 
