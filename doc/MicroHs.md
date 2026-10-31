@@ -458,6 +458,7 @@ first and without preemption.
 * An uncaught Haskell exception in a callback is thrown to the JavaScript caller as an `Error`
   (an asynchronous callback rejects its Promise).
 * A callback is released when its `JSVal` is garbage collected or freed with `freeJSVal`.
+* A callback that returns a `JSVal` it has already freed gives its JavaScript caller an error; the runtime goes on.
 
 `foreign export javascript` makes a Haskell function callable from JavaScript, where its name gets a `_` prefix, as usual with emscripten. Such a function can also have `Bool` arguments and results, which become 0 and 1. As for C, compile the module with `-c`, and call `_mhs_init()` before any exported function. The `testforexpjs` target in `tests/Makefile` shows how to compile such a module with `emcc` and call it from JavaScript.
 
@@ -467,7 +468,8 @@ Haskell threads keep their state in the heap, so no C stack has to be preserved 
   a callback, a timer (for `threadDelay`), or a settling Promise resumes the threads.
 * While a program has live callbacks the runtime stays alive after `main` returns, so JavaScript events can
   still call them. The program ends when `main` has finished and no callback is left.
-* A fatal runtime error, or a JavaScript exception from an `unsafe` import inside a callback, stops the runtime.
+* A fatal runtime error, a JavaScript exception from an `unsafe` import, or a WebAssembly trap (also one while `main`
+  is still running) stops the runtime.
   In the browser the page lives on, so every later call into Haskell throws an `Error` saying that the runtime
   has stopped, instead of running on a corrupted runtime.
 
