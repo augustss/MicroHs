@@ -113,7 +113,7 @@ peekUTF8 p =
   let (n, c) | primIntLT b 0x80 = (0::Int, b)
              | primIntLT b 0xE0 = (1::Int, primIntAnd b 0x1F)
              | primIntLT b 0xF0 = (2::Int, primIntAnd b 0x0F)
-             | True             = (3::Int, primIntAnd b 0x07)
+             | otherwise        = (3::Int, primIntAnd b 0x07)
   in  continuation n c (next p) `primBind` \ (c', p') ->
       peekUTF8 p' `primBind` \ s ->
       primReturn (Char (primIntToWord c') : s)
