@@ -110,10 +110,10 @@ peekUTF8 :: Ptr () -> IO String
 peekUTF8 p =
   c_peek_uint8 p `primBind` \ b ->
   if primIntEQ b 0 then primReturn [] else
-  let (n, c) = if primIntLT b 0x80 then (0::Int, b)
-               else if primIntLT b 0xE0 then (1::Int, primIntAnd b 0x1F)
-               else if primIntLT b 0xF0 then (2::Int, primIntAnd b 0x0F)
-               else (3::Int, primIntAnd b 0x07)
+  let (n, c) | primIntLT b 0x80 = (0::Int, b)
+             | primIntLT b 0xE0 = (1::Int, primIntAnd b 0x1F)
+             | primIntLT b 0xF0 = (2::Int, primIntAnd b 0x0F)
+             | True             = (3::Int, primIntAnd b 0x07)
   in  continuation n c (next p) `primBind` \ (c', p') ->
       peekUTF8 p' `primBind` \ s ->
       primReturn (Char (primIntToWord c') : s)
