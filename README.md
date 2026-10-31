@@ -215,6 +215,8 @@ Haskell threads keep their state in the heap, so no C stack has to be preserved 
 | `browser_rts` | as `browser`, but the program is fetched at run time | see below |
 | `browser_js` | JavaScript only for the browser | `-O3`; 4M cell heap |
 
+(`emscripten_web`, which also exists, is not for programs: it runs `mhs` itself in a web page, see `web-mhs/`.)
+
 The browser targets use a 4M cell heap (about 60MB) instead of the default 50M, so that garbage collection,
 which also releases the JavaScript values referenced from Haskell, happens regularly;
 change it with `-optc -DHEAP_CELLS=N`.
