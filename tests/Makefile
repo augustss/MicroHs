@@ -75,4 +75,5 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
+	rm -rf cdtest.tmp
 	rm -f *.out *.tmp *.js *.exe *.so a.out *_stub.h .mhscache
