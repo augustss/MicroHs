@@ -93,6 +93,7 @@ instance Bits Int64 where
   bitSizeMaybe _ = Just 64
   bitSize _ = 64
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primInt64Popcount
   zeroBits = 0

@@ -111,6 +111,7 @@ instance Bits Int32 where
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount (I32 x) = primWordPopcount (primIntToWord x `primWordAnd` (0xffffffff::Word))
   zeroBits = 0

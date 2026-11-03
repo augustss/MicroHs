@@ -140,6 +140,7 @@ instance Bits Word where
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primWordPopcount
   zeroBits = 0
