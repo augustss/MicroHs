@@ -31,11 +31,11 @@ deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of argu
   let c = cs!!0; cls = dropForallContext acls in
   case strat of
     DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs  cls)
-                                           (newtypeDer  mctx narg lhs  c acls)
+                                           (newtypeDerV mctx narg lhs  c acls)
                                            (getViaM narg lhs c)
             | otherwise           -> deriveNoHdr mctx narg lhs cs  cls
     DerStock                      -> deriveNoHdr mctx narg lhs cs  cls
-    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c acls =<< getVia narg lhs c
+    DerNewtype | newt             -> newtypeDerV mctx narg lhs  c acls =<< getVia narg lhs c
     DerAnyClass                   -> anyclassDer mctx narg lhs     cls
     DerVia via | newt             -> newtypeDer  mctx narg lhs  c acls via
     _                             -> cannotDerive lhs cls
@@ -754,72 +754,157 @@ getViaM narg (_, iks) con =
 getVia :: Int -> LHS -> Constr -> T EType
 getVia narg lhs con = maybe (tcError (getSLoc lhs) "Bad newtype deriving") return $ getViaM narg lhs con
 
+-- Synonyms are expanded after kind checking.
+-- There should be no synonyms in any of the symbol tables (except synTable).
+expandSyn :: HasCallStack =>
+             EType -> T EType
+--expandSyn at | trace ("expandSyn: " ++ show at) False = undefined
+expandSyn at = do
+  syns <- gets synTable
+  let
+    rt = expandSyn' syns at
+    -- Check that there are no unexpanded synonyms left
+    chk (EApp f a) = do chk f; chk a
+    chk (EVar i) =
+      case M.lookup i syns of
+        Nothing -> return ()
+        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ showIdent i ++ " in " ++ showEType at
+    chk (EUVar _) = return ()
+    chk (EForall _ _ t) = chk t
+    chk (ELit _ _) = return ()
+    chk _ = impossible
+  chk rt
+  return rt
+
+expandSyn' :: HasCallStack =>
+              SynTable -> EType -> EType
+expandSyn' syns = esyn
+  where
+    esyn = syn []
+    -- Expand synonyms that have enough arguments
+    syn ts t =
+      case t of
+        EApp f a -> syn (esyn a : ts) f
+        EVar i ->
+          case M.lookup i syns of
+            Nothing -> eApps t ts
+            Just (EForall _ vks tt) ->
+              let is = map idKindIdent vks
+                  s = zip is ts
+                  lis = length is
+                  lts = length ts
+              in  if lis > lts then
+                    eApps t ts
+                  else
+                    -- Too few arguments, just leave it alone
+                    syn (drop lis ts) (subst s tt)
+            Just _ -> impossible
+        EUVar _ -> eApps t ts
+        ESign a _ -> syn ts a   -- Throw away signatures, they don't affect unification
+        EForall b iks tt | null ts -> EForall b iks (esyn tt)
+        ELit _ (LStr _) -> t
+        ELit _ (LInteger _) -> t
+        _ -> impossiblePP t
+
+
+-- Convert a Set of Classes to a list while expanding synonyms
+expandTup :: EType -> T [EType]
+expandTup t = do
+  -- traceM (show t)
+  u <- expandSyn t
+  case getExprTuple u of
+    Just xs -> concat <$> mapM expandTup xs
+    Nothing -> pure [u]
+
+
+newtypeDerV :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
+newtypeDerV mctx narg lhs@(_, iks) con acls viaty = newtypeDer mctx narg lhs con acls v
+  where v | Just (h, _) <- mctx, Just (_, tys) <- getAppM (dropForallContext h), Just (_, args) <- getAppM (last tys)
+            = subst (zip (map idKindIdent (dropEnd narg iks)) args) viaty
+          | otherwise = viaty
+
 newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
 newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
-  let loc = getSLoc cls
-      (clsIks, cls) = unForall acls
---  traceM ("newtypeDer: " ++ show (hdr, viaty))
-  let qiCls = getAppCon cls
-      clsQual = qualOf qiCls
+  let loc = getSLoc scls
+      (clsIks, scls) = unForall acls
+--  traceM ("newtypeDer: " ++ show (scls, viaty))
   ct <- gets classTable
-  (ClassInfo _ supers clsCon mits _) <-
-    case M.lookup qiCls ct of
-      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
-      Just x -> return x
-  hdr <-
+  chms <-
     case mctx of
-      Just (h, _) -> pure h
+      Just (h, _) -> do
+        newtyr <- mkLhsTy narg lhs
+        clss <- expandTup (tApp scls newtyr)
+        forM clss $ \cls -> do
+          let qiCls = getAppCon cls
+              clsQual = qualOf qiCls
+          (ClassInfo _tyvar _supers _clsCon mits _fundep) <-
+            case M.lookup qiCls ct of
+            Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+            Just x -> return x
+          let clsOld = case scls of EVar i -> i ; _ -> impossible
+          pure (clsQual, subst [(clsOld, EVar qiCls)] h, mits)
+
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
         let
-          cdef = tApp cls newtyr       -- the instance we are trying to make
-          ctxOld = tApp cls viaty
+          scdef = tApp scls newtyr       -- the instance we are trying to make
+          ctxOld = tApp scls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
           iks' = dropEnd narg iks
-          -- clsCon is the class constructor type
-          --   forall ... t1 -> t2 -> C v1 ... vn
-          -- extract v1...vn from this
-          supVs = map unEVar $ snd $ getApp $ snd $ getArrows $ dropForallContext clsCon
-            where unEVar (EVar i) = i; unEVar _ = impossible
-          curTs = snd $ getApp cdef   -- extract the actual types in the instance
-          xctx = filter hasTyVars $ map (subst s) supers     -- add the superclasses as extra context (if they have tyvars)
-            where s = zip supVs curTs                        -- substitution to get the supers to use the right types
-                  hasTyVars t = not $ null $ freeTyVars [t]
---        traceM $ "newtypeDer newtyr=" ++ show newtyr ++ ", acls=" ++ show acls ++ ", clsIks=" ++ show clsIks ++
---                 ", supers=" ++ show supers ++ ", xiks=" ++ show xiks ++ ", (iks, iks')=" ++ show (iks, iks') ++
---                 ", clsCon=" ++ show clsCon ++ ", xctx=" ++ show xctx
---        traceM $ "newtypeDer " ++ show (xctx, ctx)
-        pure $ eForall (clsIks ++ iks') $ addConstraints (xctx ++ ctx) cdef
-  -- hdr looks like forall vs . ctx => C t1 ... tn
-  let (_, newtys) = getApp $ dropForallContext hdr
-      mkMethod (mi, amty) = do
-        let (tvs, mty) =
-              case amty of
-                EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
-                _ -> impossiblePP amty
-            qvar t = EQVar t kType
-            nty = subst (zip tvs newtys) mty
-            -- Any leading quantifier in nty (used in the method signature)
-            -- also scopes over vty (used in the method body).
-            -- The substitution above might have changed the bound variables.
-            -- Redo the alpha conversion for vty before substituting in the viaty.
-            vty  = subst (zip tvs (init newtys ++ [viaty])) $ dropForallContext $
-                   case (mty, nty) of
-                     (EForall _ iks' t, EForall _ iks'' _) -> subst alpha t
-                       where alpha = zipWith (\ (IdKind i' _) (IdKind i'' _) -> (i', EVar i'')) iks' iks''
-                     _ -> mty
-            msign = Sign [mi] (qvar nty)
-            qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
-            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg $ qvar vty) qmi]
+        cdefs <- expandTup scdef
+        forM cdefs $ \cdef -> do
+          let qiCls = getAppCon cdef
+              clsQual = qualOf qiCls
+          (ClassInfo _tyvar supers clsCon mits _fundep) <-
+            case M.lookup qiCls ct of
+              Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+              Just x -> return x
+          let
+            -- clsCon is the class constructor type
+            --   forall ... t1 -> t2 -> C v1 ... vn
+            -- extract v1...vn from this
+            supVs = map unEVar $ snd $ getApp $ snd $ getArrows $ dropForallContext clsCon
+              where unEVar (EVar i) = i; unEVar _ = impossible
+            curTs = snd $ getApp cdef   -- extract the actual types in the instance
+            xctx = filter hasTyVars $ map (subst s) supers     -- add the superclasses as extra context (if they have tyvars)
+              where s = zip supVs curTs                        -- substitution to get the supers to use the right types
+                    hasTyVars t = not $ null $ freeTyVars [t]
+--          traceM $ "newtypeDer newtyr=" ++ show newtyr ++ ", acls=" ++ show acls ++ ", clsIks=" ++ show clsIks ++
+--                   ", supers=" ++ show supers ++ ", (iks, iks')=" ++ show (iks, iks') ++
+--                   ", clsCon=" ++ show clsCon ++ ", xctx=" ++ show xctx
+--          traceM $ "newtypeDer " ++ show (xctx, ctx)
+          pure (clsQual, eForall (clsIks ++ iks') $ addConstraints (xctx ++ ctx) cdef, mits)
+  forM chms $ \(clsQual, hdr, mits) -> do
+    -- hdr looks like forall vs . ctx => C t1 ... tn
+    let (_, newtys) = getApp $ dropForallContext hdr
+        mkMethod (mi, amty) = do
+          let (tvs, mty) =
+                case amty of
+                  EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
+                  _ -> impossiblePP amty
+              qvar t = EQVar t kType
+              nty = subst (zip tvs newtys) mty
+              -- Any leading quantifier in nty (used in the method signature)
+              -- also scopes over vty (used in the method body).
+              -- The substitution above might have changed the bound variables.
+              -- Redo the alpha conversion for vty before substituting in the viaty.
+              vty  = subst (zip tvs (init newtys ++ [viaty])) $ dropForallContext $
+                    case (mty, nty) of
+                      (EForall _ iks' t, EForall _ iks'' _) -> subst alpha t
+                        where alpha = zipWith (\ (IdKind i' _) (IdKind i'' _) -> (i', EVar i'')) iks' iks''
+                      _ -> mty
+              msign = Sign [mi] (qvar nty)
+              qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
+              body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg $ qvar vty) qmi]
 --        traceM $ "mkMethod: mi=" ++ show mi ++ "\n  mty=" ++ show mty ++ "\n  tvs=" ++ show tvs ++ "\n  newtys=" ++ show newtys ++ "\n  viaty=" ++ show viaty ++ "\n  nty=" ++ show nty ++ "\n  vty=" ++ show vty
-        unless (length tvs == length newtys) $
-          mhsError "mkMethod: arity"
-        return [msign, body]
+          unless (length tvs == length newtys) $
+            mhsError "mkMethod: arity"
+          return [msign, body]
 --  traceM $ "newtypeDer " ++ show (hdr) -- , newtys, xiks, supers, hdr)
-  body <- concat <$> mapM mkMethod mits
+    body <- concat <$> mapM mkMethod mits
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])
-  return [Instance hdr body []]
+    return (Instance hdr body [])
 
 -- Eta reduce as many of the variables as possible.
 -- E.g. etaReduce [a,b] (T a b) = ([], T)
