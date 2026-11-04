@@ -1,0 +1,11 @@
+nested: ok
+True
+nested again: ok
+trailing slash: ok
+existing: ok
+missing parent: error
+file in the way: error
+file at target: error
+empty: ok
+absolute: ok
+True

@@ -124,5 +124,6 @@ MD5
 Interpolate
 ExtraComma
 InterleaveIO
+CreateDir
 DerivingBuiltin  - - -
 -                itest.ref   -   itest.in   --stdin -q
