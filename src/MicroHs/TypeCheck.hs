@@ -281,7 +281,7 @@ mkTModule tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
-      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
+      [ TypeExport i (tentry i) (assoc i) | Type    (i, _) _   <- tds ]
 
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
@@ -1187,6 +1187,7 @@ addTypeKind kdefs adef = do
 addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
+  ct <- gets classTable
   let
     addAssoc ti is = do
       vt <- gets valueTable
@@ -1195,17 +1196,24 @@ addAssocs adef = do
               Right e -> [ValueExport i e]
               _       -> []  -- fields with existential type have no selector
       addAssocTable (qualIdent mn ti) (concatMap val is)
-
+    
     assocData _ (Constr _ _ c _ (Left _)) = [(c, c)]
     -- Keep the visible field name, but look up its owner-specific getter.
     assocData ti (Constr _ _ c _ (Right its)) =
       (c, c) : [ (f, mkGetName ti f) | (f, _) <- its ]
+    
+    assocSyn c
+      | Just (qiCls, _) <- getAppM c, Just (ClassInfo _ _ _ mits _) <- M.lookup qiCls ct =
+        [ (x, x) | (mi, _) <- mits, x <- [mi, mkDefaultMethodId mi] ]
+      | otherwise = []
+
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
                         -> addAssoc i (nub $ concatMap (assocData i) cs)
     Newtype (i, _) c  _ -> addAssoc i (assocData i c)
     Class _ (i, _) _ ms -> addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    Type    (i, _) t    -> addAssoc i . concatMap assocSyn =<< expandTup t
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table.
