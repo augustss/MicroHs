@@ -41,6 +41,205 @@
 #endif  /* WANT_MATH */
 #if defined(__EMSCRIPTEN__)
 #include "emscripten.h"
+extern int mhs_js_keep_alive;   /* the number of live JavaScript callbacks */
+/* JavaScript values referenced by JSVal handles are only released by the GC
+ * finalizers, so a GC is forced after this many new handles even if the heap
+ * is not full (a large heap could otherwise keep them alive for a long time). */
+#define JSVAL_GC_LIMIT 100000
+extern uvalue_t num_jsval_alloc;
+extern int mhs_js_awaiting;
+int mhs_to_JSVal_node(NODEPTR n);
+/* Wait for the JavaScript Promise p from Haskell: see the interruptible imports
+ * section (mhs_js_settle) further down. */
+EM_JS(void, mhs_js_await, (int p, uvalue_t sp, int kind), {
+  var M = Module.mhsjs, v;
+  try { v = M.getJSVal(p); } catch (e) { v = Promise.reject(e); }
+  M.await(v, sp, kind);
+});
+/* main() runs inside this JavaScript frame (see mhs_main): an exception that unwinds
+ * it, e.g. a wasm trap when the evaluator exceeds the stack, marks the runtime as
+ * stopped, so later callbacks are refused (Module.mhsjs.check) instead of running
+ * on the wreckage.  'unwind' is emscripten_exit_with_live_runtime(): the runtime goes
+ * on in the event loop.  Module.mhsjs exists once MHS_INIT_ARGS has run. */
+EM_JS(int, mhs_js_enter_main, (int argc, char **argv), {
+  try {
+    return _mhs_main_body(argc, argv);
+  } catch (e) {
+    if (e !== "unwind" && Module.mhsjs) Module.mhsjs.stop(e);
+    throw e;
+  }
+});
+EM_JS(char *, mhs_js_exn_cstring, (int k), {
+  var v = Module.mhsjs.getJSVal(k);
+  var s = String(v);
+  /* Some engines (node) include the message in the stack, others (QuickJS) do not. */
+  if (v && v.stack && String(v.stack).indexOf(s) !== 0) s += "\n" + v.stack;
+  else if (v && v.stack) s = String(v.stack);
+  return stringToNewUTF8("JavaScript exception: " + s);
+});
+
+/*
+ * Set up the JavaScript side of JSVal handling, see the JSVal section further down.
+ */
+EM_JS(void, mhs_js_init, (void), {
+  if (Module.mhsjs) return;
+  var M = {
+    lastk: 0,
+    kv: new Map(),
+    /* Handles are positive C ints; wrap around (skipping live handles) after 2^31-1. */
+    newJSVal: function(v) {
+      var k = M.lastk;
+      do { k = k >= 0x7fffffff ? 1 : k + 1; } while (M.kv.has(k));
+      M.lastk = k;
+      M.kv.set(k, v);
+      return k;
+    },
+    getJSVal: function(k) {
+      if (k === 0) return undefined;
+      if (!M.kv.has(k)) throw new Error("mhs: JSVal " + k + " used after being freed");
+      return M.kv.get(k);
+    },
+    /* Explicit free from Haskell: also release a callback's stable pointer. */
+    freeJSVal: function(k) {
+      if (k === 0) return;
+      var v = M.kv.get(k);
+      if (typeof v === "function" && v.mhs_sp) {
+        _mhs_js_free_callback(v.mhs_sp);
+        v.mhs_sp = 0;
+        if (M.registry) M.registry.unregister(v);
+      }
+      M.kv.delete(k);
+    },
+    /* Called by the garbage collector when the Haskell side no longer references the handle. */
+    dropJSVal: function(k) { M.kv.delete(k); },
+    error: undefined,
+    hasError: false,
+    /* Error from an uncaught Haskell exception in a callback, thrown to the JavaScript caller. */
+    callbackError: null,
+    /* Set (to an Error) once the runtime has stopped: after exit() (a fatal runtime
+     * error, or an uncaught exception in main), or after a JavaScript exception
+     * (from an unsafe import) unwound the C stack of a callback.  Both leave the
+     * runtime in an undefined state, but in the browser they do not stop the page
+     * (exit() with a live runtime just throws to the caller), so every later entry
+     * into Haskell is refused with this error instead of running on the wreckage. */
+    dead: null,
+    stop: function(e) {
+      if (M.dead) return;
+      var why = (e && e.name === "ExitStatus") ? "the program has exited with status " + e.status
+              : "an exception unwound the runtime: " + (e && e.message !== undefined ? e.message : String(e));
+      M.died(new Error("mhs: the Haskell runtime has stopped (" + why + ")"));
+    },
+    /* The runtime has stopped: later entries are refused (check), and the timer
+     * armed for a threadDelay (mhs_js_set_timer) is dropped, since it has nothing
+     * to run any more and no caller to throw to. */
+    died: function(err) {
+      M.dead = err;
+      if (M.timer) { clearTimeout(M.timer); M.timer = null; }
+    },
+    /* Called by an unsafe import when its JavaScript code has thrown: the exception
+     * is about to unwind the C stack (fatal), so mark the runtime as stopped first. */
+    fatal: function(e) { M.stop(e); return e; },
+    check: function() {
+      if (M.dead) throw M.dead;
+      if (typeof ABORT !== "undefined" && ABORT) throw new Error("mhs: the Haskell program has been aborted");
+    },
+    /* Enter the runtime (call one of its exports).  A JavaScript exception or an
+     * exit() escaping from it has unwound the C stack: record that the runtime has
+     * stopped.  An ExitStatus is the program ending, not an error for the caller. */
+    enter: function(f) {
+      M.check();
+      try {
+        return f();
+      } catch (e) {
+        M.stop(e);
+        if (e && e.name === "ExitStatus") return undefined;
+        throw e;
+      }
+    },
+    /* Run the runnable Haskell threads from the JavaScript event loop, see mhs_js_run_threads.
+     * Nothing to do once the runtime has stopped: a timer has no caller to throw to. */
+    runThreads: function() { if (!M.dead) M.enter(_mhs_js_run_threads); },
+    /* An interruptible import: when the Promise p settles, store its value (converted
+     * as kind says, see mhs_js_settle) or its error in the MVar behind the stable
+     * pointer sp, and run the thread that waits for it. */
+    await: function(p, sp, kind) {
+      var settle = function(err, v) {
+        if (M.dead) return;     /* the program is over */
+        var i = 0, d = 0;
+        if (err || kind === 0) i = M.newJSVal(v);
+        else if (kind === 3) i = v ? 1 : 0;
+        else if (kind === 4 || kind === 5) d = +v;
+        else if (kind !== 7) i = v | 0;
+        M.enter(function() { _mhs_js_settle(sp, err, kind, i, d); });
+        if (!M.dead) M.runThreads();
+      };
+      Promise.resolve(p).then(function(v) { settle(0, v); }, function(e) { settle(1, e); });
+    },
+    /* Make a JavaScript function that calls the Haskell function referenced by the
+     * stable pointer sp with n JSVal arguments.  If ret is set the Haskell function
+     * returns a JSVal.  A synchronous callback runs immediately, an asynchronous
+     * callback runs later and returns a Promise. */
+    mkCallback: function(sp, n, sync, ret) {
+      var run = function(args) {
+        M.check();
+        /* After freeJSVal the stable pointer is gone, and its slot may already
+         * belong to another callback. */
+        if (!f.mhs_sp)
+          throw new Error("mhs: callback called after being freed");
+        var p = _mhs_js_alloc(4 * (n + 1));
+        for (var i = 0; i < n; i++) HEAP32[(p >> 2) + i] = M.newJSVal(args[i]);
+        var v, r, err = null;
+        M.enter(function() {
+          r = _mhs_js_callback(f.mhs_sp, ret, n, p);
+          /* Take this callback's error before any other Haskell thread runs: those
+           * threads can run other callbacks, which use the same callbackError slot. */
+          err = M.callbackError;
+          M.callbackError = null;
+        });
+        if (M.dead) return v;
+        /* Take the result now too: nothing on the Haskell side references it any more,
+         * so a GC would drop its handle.  An error here (the callback returned a JSVal
+         * it had freed) is the caller's: nothing unwound, the runtime goes on. */
+        if (ret && !err) { try { v = M.getJSVal(r); } catch (e) { err = e; } }
+        _mhs_js_free_mem(p);
+        /* If JavaScript called us from its event loop, run the threads the callback
+         * may have made runnable, or left blocked (does nothing if the threads are
+         * already running, i.e., the callback was called from a JavaScript import). */
+        M.runThreads();
+        if (err)
+          throw err;
+        return v;
+      };
+      var f;
+      if (sync) {
+        f = function() { return run(arguments); };
+      } else {
+        f = function() {
+          var args = arguments;
+          return new Promise(function(resolve, reject) {
+            var go = function() {
+              try { resolve(run(args)); } catch (e) { reject(e); }
+            };
+            /* Run as a microtask, once the caller's JavaScript has returned: setTimeout
+             * would add at least a task of latency (clamped to 4ms when nested, and
+             * throttled in background tabs).  queueMicrotask is not available in all
+             * engines, but promises are. */
+            if (typeof queueMicrotask === "function") queueMicrotask(go);
+            else Promise.resolve().then(go);
+          });
+        };
+      }
+      f.mhs_sp = sp;
+      if (M.registry) M.registry.register(f, sp, f);
+      _mhs_js_keepalive();
+      return M.newJSVal(f);
+    }
+  };
+  M.registry = (typeof FinalizationRegistry !== "undefined") ?
+    new FinalizationRegistry(function(sp) { _mhs_js_free_callback(sp); }) : null;
+  Module.mhsjs = M;
+});
+
 #ifndef EM_ASM_PTR
 #define EM_ASM_PTR(...) (void*)(uintptr_t)EM_ASM_INT(__VA_ARGS__)
 #endif
@@ -565,6 +764,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
+                T_IO_JSAWAIT, T_IO_JSAWAITRES,
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
@@ -750,6 +950,7 @@ enum fptype {
   FP_FORPTR = 0,                /* a regular foreign pointer to unknown memory */
   FP_BSTR,                      /* a bytestring */
   FP_MPZ,                       /* a GMP MPZ pointer */
+  FP_JSVAL,                     /* a JavaScript value (an index into a table on the JavaScript side) */
 };
 
 /*
@@ -1004,6 +1205,7 @@ struct mthread {
                                   * The value cannot be taken from the mvar by the read, because
                                   * we need to guarantee that all reads get the same value. */
   bool            mt_mark;       /* marked as accessible */
+  bool            mt_callback;   /* a JavaScript callback's thread: report an uncaught exception */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if WANT_IO_POLL
   int             mt_fd;         /* The file descriptor that we are waiting on,
@@ -1099,7 +1301,7 @@ free_stableptr(uvalue_t sp)
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
                exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
-               exn_serialize, exn_deserialize, exn_last };
+               exn_serialize, exn_deserialize, exn_jsexception, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -1127,6 +1329,7 @@ NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combB
 NODEPTR combKK, combKA;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combPERFORMIO;
+NODEPTR combTAKEMVAR, combJSAWAITRES;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBININT64_1, combBININT64_2, combUNINT64_1;
@@ -1174,7 +1377,11 @@ handle_sigint(int s)
 INLINE void
 gc_check(size_t k)
 {
-  if (k < num_free)
+  if (k < num_free
+#if defined(__EMSCRIPTEN__)
+      && num_jsval_alloc < JSVAL_GC_LIMIT
+#endif
+      )
     return;
   gc();
 }
@@ -1379,6 +1586,13 @@ check_pollq(int timeout)
 #endif  /* WANT_IO_POLL */
 }
 
+/* Non-zero while a JavaScript callback runs Haskell (see run_callback).  Nothing
+ * may block there: the calling thread's C stack has been discarded, so there is
+ * nothing to return to.  throwTo therefore does not wait for delivery. */
+int in_js_callback = 0;
+/* The slice of a callback: it is not preempted, see run_callback(). */
+#define CALLBACK_SLICE 1000000000
+
 /* Wake every thread that is blocked in throwTo waiting for mt to take its
  * exception.  Called when mt takes one, and when mt finishes or dies. */
 void
@@ -1453,6 +1667,13 @@ throwto(struct mthread *mt, NODEPTR exn)
     printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
   }
 #endif  /* THREAD_DEBUG */
+  if (in_js_callback) {
+    /* A callback must not block, so the exception is delivered asynchronously.  If the
+     * target already has one pending, a new thread waits to hand this one over. */
+    if (!put_mvar(true, mt->mt_exn, exn))
+      async_throwto(mt, exn);
+    return;
+  }
   (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
   /* GHC's throwTo does not return until the exception has been raised in the
    * target thread, so wait for the target to take it.  Without this the target
@@ -1565,6 +1786,11 @@ yield(void)
   }
 
 // printf("yield %p %d\n", runq, (int)stack_ptr);
+  if (in_js_callback) {         /* a callback runs to completion: nothing to switch to */
+    glob_slice = CALLBACK_SLICE;
+    num_reductions += glob_slice-1;
+    return;
+  }
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
 #if THREAD_DEBUG
@@ -1609,6 +1835,7 @@ new_thread(NODEPTR root)
   mt->mt_mval = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = false;
+  mt->mt_callback = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
 #if WANT_IO_POLL
@@ -1860,6 +2087,21 @@ thread_delay(uvalue_t usecs)
 #endif
 }
 
+#if defined(__EMSCRIPTEN__) && defined(CLOCK_INIT)
+/* A delay in microseconds as whole milliseconds for a JavaScript timer: rounded up,
+ * so the timer does not fire before the delay has expired, and at most 2^31-1, the
+ * largest delay setTimeout accepts (it fires at once for a larger one). */
+static int
+delay_ms(CLOCK_T dly)
+{
+  if (dly <= 0)
+    return 0;
+  if (dly / 1000 >= 0x7fffffff)
+    return 0x7fffffff;
+  return (int)((dly + 999) / 1000);
+}
+#endif  /* __EMSCRIPTEN__ && CLOCK_INIT */
+
 /* Pause execution if something might still happen */
 void
 pause_exec(void)
@@ -1871,6 +2113,8 @@ pause_exec(void)
  * that case we check for them as well. If there is no thread waiting for a delay or an
  * IO event, we are deadlocked.
  */
+  /* Under emscripten this is only reached when nothing can wake us up from the
+   * JavaScript event loop (no callbacks and no timer), see run_threads(). */
 #if WANT_IO_POLL
   /* Check for deadlock situation */
   if (!pollq.mq_head
@@ -2226,6 +2470,93 @@ NODEPTR evali(NODEPTR n);
 /* If this is non-0 it means that the threading system is active. */
 struct mthread *main_thread = 0;
 
+static void run_threads(void);
+#if defined(__EMSCRIPTEN__)
+static void report_callback_exn(NODEPTR exn);
+static NODEPTR run_callback(char **msgp, int may_block);
+#endif
+
+/* Set when the main thread has finished (the other threads may keep running
+ * under emscripten, when JavaScript callbacks keep the program alive). */
+static int main_finished = 0;
+static void main_finish(void);
+
+#if defined(__EMSCRIPTEN__)
+/* Set when main has started (mhs_main), as opposed to a program without main
+ * whose foreign exports are called by JavaScript. */
+static int main_started = 0;
+
+/* Can something on the JavaScript side still wake up a blocked thread: a callback
+ * (until it is freed), a Promise being awaited, a timer for a threadDelay, or a
+ * file descriptor being polled? */
+static int
+js_can_wake(void)
+{
+  return mhs_js_keep_alive || mhs_js_awaiting || timeq.mq_head
+#if WANT_IO_POLL
+    || pollq.mq_head
+#endif
+    ;
+}
+
+EM_JS(void, mhs_js_set_timer, (int ms), {
+  if (typeof setTimeout !== "function") return;
+  if (Module.mhsjs.timer) clearTimeout(Module.mhsjs.timer);
+  Module.mhsjs.timer = setTimeout(function() { Module.mhsjs.timer = null; Module.mhsjs.runThreads(); }, ms);
+});
+
+/* Registered with atexit(): exit() does not end the program when the runtime is kept
+ * alive for callbacks (it throws to the JavaScript caller), so record that the
+ * runtime has stopped; later callbacks are then refused (Module.mhsjs.check). */
+EM_JS(void, mhs_js_exited, (void), {
+  var M = Module.mhsjs;
+  if (M && !M.dead) M.died(new Error("mhs: the Haskell runtime has stopped (the program has exited)"));
+});
+
+/* Arrange for mhs_js_run_threads() to be called from a JavaScript timer when
+ * the earliest threadDelay expires (or soon, to poll file descriptors). */
+static void
+arm_timer(void)
+{
+  int ms = -1;
+  if (timeq.mq_head)
+    ms = delay_ms(timeq.mq_head->mt_at - CLOCK_GET());
+#if WANT_IO_POLL
+  if (pollq.mq_head && (ms < 0 || ms > 10))
+    ms = 10;
+#endif
+  if (ms >= 0)
+    mhs_js_set_timer(ms);
+}
+
+/* Called from JavaScript (a timer, after a callback, or when a Promise has settled)
+ * to run the threads that are runnable, or whose delay has expired.  Returns when
+ * they are all blocked again (with a timer armed if needed), or when the program
+ * is over. */
+EMSCRIPTEN_KEEPALIVE void
+mhs_js_run_threads(void)
+{
+  if (main_thread)              /* the threads are already running: we were called from
+                                 * a callback nested in a JavaScript import */
+    return;
+  check_timeq();
+#if WANT_IO_POLL
+  if (pollq.mq_head)
+    check_pollq(0);
+#endif
+  if (!runq.mq_head) {
+    if (!main_finished && !js_can_wake())
+      pause_exec();             /* nothing can wake the threads: reports the deadlock */
+    arm_timer();
+    return;
+  }
+  main_thread = runq.mq_head;   /* mark the threading system as active */
+  run_threads();
+  if (main_finished)
+    main_finish();              /* once; exits, unless callbacks keep the program alive */
+}
+#endif  /* __EMSCRIPTEN__ */
+
 void
 start_exec(NODEPTR root)
 {
@@ -2234,6 +2565,14 @@ start_exec(NODEPTR root)
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
+  run_threads();
+}
+
+/* Run threads until the main thread is done. */
+static void
+run_threads(void)
+{
+  struct mthread *mt;
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -2250,6 +2589,10 @@ start_exec(NODEPTR root)
       ERR("FATAL: exception while trying to die");
       EXIT(1);
     }
+#if defined(__EMSCRIPTEN__)
+    if (runq.mq_head->mt_callback && runq.mq_head->mt_id != MAIN_THREAD)
+      report_callback_exn(the_exn); /* the callback had been left blocked: no JavaScript caller */
+#endif
     mt = remove_q_head(&runq);
     if (mt->mt_id == MAIN_THREAD) {
       die_exn(the_exn);
@@ -2271,8 +2614,34 @@ start_exec(NODEPTR root)
   }
 #endif  /* THREAD_DEBUG */
   for(;;) {
-    if (!runq.mq_head)
+    if (!runq.mq_head) {
+#if defined(__EMSCRIPTEN__)
+      /* All threads are blocked.  If something on the JavaScript side can wake one
+       * up (a callback, a timer for a threadDelay, or a settling Promise), return
+       * to the JavaScript event loop; mhs_js_run_threads() continues them later.
+       * A blocked thread keeps its state in the heap (see cleanup()), so this also
+       * works while the main thread is blocked: main() then does not exit. */
+      check_timeq();
+      if (runq.mq_head)
+        continue;
+#if WANT_IO_POLL
+      if (pollq.mq_head) {
+        check_pollq(0);
+        if (runq.mq_head)
+          continue;
+      }
+#endif  /* WANT_IO_POLL */
+      if (js_can_wake()) {
+        /* Flush standard handles in case there is some BFILE buffering */
+        flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
+        flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
+        arm_timer();
+        main_thread = 0;
+        return;
+      }
+#endif  /* __EMSCRIPTEN__ */
       pause_exec();
+    }
     mt = runq.mq_head;          /* front thread */
     if (!mt)                    /* this should never happen */
       ERR("no threads");
@@ -2299,12 +2668,20 @@ start_exec(NODEPTR root)
     /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD) {
-      main_thread = 0;
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("start_exec: main thread done\n");
       }
 #endif  /* THREAD_DEBUG */
+      main_finished = 1;
+#if defined(__EMSCRIPTEN__)
+      if (mhs_js_keep_alive) {
+        /* JavaScript callbacks exist, so the program is not over: keep running
+         * the other threads. */
+        continue;
+      }
+#endif  /* __EMSCRIPTEN__ */
+      main_thread = 0;
       return;                   /* when the main thread dies it's all over */
     }
   }
@@ -2558,6 +2935,8 @@ struct {
   { "IO.yield", T_IO_YIELD },
   { "IO.newmvar", T_IO_NEWMVAR },
   { "IO.takemvar", T_IO_TAKEMVAR },
+  { "IO.jsawait", T_IO_JSAWAIT },
+  { "IO.jsawaitres", T_IO_JSAWAITRES },
   { "IO.putmvar", T_IO_PUTMVAR },
   { "IO.readmvar", T_IO_READMVAR },
   { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
@@ -2760,6 +3139,8 @@ init_nodes(void)
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
     case T_IO_PERFORMIO: combPERFORMIO = n; break;
+    case T_IO_TAKEMVAR: combTAKEMVAR = n; break;
+    case T_IO_JSAWAITRES: combJSAWAITRES = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -3410,6 +3791,9 @@ gc(void)
   sweep_weaks();
 
   gc_mark_time += GETTIMEMILLI();
+#if defined(__EMSCRIPTEN__)
+  num_jsval_alloc = 0;
+#endif
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
@@ -4686,6 +5070,8 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       } else {
         print_string(f, bs);
       }
+    } else if (FORPTR(n)->finalizer->fptype == FP_JSVAL) {
+      ERR("cannot serialize JSVal");
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
       putsb(prbuf, f);
@@ -5750,6 +6136,8 @@ evali(NODEPTR an)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
 #define SETBSTR(n,r)   do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
+/* Is n a JSVal?  A JavaScript exception is raised as the JSVal node itself. */
+#define ISJSVAL(n)     (GETTAG(n) == T_FORPTR && FORPTR(n)->finalizer->fptype == FP_JSVAL)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -6208,7 +6596,8 @@ evali(NODEPTR an)
     x = evali(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : -1);
+    /* An RTS exception is an Int, or a JSVal for exn_jsexception, see rtsExn. */
+    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : ISJSVAL(x) ? exn_jsexception : -1);
     RET;
 
   case T_BSAPPEND:
@@ -7031,6 +7420,39 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(res);
     }
+  case T_IO_JSAWAIT:
+    /* jsawait kind promise :: IO r
+     * Wait for a JavaScript Promise (an interruptible import, see mhs_js_await):
+     *   jsawait kind promise  -->  takeMVar mv >>= jsawaitres
+     * where the JavaScript side fills mv when the Promise settles. */
+    {
+#if defined(__EMSCRIPTEN__)
+      CHKARG2;                  /* x = kind, y = promise */
+      int kind = (int)evalint(x);
+      int prom = mhs_to_JSVal_node(y);
+      GCCHECK(4);
+      struct mvar *mv = new_mvar();
+      NODEPTR mvn = alloc_node(T_MVAR);
+      MVAR(mvn) = mv;
+      mhs_js_await(prom, new_stableptr(mvn), kind);
+      mhs_js_awaiting++;
+      GOAP2(combIOBIND, new_ap(combTAKEMVAR, mvn), combJSAWAITRES);
+#else
+      ERR("jsawait: JavaScript imports need the emscripten target");
+#endif
+    }
+  case T_IO_JSAWAITRES:
+    /* jsawaitres (err, value) :: IO r -- see mhs_js_settle */
+    {
+      CHKARG2NP;                /* x = the pair, y = world */
+      x = evali(x);
+      NODEPTR val = ARG(x);
+      if (GETVALUE(ARG(FUN(x))))
+        raise_exn(val);         /* a JSException with the error */
+      GCCHECKSAVE(val, 1);
+      POP(2);
+      GOPAIR(val);
+    }
   case T_IO_PUTMVAR:
     {
       CHKARG3NP;             /* set x=mvar, y=value, z=ST */
@@ -7681,7 +8103,32 @@ evali(NODEPTR an)
 
 static char *progname = "?";
 
-NORETURN void
+/* The message of an RTS generated exception. */
+static const char *
+rts_exn_msg(enum rts_exn eexn)
+{
+  static const char *msgs[] =
+    { "stack overflow",
+      "heap overflow",
+      "thread killed",
+      "user interrupt",
+      "DivideByZero",
+      "blocked MVar",
+      "blocked STM",
+      "arithmetic overflow",
+      "Serialize",
+      "Deserialize",
+      "JSException",
+    };
+  if (eexn < 0 || eexn >= exn_last)
+    return "unknown";
+  return msgs[eexn];
+}
+
+NORETURN static void die_msg(const char *msg);
+
+NORETURN
+void
 die_exn(NODEPTR exn)
 {
   /* No handler:
@@ -7696,24 +8143,12 @@ die_exn(NODEPTR exn)
 
   if (GETTAG(exn) == T_INT) {
     /* This is the special hack for RTS generated exception, represented by a T_INT */
-    enum rts_exn eexn = GETVALUE(exn);
-    static const char *msgs[] =
-      { "stack overflow",
-        "heap overflow",
-        "thread killed",
-        "user interrupt",
-        "DivideByZero",
-        "blocked MVar",
-        "blocked STM",
-        "arithmetic overflow",
-        "Serialize",
-        "Deserialize",
-      };
-    if (eexn < 0 || eexn >= exn_last) {
-      msg = "unknown";
-    } else {
-      msg = msgs[eexn];
-    }
+    msg = rts_exn_msg(GETVALUE(exn));
+#if defined(__EMSCRIPTEN__)
+  } else if (ISJSVAL(exn)) {
+    /* A JavaScript exception, raised as the JSVal itself */
+    msg = mhs_js_exn_cstring((int)(intptr_t)FORPTR(exn)->payload.bs_array);
+#endif
   } else {
     /* just overwrite the top stack element, we don't need it */
     CLEARSTK();
@@ -7723,6 +8158,14 @@ die_exn(NODEPTR exn)
     msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
+  die_msg(msg);
+}
+
+/* End the program because of an uncaught exception, with message msg. */
+NORETURN
+static void
+die_msg(const char *msg)
+{
 #if WANT_STDIO
   /* A horrible hack until we get proper exceptions */
   if (strcmp(msg, "ExitSuccess") == 0) {
@@ -7757,6 +8200,15 @@ memsize(const char *p)
 
 extern const uint8_t *combexpr;
 extern const int combexprlen;
+
+/*
+ * A combinator program supplied at run time, instead of the one compiled
+ * in (combexpr): the browser runtime (target browser_rts) fetches it, and
+ * passes it to mhs_run_web.  A runtime built once can then run any program
+ * whose foreign imports are in its FFI table, without compiling C again.
+ */
+static const uint8_t *run_comb = 0;
+static int run_comblen = 0;
 
 #if WANT_TICK
 int dump_ticks = 0;
@@ -7868,6 +8320,10 @@ MHS_INIT_ARGS(
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
   init_stableptr();
+#if defined(__EMSCRIPTEN__)
+  mhs_js_init();
+  atexit(mhs_js_exited);
+#endif
 
   num_reductions = 0;
 
@@ -7893,7 +8349,13 @@ MHS_INIT_ARGS(
   {
     /* Read the combinator code. */
     BFILE *bf;
-    if (combexpr) {
+    if (run_comb) {
+      /* A program supplied at run time (mhs_run_web) */
+      bf = openb_rd_mem(run_comb, run_comblen);
+#if WANT_STDIO
+      *file_sizep = run_comblen;
+#endif
+    } else if (combexpr) {
       /* The code is in memory, create a memore buffer BFILE */
       bf = openb_rd_mem(combexpr, combexprlen);
 #if WANT_STDIO
@@ -7960,21 +8422,28 @@ mhs_init(void)
   (void)MHS_INIT_ARGS(1, args, &outname, &file_size);
 }
 
+static size_t main_file_size = 0;
+#if WANT_STDIO
+static heapoffs_t main_start_size;
+#endif
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
 int
-mhs_main(int argc, char **argv)
+mhs_main_body(int argc, char **argv)
 {
   NODEPTR prog;
   char *outname = 0;
   size_t file_size = 0;
-#if WANT_KPERF
-  counter_t instrs;
-#endif  /* WANT_KPERF */
   boot_time = GETTIMEMICRO();
 
   prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
+  main_file_size = file_size;
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
+  main_start_size = start_size;
   if (outname) {
     /* Save GCed file (smaller), and exit. */
     FILE *out = fopen(outname, "wb");
@@ -8002,7 +8471,56 @@ mhs_main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_KPERF */
+#if defined(__EMSCRIPTEN__)
+  main_started = 1;
+#endif
   start_exec(prog);
+#if defined(__EMSCRIPTEN__)
+  if (!main_finished) {
+    /* The main thread is blocked, waiting for a JavaScript callback, a timer or
+     * a Promise: return to the JavaScript event loop, which resumes the threads
+     * with mhs_js_run_threads(); that also finishes the program. */
+    emscripten_exit_with_live_runtime();
+  }
+#endif
+  main_finish();
+#if defined(__EMSCRIPTEN__)
+  /* JavaScript callbacks keep the program alive after main has finished. */
+  emscripten_exit_with_live_runtime();
+#endif
+  return 0;
+}
+
+int
+mhs_main(int argc, char **argv)
+{
+#if defined(__EMSCRIPTEN__)
+  return mhs_js_enter_main(argc, argv); /* records a trap that unwinds main */
+#else
+  return mhs_main_body(argc, argv);
+#endif
+}
+
+/* The end of the program: flush, run the finalizers, print the statistics,
+ * and exit.  Under emscripten this can also run from mhs_js_run_threads(),
+ * when the main thread finishes after main() has returned to the JavaScript
+ * event loop, and it returns instead of exiting when JavaScript callbacks
+ * keep the program alive. */
+static void
+main_finish(void)
+{
+  static int done = 0;
+  size_t file_size = main_file_size;
+  if (done)                     /* already finished (callbacks keep the program alive) */
+    return;
+  done = 1;
+#if WANT_KPERF
+  counter_t instrs;
+#endif  /* WANT_KPERF */
+#if WANT_STDIO
+  heapoffs_t start_size = main_start_size;
+#endif
+  (void)file_size;
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
@@ -8075,6 +8593,13 @@ mhs_main(int argc, char **argv)
 #ifdef TEARDOWN
   main_teardown(); /* do some platform specific teardown */
 #endif
+#if defined(__EMSCRIPTEN__)
+  if (mhs_js_keep_alive) {
+    /* JavaScript callbacks into Haskell have been created, so the program is not
+     * over: the caller keeps the runtime alive. */
+    return;
+  }
+#endif
   EXIT(0);
 }
 
@@ -8128,6 +8653,27 @@ ffe_eval(void)
   if (main_thread) {
     /* threading active, run on current stack */
     (void)evali(TOP(0));
+#if defined(__EMSCRIPTEN__)
+  } else if (main_started) {
+    /* JavaScript calls the export while the threads wait in the JavaScript event
+     * loop (main is blocked, or has finished while callbacks keep the program alive).
+     * Run it like a callback, as a thread of its own: as the main thread (start_exec)
+     * it would end the program when it finishes, and if it blocked, start_exec would
+     * return before it is done.  So, like a callback that returns a value, it must not
+     * block.  run_callback() runs an IO action. */
+    char *msg;
+    NODEPTR x;
+    GCCHECK(1);
+    x = TOP(0);
+    if (GETTAG(x) == T_AP && FUN(x) == combPERFORMIO)
+      TOP(0) = ARG(x);                      /* ffe_exec(): the IO action */
+    else
+      TOP(0) = new_ap(combIORETURN, x);     /* a value */
+    if (run_callback(&msg, 0) != NIL)
+      die_msg(msg);             /* as for the main thread, which an export used to be */
+    if (runq.mq_head)
+      mhs_js_set_timer(0);      /* run the threads it made runnable */
+#endif  /* __EMSCRIPTEN__ */
   } else {
     /* start up the threading to evaluate the node */
     start_exec(TOP(0));
@@ -8261,6 +8807,405 @@ MHS_TO(mhs_to_CTime, evalint, time_t);
 MHS_TO(mhs_to_CIntPtr, evalint, intptr_t);
 MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
+/* Pass an arbitrary (unevaluated) Haskell value to C as a stable pointer.
+ * Used for callbacks, the C side is responsible for freeing it. */
+uvalue_t
+mhs_to_HsStablePtr(stackptr_t stk, int n)
+{
+  return new_stableptr(ARG(TOP(n+1)));
+}
+
+#if defined(__EMSCRIPTEN__)
+/*
+ * JavaScript values (JSVal).
+ *
+ * A JSVal is represented by an integer handle into a table on the JavaScript
+ * side (Module.mhsjs), since only numbers can be passed between C and JavaScript.
+ * On the Haskell side the handle lives in a T_FORPTR node with a finalizer
+ * that drops the table entry when the node is garbage collected.
+ * Handle 0 means 'undefined'.
+ *
+ * The JavaScript side also
+ *  - creates JavaScript functions that call back into Haskell via a stable pointer.
+ * The code of a 'foreign import javascript' is an EM_JS function generated by
+ * the compiler (MicroHs.FFI), which uses the table through Module.mhsjs.
+ */
+int mhs_js_keep_alive = 0;
+int mhs_js_awaiting = 0;        /* threads waiting for a Promise (IO.jsawait), which will wake them */
+uvalue_t num_jsval_alloc = 0;   /* JSVal handles created since the last GC */
+
+EM_JS(void, mhs_js_drop, (int k), { Module.mhsjs.dropJSVal(k); });
+
+static void
+mhs_jsval_finalizer(void *arg)
+{
+  mhs_js_drop((int)(intptr_t)arg);
+}
+
+/* The foreign pointer of a new JSVal node for handle k. */
+static struct forptr *
+mk_jsval_forptr(int k)
+{
+  num_jsval_alloc++;
+  struct forptr *fp = mkForPtrP((void *)(intptr_t)k);
+  fp->finalizer->final = (HsFunPtr)mhs_jsval_finalizer;
+  fp->finalizer->fptype = FP_JSVAL;
+  return fp;
+}
+
+from_t
+mhs_from_JSVal(stackptr_t stk, int n, int k)
+{
+  SETFORPTR(TOP(0), mk_jsval_forptr(k));
+  return n;
+}
+
+int
+mhs_to_JSVal(stackptr_t stk, int n)
+{
+  struct forptr *fp = evalforptr(ARG(TOP(n+1)));
+  return (int)(intptr_t)fp->payload.bs_array;
+}
+
+/* The handle of a JSVal node. */
+int
+mhs_to_JSVal_node(NODEPTR n)
+{
+  struct forptr *fp = evalforptr(n);
+  return (int)(intptr_t)fp->payload.bs_array;
+}
+
+/* Raise the JavaScript value with handle k (from a 'safe' or 'interruptible' import)
+ * as a Haskell exception.  The exception is the JSVal node itself: primIsInt reports it
+ * as exn_jsexception, and rtsExn (Control.Exception.Internal) wraps it in a JSException.
+ * So the value travels with the exception, and the GC frees it with the exception. */
+static NORETURN void
+mhs_js_raise(int k)
+{
+  GCCHECK(1);
+  NODEPTR n = alloc_node(T_FORPTR);
+  SETFORPTR(n, mk_jsval_forptr(k));
+  raise_exn(n);
+}
+
+EM_JS(int, mhs_js_take_error, (void), {
+  var M = Module.mhsjs;
+  if (!M.hasError) return 0;
+  M.hasError = false;
+  var k = M.newJSVal(M.error);
+  M.error = undefined;
+  return k;
+});
+
+void
+mhs_js_check_error(void)
+{
+  int k = mhs_js_take_error();
+  if (k)
+    mhs_js_raise(k);
+}
+
+/* The two runtime functions the library calls through ordinary foreign imports
+ * (so their stubs are generated like any other import; the JSVal is passed as the
+ * payload of its foreign pointer, i.e. the handle, see Control.Exception.Internal):
+ *   js_exn_string :: Ptr () -> IO CString   the description of a JavaScript exception,
+ *                                           malloc()ed, UTF-8
+ *   js_free_jsval :: Ptr () -> IO ()        drop the handle (GHC.Wasm.Prim.freeJSVal)
+ * Prototypes in mhsffi.h. */
+void *
+js_exn_string(void *k)
+{
+  return mhs_js_exn_cstring((int)(intptr_t)k);
+}
+
+void
+js_free_jsval(void *k)
+{
+  EM_ASM({ Module.mhsjs.freeJSVal($0) }, (int)(intptr_t)k);
+}
+
+/* Entry points used from JavaScript. */
+EMSCRIPTEN_KEEPALIVE void *mhs_js_alloc(int n) { return mmalloc(n); }
+
+/*
+ * Run the combinator program comb[0..len-1] (the browser runtime fetches it,
+ * see src/runtime/web/rts-web.js) instead of the compiled in one.  Returns
+ * like mhs_main: when the program finishes, or keeps running on callbacks.
+ */
+EMSCRIPTEN_KEEPALIVE int
+mhs_run_web(const uint8_t *comb, int len)
+{
+  static char *argv[] = { "app", 0 };
+  run_comb = comb;
+  run_comblen = len;
+  return mhs_main(1, argv);
+}
+EMSCRIPTEN_KEEPALIVE void mhs_js_free_mem(void *p) { FREE(p); }
+EMSCRIPTEN_KEEPALIVE void mhs_js_keepalive(void) { mhs_js_keep_alive++; }
+
+/* A callback has been freed (freeJSVal), or collected by the JavaScript GC. */
+EMSCRIPTEN_KEEPALIVE void
+mhs_js_free_callback(uvalue_t sp)
+{
+  free_stableptr(sp);
+  if (mhs_js_keep_alive > 0)
+    mhs_js_keep_alive--;
+  /* If that was the last one while the threads wait in the JavaScript event loop,
+   * nothing may be able to wake them any more: let mhs_js_run_threads() check. */
+  if (!mhs_js_keep_alive && main_started && !main_thread && !main_finished)
+    mhs_js_set_timer(0);
+}
+
+EM_JS(void, mhs_js_set_callback_error, (const char *msg), {
+  Module.mhsjs.callbackError = new Error(UTF8ToString(msg));
+});
+
+/*
+ * Interruptible imports: foreign import javascript interruptible "code" f :: ... -> IO r
+ * The import itself returns the Promise of its (async) JavaScript code as a JSVal, and
+ * the compiler wraps it so that the thread then waits with the IO.jsawait primitive
+ * (see MicroHs.Desugar.jsAwait): that creates an MVar, asks the JavaScript side to
+ * fill it when the Promise settles (Module.mhsjs.await -> mhs_js_settle), and takes
+ * the MVar.  So only the calling thread waits, the others keep running, and no
+ * C stack needs to be kept (ASYNCIFY is not needed).
+ */
+
+/* The Promise awaited by the thread that owns the MVar behind sp has settled: put
+ * (err, value) into the MVar, which wakes the thread (IO.jsawaitres then returns the
+ * value or raises the error).  The kinds match jsAwaitKind in MicroHs.Desugar. */
+EMSCRIPTEN_KEEPALIVE void
+mhs_js_settle(uvalue_t sp, int err, int kind, int i, double d)
+{
+  GCCHECK(8);
+  NODEPTR mvn = deref_stableptr(sp);
+  free_stableptr(sp);
+  mhs_js_awaiting--;
+  NODEPTR v;
+  if (err)
+    kind = 0;
+  switch (kind) {
+  case 0: v = alloc_node(T_FORPTR); SETFORPTR(v, mk_jsval_forptr(i)); break; /* JSVal */
+  case 1: case 2: v = mkInt(i); break;                                     /* Int, Word */
+  case 3: v = i ? combTrue : combFalse; break;                             /* Bool */
+  case 4: v = mkFlt64(d); break;                                           /* Double */
+  case 5: v = mkFlt32((flt32_t)d); break;                                  /* Float */
+  case 6: v = mkPtr((void *)(intptr_t)i); break;                           /* Ptr */
+  default: v = combUnit; break;                                            /* () */
+  }
+  NODEPTR r = new_ap(new_ap(combPair, mkInt(err)), v);
+  (void)put_mvar(true, MVAR(mvn), r); /* the MVar is empty: only this fills it */
+}
+
+/* Convert an exception to a C string (malloc()ed), as die_exn() does, but
+ * without disturbing the stack. */
+static char *
+exn_cstring(NODEPTR exn)
+{
+  if (GETTAG(exn) == T_INT) {
+    return strdup(rts_exn_msg(GETVALUE(exn)));
+  } else if (ISJSVAL(exn)) {
+    return mhs_js_exn_cstring((int)(intptr_t)FORPTR(exn)->payload.bs_array); /* malloc()ed */
+  } else {
+    GCCHECK(1);
+    PUSH(new_ap(combShowExn, exn));
+    NODEPTR x = evali(TOP(0));
+    char *msg = evalstring(x).bs_array; /* malloc()ed */
+    POP(1);
+    return msg;
+  }
+}
+
+/* A callback thread that had been left blocked died of an uncaught exception: there
+ * is no JavaScript caller to throw it to any more, so report it like an uncaught
+ * exception in a forkIO thread. */
+static void
+report_callback_exn(NODEPTR exn)
+{
+  /* Show the exception with the dying thread still current, as run_callback does. */
+  jmp_buf saved_sched;
+  struct handler *saved_handler = cur_handler;
+  int saved_slice = glob_slice;
+  stackptr_t saved_sp = stack_ptr;
+  char *msg;
+
+  memcpy(&saved_sched, &sched, sizeof(jmp_buf));
+  cur_handler = 0;
+  glob_slice = 1000000000;
+  PUSH(exn);                    /* keep it alive */
+  if (setjmp(sched) == mt_main)
+    msg = exn_cstring(exn);
+  else
+    msg = strdup("uncaught exception (and showing it raised an exception)");
+  stack_ptr = saved_sp;
+  glob_slice = saved_slice;
+  cur_handler = saved_handler;
+  memcpy(&sched, &saved_sched, sizeof(jmp_buf));
+#if WANT_STDIO
+  fprintf(stderr, "Uncaught exception in a JavaScript callback: %s\n", msg);
+#endif
+  FREE(msg);
+}
+
+/* Run the IO action at TOP(0) as a thread of its own, and leave its result at TOP(0),
+ * with the scheduler in whatever state it is in:
+ *  - idle (all threads are blocked, or main has finished, and JavaScript called us
+ *    from the event loop),
+ *  - or in the middle of a thread that called JavaScript (a synchronous callback
+ *    invoked by the JavaScript code of an import).
+ * The thread runs first and without preemption.  If it blocks (e.g. takeMVar, or
+ * an interruptible import) while the scheduler is idle and may_block is set, it
+ * is left blocked like any other thread (the JavaScript side runs the threads
+ * after the callback returns) and the result is unit; blocking while a thread is
+ * in the middle of an import is fatal, since that thread's C stack is in the way.
+ * Returns NIL, or the exception if the thread died with an uncaught exception
+ * (then *msgp is its message, malloc()ed).
+ */
+static NODEPTR
+run_callback(char **msgp, int may_block)
+{
+  struct mthread *outer = runq.mq_head;   /* the thread that called JavaScript, if any */
+  struct mthread *ct;
+  struct mthread *saved_main = main_thread;
+  struct handler *saved_handler = cur_handler;
+  int saved_slice = glob_slice;
+  stackptr_t saved_sp = stack_ptr;
+  jmp_buf saved_sched;
+  NODEPTR exn = NIL;
+
+  *msgp = 0;
+  memcpy(&saved_sched, &sched, sizeof(jmp_buf));
+  GCCHECK(4);
+  /* The root is what performIO builds: ((action World) K), so that evaluating it
+   * performs the action and yields its result. */
+  ct = new_thread(new_ap(new_ap(TOP(0), combWorld), combK)); /* added to the tail of the runq */
+  ct->mt_callback = true;
+  /* Move it to the head, so it runs first */
+  if (runq.mq_head != ct) {
+    struct mthread *p = runq.mq_head;
+    while (p->mt_queue != ct)
+      p = p->mt_queue;
+    p->mt_queue = 0;
+    runq.mq_tail = p;
+    ct->mt_queue = runq.mq_head;
+    runq.mq_head = ct;
+  }
+  if (!main_thread)
+    main_thread = ct;           /* the threading system is now active */
+  cur_handler = 0;              /* the callback starts without exception handlers */
+  glob_slice = CALLBACK_SLICE;  /* no preemption: other threads must not run now */
+  num_reductions += glob_slice-1;
+  in_js_callback++;             /* see throwto() and yield() */
+
+  switch (setjmp(sched)) {
+  case mt_main:
+    TOP(0) = evali(ct->mt_root); /* run it, and keep the result */
+    (void)remove_q_head(&runq);
+    ct->mt_state = ts_finished;
+    ct->mt_root = NIL;
+    release_throwto(ct);
+    break;
+  case mt_resched:
+    /* The callback blocked (e.g., takeMVar on an empty MVar).  cleanup() has taken
+     * it off the run queue (it is in a wait queue) and cleared the stack. */
+    if (may_block && !saved_main) {
+      /* The scheduler was idle, so the thread can wait like any other thread; the
+       * JavaScript side runs the threads after the callback returns.  Restore the
+       * stack of mhs_js_callback. */
+      stack_ptr = saved_sp;
+      break;
+    }
+    /* We cannot run other threads while JavaScript waits for the result of the
+     * callback, or while a thread that called JavaScript is on the C stack. */
+    ERR("a JavaScript callback into Haskell blocked (a callback that returns a value, or is called from a JavaScript import, and a foreign export called from JavaScript, must not block)");
+    break;
+  case mt_raise:
+    /* Uncaught exception in the callback; ct is still at the head of the runq */
+    stack_ptr = saved_sp;       /* discard what the callback left on the stack */
+    exn = the_exn;
+    PUSH(exn);                  /* keep it alive */
+    /* Convert it to a string, with ct as the current thread (show may use catch). */
+    if (setjmp(sched) == mt_main) {
+      *msgp = exn_cstring(exn);
+    } else {
+      *msgp = strdup("uncaught exception (and showing it raised an exception)");
+    }
+    /* Not POP(1): if show raised, we got back here with its stack still on top. */
+    stack_ptr = saved_sp;
+    if (runq.mq_head == ct)
+      (void)remove_q_head(&runq);
+    ct->mt_state = ts_died;
+    ct->mt_root = NIL;
+    release_throwto(ct);
+    cur_handler = 0;
+    break;
+  }
+
+  in_js_callback--;
+  num_reductions -= glob_slice;
+  memcpy(&sched, &saved_sched, sizeof(jmp_buf));
+  glob_slice = saved_slice;
+  cur_handler = saved_handler;
+  main_thread = saved_main;
+  (void)outer;
+  return exn;
+}
+
+/* Call the Haskell function referenced by the stable pointer sp with nargs JSVal
+ * arguments (handles in args).  If ret is set, return the handle of the resulting JSVal.
+ * The Haskell function must have type JSVal -> ... -> JSVal -> IO () (or IO JSVal).
+ * An uncaught Haskell exception becomes a JavaScript Error thrown to the caller. */
+EMSCRIPTEN_KEEPALIVE int
+mhs_js_callback(uvalue_t sp, int ret, int nargs, int *args)
+{
+  int r = 0;
+  char *msg;
+  gc_check(2 * nargs + 8);
+  ffe_push(deref_stableptr(sp));
+  for (int i = 0; i < nargs; i++) {
+    mhs_from_JSVal(ffe_alloc(), 0, args[i]);
+    ffe_apply();
+  }
+  /* As ffe_exec(), but run as a thread; run_callback leaves the result at TOP(0)
+   * (a callback that returns a value cannot be left blocked) */
+  NODEPTR exn = run_callback(&msg, !ret);
+  if (exn == NIL && ret) {
+    GCCHECK(1);
+    TOP(0) = new_ap(combI, TOP(0)); /* mhs_to_xxx wants the result at ARG(TOP(0)) */
+    r = mhs_to_JSVal(stack_ptr, -1);
+  }
+  ffe_pop();
+  if (exn != NIL) {
+    mhs_js_set_callback_error(msg);
+    FREE(msg);
+  }
+  /* Flush standard handles in case there is some BFILE buffering */
+  flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
+  flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
+  /* The JavaScript side takes the result, then runs the threads the callback may
+   * have made runnable (mhs_js_run_threads). */
+  return r;
+}
+#else  /* !__EMSCRIPTEN__ */
+
+/* Without JavaScript there are no JSVals.  These keep a program that uses the
+ * JavaScript FFI linking for a native target (tests/JSNative.hs). */
+void *
+js_exn_string(void *k)
+{
+  static const char msg[] = "no JavaScript runtime";
+  char *s = MALLOC(sizeof msg);
+  (void)k;
+  memcpy(s, msg, sizeof msg);
+  return s;
+}
+
+void
+js_free_jsval(void *k)
+{
+  (void)k;
+}
+#endif  /* __EMSCRIPTEN__ */
+
 /* The rest of this file was generated by the compiler, with some minor edits with #if. */
 from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
 from_t mhs_GETTIMEMICRO(int s) { return  mhs_from_Int(s, 0, GETTIMEMICRO()); }
@@ -8300,7 +9245,7 @@ from_t mhs_powf(int s) { return mhs_from_Float(s, 2, powf(mhs_to_Float(s, 0), mh
 from_t mhs_js_debug(int s) { EM_ASM({ console.log(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_js_eval_run(int s) { EM_ASM({ eval(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_js_eval_call(int s) { return mhs_from_Ptr(s, 1, EM_ASM_PTR({ return stringToNewUTF8(JSON.stringify(eval(UTF8ToString($0)))) }, mhs_to_Ptr(s, 0))); }
-from_t mhs_js_set_haskellCallback(int s) { EM_ASM({ _haskellCallback = $0 }, mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_js_set_haskellCallback(int s) { EM_ASM({ globalThis._haskellCallback = $0 }, mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
 #endif
 
 #if WANT_STDIO

@@ -1,20 +1,19 @@
 module ForImpJS where
-import Data.Text hiding(show)
-import Foreign.C.String(CString)
+import Foreign.C.String
 
-foreign import javascript "console.log('log: ' + UTF8ToString($0))" clog :: CString -> IO ()
-foreign import javascript "return stringToNewUTF8('PRE' + UTF8ToString($0))" pre :: CString -> IO CString
-foreign import javascript "return $0 + $1"                           add :: Int -> Int -> Int
-foreign import javascript "return $0 * $1"                           mul :: Double -> Double -> Double
+foreign import javascript "console.log('log: ' + Module.UTF8ToString($1))" clog :: CString -> IO ()
+foreign import javascript "return Module.stringToNewUTF8('PRE' + Module.UTF8ToString($1))" pre :: CString -> IO CString
+foreign import javascript "return $1 + $2"                           add :: Int -> Int -> Int
+foreign import javascript "$1 * $2"                                  mul :: Double -> Double -> Double
 
-hlog :: Text -> IO ()
-hlog t = useAsCString t clog
+hlog :: String -> IO ()
+hlog t = withCString t clog
 
 main :: IO ()
 main = do
   hlog "JS log"
   hlog "JS log again"
-  hlog $ pack $ show $ add 3 4
-  hlog $ pack $ show $ mul 3 4
-  s <- useAsCString "-test" $ \ p -> pre p >>= grabCString
-  putStrLn (unpack s)
+  hlog $ show $ add 3 4
+  hlog $ show $ mul 3 4
+  s <- withCString "-test" $ \ p -> pre p >>= peekCString
+  putStrLn s

@@ -7,7 +7,7 @@ TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
 .PHONY: testpreprocessorpaths
 
-alltest: info cache test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
+alltest: info cache test errtest testforimp testjsnative testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
 # interactivetest
 
 cache:
@@ -33,6 +33,11 @@ testpreprocessorpaths:
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
 
+# A program that creates JavaScript callbacks also compiles (and runs, as long as it
+# does not use them) for a native target.
+testjsnative:
+	$(TMHS) JSNative -of.exe && ./f.exe > JSNative.out && diff JSNative.ref JSNative.out
+
 testforimpjs:
 	$(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
 
@@ -42,6 +47,40 @@ testforexpjs:
 	$(TMHS) -c ForExpJS -oForExpJS_c.c
 	emcc -O1 -I../src/runtime -I../src/runtime/unix -DUSE_SYSTEM_RAW -Wno-address-of-packed-member ForExpJS_c.c ../src/runtime/eval.c -lm -sEXPORTED_FUNCTIONS=_mhs_init -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -sMODULARIZE=1 -sEXPORT_NAME=FEJS -ofejs.mjs
 	node ForExpJS.mjs > ForExpJS.out && diff ForExpJS.ref ForExpJS.out && rm -f fejs.mjs ForExpJS_c.c
+
+testjsval:
+	MHSDIR=.. $(TMHS) -temscripten JSVal -of.js && node f.js > JSVal.out && diff JSVal.ref JSVal.out
+
+# The browser runtime (target browser_rts) is built once, from JSVal (so its
+# FFI table has the JavaScript imports of JSVal), and then runs combinator
+# programs: JSVal.comb, and a program that is not compiled into it.  In node
+# rts-web.js reads the program named by MHS_COMB instead of fetching it.
+testbrowserrts:
+	MHSDIR=.. $(TMHS) -tbrowser_rts -optc -sENVIRONMENT=web,node JSVal ../src/runtime/web/rts-web.js -orts.js
+	MHSDIR=.. $(TMHS) JSVal -oJSVal.comb && MHS_COMB=JSVal.comb node rts.js > JSVal.out && diff JSVal.ref JSVal.out
+	MHSDIR=.. $(TMHS) BrowserRtsOther -oBrowserRtsOther.comb && MHS_COMB=BrowserRtsOther.comb node rts.js > BrowserRtsOther.out && diff BrowserRtsOther.ref BrowserRtsOther.out
+	rm -f rts.js JSVal.comb BrowserRtsOther.comb
+
+testjscallback:
+	MHSDIR=.. $(TMHS) -temscripten JSCallback -of.js && node f.js > JSCallback.out 2>&1 && diff JSCallback.ref JSCallback.out
+
+# A deadlock is reported (exit status 1) once the only callback has been freed.
+testjsdeadlock:
+	MHSDIR=.. $(TMHS) -temscripten JSDeadlock -of.js && { node f.js > JSDeadlock.out 2>&1; test $$? -eq 1; } && diff JSDeadlock.ref JSDeadlock.out
+
+# The program ends when main does (exit status 0, right away): the timer armed for a
+# thread still in threadDelay must not fire into the stopped runtime.
+testjsexittimer:
+	MHSDIR=.. $(TMHS) -temscripten JSExitTimer -of.js && node f.js > JSExitTimer.out 2>&1 && diff JSExitTimer.ref JSExitTimer.out
+
+# A wasm trap while main runs (an out of bounds read) stops the runtime: a callback
+# called later is refused instead of running on the wreckage (exit status 1).
+testjstrap:
+	cp JSTrap.pre jstrap.js
+	MHSDIR=.. $(TMHS) -temscripten jstrap.js JSTrap -of.js && { node f.js > JSTrap.out 2>&1; test $$? -eq 1; } && diff JSTrap.ref JSTrap.out && rm -f jstrap.js
+
+testjsexportblocked:
+	MHSDIR=.. $(TMHS) -temscripten JSExportBlocked -of.js && node f.js > JSExportBlocked.out 2>&1 && diff JSExportBlocked.ref JSExportBlocked.out
 
 testforexp:
 	$(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out

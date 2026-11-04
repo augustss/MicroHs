@@ -412,7 +412,7 @@ pDef =
   <|> Type         <$> (pKeyword "type"     *> pLHS) <*> (equal *> pType)
   <|> Import       <$> (pKeyword "import"   *> pImportSpec)
   <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pCallConv)
-                        <*> (optional pSafety *> optional pString) <*> pLIdent <*> (dcolon *> pType)
+                        <*> (pSafety <|> pure Unsafe) <*> optional pString <*> pLIdent <*> (dcolon *> pType)
   <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
@@ -438,7 +438,7 @@ pDef =
 
     pFExpr = EVar <$> (pLQIdentSym <|> pUQIdentSym)
 
-    pSafety = pKeyword "unsafe" <|> pKeyword "safe" <|> pKeyword "interruptible"
+    pSafety = (Unsafe <$ pKeyword "unsafe") <|> (Safe <$ pKeyword "safe") <|> (Interruptible <$ pKeyword "interruptible")
 
 pCallConv :: P CallConv
 pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")

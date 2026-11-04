@@ -116,6 +116,145 @@ There is a number of subdirectories:
 * `src/runtime/` the runtime source
 * `tests/` some tests
 
+## JavaScript FFI
+With the emscripten targets (`-temscripten`, `-tbrowser`, ...) Haskell code can call JavaScript,
+hold JavaScript values, and be called back from JavaScript.
+The module `GHC.Wasm.Prim` follows GHC's WebAssembly backend, so code written for it needs few changes.
+See `tests/JSVal.hs` and `tests/JSCallback.hs` for examples.
+
+### Calling JavaScript
+```Haskell
+foreign import javascript [unsafe|safe|interruptible] "code" name :: type
+```
+The string is JavaScript code, with the arguments as `$1`, `$2`, etc.
+It can be an expression, or statements that use `return`:
+```Haskell
+foreign import javascript "$1 + $2"                            add     :: Int -> Int -> Int
+foreign import javascript "return document.getElementById($1)" getElem :: JSString -> IO JSVal
+```
+* The code becomes an emscripten `EM_JS` function in the output, so it is ordinary JavaScript
+  that emscripten's optimizer sees; nothing is compiled at run time.
+* It is statements if, outside brackets, strings and comments, it contains a `;` or the word `return`,
+  or starts with a statement keyword (`if`, `let`, `throw`, ...); otherwise it is an expression.
+* A `$k` that is not an argument is a compile time error; the arguments start at `$1`, not `$0`.
+* The code can use the emscripten `Module` object (e.g., `Module.UTF8ToString($1)`) and `mhsjs`,
+  the table of `JSVal`s.
+
+The allowed argument and result types are `Int`, `Word`, `Char`, `Bool`, `Double`, `Float`, `Ptr`, `JSVal`,
+newtypes of these (e.g., `JSString`), and `()` as a result.
+There is no automatic conversion of `String`, `Text`, lists, or 64 bit integers;
+strings go through `toJSString`/`textToJSString` (see below).
+
+The safety annotation selects what happens on a JavaScript exception, and whether the code can wait:
+
+| annotation | the code is | a JavaScript exception |
+|---|---|---|
+| `unsafe` (the default) | a function | is fatal |
+| `safe` | a function in a `try`/`catch` | is raised as a `JSException` |
+| `interruptible` | an `async` function, so it can use `await` | is raised as a `JSException`; so is a rejected Promise |
+
+With `interruptible` the calling Haskell thread waits for the Promise while the other threads keep running.
+Note that, unlike the Haskell report, an import without a safety annotation is `unsafe`
+(a JavaScript exception in it is a programming error, as with GHC's JavaScript backend).
+
+### JavaScript values
+A `JSVal` is a reference to a JavaScript value, which is kept in a table on the JavaScript side
+until the `JSVal` is garbage collected, or `freeJSVal` is called.
+`GHC.Wasm.Prim` exports:
+```Haskell
+JSVal, JSString(..), JSException(..)
+toJSString, fromJSString            -- String
+textToJSString, textFromJSString    -- Text
+freeJSVal
+jsNull, jsUndefined, isNull, isUndefined
+syncCallback,  syncCallback1,  syncCallback2,  syncCallback3     -- IO ()
+syncCallback', syncCallback1', syncCallback2', syncCallback3'    -- IO JSVal, the callback returns a value
+asyncCallback, asyncCallback1, asyncCallback2, asyncCallback3
+```
+The string conversions go through UTF-8 with explicit lengths, so a NUL character and a leading U+FEFF survive.
+`JSString` has no `Eq`/`Show` instances, like GHC's.
+
+### Callbacks: calling Haskell from JavaScript
+A Haskell function of type `JSVal -> ... -> IO ()` (or `IO JSVal`) can be turned into a JavaScript function
+with `syncCallback`/`asyncCallback` above, or with a `"wrapper"` import:
+```Haskell
+foreign import javascript "wrapper sync" mkHandler :: (JSVal -> IO ()) -> IO JSVal
+```
+* `"wrapper sync"` makes a JavaScript function that runs the Haskell code when called and returns when it is done.
+* `"wrapper"` makes one that runs the Haskell code later, from the event loop, and returns a `Promise`.
+
+A callback runs as a Haskell thread of its own (so `catch`, `forkIO`, `putMVar`, etc. work),
+first and without preemption.
+* Called from the JavaScript event loop it may block (e.g., in `takeMVar` or an `interruptible` import):
+  it then waits like any other thread, and its JavaScript caller gets `undefined`
+  (or, for `"wrapper"`, an already resolved Promise).
+* A callback that returns a value, one called from the JavaScript code of an import (a Haskell thread
+  is then on the C stack), and a `foreign export` called from JavaScript must not block; that is a fatal error.
+* An uncaught Haskell exception in a callback is thrown to the JavaScript caller as an `Error`
+  (an asynchronous callback rejects its Promise).
+* A callback is released when its `JSVal` is garbage collected or freed with `freeJSVal`.
+* A callback that returns a `JSVal` it has already freed gives its JavaScript caller an error; the runtime goes on.
+
+### The program and the event loop
+Haskell threads keep their state in the heap, so no C stack has to be preserved and emscripten's ASYNCIFY is not needed.
+* Whenever all Haskell threads are blocked (`main` included) the runtime returns to the JavaScript event loop;
+  a callback, a timer (for `threadDelay`), or a settling Promise resumes the threads.
+* While a program has live callbacks the runtime stays alive after `main` returns, so JavaScript events can
+  still call them. The program ends when `main` has finished and no callback is left.
+* A fatal runtime error, a JavaScript exception from an `unsafe` import, or a WebAssembly trap (also one while `main`
+  is still running) stops the runtime.
+  In the browser the page lives on, so every later call into Haskell throws an `Error` saying that the runtime
+  has stopped, instead of running on a corrupted runtime.
+
+### Targets
+| target | output | notes |
+|---|---|---|
+| `emscripten` | WebAssembly + JavaScript, for node | |
+| `emscripten_js` | JavaScript only (`-sWASM=0`), for node | |
+| `browser` | WebAssembly + JavaScript for the browser | no file system; `-Oz -sSUPPORT_LONGJMP=wasm`; 4M cell heap |
+| `browser_rts` | as `browser`, but the program is fetched at run time | see below |
+| `browser_js` | JavaScript only for the browser | `-O3`; 4M cell heap |
+
+(`emscripten_web`, which also exists, is not for programs: it runs `mhs` itself in a web page, see `web-mhs/`.)
+
+The browser targets use a 4M cell heap (about 60MB) instead of the default 50M, so that garbage collection,
+which also releases the JavaScript values referenced from Haskell, happens regularly;
+change it with `-optc -DHEAP_CELLS=N`.
+
+The `browser` target compiles with `-Oz -sSUPPORT_LONGJMP=wasm`.
+The evaluator uses `setjmp`, and with emscripten's default JavaScript implementation of `longjmp` every call
+out of a function that uses `setjmp` goes through a JavaScript trampoline, which makes `-Oz` (which does not
+inline) several times slower than `-O3`.
+With WebAssembly exception handling (browsers since 2022) `-Oz` is as fast as `-O3` and about 12% smaller compressed.
+`browser_js` has no WebAssembly and stays at `-O3`.
+
+### The browser runtime (`browser_rts`)
+With `browser` every change of the program means running `emcc`.
+`browser_rts` builds the runtime once; a program is then compiled to a combinator file in seconds
+and fetched at run time:
+```
+mhs -tbrowser_rts [--embed-ffis PKG:...] -o rts.js Main src/runtime/web/rts-web.js   # once
+mhs -o app.comb Main                                                                 # per change
+```
+`src/runtime/web/rts-web.js` fetches `app.comb` (or `Module.combUrl`, the `data-comb` attribute of the
+script tag, or in node the `MHS_COMB` environment variable) and runs it.
+The runtime's FFI table has the foreign imports of the program it was built with and of the `--embed-ffis`
+packages; a program with other foreign imports needs a runtime built for it.
+The `.comb` file lists its foreign imports after a `#####` line, so a tool can tell when that is.
+
+### Embedded JavaScript files
+JavaScript files can be embedded in the generated output by giving `FILE.js` on the command line
+(e.g., a JavaScript library used via the FFI).
+A target supports this if it has a `js` key in `mhs.conf` giving the C compiler option to use
+(`js = "--pre-js"` for emscripten); for other targets the files are ignored.
+Installed packages can also carry JavaScript files, in a `jsbits` directory next to the package
+(mcabal puts the `js-sources` of a package there); these are embedded in the same way.
+
+The embedded files go through emscripten's JavaScript optimizer, which removes definitions that nothing uses.
+A definition is used when its name occurs in the code of a `foreign import javascript`
+(or in JavaScript code that is used); a function reached only through a computed name
+(`globalThis["f" + x]()`) is invisible to it.
+
 # Preprocessor
 Sadly, compiling a lot of Haskell packages needs the C preprocessor.
 To this end, the distribution contains the combinator code for `cpphs`.

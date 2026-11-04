@@ -47,14 +47,56 @@ cclibs = "-lm"
 conf = "unix"
 
 -- Generate JavaScript&Wasm
+-- The emscripten targets come in two families:
+--  * programs: emscripten and emscripten_js run under node, browser, browser_js and
+--    browser_rts in a browser; they have the JavaScript FFI (foreign import javascript,
+--    GHC.Wasm.Prim, callbacks) and return to the JavaScript event loop when every
+--    Haskell thread is blocked, so a program can live on JavaScript events;
+--  * emscripten_web runs the compiler itself in a web page (see web-mhs/), with
+--    ASYNCIFY so that it can wait for input typed into the page.
 [emscripten]
 cc = "emcc"
 js = "--pre-js"
-ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+ccflags = "-O3 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+cclibs = "-lm"
+conf = "unix"
+
+-- As above, but generating JavaScript only (no Wasm)
+[emscripten_js]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-O3 -sWASM=0 -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member"
+cclibs = "-lm"
+conf = "unix"
+
+-- Generate JavaScript&Wasm for the browser (no file system)
+[browser]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-Oz -sSUPPORT_LONGJMP=wasm -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000"
+cclibs = "-lm"
+conf = "unix"
+
+-- As browser, but the program is fetched at run time (app.comb by
+-- default) instead of compiled in; see src/runtime/web/rts-web.js.  The
+-- runtime is built once, then programs only need: mhs -o app.comb Main
+[browser_rts]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-Oz -sSUPPORT_LONGJMP=wasm -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000 -sINVOKE_RUN=0"
+cclibs = "-lm"
+conf = "unix"
+
+-- As above, but generating JavaScript only (no Wasm)
+[browser_js]
+cc = "emcc"
+js = "--pre-js"
+ccflags = "-O3 -sWASM=0 -sENVIRONMENT=web -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8,UTF8ToString,lengthBytesUTF8,stringToUTF8,HEAPU8,HEAP32,HEAPF64 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME -Wno-address-of-packed-member -DHEAP_CELLS=4000000"
 cclibs = "-lm"
 conf = "unix"
 
 -- Generate JavaScript&Wasm, with xterm.js support
+-- mhs itself in a web page (web-mhs/): not a target for programs, see above
 [emscripten_web]
 cc = "emcc"
 ccflags = "-O3 -sASYNCIFY -sEXPORTED_FUNCTIONS=['_main','_set_input_char'] -sEXPORTED_RUNTIME_METHODS=['FS','ccall'] -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -DUSE_WEB_INPUT -Wno-address-of-packed-member"

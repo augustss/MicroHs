@@ -200,8 +200,8 @@ bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 mhs.conf: mhs.conf.in
 	sed -e "s,%GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,%GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
-# Run test examples with ghc-compiled compiler
-runtest:	bin/mhseval bin/gmhs tests/*.hs
+# Run test examples
+runtest:	bin/mhseval bin/mhs bin/tester tests/*.hs
 	cd tests; $(MAKE) alltest
 
 # Run test examples with mhs-compiled compiler
@@ -221,7 +221,7 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs bin/tester
-	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest testpipenonblockioem testjsflag testjsbits
+	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest testpipenonblockioem testjsflag testjsbits testforimpjs testjsval testbrowserrts testjscallback testjsdeadlock testjsexportblocked testjsexittimer testjstrap
 
 runtestinstemscripten:
 	cd tests; $(MAKE) MHSTARGET="-temscripten" MHS="mhs.js -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" test

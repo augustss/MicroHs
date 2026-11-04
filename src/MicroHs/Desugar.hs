@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
 module MicroHs.Desugar(
+  JSKind(..), jsKind,
   desugar,
   LDef, showLDefs,
   encodeInteger,
@@ -47,7 +48,11 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
+    ForImp cc sf ie i t ->
+      let imp = Lit $ mkForImp mn ffiNo cc sf ie i t
+      in  case (cc, sf) of
+            (Cjavascript, Interruptible) -> [(i, jsAwait t imp)]
+            _                            -> [(i, ccall t imp)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -71,9 +76,51 @@ dsDef flags mn ffiNo adef =
 
 -- Code for a 'foreign import'.
 -- If the function is impure then wrap a performIO around the call.
+-- An interruptible JavaScript import
+--   foreign import javascript interruptible "code" f :: a1 -> ... -> an -> IO r
+-- is compiled (MicroHs.FFI) into a C function that returns the Promise of the
+-- (async) JavaScript code as a JSVal.  Wrap it so that the thread then waits for
+-- the Promise with the IO.jsawait primitive, which converts the settled value to r
+-- (the kind number says how) or raises a JSException:
+--   ^f  -->  B^n (C IO.>>= (IO.jsawait kind)) ^f
+-- i.e., \ x1 ... xn -> ^f x1 ... xn >>= IO.jsawait kind
+jsAwait :: EType -> Exp -> Exp
+jsAwait t f =
+  case getArrows (dropForallContext t) of
+    (as, EApp (EVar io) r) | io == identIO ->
+      let g = App (App (Lit (LPrim "C")) (Lit (LPrim "IO.>>="))) (App (Lit (LPrim "IO.jsawait")) (Lit (LInt (jsAwaitKind r))))
+      in  App (iterate (App (Lit (LPrim "B"))) g !! length as) f
+    _ -> errorMessage (getSLoc t) "foreign import javascript interruptible must return IO"
+
+-- The kind number IO.jsawait gets: the constructor index of JSKind, which
+-- mhs_js_settle in eval.c decodes (0 = JSVal, ..., 7 = ()).
+jsAwaitKind :: EType -> Int
+jsAwaitKind = fromEnum . jsKind
+
+-- Types allowed in 'foreign import javascript' (also used by MicroHs.FFI).
+-- The order is the one mhs_js_settle in eval.c expects.
+data JSKind = KJSVal | KInt | KWord | KBool | KDouble | KFloat | KPtr | KUnit
+  deriving (Eq, Enum)
+
+jsKind :: EType -> JSKind
+jsKind (EApp (EVar ptr) _) | ptr == identPtr = KPtr
+jsKind (EVar i) | Just k <- lookup (unIdent i) jsKinds = k
+jsKind t = errorMessage (getSLoc t) $ "Not a valid JavaScript FFI type: " ++ showEType t
+
+jsKinds :: [(String, JSKind)]
+jsKinds =
+  [ ("Primitives.JSVal",    KJSVal)
+  , ("Data.Bool_Type.Bool", KBool)
+  , ("Primitives.Int",      KInt)
+  , ("Primitives.Word",     KWord)   -- also Char, which is a newtype of Word
+  , ("Primitives.Double",   KDouble)
+  , ("Primitives.Float",    KFloat)
+  , ("()",                  KUnit)
+  ]
+
 ccall :: EType -> Exp -> Exp
 ccall t f =
-  case getArrows t of
+  case getArrows (dropForallContext t) of
     (_, EApp (EVar io) _) | io == identIO ->
       f
     (as, _) ->
@@ -613,9 +660,9 @@ lazier def = def
 -- "wrapper"
 -- When the calling convention is ccall the 'expr' has to be a name,
 -- with capi it can be any C expression.
-parseImpEnt :: SLoc -> CallConv -> String -> String -> ImpEnt
-parseImpEnt _ Cjavascript _ s = ImpJS s
-parseImpEnt loc _cc ui s =
+parseImpEnt :: SLoc -> CallConv -> Safety -> String -> String -> ImpEnt
+parseImpEnt _ Cjavascript sf _ s = ImpJS sf s
+parseImpEnt loc _cc _ ui s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
@@ -634,16 +681,17 @@ parseImpEnt loc _cc ui s =
 badForImp :: SLoc -> a
 badForImp loc = errorMessage loc "bad foreign import"
 
-mkForImp :: IdentModule -> Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
-mkForImp _ _ Cjavascript Nothing i _ = badForImp (getSLoc i)
-mkForImp mn no cc ms i ty =
+mkForImp :: IdentModule -> Int -> CallConv -> Safety -> Maybe String -> Ident -> EType -> Lit
+mkForImp _ _ Cjavascript _ Nothing i _ = badForImp (getSLoc i)
+mkForImp mn no cc sf ms i ty =
   let cty = CType ty
       loc = getSLoc i
       ui  = unIdent (unQualIdent i)
       isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
       isValidC _ = False
-      impent = parseImpEnt loc cc ui $ fromMaybe "" ms
-      fno = show no
+      impent = parseImpEnt loc cc sf ui $ fromMaybe "" ms
+      -- The number is only unique within a module, so qualify it with the module name.
+      fno = map (\ c -> if isAlphaNum c then c else '_') (unIdent mn) ++ "_" ++ show no
       cid =
         case impent of
           ImpStatic _ _ n ->
