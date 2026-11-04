@@ -874,15 +874,19 @@ pOperComma = pOper <|> pComma
 pOperCommaNoMinus :: P Ident
 pOperCommaNoMinus = guardM pOperComma (/= mkIdent "-")
 
--- XXX combine pUpdate and pSelects
+-- Updates and selections can be mixed, as in GHC: e.a{x = 1}.b
+-- A run of selections becomes one ESelect.
 pAExpr :: P Expr
 pAExpr = do
   ee <- pAExpr'
-  us <- many pUpdate
-  ss <- many pSelect
-  let sel e | null ss = e
-            | otherwise = EApp (ESelect ss) e
-  pure $ sel (foldl EUpdate ee us)
+  ps <- many (Left <$> pUpdate <|> Right <$> pSelect)
+  let post e [] = e
+      post e (Left us : r) = post (EUpdate e us) r
+      post e r = let (ss, r') = span isRight r
+                 in  post (EApp (ESelect [ s | Right s <- ss ]) e) r'
+      isRight (Right _) = True
+      isRight _ = False
+  pure $ post ee ps
 
 pUpdate :: P [EField]
 pUpdate = pSpec '{' *> sepSEBy pEField comma <* pSpec '}'
