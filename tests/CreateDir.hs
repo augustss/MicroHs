@@ -6,7 +6,7 @@ import System.Directory
 check :: String -> IO () -> IO ()
 check msg act = do
   r <- try act
-  putStrLn $ msg ++ ": " ++ either (\ e -> const "error" (e :: IOException)) (const "ok") r
+  putStrLn $ msg ++ ": " ++ either (\ (e :: IOException) -> "error") (const "ok") r
 
 -- Everything goes under cdtest.tmp (ignored by git), which is left
 -- behind like the other .tmp files; a rerun finds it already there.
