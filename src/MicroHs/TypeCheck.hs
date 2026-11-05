@@ -281,7 +281,7 @@ mkTModule tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
-      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
+      [ TypeExport i (tentry i) (assoc i) | Type    (i, _) _   <- tds ]
 
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
@@ -1073,8 +1073,14 @@ bootExportable _ = True
 setDefault :: [EDef] -> T ()
 setDefault defs = do
   tys <- gets typeTable
-  ds <- sequence [ do { ts' <- mapM expandSyn ts; return (tyQIdent $ expLookup c tys, ts') }
-                 | Default (Just c) ts <- defs ]
+  ds <- concat <$> sequence [ do
+    ts' <- mapM expandSyn ts
+    cs <- expandTup (EApp (EVar $ tyQIdent $ expLookup c tys) (EVar dummyIdent))
+    return [ (qi, ts')
+           | c' <- cs
+           , (qi, _) <- maybeToList (getAppM c')
+           ]
+    | Default (Just c) ts <- defs ]
   dflts <- gets defaults
   let dflts' = foldr (uncurry M.insert) dflts ds
 --  traceM $ "Active defaults " ++ show (M.toList dflts')
@@ -1187,6 +1193,7 @@ addTypeKind kdefs adef = do
 addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
+  ct <- gets classTable
   let
     addAssoc ti is = do
       vt <- gets valueTable
@@ -1195,17 +1202,24 @@ addAssocs adef = do
               Right e -> [ValueExport i e]
               _       -> []  -- fields with existential type have no selector
       addAssocTable (qualIdent mn ti) (concatMap val is)
-
+    
     assocData _ (Constr _ _ c _ (Left _)) = [(c, c)]
     -- Keep the visible field name, but look up its owner-specific getter.
     assocData ti (Constr _ _ c _ (Right its)) =
       (c, c) : [ (f, mkGetName ti f) | (f, _) <- its ]
+    
+    assocSyn c
+      | Just (qiCls, _) <- getAppM c, Just (ClassInfo _ _ _ mits _) <- M.lookup qiCls ct =
+        [ (x, x) | (mi, _) <- mits, x <- [mi, mkDefaultMethodId mi] ]
+      | otherwise = []
+
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
                         -> addAssoc i (nub $ concatMap (assocData i) cs)
     Newtype (i, _) c  _ -> addAssoc i (assocData i c)
     Class _ (i, _) _ ms -> addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    Type    (i, _) t    -> addAssoc i . concatMap assocSyn =<< expandTup t
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table.
@@ -1257,13 +1271,17 @@ tcStand st ct = do
      -- It's needed for the number of arguments to "eta reduce",
      -- and also for kind checking the via type.
      -- So find the kind of the last argument to the class
-     (vks, kty) <- do
-       let (cvks, _ctx, cty) = splitContext ct'
-           cls = fst $ getApp cty
-       ctbl <- gets classTable
-       case M.lookup cls ctbl of
-         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
-         _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     (vkss, ktys) <- unzip <$> do
+       (cvks, _ctx, scty) <- splitContext <$> expandSyn ct'
+       ctys <- expandTup scty
+       forM ctys $ \cty -> do
+         let cls = fst $ getApp cty
+         ctbl <- gets classTable
+         case M.lookup cls ctbl of
+           Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
+           _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     let vks = concat vkss
+         kty = head ktys
      let narg = length $ fst $ getArrows kty
      st' <-
        case st of
