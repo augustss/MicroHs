@@ -201,7 +201,7 @@ mhs.conf: mhs.conf.in
 	sed -e "s,%GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,%GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
 # Run test examples with ghc-compiled compiler
-runtest:	bin/mhseval bin/gmhs tests/*.hs
+runtest:	tests/*.hs
 	cd tests; $(MAKE) alltest
 
 # Run test examples with mhs-compiled compiler
