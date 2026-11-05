@@ -327,3 +327,10 @@ instance Typeable MhsError where
 
 data SLoc = SLoc FilePath Int Int
   deriving (Show, Eq)
+
+isRight :: forall a b . Either a b -> Bool
+isRight (Left  _) = False
+isRight (Right _) = True
+
+rights :: [Either a b] -> [b]
+rights es = [ b | Right b <- es ]
