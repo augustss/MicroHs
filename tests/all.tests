@@ -90,6 +90,7 @@ Do
 Via
 ByteStringIO
 BitCount
+Rotate
 Bounded
 Typeable
 Storable

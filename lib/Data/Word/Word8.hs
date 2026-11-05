@@ -102,6 +102,7 @@ instance Bits Word8 where
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primWordPopcount . unW8
   zeroBits = 0
