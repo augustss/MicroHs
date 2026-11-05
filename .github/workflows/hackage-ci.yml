@@ -38,10 +38,9 @@ jobs:
 
   # Build on a 32 bit little endian platform
   build-hackage-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     # mhs
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
