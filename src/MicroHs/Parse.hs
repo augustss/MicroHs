@@ -7,6 +7,7 @@ import Control.Applicative hiding ((*>), (<*))
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
+import Data.Either
 import Data.List
 import Data.Maybe
 import Text.ParserComb as P
