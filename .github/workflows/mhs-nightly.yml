@@ -88,6 +88,7 @@ jobs:
   build-linux-aarch64:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: aarch64
@@ -107,6 +108,7 @@ jobs:
   build-linux-s390x:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x
@@ -126,6 +128,7 @@ jobs:
   build-linux-x86:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
@@ -145,6 +148,7 @@ jobs:
   build-linux-armv7:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: armv7
@@ -164,6 +168,7 @@ jobs:
   build-linux-riscv64:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: riscv64
@@ -183,6 +188,7 @@ jobs:
   build-linux-ppc64le:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: ppc64le
@@ -202,6 +208,7 @@ jobs:
 #  build-linux-ppc64be:
 #    runs-on: ubuntu-latest
 #    steps:
+#    - runs-on: ubuntu-22.04          # traditional sudo
 #    - uses: jirutka/setup-alpine@v1
 #      with:
 #        arch: ppc64be
@@ -242,6 +249,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     # mhs
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x

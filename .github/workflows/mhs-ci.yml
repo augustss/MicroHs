@@ -95,6 +95,7 @@ jobs:
   build-linux-x86:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
@@ -114,6 +115,7 @@ jobs:
   build-linux-gmp-x86:
     runs-on: ubuntu-latest
     steps:
+    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
