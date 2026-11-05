@@ -885,8 +885,6 @@ pAExpr = do
       post e (Left us : r) = post (EUpdate e us) r
       post e r = let (ss, r') = span isRight r
                  in  post (EApp (ESelect (rights ss)) e) r'
-      isRight (Right _) = True
-      isRight _ = False
   pure $ post ee ps
 
 pUpdate :: P [EField]
