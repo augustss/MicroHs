@@ -104,7 +104,9 @@
 /*
  * Use imath for bignums
  */
-#if !WANT_GMP
+#if WANT_GMP
+#define WANT_IMATH 0
+#else
 #define WANT_IMATH 1
 #endif
 
