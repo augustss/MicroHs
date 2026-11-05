@@ -189,7 +189,7 @@ createDirectoryIfMissing parents d = do
         isDir <- if errno == eEXIST then isDirectory True d
                  else if errno `elem` [eACCES, ePERM, eROFS] then isDirectory False d
                  else return False
-        when (not isDir) $
+        unless isDir $
           ioError (errnoToIOError "createDirectoryIfMissing" errno Nothing (Just d))
 
 -- Is the path a directory?  An unreadable directory (e.g., mode --x)
