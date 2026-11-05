@@ -85,9 +85,8 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
@@ -102,9 +101,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-gmp-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86

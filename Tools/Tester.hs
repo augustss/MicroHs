@@ -46,7 +46,7 @@ parseTests = mapMaybe parseLine . zip [1 :: Int ..]
     parseLine (n, line) =
       case words (takeWhile (/= '#') line) of
         []                                -> Nothing
-        prog : []                         -> Just (prog,  "-",  prog ++ ".ref" , "-",      ["-r"])
+        [prog]                            -> Just (prog,  "-",  prog ++ ".ref" , "-",      ["-r"])
         prog : oref : eref : iref : flags -> Just (prog', iref, sub oref,        sub eref, flags)
           where sub "=" = prog ++ ".ref"
                 sub s   = s

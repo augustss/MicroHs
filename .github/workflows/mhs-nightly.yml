@@ -86,9 +86,8 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: aarch64
@@ -106,9 +105,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-s390x:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x
@@ -126,9 +124,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: x86
@@ -146,9 +143,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-armv7:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: armv7
@@ -166,9 +162,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-riscv64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: riscv64
@@ -186,9 +181,8 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: ppc64le
@@ -206,9 +200,8 @@ jobs:
       shell: alpine.sh {0}
 
 #  build-linux-ppc64be:
-#    runs-on: ubuntu-latest
+#    runs-on: ubuntu-22.04          # traditional sudo
 #    steps:
-#    - runs-on: ubuntu-22.04          # traditional sudo
 #    - uses: jirutka/setup-alpine@v1
 #      with:
 #        arch: ppc64be
@@ -246,10 +239,9 @@ jobs:
 
   # Build packages on a 64 bit big endian platform
   build-hackage-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     # mhs
-    - runs-on: ubuntu-22.04          # traditional sudo
     - uses: jirutka/setup-alpine@v1
       with:
         arch: s390x
