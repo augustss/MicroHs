@@ -9,3 +9,4 @@ main = do
   print [ op x y | x <- vals, y <- vals, y /= 0, op <- [quot, rem] ]
   print [ op x y | x <- vals, y <- vals, op <- [(==),(/=),(<),(<=),(>),(>=)] ]
   print [ op x y | x <- vals, y <- vals, let op = compare ]
+  print [ op minBound (-1 :: Int) | op <- [rem, mod] ]
