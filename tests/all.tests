@@ -126,5 +126,6 @@ Interpolate
 ExtraComma
 InterleaveIO
 CreateDir
+IOEFileName
 DerivingBuiltin  - - -
 -                itest.ref   -   itest.in   --stdin -q
