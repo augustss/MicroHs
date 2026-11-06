@@ -84,10 +84,10 @@ instance Enum Float where
   pred x = x - 1
   toEnum n = fromIntegral n
   fromEnum = fromInteger . truncate
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom = fractionalEnumFrom
+  enumFromThen = fractionalEnumFromThen
+  enumFromTo = fractionalEnumFromTo
+  enumFromThenTo = fractionalEnumFromThenTo
 
 instance Real Float where
   toRational x | isNaN x = rationalNaN
