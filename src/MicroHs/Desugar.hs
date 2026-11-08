@@ -47,7 +47,12 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
+    ForImp cc ie i at ->
+      -- An explicit forall (as GHC allows) does not change the C type.
+      let dropForalls (EForall _ _ ty) = dropForalls ty
+          dropForalls ty = ty
+          t = dropForalls at
+      in  [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
