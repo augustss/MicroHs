@@ -185,6 +185,7 @@ jobs:
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
+        branch: v3.20   # avoid database format change
         arch: ppc64le
         packages: >
           build-base
