@@ -103,8 +103,8 @@ time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 // ssize_t            mhs_to_CSSize(intptr_t, int);
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
-uintptr_t          mhs_to_HsStablePtr(intptr_t, int);
 #if defined(__EMSCRIPTEN__)
+uintptr_t          mhs_to_HsStablePtr(intptr_t, int);
 int                mhs_to_JSVal(intptr_t, int);
 void               mhs_js_check_error(void);
 #endif
