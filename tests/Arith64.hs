@@ -14,6 +14,7 @@ main = do
   print [ op x y | x <- vals, y <- vals, y /= 0, op <- [quot, rem] ]
   print [ op x y | x <- vals, y <- vals, op <- [(==),(/=),(<),(<=),(>),(>=)] ]
   print [ op x y | x <- vals, y <- vals, let op = compare ]
+  print [ op minBound (-1 :: Int64) | op <- [rem, mod] ]
   print [ minBound, maxBound :: Int64]
 
   print [ op x y | x <- uvals, y <- uvals, op <- [(+),( - ),(*)] ]

@@ -7285,16 +7285,16 @@ evali(NODEPTR an)
       case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
       case T_QUOT:  if (yu == 0)
                       raise_rts(exn_dividebyzero);
-#if WANT_OVERFLOW
                     else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
                       raise_rts(exn_overflow);
-#endif
                     else
                       ru = (uvalue_t)((value_t)xu / (value_t)yu);
                     break;
       case T_REM:   if (yu == 0)
                       raise_rts(exn_dividebyzero);
-                    else        /* this should not overflow under any circumstances */
+                    else if ((value_t)yu == -1) /* MIN % -1 traps on x86 */
+                      ru = 0;
+                    else
                       ru = (uvalue_t)((value_t)xu % (value_t)yu);
                     break;
       case T_UADD:  ru = xu + yu; break;
@@ -7414,6 +7414,8 @@ evali(NODEPTR an)
                     break;
       case T_REM64: if (y64u == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((int64_t)y64u == -1) /* MIN % -1 traps on x86 */
+                      r64u = 0;
                     else
                       r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
                     break;
