@@ -49,7 +49,8 @@ instance (Integral a) => Enum (Ratio a) where
   pred x         = x - 1
   toEnum         = fromIntegral
   fromEnum       = fromInteger . truncate
-  -- Use fractionalEnumFrom etc. to get the Haskell Report behavior
+  -- NOTE: this intentionally differs from the Haskell Report.
+  -- Use fractionalEnumFrom etc. to get the Report behavior.
   enumFrom       = numericEnumFrom
   enumFromThen   = numericEnumFromThen
   enumFromTo     = numericEnumFromTo
