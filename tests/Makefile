@@ -7,7 +7,7 @@ TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
 .PHONY: testpreprocessorpaths
 
-alltest: info cache test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
+alltest: info cache test errtest testforimp testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
 # interactivetest
 
 cache:
@@ -32,6 +32,10 @@ testpreprocessorpaths:
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+
+# Imports in different modules whose C names come from their position in the module.
+testffiname:
+	$(TMHS) -optc -I. FFIName -of.exe && ./f.exe > FFIName.out && diff FFIName.ref FFIName.out
 
 testforimpjs:
 	$(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
