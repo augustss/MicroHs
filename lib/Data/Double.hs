@@ -86,10 +86,11 @@ instance Enum Double where
   pred x = x - 1
   toEnum n = fromIntegral n
   fromEnum = fromInteger . truncate
-  enumFrom = fractionalEnumFrom
-  enumFromThen = fractionalEnumFromThen
-  enumFromTo = fractionalEnumFromTo
-  enumFromThenTo = fractionalEnumFromThenTo
+  -- Use fractionalEnumFrom etc. to get the Haskell Report behavior
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Real Double where
   toRational x | isNaN x = rationalNaN

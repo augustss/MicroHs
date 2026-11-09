@@ -49,10 +49,11 @@ instance (Integral a) => Enum (Ratio a) where
   pred x         = x - 1
   toEnum         = fromIntegral
   fromEnum       = fromInteger . truncate
-  enumFrom       = fractionalEnumFrom
-  enumFromThen   = fractionalEnumFromThen
-  enumFromTo     = fractionalEnumFromTo
-  enumFromThenTo = fractionalEnumFromThenTo
+  -- Use fractionalEnumFrom etc. to get the Haskell Report behavior
+  enumFrom       = numericEnumFrom
+  enumFromThen   = numericEnumFromThen
+  enumFromTo     = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq a => Eq (Ratio a) where
   (x :% y) == (x' :% y')  =  x == x' && y == y'

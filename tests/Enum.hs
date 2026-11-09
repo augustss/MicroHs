@@ -4,6 +4,7 @@ import Data.Int
 import Data.Word
 import Numeric.Natural
 import Data.Ratio
+import Data.Enum
 
 data T = A | B | C
   deriving (Bounded, Enum, Show)
@@ -61,10 +62,10 @@ main = do
   print [10 :: Natural, 5..]
 
   -- Double, Float, Rational
-  print [1.0 .. 3.5 :: Double]
-  print [1, 3 .. 6 :: Float]
-  print [5, 3 .. 0 :: Double]
-  print [1 .. 2.5 :: Rational]
-  print [0, 0.1 .. 1 :: Double]
-  print $ take 11 [0, 0.1 :: Double ..]
-  print $ take 3 [0.1 :: Double ..]
+  print (fractionalEnumFromTo 1.0 3.5 :: [Double])
+  print (fractionalEnumFromThenTo 1 3 6 :: [Float])
+  print (fractionalEnumFromThenTo 5 3 0 :: [Double])
+  print (fractionalEnumFromTo 1 2.5 :: [Rational])
+  print (fractionalEnumFromThenTo 0 0.1 1 :: [Double])
+  print $ take 11 (fractionalEnumFromThen 0 0.1 :: [Double])
+  print $ take 3 (fractionalEnumFrom 0.1 :: [Double])
