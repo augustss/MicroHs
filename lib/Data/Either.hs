@@ -53,3 +53,15 @@ partitionEithers = foldr (either left right) ([],[])
  where
   left  a ~(l, r) = (a:l, r)
   right a ~(l, r) = (l, a:r)
+
+fromLeft :: a -> Either a b -> a
+fromLeft a = either id (const a)
+
+fromRight :: b -> Either a b -> b
+fromRight b = either (const b) id
+
+lefts :: [Either a b] -> [a]
+lefts es = [ a | Left a <- es ]
+
+rights :: [Either a b] -> [b]
+rights es = [ b | Right b <- es ]

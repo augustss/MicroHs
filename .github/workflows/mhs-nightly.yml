@@ -4,6 +4,7 @@ name: MicroHs Nightly
 on:
   schedule:
     - cron: '23 4 * * *'  # Every day at 04:23 UTC
+  workflow_dispatch:
 
 jobs:
   build-linux-x86_64:
@@ -86,7 +87,7 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -105,7 +106,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-s390x:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -124,7 +125,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -143,7 +144,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-armv7:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -162,7 +163,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-riscv64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -181,10 +182,11 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
+        branch: v3.20   # avoid database format change
         arch: ppc64le
         packages: >
           build-base
@@ -200,7 +202,7 @@ jobs:
       shell: alpine.sh {0}
 
 #  build-linux-ppc64be:
-#    runs-on: ubuntu-latest
+#    runs-on: ubuntu-22.04          # traditional sudo
 #    steps:
 #    - uses: jirutka/setup-alpine@v1
 #      with:
@@ -239,7 +241,7 @@ jobs:
 
   # Build packages on a 64 bit big endian platform
   build-hackage-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     # mhs
     - uses: jirutka/setup-alpine@v1

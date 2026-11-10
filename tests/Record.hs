@@ -129,3 +129,7 @@ main = do
   print xr3{ x3 = True }
   let xr4' = xr4{ x4 = \ _ x -> x }
   print (x4 xr4' 'a' 'b')
+  print rr1.r{ b = False }
+  print rr1.r{ b = False }.b
+  print rr1.r{ b = False }{ b = True }
+  print rr1{ r = r2 }.r{ b = True }.a

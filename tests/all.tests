@@ -90,6 +90,7 @@ Do
 Via
 ByteStringIO
 BitCount
+Rotate
 Bounded
 Typeable
 Storable
@@ -124,5 +125,7 @@ MD5
 Interpolate
 ExtraComma
 InterleaveIO
+CreateDir
+IOEFileName
 DerivingBuiltin  - - -
 -                itest.ref   -   itest.in   --stdin -q

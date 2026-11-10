@@ -102,6 +102,7 @@ instance Bits Word16 where
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primWordPopcount . unW16
   zeroBits = 0
