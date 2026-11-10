@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Control.Monad(
   Functor(..),
-  Monad(..),
+  Monad(..), return,
   MonadPlus(..),
   mapM,
   mapM_,
@@ -58,9 +58,8 @@ class (Applicative m) => Monad m where
   (>>)   :: forall a b . m a -> m b -> m b
   ma >> mb = ma >>= const mb
 
-  -- Maybe remove this
-  return :: forall a . a -> m a
-  return = pure
+return :: forall m a . Applicative m => a -> m a
+return = pure
 
 -----
 

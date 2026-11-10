@@ -28,7 +28,6 @@ instance Monad (State s) where
   (>>) m k = S $ \ s ->
     case runState m s of
       (_, ss) -> runState k ss
-  return = pure
 
 instance MonadFail (State s) where
   fail = error
@@ -50,4 +49,3 @@ get = S $ \ s -> (s, s)
 
 gets :: forall s a . (s -> a) -> State s a
 gets f = S $ \ s -> (f s, s)
-

@@ -53,7 +53,7 @@ import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
 import Control.Error(error, undefined, errorWithoutStackTrace)
 import Control.Exception
-import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
+import Control.Monad(Monad(..), return, mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))

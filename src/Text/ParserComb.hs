@@ -98,7 +98,6 @@ instance Monad (Prsr tm t) where
           Failure lfb -> Failure (longest lfa lfb)
       Failure lf -> Failure lf
   (>>) p k = p >>= const k
-  return = pure
 
 instance TokenMachine tm t => MonadFail (Prsr tm t) where
   fail m = P $ \ts -> Failure (LastFail (tmLeft ts) (firstToken ts) [m])

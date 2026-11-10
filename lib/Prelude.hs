@@ -45,7 +45,7 @@ module Prelude(
 import qualified Prelude()              -- do not import Prelude
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined, errorWithoutStackTrace)
-import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
+import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<), return)
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
@@ -72,7 +72,7 @@ import Data.List([](..), map, (++), filter, head, last, tail, init, null, length
                  elem, notElem, lookup, zip, zip3, zipWith, zipWith3, unzip, unzip3,
                  lines, words, unlines, unwords)
 import Data.Maybe(Maybe(..), maybe)
-import Data.Monoid.Internal(Monoid(..), Semigroup((<>)))
+import Data.Monoid.Internal(Monoid(..), Semigroup((<>)), mappend)
 import Data.Num(Num(..), subtract)
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)

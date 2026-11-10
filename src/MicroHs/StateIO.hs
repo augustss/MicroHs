@@ -41,7 +41,6 @@ instance Monad (StateIO s) where
   (>>) m k = S $ \ s -> do
     (_, ss) <- runStateIO m s
     runStateIO k ss
-  return = pure
 
 {-
 instance MonadFail (StateIO s) where

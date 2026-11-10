@@ -1507,9 +1507,23 @@ expandTup t = do
 -- So any generated type expressions must be kind correct and fully qualified,
 -- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
-expandInst dinst@(Instance act bs extra) = do
+expandInst dinst@(Instance act xbs extra) = do
   (vks, ctx, uccs) <- splitContext <$> expandSyn act
   ccs <- expandTup uccs
+
+  -- Hack for Monad Of No Return
+  let bs = if monrCls ccs then filter (not . isMonr) xbs else xbs
+      monrCls accs = case accs of
+                  [EApp (EVar x) _] -> i == "Control.Monad.Monad" || i == "Data.Monoid.Internal.Monoid" where i = unIdent x
+                  _ -> False
+      isMonr (Fcn x _) = isMonrMet x
+        && trace ("Warning: Monad Of No Return ignores " ++ prettyShow x) True
+      isMonr (Sign [x] _) = isMonrMet x
+      isMonr _ = False
+      isMonrMet x = i == "return" || i == "mappend"
+        where i = unIdent x
+  -- End hack
+
   (instBinds, defs) <- unzip <$> forM ccs (\ cc -> do
     let loc = getSLoc act
         qiCls = getAppCon cc
