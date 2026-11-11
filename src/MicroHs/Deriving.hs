@@ -841,8 +841,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
             case M.lookup qiCls ct of
             Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
             Just x -> return x
-          let clsOld = case scls of EVar i -> i ; _ -> impossible
-          pure (clsQual, subst [(clsOld, EVar qiCls)] h, mits)
+          pure (clsQual, h, mits)
 
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
