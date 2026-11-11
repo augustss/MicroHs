@@ -273,7 +273,7 @@ mkTModule tds tcs =
 
     -- All top level values possible to export.
     ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ] ++
-          [ ValueExport i (ventry i t') | ForImp _ _ qi t <- tds, let t' = expandSyn' st t, let i = unQualIdent qi ]
+          [ ValueExport i (ventry i t') | ForImp _ _ _ qi t <- tds, let t' = expandSyn' st t, let i = unQualIdent qi ]
       where st = synTable tcs
 
     -- All top level types possible to export.
@@ -1227,7 +1227,7 @@ tcDefType def = do
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl QImpl kType t
-    ForImp cc ie i t       ->                                            ForImp cc ie i <$> tCheckTypeTImpl QImpl kType t
+    ForImp cc sf ie i t    ->                                            ForImp cc sf ie i <$> tCheckTypeTImpl QImpl kType t
     Instance ct m e        ->                                            Instance       <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m <*> return e
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
@@ -1708,7 +1708,7 @@ addValueType adef = do
         fs = either (const []) (map fst) ets
       extValETop c (EForall QExpl vks $ EForall QExpl [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
       addConFields tycon con
-    ForImp _ _ i t -> extValQTop i t
+    ForImp _ _ _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
 
@@ -1779,10 +1779,10 @@ tcDefValue adef =
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent' mn i) teqns
-    ForImp cc ie i t -> do
+    ForImp cc sf ie i t -> do
       mn <- gets moduleName
       t' <- withNewtypeAsSyns (expandSynLoc t)
-      pure $ ForImp cc ie (qualIdent' mn i) t'
+      pure $ ForImp cc sf ie (qualIdent' mn i) t'
     -- Check that a foreign export match the declaration type.
     -- In most cases the types will be the same, but the declaration can be overloaded
     -- so we need to ensure that it is compatible with the export definition.
