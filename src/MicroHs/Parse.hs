@@ -413,7 +413,7 @@ pDef =
   <|> Type         <$> (pKeyword "type"     *> pLHS) <*> (equal *> pType)
   <|> Import       <$> (pKeyword "import"   *> pImportSpec)
   <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pCallConv)
-                        <*> (pSafety <|> pure Unsafe) <*> optional pString <*> pLIdent <*> (dcolon *> pType)
+                        <*> (pSafety <|> pure Safe) <*> optional pString <*> pLIdent <*> (dcolon *> pType)
   <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind

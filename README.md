@@ -149,13 +149,13 @@ The safety annotation selects what happens on a JavaScript exception, and whethe
 
 | annotation | the code is | a JavaScript exception |
 |---|---|---|
-| `unsafe` (the default) | a function | is fatal |
-| `safe` | a function in a `try`/`catch` | is raised as a `JSException` |
+| `unsafe` | a function | is fatal |
+| `safe` (the default) | a function in a `try`/`catch` | is raised as a `JSException` |
 | `interruptible` | an `async` function, so it can use `await` | is raised as a `JSException`; so is a rejected Promise |
 
 With `interruptible` the calling Haskell thread waits for the Promise while the other threads keep running.
-Note that, unlike the Haskell report, an import without a safety annotation is `unsafe`
-(a JavaScript exception in it is a programming error, as with GHC's JavaScript backend).
+As in the Haskell report, an import without a safety annotation is `safe`.
+Use `unsafe` for code that cannot throw, to skip the exception check.
 
 ### JavaScript values
 A `JSVal` is a reference to a JavaScript value, which is kept in a table on the JavaScript side

@@ -691,7 +691,8 @@ mkForImp mn no cc sf ms i ty =
       isValidC _ = False
       impent = parseImpEnt loc cc sf ui $ fromMaybe "" ms
       -- The number is only unique within a module, so qualify it with the module name.
-      fno = map (\ c -> if isAlphaNum c then c else '_') (unIdent mn) ++ "_" ++ show no
+      -- It comes first, so the name cannot be a C identifier, which isValidC names are.
+      fno = show no ++ "_" ++ map (\ c -> if isAlphaNum c then c else '_') (unIdent mn)
       cid =
         case impent of
           ImpStatic _ _ n ->

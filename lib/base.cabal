@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           base
-version:        0.16.12.0
+version:        0.16.14.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -220,6 +220,11 @@ library base
         Text.Read.Lex
         Text.Show
         Unsafe.Coerce
+        -- These should not be exported, but some modules use them
+        Control.Monad.ST_Type
+        Data.ByteString.Internal
+        Data.ByteString.Lazy.Internal
+        Primitives   -- temporarily
 
     other-modules:
         Control.Concurrent.STM.Internal
@@ -233,13 +238,13 @@ library base
         Control.Exception.Internal.Set
         Control.Exception.Internal.TVar
         Control.Exception.Internal.TransactionLog
-        Control.Monad.ST_Type
+--        Control.Monad.ST_Type
         Data.Bits.Base
         Data.Bool_Type
         Data.ByteString.Builder.ASCII
         Data.ByteString.Builder.Internal
-        Data.ByteString.Internal
-        Data.ByteString.Lazy.Internal
+--        Data.ByteString.Internal
+--        Data.ByteString.Lazy.Internal
         Data.Char_Type
         Data.Data_Class
         Data.Foldable.Internal
@@ -260,7 +265,7 @@ library base
         MiniPrelude
         Numeric.Read
         Numeric.Show
-        Primitives
+--        Primitives
         System.IO.Base
         System.IO.Internal
         System.IO.Open

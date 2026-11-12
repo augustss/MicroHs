@@ -34,7 +34,7 @@ foreign import javascript safe "globalThis.savedCb()" callSavedCb :: IO ()
 foreign import javascript safe "return $1 + 1" plus1 :: Int -> IO Int
 foreign import javascript interruptible "return $1 + 1" plus1Async :: Int -> IO Int
 foreign import javascript safe "throw new Error('callback boom')" jsThrow :: IO ()
-foreign import javascript "throw new Error('unsafe boom')" jsThrowUnsafe :: IO ()
+foreign import javascript unsafe "throw new Error('unsafe boom')" jsThrowUnsafe :: IO ()
 -- Call the callback n times, ignoring the errors it throws.
 foreign import javascript "for (var i = 0; i < $2; i++) { try { $1() } catch (e) {} }" callMany :: JSVal -> Int -> IO ()
 -- Call the value callback $1, and report whether it threw an error about a freed JSVal.
