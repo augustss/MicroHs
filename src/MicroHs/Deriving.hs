@@ -1,4 +1,4 @@
-module MicroHs.Deriving(deriveStrat, expandField, mkGetName, getPrefix, etaReduce, mkTypeableInst) where
+module MicroHs.Deriving(deriveStrat, expandField, expandSyn, expandSyn', expandTup, mkGetName, getPrefix, etaReduce, mkTypeableInst) where
 import qualified Prelude(); import MHSPrelude
 import Control.Monad
 import Data.Char
