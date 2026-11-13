@@ -1,0 +1,7 @@
+Error109.hs:6:29: error: type mismatch
+    expected: STRef r Int
+    actual:   STRef r Int
+  |
+6 | wrong2 (Ex ref) = readSTRef ref
+  |                             ^
+
