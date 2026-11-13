@@ -2145,7 +2145,7 @@ tcExprR mt ae =
                 SBind p a -> do
                   v <- newUVar
                   ea <- tCheckExprAndSolve (tApp (tList loc) v) a
-                  tCheckPatC v p $ \ ep -> doStmts (SBind ep ea : rss) ss
+                  tCheckPatC v v p $ \ ep -> doStmts (SBind ep ea : rss) ss
                 SThen a -> do
                   ea <- tCheckExprAndSolve (tBool (getSLoc a)) a
                   doStmts (SThen ea : rss) ss
@@ -2790,8 +2790,9 @@ tcPats at pps ta =
       case pps of
         p:ps -> do
           (tp, tr) <- unArrow (getSLoc p) at'
-          -- tCheckPatC dicts used in tcAlt solve
-          tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
+          (_, tr') <- skolemise tr
+          -- Keep residual result skolems rigid while checking the pattern body.
+          tCheckPatC tr' tp p $ \ p' -> tcPats tr' ps $ \ t' ps' -> ta t' (p' : ps')
         [] -> ta at' []   -- base case, no more arguments, explicit or implicit
 
 
@@ -2805,35 +2806,36 @@ tcAlts t (EAlts alts bs) =
 
 tcAlt :: HasCallStack => EType -> EAlt -> T EAlt
 --tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
-tcAlt t (ss, rhs) = tcGuards ss $ \ ss' -> do
+tcAlt t (ss, rhs) = tcGuards t ss $ \ ss' -> do
   rhs' <- tCheckExprAndSolve t rhs
   return (ss', rhs')
 
-tcGuards :: [EStmt] -> ([EStmt] -> T EAlt) -> T EAlt
-tcGuards [] ta = ta []
-tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
+tcGuards :: EType -> [EStmt] -> ([EStmt] -> T EAlt) -> T EAlt
+tcGuards _ [] ta = ta []
+tcGuards t (s:ss) ta = tcGuard t s $ \ rs -> tcGuards t ss $ \ rss -> ta (rs:rss)
 
-tcGuard :: EStmt -> (EStmt -> T EAlt) -> T EAlt
-tcGuard (SBind p e) ta = do
+tcGuard :: EType -> EStmt -> (EStmt -> T EAlt) -> T EAlt
+tcGuard t (SBind p e) ta = do
   --traceM ("tcGuard: " ++ show p ++ " <- " ++ show e)
   ((e', tt), bs) <- solveLocalConstraints $ tInferExpr e
   let e'' = eLetB (eBinds bs) e'
   -- tCheckPatC dicts used in solving in tcAlt
-  tCheckPatC tt p $ \ p' -> ta (SBind p' e'')
-tcGuard (SThen e) ta = do
+  tCheckPatC t tt p $ \ p' -> ta (SBind p' e'')
+tcGuard _ (SThen e) ta = do
   e' <- tCheckExprAndSolve (tBool (getSLoc e)) e
   ta (SThen e')
 -- XXX do we have solves
-tcGuard (SLet bs) ta = tcBinds bs $ \ bs' -> ta (SLet bs')
-tcGuard (SRec ss) _ = tcError (getSLoc ss) "rec not allowed"
+tcGuard _ (SLet bs) ta = tcBinds bs $ \ bs' -> ta (SLet bs')
+tcGuard _ (SRec ss) _ = tcError (getSLoc ss) "rec not allowed"
 
 tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
-tcArm t tpat arm =
+tcArm t tpat arm = do
+  (_, resultT) <- skolemise t
   case arm of
     -- The dicts introduced by tCheckPatC are
     -- used in the tCheckExprAndSolve in tcAlt.
-    (p, alts) -> tCheckPatC tpat p $ \ pp -> do
-      alts' <- tcAlts t alts
+    (p, alts) -> tCheckPatC resultT tpat p $ \ pp -> do
+      alts' <- tcAlts resultT alts
       return (pp, alts')
 
 tCheckExprAndSolve :: HasCallStack => EType -> Expr -> T Expr
@@ -2869,23 +2871,32 @@ subsCheck loc exp1 sigma1 sigma2 = do -- Rule DEEP-SKOL
     tcErrorTK loc "Subsumption check failed"
   return exp1'
 
-tCheckPatC :: forall a . EType -> EPat -> (EPat -> T a) -> T a
-tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
+tCheckPatC :: forall a . EType -> EType -> EPat -> (EPat -> T a) -> T a
+tCheckPatC _ t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
-tCheckPatC t app ta = do
+tCheckPatC escapeT t app ta = do
 --  tcTrace $ "tCheckPatC: " ++ show app ++ " :: " ++ show t
   app' <- dsEFields app
   let vs = patVars app'
   multCheck vs
   env <- mapM (\ v -> (,) v <$> newUVar) vs
-  withExtVals env $ do
-    (_sks, ds, pp) <- tCheckPat t app'
+  (sks, result) <- withExtVals env $ do
+    (sks, ds, pp) <- tCheckPat t app'
 --    tcTrace ("tCheckPatC: " ++ show pp)
 --    xt <- derefUVar t
 --    tcTrace ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
-    -- XXX must check for leaking skolems
-    withDicts ds $
-      ta pp
+    result <- withDicts ds $ ta pp
+    return (sks, result)
+  unless (null sks) $ do
+    -- Pattern-bound variables are out of scope here, so only outer bindings
+    -- can expose an existential skolem that escaped through the continuation.
+    envTys <- getEnvTypes
+    escapedTvs <- getFreeTyVars (escapeT : envTys)
+    let badTvs = filter (`elem` escapedTvs) sks
+    unless (null badTvs) $
+      tcErrorTK (getSLoc app') $
+        "existential type variable escapes: " ++ unwords (map showIdent badTvs)
+  return result
 
 type EPatRet = ([TyVar], [(Ident, EConstraint)], EPat)  -- skolems, dictionaries, pattern
 
