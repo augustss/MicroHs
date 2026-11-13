@@ -281,7 +281,7 @@ mkTModule tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
-      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
+      [ TypeExport i (tentry i) (assoc i) | Type    (i, _) _   <- tds ]
 
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
@@ -653,65 +653,11 @@ munify loc (Check a) b = unify loc b a
 expandSynLoc :: EType -> T EType
 expandSynLoc at = setSLocExpr (getSLoc at) <$> expandSyn at
 
--- Synonyms are expanded after kind checking.
--- There should be no synonyms in any of the symbol tables (except synTable).
-expandSyn :: HasCallStack =>
-             EType -> T EType
---expandSyn at | trace ("expandSyn: " ++ show at) False = undefined
-expandSyn at = do
-  syns <- gets synTable
-  let
-    rt = expandSyn' syns at
-    -- Check that there are no unexpanded synonyms left
-    chk (EApp f a) = do chk f; chk a
-    chk (EVar i) =
-      case M.lookup i syns of
-        Nothing -> return ()
-        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ showIdent i ++ " in " ++ showEType at
-    chk (EUVar _) = return ()
-    chk (EForall _ _ t) = chk t
-    chk (ELit _ _) = return ()
-    chk _ = impossible
-  chk rt
-  return rt
-
 expandSynNoChk :: HasCallStack =>
                   EType -> T EType
 expandSynNoChk t = do
   syns <- gets synTable
   return $ expandSyn' syns t
-
--- Expand with the given synonym table.
-expandSyn' :: HasCallStack =>
-              SynTable -> EType -> EType
-expandSyn' syns = esyn
-  where
-    esyn = syn []
-    -- Expand synonyms that have enough arguments
-    syn ts t =
-      case t of
-        EApp f a -> syn (esyn a : ts) f
-        EVar i ->
-          case M.lookup i syns of
-            Nothing -> eApps t ts
-            Just (EForall _ vks tt) ->
-              let is = map idKindIdent vks
-                  s = zip is ts
-                  lis = length is
-                  lts = length ts
-              in  if lis > lts then
-                    eApps t ts
-                  else
-                    -- Too few arguments, just leave it alone
-                    syn (drop lis ts) (subst s tt)
-            Just _ -> impossible
-        EUVar _ -> eApps t ts
-        ESign a _ -> syn ts a   -- Throw away signatures, they don't affect unification
-        EForall b iks tt | null ts -> EForall b iks (esyn tt)
-        ELit _ (LStr _) -> t
-        ELit _ (LInteger _) -> t
-        _ -> impossiblePP t
-
 
 mapEType :: (EType -> EType) -> EType -> EType
 mapEType fn = rec
@@ -1073,8 +1019,14 @@ bootExportable _ = True
 setDefault :: [EDef] -> T ()
 setDefault defs = do
   tys <- gets typeTable
-  ds <- sequence [ do { ts' <- mapM expandSyn ts; return (tyQIdent $ expLookup c tys, ts') }
-                 | Default (Just c) ts <- defs ]
+  ds <- concat <$> sequence [ do
+    ts' <- mapM expandSyn ts
+    cs <- expandTup (EApp (EVar $ tyQIdent $ expLookup c tys) (EVar dummyIdent))
+    return [ (qi, ts')
+           | c' <- cs
+           , (qi, _) <- maybeToList (getAppM c')
+           ]
+    | Default (Just c) ts <- defs ]
   dflts <- gets defaults
   let dflts' = foldr (uncurry M.insert) dflts ds
 --  traceM $ "Active defaults " ++ show (M.toList dflts')
@@ -1187,6 +1139,7 @@ addTypeKind kdefs adef = do
 addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
+  ct <- gets classTable
   let
     addAssoc ti is = do
       vt <- gets valueTable
@@ -1195,17 +1148,24 @@ addAssocs adef = do
               Right e -> [ValueExport i e]
               _       -> []  -- fields with existential type have no selector
       addAssocTable (qualIdent mn ti) (concatMap val is)
-
+    
     assocData _ (Constr _ _ c _ (Left _)) = [(c, c)]
     -- Keep the visible field name, but look up its owner-specific getter.
     assocData ti (Constr _ _ c _ (Right its)) =
       (c, c) : [ (f, mkGetName ti f) | (f, _) <- its ]
+    
+    assocSyn c
+      | Just (qiCls, _) <- getAppM c, Just (ClassInfo _ _ _ mits _) <- M.lookup qiCls ct =
+        [ (x, x) | (mi, _) <- mits, x <- [mi, mkDefaultMethodId mi] ]
+      | otherwise = []
+
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
                         -> addAssoc i (nub $ concatMap (assocData i) cs)
     Newtype (i, _) c  _ -> addAssoc i (assocData i c)
     Class _ (i, _) _ ms -> addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    Type    (i, _) t    -> addAssoc i . concatMap assocSyn =<< expandTup t
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table.
@@ -1257,13 +1217,17 @@ tcStand st ct = do
      -- It's needed for the number of arguments to "eta reduce",
      -- and also for kind checking the via type.
      -- So find the kind of the last argument to the class
-     (vks, kty) <- do
-       let (cvks, _ctx, cty) = splitContext ct'
-           cls = fst $ getApp cty
-       ctbl <- gets classTable
-       case M.lookup cls ctbl of
-         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
-         _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     (vkss, ktys) <- unzip <$> do
+       (cvks, _ctx, scty) <- splitContext <$> expandSyn ct'
+       ctys <- expandTup scty
+       forM ctys $ \cty -> do
+         let cls = fst $ getApp cty
+         ctbl <- gets classTable
+         case M.lookup cls ctbl of
+           Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
+           _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     let vks = concat vkss
+         kty = head ktys
      let narg = length $ fst $ getArrows kty
      st' <-
        case st of
@@ -1494,14 +1458,6 @@ splitContext act =
       case splitContext ct of
         (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
     _ -> ([], [], act)
-
--- Convert a Set of Classes to a list while expanding synonyms
-expandTup :: EType -> T [EType]
-expandTup t = do
-  u <- expandSyn t
-  case getExprTuple u of
-    Just xs -> concat <$> mapM expandTup xs
-    Nothing -> pure [u]
 
 -- expandInst runs when all kind checking has been done, but no value checking.
 -- So any generated type expressions must be kind correct and fully qualified,
