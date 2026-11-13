@@ -1188,12 +1188,15 @@ addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
   let
-    addAssoc ti is = do
+    addAssoc ti is methodEntries = do
       vt <- gets valueTable
       let val (i, lookupName) =
-            case stLookup "" lookupName vt of
-              Right e -> [ValueExport i e]
-              _       -> []  -- fields with existential type have no selector
+            case lookup i methodEntries of
+              Just e -> [ValueExport i e]
+              Nothing ->
+                case stLookup "" lookupName vt of
+                  Right e -> [ValueExport i e]
+                  _       -> []  -- fields with existential type have no selector
       addAssocTable (qualIdent mn ti) (concatMap val is)
 
     assocData _ (Constr _ _ c _ (Left _)) = [(c, c)]
@@ -1203,9 +1206,15 @@ addAssocs adef = do
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
-                        -> addAssoc i (nub $ concatMap (assocData i) cs)
-    Newtype (i, _) c  _ -> addAssoc i (assocData i c)
-    Class _ (i, _) _ ms -> addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+                        -> addAssoc i (nub $ concatMap (assocData i) cs) []
+    Newtype (i, _) c  _ -> addAssoc i (assocData i c) []
+    Class _ (i, _) _ ms -> do
+      ctbl <- gets classTable
+      let methodTypes = case M.lookup (qualIdent mn i) ctbl of
+                          Just (ClassInfo _ _ _ mts _) -> mts
+                          _ -> []
+          methodEntries = [ (m, Entry (EVar (qualIdent mn m)) t) | (m, t) <- methodTypes ]
+      addAssoc i [ (x, x) | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ] methodEntries
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table.

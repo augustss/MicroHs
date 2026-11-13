@@ -55,6 +55,7 @@ HigherKind
 PolyKind
 Record
 RecordExport
+ClassFieldExport
 Deriving
 Unicode
 BindPat
