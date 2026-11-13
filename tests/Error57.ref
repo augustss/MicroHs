@@ -1,4 +1,4 @@
-Error57.hs:2:4: error: too few arguments
+./Error57.hs:2:4: error: too few arguments
   |
 2 | f (Just) = 1
   |    ^

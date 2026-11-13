@@ -1,4 +1,4 @@
-Error66.hs:3:20: error: occurs check: cannot construct the infinite type: a ~ a -> b
+./Error66.hs:3:20: error: occurs check: cannot construct the infinite type: a ~ a -> b
   |
 3 | x = let y = 1 in y y
   |                    ^

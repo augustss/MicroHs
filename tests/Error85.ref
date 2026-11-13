@@ -1,4 +1,4 @@
-Error85.hs:3:15: error: Bad GADT result type (Maybe a, T, [a$ :: _])
+./Error85.hs:3:15: error: Bad GADT result type (Maybe a, T, [a$ :: _])
   |
 3 |   C :: Int -> Maybe a
   |               ^

@@ -58,16 +58,17 @@ type I a = StateIO IState a
 
 mainInteractive :: Flags -> [String] -> IO ()
 mainInteractive flags mdls = do
-  putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
-  putStrLn $ "Integer implemented with " ++
-    if wantGMP then "GMP" else if wantImath then "imath" else "Haskell"
+  when (verbosityGT flags (-1)) $ do
+    putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
+    putStrLn $ "Integer implemented with " ++
+      if wantGMP then "GMP" else if wantImath then "imath" else "Haskell"
 {-
   bootTime <- getBootTimeMicro
   now <- getTimeMicro
   putStrLn $ "time=" ++ show (now - bootTime) ++ "us"
 -}
   mhome <- lookupEnv "HOME"
-  let flags' = flags{ loading = True }
+  let flags' = flags{ loading = verbosityGT flags (-1) }
       hist = maybe mhsi (</> mhsi) mhome
       mhsi = ".mhsi"
   _ <- runStateIO startInteractive =<< startIState flags' mdls hist
@@ -123,7 +124,8 @@ startInteractive = do
       line s = oneline s
   rc <- liftIO (catch (lines <$> readFile ".mhsi_rc") (\ (_ :: SomeException) -> return []))
   mapM_ line rc
-  putStrLnI "Type ':quit' to quit, ':help' for help"
+  when (verbosityGT (isFlags is) (-1)) $
+    putStrLnI "Type ':quit' to quit, ':help' for help"
 {-
   liftIO $ do bootTime <- getBootTimeMicro
               now <- getTimeMicro

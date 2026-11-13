@@ -105,6 +105,17 @@ bitDefault i = 1 `shiftL` i
 testBitDefault :: (Bits a, Num a) => a -> Int -> Bool
 testBitDefault x i = (x .&. bit i) /= 0
 
+-- The class defaults for rotate/rotateL/rotateR are circular, so instances must define rotate.
+-- The mask clears sign bits from shiftR; it avoids Num since IntN arithmetic checks overflow.
+rotateDefault :: FiniteBits a => a -> Int -> a
+rotateDefault x i
+  | r == 0    = x
+  | otherwise = (x `unsafeShiftL` r) .|. ((x `unsafeShiftR` (w - r)) .&. mask)
+  where
+    w = finiteBitSize x
+    r = i `mod` w
+    mask = complement (complement zeroBits `unsafeShiftL` r)
+
 popCountDefault :: (Bits a, Num a) => a -> Int
 popCountDefault = go 0
   where
@@ -132,6 +143,7 @@ instance Bits Int where
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primIntPopcount
   zeroBits = 0

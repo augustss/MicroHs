@@ -1,4 +1,4 @@
-Error76.hs:4:4: error: too many arguments
+./Error76.hs:4:4: error: too many arguments
   |
 4 | f (C x y) = x
   |    ^

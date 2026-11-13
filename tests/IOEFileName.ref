@@ -1,0 +1,4 @@
+Just "nope.tmp/x"
+openFile
+True
+nope.tmp/x: openFile: does not exist

@@ -1,4 +1,4 @@
-Error73.hs:3:7: error: type mismatch
+./Error73.hs:3:7: error: type mismatch
     expected: Int
     actual:   [a]
   |

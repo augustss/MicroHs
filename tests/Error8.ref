@@ -1,4 +1,4 @@
-Error8.hs:1:22: error: undefined module: M
+./Error8.hs:1:22: error: undefined module: M
   |
 1 | module Error8(module M) where
   |                      ^

@@ -1,4 +1,4 @@
-Error26.hs:2:7: error: no instance for (HasField "_0001" Integer b)
+./Error26.hs:2:7: error: no instance for (HasField "_0001" Integer b)
   |
 2 | x = 0._0001
   |       ^

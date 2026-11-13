@@ -1,4 +1,4 @@
-Error108.hs:5:18: error: type mismatch
+./Error108.hs:5:18: error: type mismatch
     expected: STRef r Int
     actual:   STRef r Int
   |

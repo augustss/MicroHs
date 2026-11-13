@@ -1,4 +1,4 @@
-Error103.hs:2:4: error: type: Subsumption check failed
+./Error103.hs:2:4: error: type: Subsumption check failed
   |
 2 | f (x :: forall a . a -> a) = x
   |    ^

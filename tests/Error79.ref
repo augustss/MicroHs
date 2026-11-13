@@ -1,4 +1,4 @@
-Error79.hs:2:5: error: syntax
+./Error79.hs:2:5: error: syntax
     found:    Illegal Char literal
     expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
   |

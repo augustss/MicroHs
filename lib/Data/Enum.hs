@@ -6,6 +6,10 @@ module Data.Enum (
   numericEnumFromThen,
   numericEnumFromTo,
   numericEnumFromThenTo,
+  fractionalEnumFrom,
+  fractionalEnumFromThen,
+  fractionalEnumFromTo,
+  fractionalEnumFromThenTo,
 ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -14,6 +18,7 @@ import Data.Bool
 import Data.Char_Type
 import Data.Bounded
 import Data.Enum_Class
+import Data.Fractional
 import Data.Function
 import Data.Functor
 import Data.Int.Int
@@ -51,6 +56,30 @@ numericEnumFromThenTo l m h =
     takeWhile (<= h) (numericEnumFromThen l m)
   else
     takeWhile (>= h) (numericEnumFromThen l m)
+
+-- Like GHC, compute n + k*step to avoid adding up rounding errors
+fractionalEnumFrom :: (Fractional a) => a -> [a]
+fractionalEnumFrom n = from 0
+  where
+    from !k = let x = n + k in x `seq` (x : from (k + 1))
+
+fractionalEnumFromThen :: (Fractional a) => a -> a -> [a]
+fractionalEnumFromThen n m = from 0
+  where
+    d = m - n
+    from !k = let x = n + k * d in x `seq` (x : from (k + 1))
+
+-- For Fractional types the Report says to go up to h + step/2
+fractionalEnumFromTo :: (Fractional a, Ord a) => a -> a -> [a]
+fractionalEnumFromTo l h = takeWhile (<= h + 1/2) (fractionalEnumFrom l)
+
+fractionalEnumFromThenTo :: (Fractional a, Ord a) => a -> a -> a -> [a]
+fractionalEnumFromThenTo l m h =
+  if m >= l then
+    takeWhile (<= h + d) (fractionalEnumFromThen l m)
+  else
+    takeWhile (>= h + d) (fractionalEnumFromThen l m)
+  where d = (m - l) / 2
 
 -- Likewise for Bool
 instance Enum Bool where

@@ -81,6 +81,7 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO
+import System.IO.Error(ioError)
 import System.Environment
 
 data DIR
@@ -163,16 +164,52 @@ withCurrentDirectory dir io =
 createDirectory :: FilePath -> IO ()
 createDirectory d = throwErrnoIfMinus1_ "createDirectory" $ withCAString d $ \ s -> c_mkdir s 0o775       -- rwxrwxr-x
 
+-- As in GHC's directory package: an existing directory is not an error,
+-- anything else that makes mkdir fail is.  With parents, try the path
+-- itself first and only create the parent when mkdir says it is missing,
+-- so existing ancestors are never touched.  (Unlike GHC, a dangling
+-- symlink at the path is an error.)
 createDirectoryIfMissing :: Bool -> FilePath -> IO ()
-createDirectoryIfMissing False d = do
-  _ <- withCAString d $ \ s -> c_mkdir s 0o775       -- rwxrwxr-x
-  return ()
-createDirectoryIfMissing True d = do
-  let ds = scanl1 (\ x y -> x ++ "/" ++ y) . split [] $ d
-      split r [] = [r]
-      split r (c:cs) | isPathSeparator c = r : split [] cs
-                     | otherwise         = split (r ++ [c]) cs
-  mapM_ (createDirectoryIfMissing False) ds
+createDirectoryIfMissing _ "" = return ()             -- as GHC does
+createDirectoryIfMissing parents d = do
+  res <- withCAString d $ \ s -> do
+    r <- c_mkdir s 0o775                              -- rwxrwxr-x
+    if r == -1 then Just <$> getErrno else return Nothing
+  case res of
+    Nothing -> return ()
+    Just errno -> do
+      let parent = parentDirectory d
+      if parents && errno == eNOENT && not (null parent) then do
+        createDirectoryIfMissing True parent
+        createDirectoryIfMissing False d
+      else do
+        -- Some systems report a permission error for an existing directory.
+        -- Only EEXIST proves that the path exists, so only then may an
+        -- unopenable path count as a directory.
+        isDir <- if errno == eEXIST then isDirectory True d
+                 else if errno `elem` [eACCES, ePERM, eROFS] then isDirectory False d
+                 else return False
+        unless isDir $
+          ioError (errnoToIOError "createDirectoryIfMissing" errno Nothing (Just d))
+
+-- Is the path a directory?  An unreadable directory (e.g., mode --x)
+-- cannot be opened; with exists = True the path is known to exist, and
+-- EACCES then means it is such a directory.
+isDirectory :: Bool -> FilePath -> IO Bool
+isDirectory exists fn = withCAString fn $ \ cfn -> do
+  dp <- c_opendir cfn
+  if dp == nullPtr then do
+    errno <- getErrno
+    return (exists && errno == eACCES)
+  else do
+    _ <- c_closedir dp
+    return True
+
+-- The path with its last component (and any trailing separators) removed.
+-- "" when there is no parent left to create.
+parentDirectory :: FilePath -> FilePath
+parentDirectory =
+  reverse . dropWhile isPathSeparator . dropWhile (not . isPathSeparator) . dropWhile isPathSeparator . reverse
 
 isPathSeparator :: Char -> Bool
 isPathSeparator c = c == '/' || _isWindows && c == '\\'

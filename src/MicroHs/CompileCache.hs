@@ -46,13 +46,14 @@ data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
+  others  :: [TModule [LDef]],          -- invisible package modules
   pkgs    :: [(Maybe FilePath, Package)], -- loaded packages, no filename for embedded
   tables  :: GlobTables                 -- glbals, e.g., instances
   }
 --  deriving (Show)
 
 instance NFData Cache where
-  rnf (Cache a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
+  rnf (Cache a b c d e f) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
 
 forceCache :: Cache -> Cache
 forceCache c = force c
@@ -65,7 +66,7 @@ setCacheTables ct c = c{ tables = ct }
 
 emptyCache :: Cache
 emptyCache =
-  Cache { working = [], boots = [], cache = M.empty, pkgs = [], tables = emptyGlobTables }
+  Cache { working = [], boots = [], cache = M.empty, others = [], pkgs = [], tables = emptyGlobTables }
 
 deleteFromCache :: IdentModule -> Cache -> Cache
 deleteFromCache mn c = c{ cache = M.delete mn (cache c) }
@@ -96,7 +97,7 @@ workToDone (t, i, k) c@(Cache{ working = _mn:ws, boots = bs, cache = m }) =
 workToDone _ _ = undefined
 
 cachedModules :: Cache -> [TModule [LDef]]
-cachedModules = map tModuleOf . M.elems . cache
+cachedModules c = others c ++ (map tModuleOf . M.elems . cache) c
 
 cachedModuleNames :: Cache -> [IdentModule]
 cachedModuleNames = M.keys . cache
@@ -128,7 +129,8 @@ getEmbedPkgs ch = [ p | (Nothing, p) <- pkgs ch ]
 addPackage :: Maybe FilePath -> Package -> Cache -> Cache
 addPackage mf p c = c{
   pkgs = (mf, p) : pkgs c,
-  cache = foldr ins (cache c) (pkgExported p ++ pkgOther p),
+  cache = foldr ins (cache c) (pkgExported p),
+  others = pkgOther p ++ others c,
   tables = mergeGlobTables (pkgTables p) (tables c)
   }
   where ins t = M.insert (tModuleName t) (PkgMdl t)

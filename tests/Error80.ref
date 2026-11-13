@@ -1,4 +1,4 @@
-Error80.hs:2:5: error: syntax
+./Error80.hs:2:5: error: syntax
     found:    Unrecognized input: '\SOH'
     expected: - LQIdent ( UQIdent [ QualString literal _primitive @ (# \ case let if QualDo do mdo
   |

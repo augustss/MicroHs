@@ -18,8 +18,6 @@ jobs:
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
     - name: make everytestmhs
       run: make everytestmhs
 
@@ -32,20 +30,14 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libgmp-dev
-    - name: make
-      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
     - name: make everytestmhs
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
-    - name: make install
-      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp minstall
 
   build-macos:
     runs-on: macos-latest
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
     - name: make everytestmhs
       run: make everytestmhs
 
@@ -93,7 +85,7 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -104,15 +96,12 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
 
   build-linux-gmp-x86:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # traditional sudo
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -124,14 +113,8 @@ jobs:
           gmp-dev
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
-      shell: alpine.sh {0}
-    - name: make install
-      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp minstall
       shell: alpine.sh {0}
 
   build-emscripten:

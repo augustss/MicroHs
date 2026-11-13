@@ -1,4 +1,4 @@
-Error47.hs:2:9: error: Cannot infer recursive pattern synonym types
+./Error47.hs:2:9: error: Cannot infer recursive pattern synonym types
   |
 2 | pattern P x = Q x
   |         ^

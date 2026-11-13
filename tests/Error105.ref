@@ -1,4 +1,4 @@
-Error105.hs:2:11: error: bad prefix expression
+./Error105.hs:2:11: error: bad prefix expression
   |
 2 | x = 1 * - 2
   |           ^

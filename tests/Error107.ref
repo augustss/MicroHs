@@ -1,4 +1,4 @@
-Error107.hs:3:10: error: Duplicate instance Text.Show.Show Primitives.Int at ../lib/Data/Int/Int.hs:55:10
+./Error107.hs:3:10: error: Duplicate instance Text.Show.Show Primitives.Int at ../lib/Data/Int/Int.hs:55:10
   |
 3 | instance Show Int where show _ = "xxx"
   |          ^

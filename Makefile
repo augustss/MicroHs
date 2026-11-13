@@ -201,7 +201,7 @@ mhs.conf: mhs.conf.in
 	sed -e "s,%GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,%GMPLIBS,$(MHSGMPCCLIBS)," mhs.conf.in > mhs.conf
 
 # Run test examples with ghc-compiled compiler
-runtest:	bin/mhseval bin/gmhs tests/*.hs
+runtest:	tests/*.hs
 	cd tests; $(MAKE) alltest
 
 # Run test examples with mhs-compiled compiler
@@ -325,8 +325,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.16.12.0
-HVERSION=0,16,12,0
+VERSION=0.16.14.0
+HVERSION=0,16,14,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

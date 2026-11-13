@@ -1,4 +1,4 @@
-Error30.hs:2:6: error: undefined value: e_23
+./Error30.hs:2:6: error: undefined value: e_23
   |
 2 | x = 1e_23
   |      ^

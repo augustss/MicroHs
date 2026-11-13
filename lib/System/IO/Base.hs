@@ -241,7 +241,7 @@ ioErrH :: Handle -> IOErrorType -> String -> IO a
 ioErrH h typ desc   = ioError $ IOError (Just h) typ "" desc Nothing Nothing
 
 ioErr :: IOErrorType -> String -> String -> IO a
-ioErr typ desc name = ioError $ IOError Nothing  typ "" "" Nothing (Just $ name ++ ": " ++ desc)
+ioErr typ loc name = ioError $ IOError Nothing  typ loc "" Nothing (Just name)
 
 --------
 

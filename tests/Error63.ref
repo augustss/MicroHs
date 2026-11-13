@@ -1,4 +1,4 @@
-Error63.hs:3:19: error: not data/newtype Error63.T
+./Error63.hs:3:19: error: not data/newtype Error63.T
   |
 3 | deriving instance Show T
   |                   ^

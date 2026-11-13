@@ -1,4 +1,4 @@
-Error98.hs:2:34: error: bad foreign import
+./Error98.hs:2:34: error: bad foreign import
   |
 2 | foreign import ccall "a b c d e" foo :: IO ()
   |                                  ^
