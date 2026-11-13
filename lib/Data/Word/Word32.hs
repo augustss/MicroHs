@@ -102,6 +102,7 @@ instance Bits Word32 where
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount = primWordPopcount . unW32
   zeroBits = 0

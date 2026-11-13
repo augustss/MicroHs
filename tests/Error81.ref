@@ -1,3 +1,3 @@
-Error81.hs:3:1: error: syntax
+./Error81.hs:3:1: error: syntax
     found:    Unclosed {- comment
     expected: ; LIdent ( UQIdent [ QualString literal ~ ! (# infixl infixr infix - data newtype type import foreign class instance default pattern deriving eof

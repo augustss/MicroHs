@@ -7,6 +7,7 @@ import Control.Applicative hiding ((*>), (<*))
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
+import Data.Either
 import Data.List
 import Data.Maybe
 import Text.ParserComb as P
@@ -412,7 +413,7 @@ pDef =
   <|> Type         <$> (pKeyword "type"     *> pLHS) <*> (equal *> pType)
   <|> Import       <$> (pKeyword "import"   *> pImportSpec)
   <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pCallConv)
-                        <*> (optional pSafety *> optional pString) <*> pLIdent <*> (dcolon *> pType)
+                        <*> (pSafety <|> pure Safe) <*> optional pString <*> pLIdent <*> (dcolon *> pType)
   <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
@@ -438,7 +439,7 @@ pDef =
 
     pFExpr = EVar <$> (pLQIdentSym <|> pUQIdentSym)
 
-    pSafety = pKeyword "unsafe" <|> pKeyword "safe" <|> pKeyword "interruptible"
+    pSafety = (Unsafe <$ pKeyword "unsafe") <|> (Safe <$ pKeyword "safe") <|> (Interruptible <$ pKeyword "interruptible")
 
 pCallConv :: P CallConv
 pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")
@@ -874,15 +875,17 @@ pOperComma = pOper <|> pComma
 pOperCommaNoMinus :: P Ident
 pOperCommaNoMinus = guardM pOperComma (/= mkIdent "-")
 
--- XXX combine pUpdate and pSelects
+-- Updates and selections can be mixed, as in GHC: e.a{x = 1}.b
+-- A run of selections becomes one ESelect.
 pAExpr :: P Expr
 pAExpr = do
   ee <- pAExpr'
-  us <- many pUpdate
-  ss <- many pSelect
-  let sel e | null ss = e
-            | otherwise = EApp (ESelect ss) e
-  pure $ sel (foldl EUpdate ee us)
+  ps <- many (Left <$> pUpdate <|> Right <$> pSelect)
+  let post e [] = e
+      post e (Left us : r) = post (EUpdate e us) r
+      post e r = let (ss, r') = span isRight r
+                 in  post (EApp (ESelect (rights ss)) e) r'
+  pure $ post ee ps
 
 pUpdate :: P [EField]
 pUpdate = pSpec '{' *> sepSEBy pEField comma <* pSpec '}'

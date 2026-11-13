@@ -411,6 +411,7 @@ intersperse sep (a:as) = a : prepend as
 intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
 
+infix 4 `elem`, `notElem`
 elem :: forall a . (Eq a) => a -> [a] -> Bool
 elem a = any (a ==)
 

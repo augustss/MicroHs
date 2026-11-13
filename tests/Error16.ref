@@ -1,4 +1,4 @@
-Error16.hs:2:12: error: kind mismatch
+./Error16.hs:2:12: error: kind mismatch
     expected: Type
     actual:   Type -> Type
   |

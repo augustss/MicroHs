@@ -33,3 +33,7 @@ R3 {x3 = (), y3 = 10}
 'a'
 R3 {x3 = True, y3 = 10}
 'b'
+CR{a=1,b=False}
+False
+CR{a=1,b=True}
+2

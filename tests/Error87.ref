@@ -1,4 +1,4 @@
-Error87.hs:2:16: error: not exported: noSuchSymbol
+./Error87.hs:2:16: error: not exported: noSuchSymbol
   |
 2 | import TestMap(noSuchSymbol)
   |                ^

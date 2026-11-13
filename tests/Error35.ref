@@ -1,4 +1,4 @@
-Error35.hs:3:18: error: type mismatch
+./Error35.hs:3:18: error: type mismatch
     expected: Int
     actual:   [a]
   |

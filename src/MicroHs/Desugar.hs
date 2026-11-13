@@ -47,7 +47,12 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
+    ForImp cc _ ie i at ->
+      -- An explicit forall (as GHC allows) does not change the C type.
+      let dropForalls (EForall _ _ ty) = dropForalls ty
+          dropForalls ty = ty
+          t = dropForalls at
+      in  [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -643,7 +648,9 @@ mkForImp mn no cc ms i ty =
       isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
       isValidC _ = False
       impent = parseImpEnt loc cc ui $ fromMaybe "" ms
-      fno = show no
+      -- The number is only unique within a module, so qualify it with the module name.
+      -- It comes first, so the name cannot be a C identifier, which isValidC names are.
+      fno = show no ++ "_" ++ map (\ c -> if isAlphaNum c then c else '_') (unIdent mn)
       cid =
         case impent of
           ImpStatic _ _ n ->

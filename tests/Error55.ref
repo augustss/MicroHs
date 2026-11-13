@@ -1,4 +1,4 @@
-Error55.hs:3:4: error: Bad required type argument
+./Error55.hs:3:4: error: Bad required type argument
   |
 3 | f (Just a) x = x
   |    ^

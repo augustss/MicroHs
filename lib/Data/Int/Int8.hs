@@ -111,6 +111,7 @@ instance Bits Int8 where
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
   bit = bitDefault
+  rotate = rotateDefault
   testBit = testBitDefault
   popCount (I8 x) = primWordPopcount (primIntToWord x `primWordAnd` (0xff::Word))
   zeroBits = 0

@@ -1,4 +1,4 @@
-Error42.hs:3:11: error: type mismatch
+./Error42.hs:3:11: error: type mismatch
     expected: [a]
     actual:   a
   |

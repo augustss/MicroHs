@@ -86,6 +86,8 @@ instance Enum Double where
   pred x = x - 1
   toEnum n = fromIntegral n
   fromEnum = fromInteger . truncate
+  -- NOTE: this intentionally differs from the Haskell Report.
+  -- Use fractionalEnumFrom etc. to get the Report behavior.
   enumFrom = numericEnumFrom
   enumFromThen = numericEnumFromThen
   enumFromTo = numericEnumFromTo

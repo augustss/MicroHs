@@ -1,4 +1,4 @@
-Error10.hs:1:16: error: undefined export: T
+./Error10.hs:1:16: error: undefined export: T
   |
 1 | module Error10(T(..)) where
   |                ^
