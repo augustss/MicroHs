@@ -223,6 +223,8 @@ library base
         Control.Monad.ST_Type
         Data.ByteString.Internal
         Data.ByteString.Lazy.Internal
+        MiniPrelude
+        System.IO.Base
         -- temporarily
         Primitives
 
@@ -262,11 +264,11 @@ library base
         Data.Ratio_Type
         Data.Text.Internal
         Foreign.ForeignPtr_Type
-        MiniPrelude
+--        MiniPrelude
         Numeric.Read
         Numeric.Show
 --        Primitives
-        System.IO.Base
+--        System.IO.Base
         System.IO.Internal
         System.IO.Open
         System.IO_Handle
