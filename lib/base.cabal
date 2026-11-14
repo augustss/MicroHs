@@ -224,7 +224,8 @@ library base
         Control.Monad.ST_Type
         Data.ByteString.Internal
         Data.ByteString.Lazy.Internal
-        Primitives   -- temporarily
+        -- temporarily
+        Primitives
 
     other-modules:
         Control.Concurrent.STM.Internal

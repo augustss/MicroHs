@@ -48,8 +48,12 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc sf ie i t ->
-      let imp = Lit $ mkForImp mn ffiNo cc sf ie i t
+    ForImp cc sf ie i at ->
+      -- An explicit forall (as GHC allows) does not change the C type.
+      let dropForalls (EForall _ _ ty) = dropForalls ty
+          dropForalls ty = ty
+          t = dropForalls at
+          imp = Lit $ mkForImp mn ffiNo cc sf ie i t
       in  case (cc, sf) of
             (Cjavascript, Interruptible) -> [(i, jsAwait t imp)]
             _                            -> [(i, ccall t imp)]

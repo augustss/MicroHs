@@ -7,7 +7,7 @@ TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
 .PHONY: testpreprocessorpaths
 
-alltest: info cache test errtest testforimp testjsnative testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
+alltest: info cache test errtest testforimp testforimpforall testjsnative testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
 # interactivetest
 
 cache:
@@ -32,6 +32,9 @@ testpreprocessorpaths:
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+
+testforimpforall:
+	$(TMHS) ForImpForall -of.exe && ./f.exe > ForImpForall.out && diff ForImpForall.ref ForImpForall.out
 
 # A program that creates JavaScript callbacks also compiles (and runs, as long as it
 # does not use them) for a native target.
