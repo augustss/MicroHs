@@ -41,6 +41,7 @@
 #endif  /* WANT_MATH */
 #if defined(__EMSCRIPTEN__)
 #include "emscripten.h"
+#include "jsffi.h"
 #ifndef EM_ASM_PTR
 #define EM_ASM_PTR(...) (void*)(uintptr_t)EM_ASM_INT(__VA_ARGS__)
 #endif
@@ -565,6 +566,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FU
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
+                T_IO_JSAWAIT, T_IO_JSAWAITRES,
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
@@ -750,6 +752,7 @@ enum fptype {
   FP_FORPTR = 0,                /* a regular foreign pointer to unknown memory */
   FP_BSTR,                      /* a bytestring */
   FP_MPZ,                       /* a GMP MPZ pointer */
+  FP_JSVAL,                     /* a JavaScript value (an index into a table on the JavaScript side) */
 };
 
 /*
@@ -1004,6 +1007,7 @@ struct mthread {
                                   * The value cannot be taken from the mvar by the read, because
                                   * we need to guarantee that all reads get the same value. */
   bool            mt_mark;       /* marked as accessible */
+  bool            mt_callback;   /* a JavaScript callback's thread: report an uncaught exception */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if WANT_IO_POLL
   int             mt_fd;         /* The file descriptor that we are waiting on,
@@ -1099,7 +1103,7 @@ free_stableptr(uvalue_t sp)
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
                exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
-               exn_serialize, exn_deserialize, exn_last };
+               exn_serialize, exn_deserialize, exn_jsexception, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -1127,6 +1131,7 @@ NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combB
 NODEPTR combKK, combKA;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combPERFORMIO;
+NODEPTR combTAKEMVAR, combJSAWAITRES;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBININT64_1, combBININT64_2, combUNINT64_1;
@@ -1174,7 +1179,11 @@ handle_sigint(int s)
 INLINE void
 gc_check(size_t k)
 {
-  if (k < num_free)
+  if (k < num_free
+#if defined(__EMSCRIPTEN__)
+      && num_jsval_alloc < JSVAL_GC_LIMIT
+#endif
+      )
     return;
   gc();
 }
@@ -1453,6 +1462,12 @@ throwto(struct mthread *mt, NODEPTR exn)
     printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
   }
 #endif  /* THREAD_DEBUG */
+#if defined(__EMSCRIPTEN__)
+  if (in_js_callback) {         /* a callback must not block, see js_throwto */
+    js_throwto(mt, exn);
+    return;
+  }
+#endif  /* __EMSCRIPTEN__ */
   (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
   /* GHC's throwTo does not return until the exception has been raised in the
    * target thread, so wait for the target to take it.  Without this the target
@@ -1565,6 +1580,12 @@ yield(void)
   }
 
 // printf("yield %p %d\n", runq, (int)stack_ptr);
+#if defined(__EMSCRIPTEN__)
+  if (in_js_callback) {         /* a callback runs to completion, see js_yield */
+    js_yield();
+    return;
+  }
+#endif  /* __EMSCRIPTEN__ */
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
 #if THREAD_DEBUG
@@ -1609,6 +1630,7 @@ new_thread(NODEPTR root)
   mt->mt_mval = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = false;
+  mt->mt_callback = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
 #if WANT_IO_POLL
@@ -2226,6 +2248,13 @@ NODEPTR evali(NODEPTR n);
 /* If this is non-0 it means that the threading system is active. */
 struct mthread *main_thread = 0;
 
+static void run_threads(void);
+
+/* Set when the main thread has finished (the other threads may keep running
+ * under emscripten, when JavaScript callbacks keep the program alive). */
+static int main_finished = 0;
+static void main_finish(void);
+
 void
 start_exec(NODEPTR root)
 {
@@ -2234,6 +2263,14 @@ start_exec(NODEPTR root)
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
+  run_threads();
+}
+
+/* Run threads until the main thread is done. */
+static void
+run_threads(void)
+{
+  struct mthread *mt;
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -2250,6 +2287,10 @@ start_exec(NODEPTR root)
       ERR("FATAL: exception while trying to die");
       EXIT(1);
     }
+#if defined(__EMSCRIPTEN__)
+    if (runq.mq_head->mt_callback && runq.mq_head->mt_id != MAIN_THREAD)
+      report_callback_exn(the_exn); /* the callback had been left blocked: no JavaScript caller */
+#endif
     mt = remove_q_head(&runq);
     if (mt->mt_id == MAIN_THREAD) {
       die_exn(the_exn);
@@ -2271,6 +2312,10 @@ start_exec(NODEPTR root)
   }
 #endif  /* THREAD_DEBUG */
   for(;;) {
+#if defined(__EMSCRIPTEN__)
+    if (!runq.mq_head && js_suspend()) /* all threads are blocked: return to the JavaScript event loop */
+      return;
+#endif  /* __EMSCRIPTEN__ */
     if (!runq.mq_head)
       pause_exec();
     mt = runq.mq_head;          /* front thread */
@@ -2299,12 +2344,17 @@ start_exec(NODEPTR root)
     /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD) {
-      main_thread = 0;
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("start_exec: main thread done\n");
       }
 #endif  /* THREAD_DEBUG */
+      main_finished = 1;
+#if defined(__EMSCRIPTEN__)
+      if (mhs_js_keep_alive)    /* JavaScript callbacks exist: the program is not over */
+        continue;
+#endif  /* __EMSCRIPTEN__ */
+      main_thread = 0;
       return;                   /* when the main thread dies it's all over */
     }
   }
@@ -2558,6 +2608,8 @@ struct {
   { "IO.yield", T_IO_YIELD },
   { "IO.newmvar", T_IO_NEWMVAR },
   { "IO.takemvar", T_IO_TAKEMVAR },
+  { "IO.jsawait", T_IO_JSAWAIT },
+  { "IO.jsawaitres", T_IO_JSAWAITRES },
   { "IO.putmvar", T_IO_PUTMVAR },
   { "IO.readmvar", T_IO_READMVAR },
   { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
@@ -2760,6 +2812,8 @@ init_nodes(void)
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
     case T_IO_PERFORMIO: combPERFORMIO = n; break;
+    case T_IO_TAKEMVAR: combTAKEMVAR = n; break;
+    case T_IO_JSAWAITRES: combJSAWAITRES = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -3410,6 +3464,9 @@ gc(void)
   sweep_weaks();
 
   gc_mark_time += GETTIMEMILLI();
+#if defined(__EMSCRIPTEN__)
+  num_jsval_alloc = 0;
+#endif
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
@@ -4686,6 +4743,8 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
       } else {
         print_string(f, bs);
       }
+    } else if (FORPTR(n)->finalizer->fptype == FP_JSVAL) {
+      ERR("cannot serialize JSVal");
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
       putsb(prbuf, f);
@@ -5750,6 +5809,8 @@ evali(NODEPTR an)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
 #define SETBSTR(n,r)   do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
+/* Is n a JSVal?  A JavaScript exception is raised as the JSVal node itself. */
+#define ISJSVAL(n)     (GETTAG(n) == T_FORPTR && FORPTR(n)->finalizer->fptype == FP_JSVAL)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -6208,7 +6269,8 @@ evali(NODEPTR an)
     x = evali(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : -1);
+    /* An RTS exception is an Int, or a JSVal for exn_jsexception, see rtsExn. */
+    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : ISJSVAL(x) ? exn_jsexception : -1);
     RET;
 
   case T_BSAPPEND:
@@ -7031,6 +7093,32 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(res);
     }
+  case T_IO_JSAWAIT:
+    /* jsawait kind promise :: IO r
+     * Wait for a JavaScript Promise (an interruptible import, see mhs_js_await):
+     *   jsawait kind promise  -->  takeMVar mv >>= jsawaitres
+     * where the JavaScript side fills mv when the Promise settles. */
+    {
+#if defined(__EMSCRIPTEN__)
+      CHKARG2;                  /* x = kind, y = promise */
+      NODEPTR mvn = js_await(x, y);
+      GOAP2(combIOBIND, new_ap(combTAKEMVAR, mvn), combJSAWAITRES);
+#else
+      ERR("jsawait: JavaScript imports need the emscripten target");
+#endif
+    }
+  case T_IO_JSAWAITRES:
+    /* jsawaitres (err, value) :: IO r -- see mhs_js_settle */
+    {
+      CHKARG2NP;                /* x = the pair, y = world */
+      x = evali(x);
+      NODEPTR val = ARG(x);
+      if (GETVALUE(ARG(FUN(x))))
+        raise_exn(val);         /* a JSException with the error */
+      GCCHECKSAVE(val, 1);
+      POP(2);
+      GOPAIR(val);
+    }
   case T_IO_PUTMVAR:
     {
       CHKARG3NP;             /* set x=mvar, y=value, z=ST */
@@ -7683,7 +7771,32 @@ evali(NODEPTR an)
 
 static char *progname = "?";
 
-NORETURN void
+/* The message of an RTS generated exception. */
+static const char *
+rts_exn_msg(enum rts_exn eexn)
+{
+  static const char *msgs[] =
+    { "stack overflow",
+      "heap overflow",
+      "thread killed",
+      "user interrupt",
+      "DivideByZero",
+      "blocked MVar",
+      "blocked STM",
+      "arithmetic overflow",
+      "Serialize",
+      "Deserialize",
+      "JSException",
+    };
+  if (eexn < 0 || eexn >= exn_last)
+    return "unknown";
+  return msgs[eexn];
+}
+
+NORETURN static void die_msg(const char *msg);
+
+NORETURN
+void
 die_exn(NODEPTR exn)
 {
   /* No handler:
@@ -7698,24 +7811,12 @@ die_exn(NODEPTR exn)
 
   if (GETTAG(exn) == T_INT) {
     /* This is the special hack for RTS generated exception, represented by a T_INT */
-    enum rts_exn eexn = GETVALUE(exn);
-    static const char *msgs[] =
-      { "stack overflow",
-        "heap overflow",
-        "thread killed",
-        "user interrupt",
-        "DivideByZero",
-        "blocked MVar",
-        "blocked STM",
-        "arithmetic overflow",
-        "Serialize",
-        "Deserialize",
-      };
-    if (eexn < 0 || eexn >= exn_last) {
-      msg = "unknown";
-    } else {
-      msg = msgs[eexn];
-    }
+    msg = rts_exn_msg(GETVALUE(exn));
+#if defined(__EMSCRIPTEN__)
+  } else if (ISJSVAL(exn)) {
+    /* A JavaScript exception, raised as the JSVal itself */
+    msg = js_exn_string(FORPTR(exn)->payload.bs_array);
+#endif
   } else {
     /* just overwrite the top stack element, we don't need it */
     CLEARSTK();
@@ -7725,6 +7826,14 @@ die_exn(NODEPTR exn)
     msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
+  die_msg(msg);
+}
+
+/* End the program because of an uncaught exception, with message msg. */
+NORETURN
+static void
+die_msg(const char *msg)
+{
 #if WANT_STDIO
   /* A horrible hack until we get proper exceptions */
   if (strcmp(msg, "ExitSuccess") == 0) {
@@ -7870,6 +7979,9 @@ MHS_INIT_ARGS(
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
   init_stableptr();
+#if defined(__EMSCRIPTEN__)
+  js_init();
+#endif
 
   num_reductions = 0;
 
@@ -7895,6 +8007,15 @@ MHS_INIT_ARGS(
   {
     /* Read the combinator code. */
     BFILE *bf;
+#if defined(__EMSCRIPTEN__)
+    if (run_comb) {
+      /* A program supplied at run time (mhs_run_web) */
+      bf = openb_rd_mem(run_comb, run_comblen);
+#if WANT_STDIO
+      *file_sizep = run_comblen;
+#endif
+    } else
+#endif  /* __EMSCRIPTEN__ */
     if (combexpr) {
       /* The code is in memory, create a memore buffer BFILE */
       bf = openb_rd_mem(combexpr, combexprlen);
@@ -7962,21 +8083,28 @@ mhs_init(void)
   (void)MHS_INIT_ARGS(1, args, &outname, &file_size);
 }
 
+static size_t main_file_size = 0;
+#if WANT_STDIO
+static heapoffs_t main_start_size;
+#endif
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
 int
-mhs_main(int argc, char **argv)
+mhs_main_body(int argc, char **argv)
 {
   NODEPTR prog;
   char *outname = 0;
   size_t file_size = 0;
-#if WANT_KPERF
-  counter_t instrs;
-#endif  /* WANT_KPERF */
   boot_time = GETTIMEMICRO();
 
   prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
+  main_file_size = file_size;
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
+  main_start_size = start_size;
   if (outname) {
     /* Save GCed file (smaller), and exit. */
     FILE *out = fopen(outname, "wb");
@@ -8005,6 +8133,43 @@ mhs_main(int argc, char **argv)
   }
 #endif  /* WANT_KPERF */
   start_exec(prog);
+#if defined(__EMSCRIPTEN__)
+  js_main_done();               /* does not return */
+#endif
+  main_finish();
+  return 0;
+}
+
+int
+mhs_main(int argc, char **argv)
+{
+#if defined(__EMSCRIPTEN__)
+  return js_enter_main(argc, argv); /* records a trap that unwinds main */
+#else
+  return mhs_main_body(argc, argv);
+#endif
+}
+
+/* The end of the program: flush, run the finalizers, print the statistics,
+ * and exit.  Under emscripten this can also run from mhs_js_run_threads(),
+ * when the main thread finishes after main() has returned to the JavaScript
+ * event loop, and it returns instead of exiting when JavaScript callbacks
+ * keep the program alive. */
+static void
+main_finish(void)
+{
+  static int done = 0;
+  size_t file_size = main_file_size;
+  if (done)                     /* already finished (callbacks keep the program alive) */
+    return;
+  done = 1;
+#if WANT_KPERF
+  counter_t instrs;
+#endif  /* WANT_KPERF */
+#if WANT_STDIO
+  heapoffs_t start_size = main_start_size;
+#endif
+  (void)file_size;
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
@@ -8077,6 +8242,13 @@ mhs_main(int argc, char **argv)
 #ifdef TEARDOWN
   main_teardown(); /* do some platform specific teardown */
 #endif
+#if defined(__EMSCRIPTEN__)
+  if (mhs_js_keep_alive) {
+    /* JavaScript callbacks into Haskell have been created, so the program is not
+     * over: the caller keeps the runtime alive. */
+    return;
+  }
+#endif
   EXIT(0);
 }
 
@@ -8130,6 +8302,11 @@ ffe_eval(void)
   if (main_thread) {
     /* threading active, run on current stack */
     (void)evali(TOP(0));
+#if defined(__EMSCRIPTEN__)
+  } else if (main_started) {
+    /* JavaScript calls the export while the threads wait in the JavaScript event loop */
+    js_ffe_eval();
+#endif  /* __EMSCRIPTEN__ */
   } else {
     /* start up the threading to evaluate the node */
     start_exec(TOP(0));
@@ -8263,6 +8440,8 @@ MHS_TO(mhs_to_CTime, evalint, time_t);
 MHS_TO(mhs_to_CIntPtr, evalint, intptr_t);
 MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
+#include "jsffi.c"
+
 /* The rest of this file was generated by the compiler, with some minor edits with #if. */
 from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
 from_t mhs_GETTIMEMICRO(int s) { return  mhs_from_Int(s, 0, GETTIMEMICRO()); }
@@ -8302,7 +8481,7 @@ from_t mhs_powf(int s) { return mhs_from_Float(s, 2, powf(mhs_to_Float(s, 0), mh
 from_t mhs_js_debug(int s) { EM_ASM({ console.log(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_js_eval_run(int s) { EM_ASM({ eval(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_js_eval_call(int s) { return mhs_from_Ptr(s, 1, EM_ASM_PTR({ return stringToNewUTF8(JSON.stringify(eval(UTF8ToString($0)))) }, mhs_to_Ptr(s, 0))); }
-from_t mhs_js_set_haskellCallback(int s) { EM_ASM({ _haskellCallback = $0 }, mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_js_set_haskellCallback(int s) { EM_ASM({ globalThis._haskellCallback = $0 }, mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
 #endif
 
 #if WANT_STDIO

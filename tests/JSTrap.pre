@@ -1,0 +1,14 @@
+// Embedded with the test (as jstrap.js).  node ends the process on an exception
+// that nothing handles (emscripten calls main from the wasm instantiation's
+// Promise, so the trap surfaces as an unhandled rejection; in some builds node
+// escalates that to uncaughtException).  Report it instead, with exit status 1,
+// so that the timer in JSTrap.hs still fires.
+Module.preRun = [function () {
+  if (typeof process === "undefined") return;
+  var report = function (e) {
+    console.log("uncaught in main: " + (e && e.constructor ? e.constructor.name : String(e)));
+    process.exitCode = 1;
+  };
+  process.removeAllListeners("uncaughtException"); process.on("uncaughtException", report);
+  process.removeAllListeners("unhandledRejection"); process.on("unhandledRejection", report);
+}];

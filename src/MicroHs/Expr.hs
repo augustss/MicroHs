@@ -393,14 +393,14 @@ data ImpEnt
   = ImpStatic [String] ImpVal String   -- includes, type of value, C name/expr
   | ImpDynamic
   | ImpWrapper
-  | ImpJS String
+  | ImpJS Safety String
   deriving (Eq, Show)
 
 instance NFData ImpEnt where
   rnf (ImpStatic a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf ImpDynamic = ()
   rnf ImpWrapper = ()
-  rnf (ImpJS s) = rnf s
+  rnf (ImpJS a s) = rnf a `seq` rnf s
 
 data ImpVal = IPtr | IValue | IFunc
   deriving (Eq, Show)

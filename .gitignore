@@ -28,3 +28,4 @@ timing
 mdist/*
 dist-mcabal/
 generated/mhs-stage*.c
+!src/runtime/web/*.js

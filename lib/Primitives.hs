@@ -44,6 +44,7 @@ data IOArray a deriving ()
 data ThreadId deriving ()
 data MVar a deriving ()
 data Weak v deriving ()
+data JSVal deriving ()   -- a JavaScript value, only available with the emscripten target
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int

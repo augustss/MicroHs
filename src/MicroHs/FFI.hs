@@ -2,7 +2,7 @@ module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
-import MicroHs.Desugar(LDef)
+import MicroHs.Desugar(LDef, JSKind(..), jsKind)
 import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -12,7 +12,8 @@ import MicroHs.Names
 --import Debug.Trace
 
 -- The export table has (internal-name, external-name, external-type)
-makeFFI :: Flags -> [(Ident, Ident, CType, IsJavascript)] -> [IdentModule ]-> [[LDef]] -> (String, String)
+-- Returns the C code and the header for the exports.
+makeFFI :: Flags -> [(Ident, Ident, CType, IsJavascript)] -> [IdentModule] -> [[LDef]] -> (String, String)
 makeFFI _ forExps exclude dss =
   let ffiImports = nubBy eq [ (ie, n, t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
@@ -21,10 +22,12 @@ makeFFI _ forExps exclude dss =
       wrappers = [ t | (ImpWrapper, _, t, _) <- ffiImports]
       dynamics = [ t | (ImpDynamic, _, t, _) <- ffiImports]
       imps     = filter ((`notElem` exclude) . impModule) $ filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _, _) <- imps, inc <- iincs ]
-      jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
-        where isJS (ImpJS _, _, _, _) = True
-              isJS _ = False
+      includes = nub [ inc | (ImpStatic iincs _ _, _, _, _) <- imps, inc <- iincs ]
+      isJS (ImpJS _ _, _, _, _) = True
+      isJS _ = False
+      -- JavaScript imports are only compiled for emscripten, so other targets can still compile the code.
+      jsGuard imp str = if isJS imp then "#if defined(__EMSCRIPTEN__)\n" ++ str ++ "\n#endif" else str
+      jsincs   = if any isJS ffiImports then ["#if defined(__EMSCRIPTEN__)", "#include \"emscripten.h\"", "#endif"] else []
       mkSig (_, i, CType t, js) = let (as, ior) = getArrows t in mkExportSig js i as ior ++ ";"
       header = unlines
         ["#include <stdint.h>",
@@ -40,6 +43,7 @@ makeFFI _ forExps exclude dss =
   in
     if not (null wrappers) || not (null dynamics) then mhsError "Unimplemented FFI feature" else
     (unlines $
+      jsincs ++
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       (if any (\ (_, _, _, js) -> js) forExps then
          ["#if defined(__EMSCRIPTEN__)",
@@ -48,9 +52,9 @@ makeFFI _ forExps exclude dss =
           "#define EMSCRIPTEN_KEEPALIVE",
           "#endif"]
        else []) ++
-      map mkHdr imps ++
+      map (\ imp -> jsGuard imp (mkHdr imp)) imps ++
       ["static const struct ffi_entry imp_table[] = {"] ++
-      map mkEntry imps ++
+      map (\ imp -> jsGuard imp (mkEntry imp)) imps ++
       ["{ 0,0 }",
        "};",
        "const struct ffi_entry *xffi_table = imp_table;"
@@ -106,7 +110,7 @@ mkEntry :: (ImpEnt, String, EType, IdentModule) -> String
 mkEntry (ImpStatic _ IFunc  _, f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry (ImpStatic _ IPtr   _, f, _, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
 mkEntry (ImpStatic _ IValue _, f, _, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
-mkEntry (ImpJS _,              f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpJS _ _,            f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -174,26 +178,178 @@ mkHdr (ImpStatic _ IValue val, f, t, _) =
         else
           "return " ++ mkRet r len call
   in  mkMhsFun f fcall
-mkHdr (ImpJS s, f, ty, _) =
-  let (as, ior) = getArrows ty
+mkHdr (ImpJS _ s, f, ty, _) | s == "wrapper" || s == "wrapper sync" =
+  -- foreign import javascript "wrapper [sync]" mk :: (JSVal -> ... -> IO r) -> IO JSVal
+  -- Creates a JavaScript function that calls the Haskell function.
+  let (as, ior) = getArrows (dropForallContext ty)
+      bad msg = errorMessage (getSLoc ty) $ "foreign import javascript \"" ++ s ++ "\": " ++ msg
+      fty = case as of
+              [t] -> t
+              _   -> bad "expected one function argument"
+      (fas, fior) = getArrows (dropForallContext fty)
+      fr = checkIO fior
+      ret = case jsKind fr of
+              KUnit  -> "0"
+              KJSVal -> "1"
+              _      -> bad "the function must return IO () or IO JSVal"
+      sync = if s == "wrapper sync" then "1" else "0"
+      n = length fas
+      call = "EM_ASM_INT({ return Module.mhsjs.mkCallback($0, " ++ show n ++ ", " ++ sync ++ ", " ++ ret ++ ") }, mhs_to_HsStablePtr(s, 0))"
+  in  if any ((/= KJSVal) . jsKind) fas then bad "the function arguments must be JSVal" else
+      if jsKind (checkIO ior) /= KJSVal then bad "the result must be IO JSVal" else
+      mkMhsFun f ("return mhs_from_JSVal(s, 1, " ++ call ++ ")")
+mkHdr (ImpJS sf s, f, ty, _) =
+  -- The JavaScript code becomes an EM_JS function, mhs_js_<f>, whose parameters are
+  -- $1, $2, ... (so the code can use them directly), emitted into the output by
+  -- emscripten like any other JavaScript in the program.  It is passed to _EM_JS
+  -- (what EM_JS expands to) as a C string, so the code need not consist of C tokens.
+  -- The code is an expression or statements (with 'return'), see jsIsStatements.
+  -- With 'unsafe' a JavaScript exception is fatal, with 'safe' it is turned into
+  -- a Haskell JSException.  With 'interruptible' the code runs as an async function
+  -- (so it can use await) and the C function returns its Promise as a JSVal; the
+  -- desugarer wraps the import so that the Haskell thread waits for the Promise
+  -- (MicroHs.Desugar.jsAwait, the IO.jsawait primitive), which converts the result.
+  let (as, ior) = getArrows (dropForallContext ty)
       rt = checkIO ior
-      jsr = jsTypeNameR rt
+      rk = jsKind rt
       n = length as
-      args = concat $ zipWith arg as [0..]
-      arg t i = ", " ++ mkJSArg t i
-      call = "EM_ASM" ++
-             (if isUnit rt then "" else '_':jsr) ++
-             "({ " ++ s ++ " }" ++ args ++ ")"
-      fcall =
-        if isUnit rt then
-          call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
-        else
-          "return " ++ mkRet rt n call
-  in  mkMhsFun f fcall
+      ixs = [0 .. n-1]
+      param i = '$' : show (i + 1)
+      -- A $k in the code that is not a parameter would be an undefined variable when the
+      -- code runs.  In particular the parameters used to be $0, $1, ...: $0 is an error.
+      badParams = nub [ w | (_, Word w@('$':ds@(_:_))) <- jsTokens s, all isDigit ds,
+                            let k = foldl (\ a c -> a * 10 + digitToInt c) 0 ds, k < 1 || k > n ]
+      paramsAre | n == 0    = "the import has no arguments"
+                | n == 1    = "the argument is $1"
+                | otherwise = "the arguments are $1 .. $" ++ show n
+      jsName = "mhs_js_" ++ f
+      ctypeOf t =
+        case jsKind t of
+          KJSVal  -> "int"
+          KBool   -> "int"
+          KInt    -> "intptr_t"
+          KWord   -> "uintptr_t"
+          KDouble -> "double"
+          KFloat  -> "double"
+          KPtr    -> "void *"
+          KUnit   -> "void"
+      params = "(" ++ intercalate ", " [ ctypeOf t ++ " " ++ param i | (t, i) <- zip as ixs ] ++ ")"
+      -- Convert the arguments in place.
+      conv t i =
+        case jsKind t of
+          KJSVal -> param i ++ " = Module.mhsjs.getJSVal(" ++ param i ++ "); "
+          KBool  -> param i ++ " = !!" ++ param i ++ "; "
+          -- A wasm i32 arrives as a signed number, so a Word >= 2^31 would be negative.
+          KWord  -> param i ++ " = " ++ param i ++ " >>> 0; "
+          _      -> ""
+      -- The code can use mhsjs, the JSVal table.
+      convs = "var mhsjs = Module.mhsjs; " ++ concat (zipWith conv as ixs)
+      -- The code as a function of no arguments; the newline ends a trailing // comment.
+      async = if sf == Interruptible then "async " else ""
+      thunk = if jsIsStatements s then "(" ++ async ++ "() => {" ++ s ++ "\n})" else "(" ++ async ++ "() => (" ++ s ++ "\n))"
+      value = thunk ++ "()"
+      res =
+        case rk of
+          KUnit   -> value ++ "; return;"
+          KJSVal  -> "return Module.mhsjs.newJSVal(" ++ value ++ ");"
+          KBool   -> "return " ++ value ++ " ? 1 : 0;"
+          _       -> "return " ++ value ++ ";"
+      body
+        -- The Promise of the async function; an exception in the argument conversion
+        -- (e.g. a freed JSVal) becomes a rejected Promise, i.e. a JSException.
+        | sf == Interruptible =
+            "try { " ++ convs ++ "return Module.mhsjs.newJSVal(" ++ value ++ "); }" ++
+            " catch (e) { return Module.mhsjs.newJSVal(Promise.reject(e)); }"
+        -- With unsafe a JavaScript exception is fatal: it unwinds the C stack, so the runtime
+        -- is marked as stopped (Module.mhsjs.fatal) before the exception propagates.
+        | sf == Unsafe =
+            "try { " ++ convs ++ res ++ " } catch (e) { throw Module.mhsjs.fatal(e); }"
+        -- With safe any JavaScript exception (also in the argument conversion, e.g. a
+        -- freed JSVal) is saved and raised as a JSException by mhs_js_check_error.
+        | otherwise =
+            "try { " ++ convs ++ res ++ " } catch (e) { Module.mhsjs.error = e; Module.mhsjs.hasError = true; return 0; }"
+      cret = if sf == Interruptible then "int" else ctypeOf rt
+      emjs = "_EM_JS(" ++ cret ++ ", " ++ jsName ++ ", " ++ jsName ++ ", " ++ params ++ ", " ++ cString ("{ " ++ body ++ " }") ++ ")\n"
+      cargs = intercalate ", " (zipWith mkJSArg as ixs)
+      call = jsName ++ "(" ++ cargs ++ ")"
+      check = if sf == Unsafe then "" else "mhs_js_check_error(); "
+      ret r = case rk of
+                KUnit -> "return mhs_from_Unit(s, " ++ show n ++ ")"
+                _     -> "return mhs_from_" ++ jsTypeName rt ++ "(s, " ++ show n ++ ", " ++ r ++ ")"
+      fbody =
+        case rk of
+          KUnit -> call ++ "; " ++ check ++ ret ""
+          _     -> cret ++ " r = " ++ call ++ "; " ++ check ++ ret "r"
+  in  if not (null badParams) then
+        errorMessage (getSLoc ty) $ "foreign import javascript: " ++ intercalate ", " badParams ++
+          " is not an argument: " ++ paramsAre ++
+          (if any (all (== '0') . tail) badParams then " (they start at $1, not $0)" else "")
+      else if sf == Interruptible then
+        emjs ++ mkMhsFun f ("int r = " ++ call ++ "; return mhs_from_JSVal(s, " ++ show n ++ ", r)")
+      else
+        emjs ++ mkMhsFun f fbody
 mkHdr _ = undefined
 
+-- Is the JavaScript code statements (a function body) rather than an expression?
+-- Yes if, at the top level (outside brackets, strings and comments), it has a ';'
+-- or the word 'return' (not as a property name, as in x.return), or it starts with
+-- a word that only starts a statement.  Code that starts with 'function' or 'class'
+-- is a function or class expression, unless more code follows, as in
+-- "function f(x) { ... } f(1)".  This is the same choice as trying the code as an
+-- expression first and as statements if that is a syntax error, which is what the
+-- code did when it was compiled at run time.
+jsIsStatements :: String -> Bool
+jsIsStatements src =
+  any (\ t -> t == Semi || t == Word "return") top ||
+  case top of
+    Word w : rest | w `elem` stmtWords -> True
+                  | w `elem` ["function", "class"] -> any isWord (drop 1 (dropWhile (/= Close) rest))
+    _ -> False
+  where
+    -- The top level tokens, without property names.
+    top = noProps [ t | (0, t) <- jsTokens src ]
+    noProps (Dot : Word _ : ts) = noProps ts
+    noProps (t : ts) = t : noProps ts
+    noProps [] = []
+    isWord (Word _) = True
+    isWord _ = False
+    stmtWords = ["if", "for", "while", "do", "switch", "try", "throw", "let", "const", "var",
+                 "return", "break", "continue"]
+
+-- The tokens of JavaScript code that matter to jsIsStatements and the check of the
+-- parameters, with their bracket depth: words, ';', '.', and the closing bracket
+-- that gets back to the top level.  Strings and comments are skipped.
+jsTokens :: String -> [(Int, JSToken)]
+jsTokens = tokens 0
+  where
+    tokens :: Int -> String -> [(Int, JSToken)]
+    tokens _ [] = []
+    tokens d ('/':'/':cs) = tokens d (dropWhile (/= '\n') cs)
+    tokens d ('/':'*':cs) = tokens d (skipComment cs)
+    tokens d (c:cs)
+      | c `elem` "\"'`" = tokens d (skipString c cs)
+      | c `elem` "([{"   = tokens (d + 1) cs
+      | c `elem` ")]}"   = let d' = max 0 (d - 1)
+                           in  (if d' == 0 then ((0, Close) :) else id) (tokens d' cs)
+      | c == ';'         = (d, Semi) : tokens d cs
+      | c == '.'         = (d, Dot) : tokens d cs
+      | isAlpha c || c == '_' || c == '$' =
+          case span (\ x -> isAlphaNum x || x == '_' || x == '$') (c:cs) of
+            (w, r) -> (d, Word w) : tokens d r
+      | otherwise        = tokens d cs
+    skipComment ('*':'/':cs) = cs
+    skipComment (_:cs) = skipComment cs
+    skipComment [] = []
+    skipString q ('\\':_:cs) = skipString q cs
+    skipString q (c:cs) | c == q = cs
+                        | otherwise = skipString q cs
+    skipString _ [] = []
+
+data JSToken = Semi | Dot | Close | Word String
+  deriving (Eq)
+
 arity :: EType -> Int
-arity = length . fst . getArrows
+arity = length . fst . getArrows . dropForallContext
 
 -- Use to construct 'foreign import/export ccall' wrapper.
 cTypeHsName :: HasCallStack => EType -> String
@@ -241,31 +397,28 @@ cTypes =
   , ("System.IO.Handle",  "void*")
   ]
 
--- Use to construct 'foreign import javascript' return value wrapper.
-jsTypeNameR :: EType -> String
-jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
-jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
-jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
-
-jsTypesR :: [(String, String)]
-jsTypesR =
-  [ ("Primitives.Int",    "INT")
-  , ("Primitives.Double", "DOUBLE")
-  , ("Primitives.Float",  "DOUBLE")
-  ]
-
--- Use to construct 'foreign import javascript' argument wrapper.
+-- The mhs_to_ function to use for a JavaScript argument.
 jsTypeName :: EType -> String
-jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
-jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
-jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript argument type: " ++ showEType t
+jsTypeName t =
+  case jsKind t of
+    KJSVal  -> "JSVal"
+    KBool   -> "Bool"
+    KInt    -> "Int"
+    KWord   -> "Word"
+    KDouble -> "Double"
+    KFloat  -> "Float"
+    KPtr    -> "Ptr"
+    KUnit   -> errorMessage (getSLoc t) "() is not a valid JavaScript argument type"
 
-jsTypes :: [(String, String)]
-jsTypes =
-  [ ("Primitives.Int",    "Int")
-  , ("Primitives.Double", "Double")
-  , ("Primitives.Float",  "Float")
-  ]
+-- A C string literal.
+cString :: String -> String
+cString str = '"' : concatMap esc str ++ "\""
+  where esc '"'  = "\\\""
+        esc '\\' = "\\\\"
+        esc '?'  = "\\?"    -- so that JavaScript's ?? cannot form a trigraph
+        esc c | c < ' ' || c == '\DEL' = '\\' : oct (fromEnum c)
+              | otherwise = [c]
+        oct n = [toEnum (fromEnum '0' + n `div` 64), toEnum (fromEnum '0' + (n `div` 8) `mod` 8), toEnum (fromEnum '0' + n `mod` 8)]
 
 -- These are already in the runtime
 runtimeFFI :: [String]
