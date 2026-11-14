@@ -50,26 +50,23 @@ clamp (low, high) a = min high (max a low)
 newtype Down a = Down
     { getDown :: a -- ^ @since 4.14.0.0
     }
-{-    deriving
-      ( Eq        -- ^ @since 4.6.0.0
-      , Num       -- ^ @since 4.11.0.0
-      , Semigroup -- ^ @since 4.11.0.0
-      , Monoid    -- ^ @since 4.11.0.0
-      , Bits       -- ^ @since 4.14.0.0
-      , FiniteBits -- ^ @since 4.14.0.0
-      , Floating   -- ^ @since 4.14.0.0
-      , Fractional -- ^ @since 4.14.0.0
-      , Ix         -- ^ @since 4.14.0.0
-      , Real       -- ^ @since 4.14.0.0
-      , RealFrac   -- ^ @since 4.14.0.0
-      , RealFloat  -- ^ @since 4.14.0.0
-      , Storable   -- ^ @since 4.14.0.0
+{- In Data.Orphans
+      ( Num
+      , Semigroup
+      , Monoid
+      , Bits
+      , FiniteBits
+      , Floating
+      , Fractional
+      , Ix
+      , Real
+      , RealFrac
+      , RealFloat
+      , Storable
+      , Read
+      , Show
+      , Functor
       )
--}
-
-{-  In Data.Orphans
-instance (Read a) => Read (Down a)
-instance (Show a) => Show (Down a)
 -}
 
 instance Eq a => Eq (Down a) where
@@ -79,8 +76,8 @@ instance Ord a => Ord (Down a) where
   compare (Down x) (Down y) = y `compare` x
 
 instance Bounded a => Bounded (Down a) where
-    minBound = Down maxBound
-    maxBound = Down minBound
+  minBound = Down maxBound
+  maxBound = Down minBound
 
 instance Functor Down where
-    fmap f (Down a) = Down (f a)
+  fmap f (Down a) = Down (f a)
