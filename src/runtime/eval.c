@@ -8478,8 +8478,14 @@ ffe_eval(void)
     /* threading active, run on current stack */
     (void)evali(TOP(0));
   } else {
-    /* start up the threading to evaluate the node */
-    start_exec(TOP(0));
+    /* Start up the threading to evaluate the node.
+     * start_exec() runs an IO action, i.e., it applies its argument to World.
+     * The node is a value, not an IO action, so pass (K node), which
+     * ignores World.  Applying the node itself to World would give it an
+     * extra argument, which a constructor cannot take.
+     */
+    GCCHECK(2);                 /* K node, and the World application in start_exec */
+    start_exec(new_ap(combK, TOP(0)));
   }
   /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
    * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
