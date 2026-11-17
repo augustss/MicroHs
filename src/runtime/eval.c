@@ -158,7 +158,7 @@ int num_ffi;
 #endif
 
 
-#define VERSION "v9.0\n"
+#define VERSION "v9.1\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -2976,7 +2976,7 @@ void
 init_nodes(void)
 {
   size_t j;
-  NODEPTR x, y;
+  NODEPTR x;
 
   cells = mmalloc(heap_size * sizeof(node));
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
@@ -3013,11 +3013,10 @@ init_nodes(void)
   comb_stderr = alloc_node(D_FORPTR); mk_std(comb_stderr, stderr);
 #endif
 
-  /* The displaySomeException compiles to ((C D_1) (U (K2 A))) */
+  /* The displaySomeException compiles to (D_1 (U (K2 A))) */
   x = new_ap(combK2, combA);                 /* (K2 A) */
   x = new_ap(combU, x);                      /* (U (K2 A)) */
-  y = new_ap(combC, mk_CASE(V_CASED, 1));    /* (C D_1) */
-  combShowExn = new_ap(y, x);                /* ((C D_1) (U (K2 A))) */
+  combShowExn = new_ap(mk_CASE(V_CASED, 1), x); /* (D_1 (U (K2 A))) */
 
   /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
   combPUnit = new_ap(combP, combUnit);
@@ -7285,13 +7284,20 @@ evali(NODEPTR an)
   case V_CASED:
   case V_CASES:
     {
-      /* CASEx_m e ...  -->  e LOOKx_m ...
-       * Both CASEx_m and LOOKx_m are virtual pointers, so no allocation is needed. */
-      NODEPTR l = mk_CASE(tag == V_CASED ? V_LOOKD : V_LOOKS, get_CASE_size(n));
-      CHKARG1;
+      /* The scrutinee is the last argument:
+       *   CASED_m f0 ... f{m-1} e
+       *   CASES_m d A_k1_n1 f1 ... A_km_nm fm e
+       * Push the virtual LOOKx_m as a continuation marker and evaluate e.
+       * The arms stay where they are on the stack.
+       * Nothing is allocated, and no heap node is written.
+       */
+      int m = get_CASE_size(n);
+      int a = tag == V_CASED ? m : 2*m + 1;  /* number of arguments before e */
+      CHECK(a + 1);
       num_look++;
-      //fprintf(stderr, "CASE_%d n=%p x=%p\n", get_CASE_size(l), n.node_ptr, x.node_ptr);
-      GOAP(x, l);
+      n = ARG(TOP(a));
+      PUSH(mk_CASE(tag == V_CASED ? V_LOOKD : V_LOOKS, m));
+      goto top;
     }
   case V_LOOKD:
   case V_LOOKS:
@@ -7301,61 +7307,69 @@ evali(NODEPTR an)
     {
       int k, m, nn;
       get_CON_info(n, &k, &nn);
-      //fprintf(stderr, "CONSTR_%d_%d\n", (int)k, (int)nn);
-      CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
-      NODEPTR p = ARG(TOP(nn));  /* The LOOKx_m */
-      //fprintf(stderr, "  n=%p p=%p\n", n.node_ptr, p.node_ptr);
+      /* Stack layout when there is a case waiting:
+       *   TOP(0) .. TOP(nn-1)   constructor spine, ARG(TOP(i)) is field i
+       *   TOP(nn)               LOOKx_m marker
+       *   TOP(nn+1) ...         the case spine, the last one is the case redex
+       */
+      CHECK(nn+1);
+      NODEPTR p = TOP(nn);
       if (!is_VIRT(p))
-        ERR("CONSTR: LOOK not virtual");
+        ERR("CONSTR: no LOOK");
       m = get_CASE_size(p);
       enum node_tag ltag = get_VIRT_TAG(p);
+      NODEPTR fk;
+      int fidx;                 /* stack index of the selected arm */
+      int npop;                 /* number of stack entries to pop, the last one is the case redex */
       if (ltag == V_LOOKD) {
-        /* CONSTR_k_n e1 ... en LOOKD_m f0 ... f{m-1}  -->  fk e1 ... en */
-        CHECK(nn + 1 + m);
-        GCCHECK(nn);
-        NODEPTR fk = ARG(TOP(nn + 1 + k));
-        for (int i = 0; i < nn; i++) {
-          fk = new_ap(fk, ARG(TOP(i)));
-        }
-        POP(nn + 1 + m);
-        n = TOP(-1);
-        GOIND(fk);
+        /* CONSTR_k_n e1 ... en LOOKD_m (CASED_m f0 ... f{m-1} _)  -->  fk e1 ... en */
+        fidx = nn + 1 + k;
+        npop = nn + 2 + m;
       } else if (ltag == V_LOOKS) {
-        /* CONSTR_k_n e1 ... en LOOKS_m d (ARM_k0_n0 f0) (ARM_k_n fk) (ARM_km_nm f{m-1})  -->  fk e1 ... en
-         * CONSTR_k_n e1 ... en LOOKS_m d ...                                             -->  d, when no matching k
+        /* CONSTR_k_n e1 ... en LOOKS_m (CASES_m d A_k1_n1 f1 ... A_km_nm fm _)  -->  fk e1 ... en
+         *                                                                       -->  d, when no matching k
+         * The arms are sorted by constructor number, so use binary search.
          */
-        CHECK(nn + 2 + m);
-        NODEPTR d = ARG(TOP(nn + 1));
-        for (int i = 0; i < m; i++) {
-          NODEPTR a = ARG(TOP(nn + 2 + i));
-          num_arm++;
-          if (get_XTAG(a) != X_AP || get_XTAG(FUN(a)) != V_ARM) {
-            num_bad_arm++;
-            //            fprintf(stderr, "bad a.tag=%s a.fun.tag=%s\n",
-            //                    TAGNAME(get_XTAG(a)), get_XTAG(a) == X_AP ? TAGNAME(get_XTAG(FUN(a))) : "---");
-            a = evali(a);
+        int lo = 0, hi = m;     /* search arms [lo, hi) */
+        npop = nn + 3 + 2*m;
+        for (;;) {
+          if (lo >= hi) {
+            /* Not found, use the default, which takes no arguments. */
+            fk = ARG(TOP(nn + 1));
+            POP(npop);
+            n = TOP(-1);
+            GOIND(fk);
           }
-          if (get_XTAG(a) != X_AP || get_XTAG(FUN(a)) != V_ARM)
-            ERR("LOOKS, bad table");
+          int mid = (lo + hi) / 2;
+          NODEPTR a = ARG(TOP(nn + 2 + 2*mid));
+          num_arm++;
+          if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM) {
+            num_bad_arm++;
+            a = evali(a);
+            if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM)
+              ERR("LOOKS, bad table");
+          }
           int ki, ni;
-          get_CON_info(FUN(a), &ki, &ni);
+          get_CON_info(a, &ki, &ni);
           if (ki == k) {
-            if (ni != nn)
-              ERR("LOOKS ni");
-            GCCHECK(nn);
-            d = ARG(a);
-            for (int j = 0; j < nn; j++) {
-              d = new_ap(d, ARG(TOP(j)));
-            }
+            fidx = nn + 3 + 2*mid;
             break;
+          } else if (ki < k) {
+            lo = mid + 1;
+          } else {
+            hi = mid;
           }
         }
-        POP(nn + 2 + m);
-        n = TOP(-1);
-        GOIND(d);
       } else {
         ERR1("CONSTR: no LOOK, found %s", TAGNAME(ltag));
       }
+      GCCHECK(nn);
+      fk = ARG(TOP(fidx));
+      for (int i = 0; i < nn; i++)
+        fk = new_ap(fk, ARG(TOP(i)));
+      POP(npop);
+      n = TOP(-1);
+      GOIND(fk);
     }
 
   default:

@@ -20,6 +20,9 @@ import MicroHs.Ident
 --
 -- Encoding of constructors and case
 --
+-- The scrutinee is the last argument, so that \x -> case x of ... eta reduces.
+--   Dense:   D_m f0 ... f{m-1} e
+--   Sparse:  E_m d A_k1_n1 f1 ... A_km_nm fm e    (arms sorted by constructor number)
 
 data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
@@ -30,7 +33,7 @@ encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
   let m = length cs                    -- number of constructors
       a = length pes                   -- number of present arms
-      encCaseDense = apps (cCaseD m) (var : map arm cs)
+      encCaseDense = apps (cCaseD m) (map arm cs ++ [var])
         where arm (c, k) =
                 head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                        [ lams (replicate k dummyIdent) dflt ]
@@ -45,8 +48,8 @@ encCaseSparse :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseSparse var pes dflt =
   --trace ("sparse " ++ show (m, a)) encCaseDense
   let pes' = sortBy (comparing fst) [(conNo c, (xs, e)) | (SPat c xs, e) <- pes]
-      arm (k, (xs, e)) = App (cArm k (length xs)) (lams xs e)
-  in  apps (cCaseS (length pes)) (var : dflt : map arm pes')
+      arm (k, (xs, e)) = [cArm k (length xs), lams xs e]
+  in  apps (cCaseS (length pes)) (dflt : concatMap arm pes' ++ [var])
 
 
 -- constructor k out of m
@@ -70,11 +73,11 @@ encConstrLazy k n = cCon k n
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
-encIf c t e = apps (cCaseD 2) [c, e, t]
+encIf c t e = apps (cCaseD 2) [e, t, c]
 
 -- Recognize an encoded if, see encIf.
 getEncIf :: Exp -> Maybe (Exp, Exp, Exp)
-getEncIf (App (App (App (Lit (LPrim "D_2")) c) e) t) = Just (c, t, e)
+getEncIf (App (App (App (Lit (LPrim "D_2")) e) t) c) = Just (c, t, e)
 getEncIf _ = Nothing
 
 encList :: [Exp] -> Exp
@@ -92,7 +95,7 @@ encTuple es = apps (encConstrLazy 0 (length es)) es
 encTupleSel :: Int -> Int -> Exp -> Exp
 encTupleSel m n tup =
   let xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in  apps (cCaseD 1) [tup, foldr Lam (Var (xs !! m)) xs]
+  in  apps (cCaseD 1) [foldr Lam (Var (xs !! m)) xs, tup]
 
 cCaseD :: Int -> Exp
 cCaseD m = Lit $ LPrim $ "D_" ++ show m
