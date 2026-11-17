@@ -33,7 +33,7 @@ The biggest change in this release is a new runtime representation of data types
  * A qualified name from a module that has not been imported, e.g., `Data.Map.empty`, imports the module automatically.
 
 ## Libraries
- * `Integer` now uses [imath](https://github.com/creachadair/imath) (in C) by default, which is faster than the old Haskell implementation. GMP can still be used instead.
+ * `Integer` now uses [imath](https://github.com/creachadair/imath) (in C) by default, which is faster than the Haskell implementation that used to be the default. GMP can still be used instead, and the Haskell implementation is still available for platforms without either (see [Implementations of `Integer`](doc/MicroHs.md#implementations-of-integer)).
  * `Data.Text` is much more complete. It uses UTF-8, with primitives in the runtime, its IO handles all of Unicode, and case conversion and case folding follow the Unicode tables, including conversions that give several characters.
  * Type safe serialization: `hSerializeDescr` and `hDeserializeDescr` check that the type of the value read is the expected one (see [Serialization](doc/MicroHs.md#serialization)). Serialization errors are now exceptions.
  * Input that is not valid UTF-8 is accepted, and is written back unchanged.

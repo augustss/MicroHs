@@ -810,7 +810,7 @@ The runtime also contains:
 * A mark-scan garbage collector.
 * Lightweight threads (for `Control.Concurrent`, `MVar`, and STM), with non-blocking IO where available. Threads are preemptive: the running thread is switched out after a fixed number of reductions, 100000 by default. This can be changed by compiling the runtime with `-DSLICE=N`, e.g., `mhs -optc -DSLICE=10000 ...`.
 * Weak pointers with finalizers. When the key of a weak pointer dies, its finalizer runs in a new thread, so output from a finalizer can be interleaved with output from other threads.
-* Bignums for `Integer`, using [imath](https://github.com/creachadair/imath) (included); alternatively [GMP](https://gmplib.org/).
+* Bignums for `Integer`, using [imath](https://github.com/creachadair/imath) (included) or [GMP](https://gmplib.org/). There is also an implementation in Haskell (see [Implementations of `Integer`](#implementations-of-integer)).
 * Serialization and deserialization of arbitrary expressions, preserving sharing and cycles, using the [combinator file format](COMB.md). The only exceptions are C pointers (e.g., file handles) other than `stdin`, `stdout`, and `stderr`.
 * LZMA/LZ77 decompression and Base64 decoding, for compressed combinator code.
 * Buffered file I/O with UTF-8 encoding.
@@ -838,7 +838,7 @@ An IO action is a function that takes a world token and returns a pair of the re
 Each thread has a root node, its IO action applied to a world token, and the scheduler evaluates the root of the thread at the front of the run queue. When the thread's time slice runs out, or the thread blocks, e.g., on an `MVar`, the thread's stack is simply thrown away, and the next thread runs. All reductions have been done in place in the graph, so evaluating the root again later resumes the computation where it left off. Exception handlers are set up again when the evaluation passes the `catch`.
 
 ### Configuration
-The runtime is configured for each platform by a `config.h` in a subdirectory of `src/runtime/`. It contains a number of `WANT_` macros that select functionality, e.g., `WANT_STDIO` (file I/O), `WANT_FLOAT32`/`WANT_FLOAT64` (floating point), `WANT_INT64` (64 bit integers on 32 bit platforms), `WANT_GMP` (use GMP for `Integer`), `WANT_DIR`, `WANT_TIME`, `WANT_SOCKET`, etc. It also defines how to do platform specific things, such as finding the first set bit. Platform specific code goes in `extra.c` in the same directory.
+The runtime is configured for each platform by a `config.h` in a subdirectory of `src/runtime/`. It contains a number of `WANT_` macros that select functionality, e.g., `WANT_STDIO` (file I/O), `WANT_FLOAT32`/`WANT_FLOAT64` (floating point), `WANT_INT64` (64 bit integers on 32 bit platforms), `WANT_IMATH` and `WANT_GMP` (which implementation of `Integer` to use), `WANT_DIR`, `WANT_TIME`, `WANT_SOCKET`, etc. It also defines how to do platform specific things, such as finding the first set bit. Platform specific code goes in `extra.c` in the same directory.
 
 Some other macros control how the runtime works. These are set in `config.h`:
 * `GCRED` do some reductions during garbage collection (see [Combinators](#combinators)).
@@ -853,8 +853,13 @@ These have defaults, and can be set with `-D`, e.g., `mhs -optc -DMARK_PFQ=0 ...
 * `SLICE` (default 100000) the number of reductions in a thread's time slice.
 * `HEAP_CELLS` and `STACK_SIZE` the default heap and stack sizes (see [Runtime flags](#runtime-flags)).
 
-### Using GMP for `Integer`
-By default, `Integer` uses imath, which is included. To use GMP instead, uncomment the first few lines in the `Makefile`, and adjust where the C compiler finds GMP. To switch between using and not using GMP you need to do `make clean`.
+### Implementations of `Integer`
+There are three implementations of `Integer`:
+* [imath](https://github.com/creachadair/imath), a small bignum library in C, which is included in the runtime. This is the default.
+* [GMP](https://gmplib.org/), which must be installed separately. To use it, uncomment the first few lines in the `Makefile`, and adjust where the C compiler finds GMP. To switch between using and not using GMP you need to do `make clean`.
+* An implementation in Haskell, in `lib/no-gmp`. It is slower, but the runtime does not need any bignum code. It is used when `config.h` sets both `WANT_IMATH` and `WANT_GMP` to 0, as the `micro` configuration does.
+
+imath and GMP have the same interface, so the Haskell code in `lib` is the same for both. The Haskell implementation replaces two modules, `Data.Integer_Type` and `Data.Integer.Internal`. When `mhs` runs from the source tree and its own runtime has neither imath nor GMP, it puts `lib/no-gmp` before `lib` in the module search path. When compiling for such a platform with an ordinary `mhs`, do this yourself, e.g., `mhs -i -i. -i$MHSDIR/lib/no-gmp -i$MHSDIR/lib ...`.
 
 ---
 
