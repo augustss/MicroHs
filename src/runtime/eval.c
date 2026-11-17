@@ -3299,6 +3299,20 @@ mark(NODEPTR *np)
     to_push = &ARG(n);
   } else {
   switch (get_DATA_TAG(FUN(n))) {
+#if GCRED && INTTABLE
+   case D_INT:
+    {
+      /* Replace a small INT by the shared permanent node */
+      value_t val = GETVALUE(n);
+      if (LOW_INT <= val && val < HIGH_INT) {
+        NODEPTR i = intTable[val - LOW_INT];
+        set_IND(n, i);          /* other references will be redirected later */
+        *np = i;                /* redirect this reference */
+        COUNT(red_int);
+      }
+      goto fin;
+    }
+#endif  /* GCRED && INTTABLE */
    case D_ARR:
     {
       struct ioarray *arr = ARR(n);
