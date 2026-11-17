@@ -165,7 +165,7 @@ mkHdr (ImpStatic _ IValue val, f, t, _) =
       call = expand val
       expand [] = []
       expand ('$':c:cs) | isDigit c =
-        let n = digitToInt c - 1
+        let n = digitToInt c                -- $0 is the first argument, as for JavaScript
         in mkArg (as !! n) n ++ expand cs
       expand (c:cs) = c : expand cs
       fcall =

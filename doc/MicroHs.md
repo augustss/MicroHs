@@ -337,10 +337,10 @@ main = do
 
 MicroHs supports `foreign import ccall`, `foreign import capi`, `foreign export ccall`, `foreign import javascript`, and `foreign export javascript` (the last two for the emscripten target, see [JavaScript](#javascript)). When running a program directly (using `-r`), in the interactive system, or when generating a `.comb` file, only the C functions built into the runtime (plus those from embedded packages) can be called. When generating a `.c` file or an executable, any C function can be called.
 
-As in GHC, the import string can name header files and use `&` to import the address of a C object. In addition, MicroHs has a non-standard form, `"value EXPR"`, which imports the value of an arbitrary C expression. Inside `EXPR`, `$1`, `$2`, … (up to `$9`) are replaced by the function's arguments. For example:
+As in GHC, the import string can name header files and use `&` to import the address of a C object. In addition, MicroHs has a non-standard form, `"value EXPR"`, which imports the value of an arbitrary C expression. Inside `EXPR`, `$0`, `$1`, … (up to `$9`) are replaced by the function's arguments, numbered from 0 as in a JavaScript import. For example:
 ```haskell
 foreign import capi "value EINTR" eINTR :: Errno
-foreign import ccall "value ($1 + $2) * 2" addTwice :: CInt -> CInt -> IO CInt
+foreign import ccall "value ($0 + $1) * 2" addTwice :: CInt -> CInt -> IO CInt
 ```
 The expression is pasted verbatim into the generated C code, so it must be a valid C expression for the argument and result types. A type without `IO` gives a pure value.
 
@@ -382,7 +382,7 @@ Alternatively, `mhs -c ForExp -oForExpHs.c` writes the C code for the Haskell pa
 
 ### JavaScript
 
-With the `emscripten` target (see [Targets](#targets)), `foreign import javascript` calls JavaScript code. The import string is the body of a JavaScript function, where `$0`, `$1`, … are the arguments. Note that they are numbered from 0, unlike in a `"value"` import. The arguments can have the types `Int`, `Double`, `Float`, and `Ptr`, and the result can also be `()`. As usual, the result can be in `IO`:
+With the `emscripten` target (see [Targets](#targets)), `foreign import javascript` calls JavaScript code. The import string is the body of a JavaScript function, where `$0`, `$1`, … are the arguments, numbered from 0 as in a `"value"` import. The arguments can have the types `Int`, `Double`, `Float`, and `Ptr`, and the result can also be `()`. As usual, the result can be in `IO`:
 ```haskell
 foreign import javascript "return jsAdd($0, $1)" jsAdd :: Int -> Int -> IO Int
 ```
