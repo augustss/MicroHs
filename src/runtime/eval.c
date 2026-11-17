@@ -546,9 +546,8 @@ enum node_tag { D_NONE,
                 /* NODEPTR with a "virtual" pointer, and regular tags */
                 /* Regular tags */
                 T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
-                T_L, T_KK, T_KA,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
                 T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -1370,8 +1369,6 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 #define combK3              mk_TAG(T_K3)
 #define combBB              mk_TAG(T_BB)
 #define combCC              mk_TAG(T_CC)
-#define combKK              mk_TAG(T_KK)
-#define combKA              mk_TAG(T_KA)
 #define combP               mk_TAG(T_P)
 #define combIOBIND          mk_TAG(T_IO_BIND)
 #define combIORETURN        mk_TAG(T_IO_RETURN)
@@ -2632,14 +2629,10 @@ struct {
   { "Y", T_Y },
   { "B'", T_BB },
   { "Z", T_Z },
-  { "J", T_J },
   { "K2", T_K2 },
   { "K3", T_K3 },
   { "K4", T_K4 },
   { "C'B", T_CCB },
-  { "L", T_L },
-  { "KK", T_KK },
-  { "KA", T_KA },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -6157,10 +6150,6 @@ evali(NODEPTR an)
   case T_Z:    if (!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
-  case T_L:                CHKARG3; GOAP(y, x);                                           /* L x y z = y x */
-  case T_KK:               CHKARG3; GOIND(y);                                             /* KK x y z = y */
-  case T_KA:               CHKARG3; GOIND(z);                                             /* KA x y z = z */
   t_c:
   case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */

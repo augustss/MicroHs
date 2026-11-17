@@ -512,7 +512,7 @@ Bracket abstraction (`Abstract`) removes all lambdas using `S`, `K`, and `I`. A 
 | `O`   | `O x y z w = w x y` | `B (B K) P` → `O` |
 | `Y`   | `Y x = x (Y x)` | recursive `let` |
 
-The runtime implements `Y x` by making the redex point to itself, so it builds a cyclic graph. A combinator that returns one of its arguments (e.g., `I`, `K`, and `A`) overwrites the redex with an indirection; the others overwrite it with the result, allocating cells for the new inner applications. The rewrites can increase the arity of an expression, so a few combinators also reduce when they have too few arguments, e.g., `B' x y = B (x y)` and `Z x y = K (x y)`. This keeps the sharing (full laziness) of the original code. The runtime also has the combinators `J`, `L`, `KK`, and `KA`, which the compiler does not generate at the moment.
+The runtime implements `Y x` by making the redex point to itself, so it builds a cyclic graph. A combinator that returns one of its arguments (e.g., `I`, `K`, and `A`) overwrites the redex with an indirection; the others overwrite it with the result, allocating cells for the new inner applications. The rewrites can increase the arity of an expression, so a few combinators also reduce when they have too few arguments, e.g., `B' x y = B (x y)` and `Z x y = K (x y)`. This keeps the sharing (full laziness) of the original code.
 
 When the program has been loaded, the garbage collector also does some reductions that make the graph smaller, e.g., `I x` → `x` and `K x y` → `x`. A program can ask for this with `performGCWithReduction` from `System.Mem`.
 
