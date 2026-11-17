@@ -43,6 +43,8 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 HUGS= runhugs
 FFIHUGS= ffihugs
 HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
+#
+TIME=time
 
 #
 NODE=node
@@ -240,29 +242,29 @@ bin/umhs: bin/mhs
 timecompile: bin/mhs
 	@date
 	@git rev-parse HEAD
-	time bin/mhs +RTS -v -RTS $(MHSINC) $(MAINMODULE)
+	$(TIME) bin/mhs +RTS -v -RTS $(MHSINC) $(MAINMODULE)
 
 #
 timecachecompile: bin/mhs
 	@-rm -f .mhscache
-	time bin/mhs +RTS -v -RTS -CW AllOfLib
-	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) $(MAINMODULE)
+	$(TIME) bin/mhs +RTS -v -RTS -CW AllOfLib
+	$(TIME) bin/mhs +RTS -v -RTS -CR -s $(MHSINC) $(MAINMODULE)
 
 #
 timemhscompile:
 	@date
 	@git rev-parse HEAD
-	time mhs +RTS -v -RTS -z -imhs -isrc $(MAINMODULE)
+	$(TIME) mhs +RTS -v -RTS -z -imhs -isrc $(MAINMODULE)
 
 timegmhscompile:
 	@date
 	@git rev-parse HEAD
-	time bin/gmhs -imhs -isrc $(MAINMODULE)
+	$(TIME) bin/gmhs -imhs -isrc $(MAINMODULE)
 
 timeghccompile:
 	@date
 	@git rev-parse HEAD
-	time $(GHC) -fforce-recomp $(GHCFLAGS) -O0 $(MAINMODULE) -o bin/gmhs
+	$(TIME) $(GHC) -fforce-recomp $(GHCFLAGS) -O0 $(MAINMODULE) -o bin/gmhs
 
 #
 cachelib:
