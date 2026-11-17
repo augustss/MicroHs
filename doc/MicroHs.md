@@ -122,7 +122,7 @@ The following extensions are supported:
 
 Deriving is supported for `Bounded`, `Data`, `Enum`, `Eq`, `Foldable`, `Functor`, `Generic`, `Generic1`, `Ix`, `Lift`, `Ord`, `Read`, `Show`, and `Traversable`.
 
-`Typeable` is automatic: every `data` type, `newtype`, and class gets a `Typeable` instance. This needs the class `Data.Typeable.Typeable`, which is known in any module that imports the `Prelude`. To avoid the instance for a `data` type or `newtype`, e.g., in a module that does not import the `Prelude`, add an empty `deriving ()` clause. This turns off all deriving for that type, so any other deriving clauses on the same declaration are ignored. There is no way to avoid the instance for a class.
+`Typeable` is automatic: every `data` type, `newtype`, and class gets a `Typeable` instance. This needs the class `Data.Typeable.Typeable`, which is known in any module that imports the `Prelude`. To avoid the instance for a `data` type or `newtype`, e.g., in a module that does not import the `Prelude`, add an empty `deriving ()` clause. This turns off all deriving for that type, including the `HasField` instances for its record fields, so any other deriving clauses on the same declaration are ignored. There is no way to avoid the instance for a class.
 
 ### Extra instance bindings
 
@@ -200,6 +200,42 @@ The `Prelude` contains the functions from the Haskell Report and a few extension
 
 To avoid the `Prelude` completely (which is needed in parts of `base` to avoid circular imports), use `import qualified Prelude()`. The compiler then does not even open `Prelude.hs`, and it also skips the automatic qualified import of `Mhs.Builtin`. Note that the `NoImplicitPrelude` pragma has no effect.
 
+### MicroHs specific modules
+
+Besides the usual modules, `base` has some modules that are specific to MicroHs:
+* `Data.String.Interpolate` and `Data.String.Interpolate.Basic`, for [string interpolation](#string-interpolation).
+* `Data.TypeLits`, for [type-level literals](#type-level-literals).
+* `Mhs.Builtin` exports what the compiler refers to in the code it generates, e.g., in derived instances. It is imported automatically, qualified with a name that cannot be written in a program.
+* `Mhs.Print` has `cuprint` and `cprint`, which print the combinator graph of a value (see [Debugging](#debugging)).
+* `System.Compress` compresses and decompresses strings of bytes, e.g., `compressLZMA` and `decompressLZMA`.
+* `System.IO.MD5` computes MD5 checksums of strings, files, and handles.
+* `System.IO.Serialize` writes and reads values, see [below](#serialization).
+* `System.IO.StringHandle` makes a `Handle` that reads from a string (`stringToHandle`), or collects what is written to a handle in a string (`handleWriteToString`). There are also `ByteString` versions.
+* `System.IO.TimeMilli` gives the time in milliseconds or microseconds.
+* `System.IO.Transducers` adds a layer to a `Handle` that transforms what is read or written, e.g., compression (`addLZMA`), Base64 encoding (`addBase64`), UTF-8 encoding (`addUTF8`), or buffering (`addBuffer`).
+* `System.RTS` gives the number of reductions and allocated cells so far (`getStats`), and runs a garbage collection (`gc`).
+
+### Serialization
+
+`System.IO.Serialize` can write any value to a handle and read it back, even functions and values with sharing or cycles. The exceptions are values that refer to C data, such as `Ptr`, `FunPtr`, and file handles (except `stdin`, `stdout`, and `stderr`), and `MVar`s, `ThreadId`s, and weak pointers. The value is written in the [combinator file format](COMB.md), so it can only be read by a program with the same version of the runtime.
+
+Use `hSerializeDescr` and `hDeserializeDescr` when you can, since they are safer. They need a `Data` instance for the type. `hSerializeDescr` writes a checksum of the complete type (all constructors and the types of their fields, recursively) before the value, and `hDeserializeDescr` returns `Nothing` if it does not match the type that it is expected to read:
+```haskell
+import Data.Data
+import System.IO
+import System.IO.Serialize
+
+data Shape = Circle Double | Rect Double Double
+  deriving (Show, Data)
+
+main :: IO ()
+main = do
+  withBinaryFile "shapes.ser" WriteMode $ \ h -> hSerializeDescr h [Circle 1, Rect 2 3]
+  r <- withBinaryFile "shapes.ser" ReadMode hDeserializeDescr
+  print (r :: Maybe [Shape])      -- Just [Circle 1.0,Rect 2.0 3.0]
+```
+`hSerialize` and `hDeserialize` do no check at all, and reading a value as the wrong type will probably crash the program. Use them only for values that have no `Data` instance, such as functions. There are also `writeSerialized` and `readSerialized`, which work on files, and `writeSerializedCompressed`, which compresses the data (`readSerialized` handles both).
+
 ### Report compliance
 
 | Module                 | Report compliant          | Comment                                                 |
@@ -240,7 +276,7 @@ To avoid the `Prelude` completely (which is needed in parts of `base` to avoid c
 
 ## FFI
 
-MicroHs supports `foreign import ccall`, `foreign import capi`, `foreign export ccall`, and `foreign import javascript` (for the emscripten target). When running a program directly (using `-r`), in the interactive system, or when generating a `.comb` file, only the C functions built into the runtime (plus those from embedded packages) can be called. When generating a `.c` file or an executable, any C function can be called.
+MicroHs supports `foreign import ccall`, `foreign import capi`, `foreign export ccall`, `foreign import javascript`, and `foreign export javascript` (the last two for the emscripten target, see [JavaScript](#javascript)). When running a program directly (using `-r`), in the interactive system, or when generating a `.comb` file, only the C functions built into the runtime (plus those from embedded packages) can be called. When generating a `.c` file or an executable, any C function can be called.
 
 As in GHC, the import string can name header files and use `&` to import the address of a C object. In addition, MicroHs has a non-standard form, `"value EXPR"`, which imports the value of an arbitrary C expression. Inside `EXPR`, `$1`, `$2`, … (up to `$9`) are replaced by the function's arguments. For example:
 ```haskell
@@ -284,6 +320,16 @@ cc main.c -L. -lforexp -o main
 On Linux, also add `-Wl,-rpath,'$ORIGIN'` to the `cc` command (or set `LD_LIBRARY_PATH`), so that the library is found when the program runs.
 
 Alternatively, `mhs -c ForExp -oForExpHs.c` writes the C code for the Haskell part. Compile it together with the runtime, `src/runtime/eval.c`, and the C program, with the directories `src/runtime` and `src/runtime/unix` (or another platform) as include directories.
+
+### JavaScript
+
+With the `emscripten` target (see [Targets](#targets)), `foreign import javascript` calls JavaScript code. The import string is the body of a JavaScript function, where `$0`, `$1`, … are the arguments. Note that they are numbered from 0, unlike in a `"value"` import. The arguments can have the types `Int`, `Double`, `Float`, and `Ptr`, and the result can also be `()`. As usual, the result can be in `IO`:
+```haskell
+foreign import javascript "return jsAdd($0, $1)" jsAdd :: Int -> Int -> IO Int
+```
+A function like `jsAdd` can be defined in a JavaScript file that is given on the command line, e.g., `mhs -temscripten add.js Main -oout.js`. The file is embedded in the output. A package can also provide JavaScript files, in its `jsbits` directory; they are embedded in every program that uses the package.
+
+`foreign export javascript` makes a Haskell function callable from JavaScript, where its name gets a `_` prefix, as usual with emscripten. Such a function can also have `Bool` arguments and results, which become 0 and 1. As for C, compile the module with `-c`, and call `_mhs_init()` before any exported function. The `testforexpjs` target in `tests/Makefile` shows how to compile such a module with `emcc` and call it from JavaScript.
 
 ## Preprocessor
 
@@ -344,7 +390,7 @@ A module `M.N` is looked for as the file `M/N.hs` (or `.lhs`, or `.hsc`, which i
 | `--stdin` | Use stdin in the interactive system (no line editing) |
 | `--embed-packages PKG:...` | Embed packages (and their FFI stubs) in an `mhs` binary |
 | `--embed-ffis PKG:...` | Embed the FFI stubs of packages in an `mhs` binary |
-| `-ddump-PASS` | Debug: print the program after `PASS`, one of `preproc`, `parse`, `derive`, `expandInst`, `typecheck`, `desugar`, `linked`, `toplevel`, `combinator`, `all` |
+| `-ddump-PASS` | Debug: print the program after `PASS`, one of `preproc`, `parse`, `derive`, `expandInst`, `typecheck`, `desugar`, `linked`, `toplevel`, `combinator`, `all` (see [Dump flags](#dump-flags)) |
 | `--` | End of compiler arguments; the rest are passed to the program (with `-r`) |
 
 Files ending in `.c`, `.o`, or `.a` on the command line are passed to the C compiler, and `.js` files are embedded in the output (for targets that support it).
@@ -478,7 +524,7 @@ For overall numbers, use `+RTS -v -RTS`, which prints the number of reductions, 
 ## Debugging
 
 * `Debug.Trace` has the usual `trace` functions.
-* `-ddump-PASS` prints the program after a compiler pass, e.g., `-ddump-combinator` prints the combinator code of each definition.
+* `-ddump-PASS` prints the program after a compiler pass, e.g., `-ddump-combinator` prints the combinator code of each definition (see [Dump flags](#dump-flags)).
 * `+RTS -v -v -v -RTS` prints the whole program after it has been loaded, in the readable form of the [combinator file format](COMB.md#human-readable-format).
 * `cuprint` from `Mhs.Print` prints the combinator graph of a value as it is at the moment, in the same form. `cprint` first evaluates the value fully and simplifies it, but this is fragile.
 
@@ -538,6 +584,14 @@ Packages are installed in `~/.mcabal/` (or `$CABALDIR`) with the following layou
 
 There can only be one version of a package installed in a directory. If you need multiple versions, use different directories and the `-a` flag. There are no checks for consistency among packages, and packages compiled with different versions of the compiler are not compatible.
 
+## Embedding packages in `mhs`
+
+Normally `mhs` finds packages in the package search path, but packages can also be built into the `mhs` binary itself, e.g., to get a compiler that does not need any installed packages. When compiling the compiler (the module `MicroHs.Main`), the flag `--embed-packages PKG1:PKG2:...` puts the given packages into the binary. They are loaded when `mhs` starts, as if they were installed. For example:
+```
+mhs -i -imhs -isrc MicroHs.Main --embed-packages base -omhs-base
+```
+When running a program directly (`-r`), in the interactive mode, or when generating a `.comb` file, a foreign import can only call C functions that are in the `mhs` binary. `--embed-ffis PKG1:PKG2:...` includes the C wrappers for the foreign imports of the given packages, without embedding the packages themselves. `--embed-packages` does this for the packages it embeds.
+
 ## Porting a package
 
 Hackage is full of great packages; unfortunately most of them contain some GHC specific code. Some compile as is, many need small changes.  Here are some tips:
@@ -579,6 +633,23 @@ Other important modules:
 * `Interactive` the REPL.  It uses `Translate`, which converts combinators directly to runnable values.
 * `FFI` generates C wrappers for foreign imports and exports.
 * `Builtin`, `SymTab`, `Ident`, `IdentMap`, `Graph` (strongly connected components), `StateIO`, and `Config`.
+
+### Dump flags
+
+The `-ddump-PASS` flags print the program at different stages of compilation, which is useful when working on the compiler. Several flags can be given at once, and `-ddump-all` turns on all of them.
+
+The following flags print each module as it is compiled. Modules that are loaded from the compilation cache or from an installed package are not compiled, so they are not printed.
+* `-ddump-preproc` the source text, after preprocessing with `cpphs` or the `-F` preprocessor, if any.
+* `-ddump-parse` the syntax tree after parsing. Fixities have not been resolved yet, so all operators are shown as left associative, e.g., `a + b * c` is shown as `(a + b) * c`. Numeric literals are shown with a `%`.
+* `-ddump-derive` the module after the class declarations have been expanded and instances have been derived. Each class method has got a default definition, `m$dflt`, and each type has got its derived instances, including the automatic `Typeable` instance and the `HasField` instances for record fields.
+* `-ddump-expandInst` as above, and each instance has also been turned into a dictionary, `inst$C@T`. It is the class's dictionary constructor, `C$C`, applied to the superclass dictionaries and the methods.
+* `-ddump-typecheck` the module after type checking. All names are fully qualified, and type class constraints have become explicit dictionary arguments.
+* `-ddump-desugar` the module after desugaring to a simple lambda calculus. Pattern matching has been turned into the `case` combinators, and constructors into `C_k_n` (see [Data type encoding](#data-type-encoding)).
+
+The following flags print the whole program, including the library, so the output is large.
+* `-ddump-combinator` every definition of every module after translation to combinators, in readable form.
+* `-ddump-linked` the definitions that are used by `main`, which are the ones that end up in the output. They are shown in the postfix syntax of the [combinator file format](COMB.md), but with the original names.
+* `-ddump-toplevel` all definitions, including those from packages embedded with `--embed-packages`, in the same syntax as `-ddump-linked`.
 
 ### Bootstrapping
 
@@ -660,6 +731,18 @@ The constructor and `case` combinators take no space in the heap. Their tag, the
 
 To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
 
+### Class dictionaries
+
+Type classes are translated to dictionary passing, but dictionaries do not use the constructor encoding. A dictionary is a function that applies its argument to the superclass dictionaries and the methods, in the order they are declared. The dictionary constructor for a class `C` with `n` components is
+```
+C$C = \ x1 ... xn f -> f x1 ... xn
+```
+and the component number `i` is selected by
+```
+\ d -> d (\ x1 ... xn -> xi)
+```
+After bracket abstraction a selector is just a few combinators. For example, `pure`, which is the second of the six components of `Applicative`, is `U (K K4)`.
+
 ## Runtime
 
 The runtime system is written in C and is mainly in `src/runtime/eval.c`. It is a graph reduction machine for combinators, with primitive operations for built in types and for executing IO operations. The C code is reasonably portable and has no dependencies beyond a C compiler and (optionally) a C library.
@@ -667,6 +750,7 @@ The runtime system is written in C and is mainly in `src/runtime/eval.c`. It is 
 The runtime also contains:
 * A mark-scan garbage collector.
 * Lightweight threads (for `Control.Concurrent`, `MVar`, and STM), with non-blocking IO where available. Threads are preemptive: the running thread is switched out after a fixed number of reductions, 100000 by default. This can be changed by compiling the runtime with `-DSLICE=N`, e.g., `mhs -optc -DSLICE=10000 ...`.
+* Weak pointers with finalizers. When the key of a weak pointer dies, its finalizer runs in a new thread, so output from a finalizer can be interleaved with output from other threads.
 * Bignums for `Integer`, using [imath](https://github.com/creachadair/imath) (included); alternatively [GMP](https://gmplib.org/).
 * Serialization and deserialization of arbitrary expressions, preserving sharing and cycles, using the [combinator file format](COMB.md). The only exceptions are C pointers (e.g., file handles) other than `stdin`, `stdout`, and `stderr`.
 * LZMA/LZ77 decompression and Base64 decoding, for compressed combinator code.
@@ -682,8 +766,33 @@ Cells are aligned, so the two lowest bits of a real pointer are always 0. A poin
 
 There is a bitmap with one bit per cell. Allocating a cell consists of finding the next free cell using the bitmap and marking it as used; in practice whole runs of free cells are claimed at once. The garbage collector clears the bitmap and then marks every reachable cell. There is no explicit scan phase, since that is baked into the allocation. Allocation is fast, assuming the CPU has some kind of find-first-set instruction.
 
+### The evaluator
+
+The evaluator, `evali`, reduces an expression to weak head normal form. It walks down the left spine of applications, pushing each application node on the stack, until it finds something that is not an application, e.g., a combinator. If the stack has enough arguments, the combinator is reduced by overwriting the topmost application node of the redex with the result, so the result is shared. Otherwise the expression is already in weak head normal form, and the evaluator returns. Indirection nodes are followed and short-circuited on the way. A reduction that allocates cells first makes sure that there are enough free cells, and runs a garbage collection if needed. The roots for the garbage collector are the stack, the threads, and some global tables.
+
+There is a single stack. A recursive call of the evaluator uses the part above its caller's part, but recursive calls are avoided where possible, since they also use C stack. A strict primitive, e.g., `+` on `Int`, pushes a marker and evaluates one argument. When the evaluator returns to the marker, it changes the marker and evaluates the other argument, and when it returns to the changed marker, it performs the operation. `case` works in a similar way (see [Data type encoding](#data-type-encoding)).
+
+An IO action is a function that takes a world token and returns a pair of the result and a new world token. The pair is Scott encoded with `P` (`P r w k = k r w`), so `return` is just `P`, and `>>=` is just `C`: `C m f w = m w f`, and when `m w` has been reduced to `P r w'`, this is `f r w'`. `unsafePerformIO` applies the action to a world token, and selects the result with `K`. The primitive IO operations return their results in the same way.
+
+`catch` sets up a handler with `setjmp`, and evaluates the protected action with a recursive call of the evaluator. Throwing an exception does a `longjmp` to the innermost handler, which runs the handler action. An exception that is not caught kills the thread, and the program if it is the main thread.
+
+Each thread has a root node, its IO action applied to a world token, and the scheduler evaluates the root of the thread at the front of the run queue. When the thread's time slice runs out, or the thread blocks, e.g., on an `MVar`, the thread's stack is simply thrown away, and the next thread runs. All reductions have been done in place in the graph, so evaluating the root again later resumes the computation where it left off. Exception handlers are set up again when the evaluation passes the `catch`.
+
 ### Configuration
 The runtime is configured for each platform by a `config.h` in a subdirectory of `src/runtime/`. It contains a number of `WANT_` macros that select functionality, e.g., `WANT_STDIO` (file I/O), `WANT_FLOAT32`/`WANT_FLOAT64` (floating point), `WANT_INT64` (64 bit integers on 32 bit platforms), `WANT_GMP` (use GMP for `Integer`), `WANT_DIR`, `WANT_TIME`, `WANT_SOCKET`, etc. It also defines how to do platform specific things, such as finding the first set bit. Platform specific code goes in `extra.c` in the same directory.
+
+Some other macros control how the runtime works. These are set in `config.h`:
+* `GCRED` do some reductions during garbage collection (see [Combinators](#combinators)).
+* `INTTABLE` share the cells for small integers (from -10 to 255).
+* `SANITY` do some sanity checks during evaluation.
+* `STACKOVL` check for stack overflow.
+* `WANT_KPERF` make `+RTS -v` also print the number of instructions executed, using the CPU's performance counters. This only works on some CPUs, see the comment in `unix/config.h`.
+
+These have defaults, and can be set with `-D`, e.g., `mhs -optc -DMARK_PFQ=0 ...`:
+* `BUMP_ALLOC` (default 1) allocate cells by moving a pointer through a run of free cells, instead of searching the bitmap for each cell.
+* `MARK_PFQ` (default 16) the number of cells the garbage collector prefetches while marking; 0 turns prefetching off.
+* `SLICE` (default 100000) the number of reductions in a thread's time slice.
+* `HEAP_CELLS` and `STACK_SIZE` the default heap and stack sizes (see [Runtime flags](#runtime-flags)).
 
 ### Using GMP for `Integer`
 By default, `Integer` uses imath, which is included. To use GMP instead, uncomment the first few lines in the `Makefile`, and adjust where the C compiler finds GMP. To switch between using and not using GMP you need to do `make clean`.
@@ -724,8 +833,13 @@ Contributions are very welcome!  Bug reports, missing library functions, ported 
 ## Building
 * `make` builds `bin/mhs`, `bin/cpphs`, and `bin/mcabal` from the C files in `generated/`.
 * `make bin/gmhs` builds the compiler with GHC, which is convenient while developing. The interactive mode only works in a compiler built by MicroHs, though.
-* `make newmhs` (or `make newmhsz`, which compresses the combinators) rebuilds `bin/mhs` and `generated/mhs.c` to include changes to the compiler.
+* `make newmhs` (or `make newmhsz`, which compresses the combinators) rebuilds `bin/mhs` and `generated/mhs.c` to include changes to the compiler. It uses `bin/gmhs`, so it needs GHC.
 * `make bootstrap` checks that the compiler can still compile itself.
+
+### Changing the combinator format
+The combinator file format has a version, which must be the same in `src/runtime/eval.c` (`VERSION`) and `src/MicroHs/ExpPrint.hs` (`combVersion`). Change it whenever existing combinator files would no longer work, e.g., when the data type encoding changes, or a primitive is removed or changes meaning. Then old files are rejected, instead of misbehaving.
+
+After such a change all the combinator code in `generated/` must be regenerated, not just the compiler, i.e., also `cpphs.c`, `mcabal.c`, `install.c`, `tester.c`, and the `base` package, `base.pkg`. `make preparedist` does all of this. It needs GHC, a checkout of [MicroCabal](https://github.com/augustss/MicroCabal) next to the MicroHs directory, the `cpphs` sources (it fetches them as a git submodule), and emscripten (for `generated/mhseval.js`).
 
 ## Libraries
 The libraries live in the `lib/` directory. Adding missing functions, instances, and types from the Report or from GHC's `base` is a welcome contribution. So are improvements to the bundled versions of packages that are heavily GHC specific, such as `array`, `bytestring`, and `text`.
@@ -738,6 +852,12 @@ The test suite is in the `tests/` directory. To run it, do
 * `make everytest` to run everything, including bootstrapping
 
 To add a test, create `MyTest.hs` and `MyTest.ref`, where the latter contains the expected output, and add a line `MyTest` to `tests/all.tests`. The file explains how to give input, expected error output, and compiler flags. Tests that check compiler error messages go in `tests/err.tests` in the same way, with the expected message in the `.ref` file.
+
+## Measuring performance
+* `make timecompile` times the compiler compiling itself, and prints the statistics from `+RTS -v`. Give a better timing command with `TIME`, e.g., `make timecompile TIME='/usr/bin/time -l'` on macOS.
+* The `benchmarks/` directory has a set of benchmark programs, see its [README](../benchmarks/README.md).
+* The number of reductions and allocated cells from `+RTS -v` are deterministic, but the number of reductions is not a good measure of speed, since different combinators do very different amounts of work. The number of instructions executed is a better measure, and it varies much less than the time. Get it with `/usr/bin/time -l` on macOS, `perf stat` on Linux, or by compiling the runtime with `WANT_KPERF`.
+* Wall clock times vary between runs. When comparing two versions, run them alternately, several times.
 
 ## Adding a primitive
 To add a new primitive, change `src/runtime/eval.c`:
