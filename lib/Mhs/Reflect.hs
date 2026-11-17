@@ -1,12 +1,30 @@
-module Mhs.Reflect where
+-- Copyright 2026 Lennart Augustsson
+-- See LICENSE file for full license.
+--
+-- Reflection: turn a value back into an expression.
+-- The value is serialized to the combinator file format (see doc/COMB.md),
+-- the combinator code is parsed, and then decompiled to lambda expressions
+-- by reducing the combinators symbolically.  Constructors (C_k_n) and the
+-- case combinators (D_m and E_m) become constructors and case expressions.
+--
+-- The arms of a dense case (D_m) carry no arity information, so the number
+-- of fields of each arm is a guess: the arity of the function in the arm,
+-- i.e., it is assumed that the case does not return a function.
+-- The arms of a sparse case (E_m) have their arities in the A_k_n tags.
+module Mhs.Reflect(
+  Ident, Exp(..), Literal(..), Pat(..), Prog(..),
+  reflect, reflectCombinators,
+  parseCombinators, decompile,
+  ppProg, ppExp,
+  ) where
+import Control.Monad
 import Data.ByteString.Char8(unpack, pack, ByteString)
-import Data.Char(isDigit, isAlpha, isSpace, chr, ord)
+import Data.Char(isAlphaNum, isDigit, isSpace, chr, ord)
 import Data.Int(Int64)
 import Data.List(stripPrefix)
-import Data.Text(Text)
+import qualified Data.Text as T
 import Data.Text.Encoding(decodeUtf8)
 import System.IO.Serialize(writeSerializedBS)
-import Mhs.Print
 
 type Ident = String
 
@@ -15,108 +33,362 @@ data Exp
   | Lam Ident Exp
   | App Exp Exp
   | Lit Literal
+  | Con Int Int                   -- constructor number k with n fields, C_k_n
+  | Arm Int Int                   -- the tag of an arm of a sparse case, A_k_n
+  | Case Exp [(Pat, Exp)] (Maybe Exp)  -- scrutinee, arms, default
+  | Let [(Ident, Exp)] Exp        -- recursive bindings
+  | Array [Exp]
+  deriving (Show)
+
+data Pat = PCon Int Int [Ident]   -- C_k_n x1 ... xn
   deriving (Show)
 
 data Literal
   = LInt Int
-  | LDbl Double
   | LInt64 Int64
+  | LDouble Double
+  | LFloat Float
   | LInteger Integer
-  | LComb String
-  | LFFI String
-  | LText Text
+  | LBytes ByteString             -- a ByteString
+  | LString String                -- a String, from fromUTF8 applied to a ByteString
+  | LPrim String                  -- a combinator or a primitive
+  | LFFI String                   -- a foreign import
+  | LFunPtr String                -- a C function pointer
+  | LTick String                  -- a tick, for profiling
   deriving (Show)
 
+-- Shared subexpressions are bound by a (recursive) let.
 data Prog = Prog [(Ident, Exp)] Exp
   deriving (Show)
 
-ppProg :: Prog -> String
-ppProg (Prog []  b) = ppExp b
-ppProg (Prog ies b) = unlines $
-  ["let"] ++ map (\ (i, e) -> "    " ++ i ++ " = " ++ ppExp e) ies ++ ["in  " ++ ppExp b]
+-- | Turn a value into an expression.
+reflect :: a -> IO Prog
+reflect a = decompile <$> reflectCombinators a
 
-ppExp :: Exp -> String
-ppExp (Var i) = i
-ppExp (Lam i e) = "(\\" ++ i ++ "." ++ ppExp e ++ ")"
-ppExp (App f a) = "(" ++ ppExp f ++ " " ++ ppExp a ++ ")"
-ppExp (Lit l) = ppLit l
+-- | Turn a value into its combinator code.
+reflectCombinators :: a -> IO Prog
+reflectCombinators a = parseCombinators . unpack <$> writeSerializedBS a
 
-ppLit :: Literal -> String
-ppLit (LInt i) = "#" ++ show i
-ppLit (LDbl i) = "&" ++ show i
-ppLit (LInt64 i) = "#" ++ show i
-ppLit (LInteger i) = "%" ++ show i
-ppLit (LText s) = show s
-ppLit (LComb s) = s
-ppLit (LFFI s) = "^" ++ s
+-----------------------------------------------------------------------------
+-- Parsing the combinator file format
 
-isId, isId' :: Char -> Bool
-isId c = isAlpha c || c `elem` "+-*/=<>."
+-- This must agree with the version in src/runtime/eval.c.
+combVersion :: String
+combVersion = "v9.1"
 
-parse :: String -> Prog
-parse s = p [] [] s
+-- | Parse a serialized value, including the header.
+parseCombinators :: String -> Prog
+parseCombinators s =
+  case stripPrefix (combVersion ++ "\n") s of
+    Just r | (n@(_:_), '\n':r') <- span isDigit r, all isDigit n -> parseGraph r'
+    _ -> error $ "Mhs.Reflect: unsupported combinator file format: " ++ show (takeWhile (/= '\n') s)
+
+parseGraph :: String -> Prog
+parseGraph = p [] []
   where
     p :: [(Ident, Exp)] -> [Exp] -> String -> Prog
     p defs stk (' ':s) = p defs stk s
     p defs stk ('\n':s) = p defs stk s
+    p defs (x:f:stk) ('@':s) = p defs (App f x : stk) s
+    p defs [e] ('}':_) = Prog (reverse defs) e
     p defs stk ('#':'#':s) = lit (LInt64 . read) defs stk s
     p defs stk ('#':s) = lit (LInt . read) defs stk s
-    p defs stk ('&':s) = lit (LDbl . read) defs stk s
-    p defs stk cs@('_':_) = case tok cs of (i, r) -> p defs (Var i : stk) r
-    p defs (e:stk) (':':s) =
-      case tok s of (i, r) -> p ((i', e):defs) (Var i':stk) r
-                              where i' = '_':i
+    p defs stk ('&':'&':s) = lit (LFloat . read) defs stk s
+    p defs stk ('&':s) = lit (LDouble . read) defs stk s
+    p defs stk ('%':s) =
+      case span (/= '"') s of (i, _:r) -> p defs (Lit (LInteger (read i)) : stk) r
+                              _ -> perr s
     p defs stk ('"':s) =
-      case getByteString s of (bs, r) -> p defs (Lit (LText (decodeUtf8 bs)) : stk) r
-    p defs stk ('%':s) = case span (/= '"') s of (i, _:r) -> p defs (Lit (LInteger (read i)) : stk) r
+      case getByteString s of (bs, r) -> p defs (Lit (LBytes bs) : stk) r
+    p defs stk ('$':s) =
+      case span isDigit s of
+        (n@(_:_), ' ':r) | (bs, r') <- splitAt (read n) r -> p defs (Lit (LBytes (pack bs)) : stk) r'
+        _ -> perr s
+    p defs stk ('!':'"':s) =
+      case getByteString s of (bs, r) -> p defs (Lit (LTick (unpack bs)) : stk) r
     p defs stk ('^':s) = lit LFFI defs stk s
-    p defs (e1:e2:stk) ('@':s) = p defs (App e2 e1 : stk) s
-    p defs stk cs@(c:_) | isId c = case tok cs of (c, r) -> p defs (Lit (LComb c) : stk) r
-    p defs [e] ('}':_) = Prog defs e
-    -- '['  array
-    -- '$'  raw ByteString
-    -- '!'  Tick
-    -- ';'  C function
-    p _ _   cs = error $ "parse: unimplemented: " ++ show cs
+    p defs stk (';':s) = lit LFunPtr defs stk s
+    p defs stk ('_':s) =
+      case tok s of (l, r) -> p defs (Var ('_':l) : stk) r
+    p defs (e:stk) (':':s) =
+      case tok s of (l, r) -> p ((i, e) : defs) (Var i : stk) r
+                                where i = '_':l
+    p defs stk ('[':s) =
+      case span isDigit s of
+        (n@(_:_), ']':r) | k <- read n, length stk >= k ->
+          p defs (Array (reverse (take k stk)) : drop k stk) r
+        _ -> perr s
+    p defs stk s@(_:_) = case tok s of (c, r) -> p defs (atom c : stk) r
+    p _ _ s = perr s
 
     lit :: (String -> Literal) -> [(Ident, Exp)] -> [Exp] -> String -> Prog
     lit con defs stk s =
       case tok s of (sn, r) -> p defs (Lit (con sn) : stk) r
-    tok = break isSpace
 
+    tok = break isSpace
+    perr s = error $ "Mhs.Reflect: parse error at " ++ show (take 20 s)
+
+-- Combinators, primitives, and the data type combinators.
+atom :: String -> Exp
+atom s =
+  case s of
+    'C':'_':r | Just (k, n) <- twoNums r -> Con k n
+    'A':'_':r | Just (k, n) <- twoNums r -> Arm k n
+    _ -> Lit (LPrim s)
+  where
+    twoNums r =
+      case span isDigit r of
+        (k@(_:_), '_':r') | (n@(_:_), "") <- span isDigit r' -> Just (read k, read n)
+        _ -> Nothing
+
+-- Get a quoted string, see doc/COMB.md for the escapes.
 getByteString :: String -> (ByteString, String)
 getByteString = get []
   where
     get r ('"':s) = (pack (reverse r), s)
-    get r ('\\':'"':s) = get ('"':r) s
-    get r ('\\':'^':s) = get ('^':r) s
-    get r ('\\':'|':s) = get ('|':r) s
     get r ('\\':'?':s) = get ('\x7f':r) s
     get r ('\\':'_':s) = get ('\xff':r) s
-    get r ('\\':'\\':s) = get ('\\':r) s
+    get r ('\\':c:s) = get (c:r) s
     get r ('^' :c:s) | c < '\x40' = get (chr (ord c - 0x20) : r) s
-                        | otherwise  = get (chr (ord c + 0x40) : r) s
+                     | otherwise  = get (chr (ord c + 0x40) : r) s
     get r ('|' :c:s) = get (chr (ord c + 0x80) : r) s
     get r (c:s)     = get (c : r) s
-    get _ [] = error "getByteString"
+    get _ [] = error "Mhs.Reflect: unterminated string"
 
-verifyHeader :: String -> Maybe (Int, String)
-verifyHeader s =
-  case stripPrefix "v8.4\n" s of
-    Just r ->
-      case span isDigit r of
-        (sn@(_:_), '\n':r') -> Just (read sn, r')
-        _ -> Nothing
-    _ -> Nothing
+-----------------------------------------------------------------------------
+-- Decompilation
 
-reflect :: a -> IO Prog
-reflect a = do
-  bs <- writeSerializedBS a
-  let s = unpack bs
-      Just (_, s') = verifyHeader s
-  putStrLn "-----"
-  putStrLn s'
-  putStrLn "-----"
-  cuprint a
-  putStrLn "-----"
-  return (parse s')
+-- A state monad for generating fresh variable names.
+newtype F a = F (Int -> (a, Int))
+
+instance Functor F where
+  fmap f (F g) = F $ \ n -> case g n of (a, n') -> (f a, n')
+instance Applicative F where
+  pure a = F $ \ n -> (a, n)
+  (<*>) = ap
+instance Monad F where
+  F g >>= k = F $ \ n -> case g n of (a, n') -> case k a of F h -> h n'
+
+runF :: F a -> a
+runF (F g) = fst (g 1)
+
+fresh :: Int -> F [Ident]
+fresh k = F $ \ n -> (map (\ i -> 'x' : show i) [n .. n + k - 1], n + k)
+
+-- The combinators, with their arity and reduction rule.
+combinator :: String -> Maybe (Int, [Exp] -> Exp)
+combinator c =
+  case c of
+    "S"   -> r 3 $ \ [x, y, z] -> x @@ z @@ (y @@ z)
+    "K"   -> r 2 $ \ [x, _] -> x
+    "I"   -> r 1 $ \ [x] -> x
+    "B"   -> r 3 $ \ [x, y, z] -> x @@ (y @@ z)
+    "C"   -> r 3 $ \ [x, y, z] -> x @@ z @@ y
+    "S'"  -> r 4 $ \ [x, y, z, w] -> x @@ (y @@ w) @@ (z @@ w)
+    "B'"  -> r 4 $ \ [x, y, z, w] -> x @@ y @@ (z @@ w)
+    "C'"  -> r 4 $ \ [x, y, z, w] -> x @@ (y @@ w) @@ z
+    "C'B" -> r 4 $ \ [x, y, z, w] -> x @@ z @@ (y @@ w)
+    "A"   -> r 2 $ \ [_, y] -> y
+    "U"   -> r 2 $ \ [x, y] -> y @@ x
+    "Z"   -> r 3 $ \ [x, y, _] -> x @@ y
+    "K2"  -> r 3 $ \ [x, _, _] -> x
+    "K3"  -> r 4 $ \ [x, _, _, _] -> x
+    "K4"  -> r 5 $ \ [x, _, _, _, _] -> x
+    "P"   -> r 3 $ \ [x, y, z] -> z @@ x @@ y
+    "R"   -> r 3 $ \ [x, y, z] -> y @@ z @@ x
+    "O"   -> r 4 $ \ [x, y, _, w] -> w @@ x @@ y
+    _     -> Nothing
+  where r n f = Just (n, f)
+
+infixl 9 @@
+(@@) :: Exp -> Exp -> Exp
+(@@) = App
+
+apps :: Exp -> [Exp] -> Exp
+apps = foldl App
+
+spine :: Exp -> (Exp, [Exp])
+spine = go []
+  where go as (App f a) = go (a:as) f
+        go as e = (e, as)
+
+-- The case combinators, D_m and E_m, with m.
+caseComb :: String -> Maybe (Char, Int)
+caseComb (c:'_':r) | c == 'D' || c == 'E', not (null r), all isDigit r = Just (c, read r)
+caseComb _ = Nothing
+
+-- | Decompile combinator code to lambda expressions.
+decompile :: Prog -> Prog
+decompile (Prog defs e) = runF $ do
+  defs' <- mapM (\ (i, d) -> (,) i <$> dec defs d) defs
+  e' <- dec defs e
+  return (Prog defs' e')
+
+dec :: [(Ident, Exp)] -> Exp -> F Exp
+dec defs = go
+  where
+    go e =
+      case spine e of
+        (Lit (LPrim c), as)
+          | Just (n, rule) <- combinator c ->
+            if length as >= n then
+              go (apps (rule (take n as)) (drop n as))
+            else do
+              -- Too few arguments, so eta expand.
+              vs <- fresh (n - length as)
+              b <- go (rule (as ++ map Var vs))
+              return (foldr Lam b vs)
+        (Lit (LPrim "Y"), f : as) -> do
+          -- Y f = let r = f r in r
+          v <- head <$> fresh 1
+          b <- go (f @@ Var v)
+          apps (Let [(v, b)] (Var v)) <$> mapM go as
+        (Lit (LTick _), a : as) -> go (apps a as)
+        (Lit (LPrim "fromUTF8"), Lit (LBytes bs) : as) ->
+          apps (Lit (LString (T.unpack (decodeUtf8 bs)))) <$> mapM go as
+        (Lit (LPrim c), as)
+          | Just (k, m) <- caseComb c -> do
+            let n = if k == 'D' then m + 1 else 2 * m + 2   -- number of arguments
+            if length as < n then do
+              -- The scrutinee (and maybe arms) are missing, so eta expand.
+              vs <- fresh (n - length as)
+              b <- go (apps e (map Var vs))
+              return (foldr Lam b vs)
+            else do
+              let (cas, rest) = splitAt n as
+              c' <- if k == 'D' then dense cas else sparse cas
+              apps c' <$> mapM go rest
+        (f, as) -> apps f <$> mapM go as
+
+    -- D_m f0 ... f{m-1} e
+    dense cas = do
+      let (arms, [scrut]) = splitAt (length cas - 1) cas
+      arms' <- zipWithM (\ k f -> arm k (arity defs f) f) [0..] arms
+      s <- go scrut
+      return (Case s arms' Nothing)
+
+    -- E_m d A_k1_n1 f1 ... A_km_nm fm e
+    sparse (d : cas) = do
+      let pairs (Arm k n : f : r) = (\ ps -> (k, n, f) : ps) <$> pairs r
+          pairs [_] = Just []
+          pairs _ = Nothing
+      case pairs cas of
+        Just kns -> do
+          arms' <- mapM (\ (k, n, f) -> arm k n f) kns
+          d' <- go d
+          s <- go (last cas)
+          return (Case s arms' (Just d'))
+        Nothing -> error "Mhs.Reflect: bad sparse case"
+    sparse [] = error "Mhs.Reflect: bad sparse case"
+
+    -- An arm for constructor k with n fields.
+    arm k n f = do
+      vs <- fresh n
+      b <- go (apps f (map Var vs))
+      return (PCon k n vs, b)
+
+-- The number of arguments a function takes, i.e., the number of lambdas
+-- that decompilation gives.  This is used to guess the arity of a case arm.
+arity :: [(Ident, Exp)] -> Exp -> Int
+arity defs = ar (1000 :: Int) []
+  where
+    ar 0 _ _ = 0              -- give up
+    ar fuel seen e =
+      case spine e of
+        (Lit (LPrim c), as)
+          | Just (n, rule) <- combinator c ->
+            if length as >= n then
+              ar (fuel - 1) seen (apps (rule (take n as)) (drop n as))
+            else
+              (n - length as) + ar (fuel - 1) seen (rule (as ++ replicate (n - length as) unknown))
+          | Just (k, m) <- caseComb c ->
+            max 0 ((if k == 'D' then m + 1 else 2 * m + 2) - length as)
+        (Lit (LPrim "Y"), f : as) -> ar (fuel - 1) seen (apps f (unknown : as))
+        (Lit (LTick _), a : as) -> ar (fuel - 1) seen (apps a as)
+        (Con _ n, as) -> max 0 (n - length as)
+        (Var i, as) | i `notElem` seen, Just d <- lookup i defs ->
+          max 0 (ar (fuel - 1) (i : seen) d - length as)
+        _ -> 0
+    unknown = Var "?"
+
+-----------------------------------------------------------------------------
+-- Printing
+
+ppProg :: Prog -> String
+ppProg (Prog [] b) = ppExp b
+ppProg (Prog ies b) = unlines $
+  ["let"] ++ map (\ (i, e) -> "  " ++ i ++ " = " ++ ppExp e) ies ++ ["in  " ++ ppExp b]
+
+ppExp :: Exp -> String
+ppExp e = pp 0 e ""
+
+-- Precedence: 0 anywhere, 1 function in an application, 2 argument.
+pp :: Int -> Exp -> ShowS
+pp _ (Var i) = showString i
+pp p (Lit l) = ppLit p l
+pp _ (Con k n) = showString ("C_" ++ show k ++ "_" ++ show n)
+pp _ (Arm k n) = showString ("A_" ++ show k ++ "_" ++ show n)
+pp _ (Array es) = showString "[|" . commas (map (pp 0) es) . showString "|]"
+pp p e@(Lam _ _) = paren (p > 0) $
+  let (vs, b) = lams e
+  in  showString "\\" . showString (unwords vs) . showString " -> " . pp 0 b
+pp p (App f a) = paren (p > 1) $ pp 1 f . showString " " . pp 2 a
+pp p (Case s arms md) = paren (p > 0) $
+  showString "case " . pp 0 s . showString " of { " .
+  semis (map ppArm arms ++ maybe [] (\ d -> [showString "_ -> " . pp 0 d]) md) .
+  showString " }"
+  where ppArm (PCon k n vs, b) =
+          showString ("C_" ++ show k ++ "_" ++ show n) .
+          foldr (\ v r -> showString " " . showString (if v `occursIn` b then v else "_") . r) id vs .
+          showString " -> " . pp 0 b
+pp p (Let bs b) = paren (p > 0) $
+  showString "let { " . semis (map (\ (i, e) -> showString i . showString " = " . pp 0 e) bs) .
+  showString " } in " . pp 0 b
+
+ppLit :: Int -> Literal -> ShowS
+ppLit p l =
+  case l of
+    LInt i      -> num i
+    LInt64 i    -> num i
+    LDouble d   -> num d
+    LFloat f    -> num f
+    LInteger i  -> num i
+    LBytes bs   -> showString "B" . shows (unpack bs)
+    LString s   -> shows s
+    LPrim s     -> paren (isOper s) (showString s)
+    LFFI s      -> showString ("^" ++ s)
+    LFunPtr s   -> showString (";" ++ s)
+    LTick s     -> showString ("!" ++ show s)
+  where num :: (Show a) => a -> ShowS
+        num x = let s = show x in paren (p > 1 && take 1 s == "-") (showString s)
+
+-- Operators, e.g., + and IO.>>=, are printed in parentheses.
+isOper :: String -> Bool
+isOper = not . all (\ c -> isAlphaNum c || c == '_' || c == '\'' || c == '.')
+
+lams :: Exp -> ([Ident], Exp)
+lams (Lam v e) = case lams e of (vs, b) -> (v:vs, b)
+lams e = ([], e)
+
+occursIn :: Ident -> Exp -> Bool
+occursIn v = occ
+  where
+    occ (Var i) = i == v
+    occ (Lam i e) = i /= v && occ e
+    occ (App f a) = occ f || occ a
+    occ (Case s arms md) = occ s || any (\ (PCon _ _ vs, b) -> v `notElem` vs && occ b) arms || maybe False occ md
+    occ (Let bs b) = v `notElem` map fst bs && (any (occ . snd) bs || occ b)
+    occ (Array es) = any occ es
+    occ _ = False
+
+paren :: Bool -> ShowS -> ShowS
+paren True s = showString "(" . s . showString ")"
+paren False s = s
+
+semis :: [ShowS] -> ShowS
+semis [] = id
+semis (s:ss) = s . foldr (\ t r -> showString "; " . t . r) id ss
+
+commas :: [ShowS] -> ShowS
+commas [] = id
+commas (s:ss) = s . foldr (\ t r -> showString ", " . t . r) id ss

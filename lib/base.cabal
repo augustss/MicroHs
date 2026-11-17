@@ -182,6 +182,7 @@ library base
         Mhs.MutUArr
         Mhs.UArr
         Mhs.Print
+        Mhs.Reflect
         Numeric
         Numeric.FormatFloat
         Numeric.Natural

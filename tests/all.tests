@@ -13,6 +13,7 @@ Hello
 # IOTest        IOTest.ref
 Serdes
 SerdesDescr
+Reflect
 StringTest
 LargeGetLine
 ListTest
