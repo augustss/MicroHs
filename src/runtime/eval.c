@@ -7493,13 +7493,22 @@ evali(NODEPTR an)
       } else {
         ERR1("CONSTR: no LOOK, found %s", TAGNAME(ltag));
       }
-      GCCHECK(nn);
+      if (nn == 0) {
+        fk = ARG(TOP(fidx));
+        POP(npop);
+        n = TOP(-1);
+        GOIND(fk);
+      }
+      /* Build fk e1 ... e{n-1}, and overwrite the case redex with (fk e1 ... e{n-1}) en.
+       * This allocates n-1 nodes, and needs no indirection. */
+      GCCHECK(nn - 1);
       fk = ARG(TOP(fidx));
-      for (int i = 0; i < nn; i++)
+      for (int i = 0; i < nn - 1; i++)
         fk = new_ap(fk, ARG(TOP(i)));
+      NODEPTR en = ARG(TOP(nn - 1));
       POP(npop);
       n = TOP(-1);
-      GOIND(fk);
+      GOAP(fk, en);
     }
 
   default:
