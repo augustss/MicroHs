@@ -37,7 +37,7 @@ import System.Directory
 import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
-import System.IO.Transducers(addLZ77, addBase64)
+import System.IO.Transducers(addLZMA, addBase64)
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
@@ -406,7 +406,7 @@ mainCompile flags mn = do
     if outFile `hasTheExtension` ".comb" || outFile `hasTheExtension` ".combffi" then do
       h <- openBinaryFile outFile WriteMode
       h' <- if base64 flags then do addBase64 h else return h
-      h'' <- if compress flags then do hPutChar h' 'z'; addLZ77 h' else return h'
+      h'' <- if compress flags then do hPutChar h' 'z'; addLZMA h' else return h'
       hPutStr h'' outData
       when (outFile `hasTheExtension` ".combffi") $ do
         -- add FFI info

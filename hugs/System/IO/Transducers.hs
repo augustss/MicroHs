@@ -1,8 +1,8 @@
-module System.IO.Transducers(addLZ77, addBase64) where
+module System.IO.Transducers(addLZMA, addBase64) where
 import System.IO
 
-addLZ77 :: Handle -> IO Handle
-addLZ77 _ = error "hugs compiled, cannot compress"
+addLZMA :: Handle -> IO Handle
+addLZMA _ = error "hugs compiled, cannot compress"
 
 
 addBase64 :: Handle -> IO Handle
