@@ -925,8 +925,8 @@ pListish = do
       ((\ es -> LList (e1:e2:es)) <$> (some (comma *> pExpr) <* optional comma) )
        <|> (LFromThenTo e1 e2 <$> (pSymbol ".." *> pExpr))
        <|> (LFromThen e1 e2 <$ pSymbol "..")
-       <|> pure (LList [e1,e2])
-  (comma *> pMore)
+       <|> (LList [e1,e2] <$ optional comma)     -- [e1, e2,]
+  (comma *> (pMore <|> pure (LList [e1])))        -- [e1,]
    <|> (LCompr e1 <$> (bar *> sepSEBy1 pStmt comma))
    <|> (LFromTo e1 <$> (pSymbol ".." *> pExpr))
    <|> (LFrom e1 <$ pSymbol "..")

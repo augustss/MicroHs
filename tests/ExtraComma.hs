@@ -20,3 +20,5 @@ main = do
   print (S1 10){ , x1 = 11 }
   print [1,2,3,]
   print [,4,5]
+  print [6,]
+  print [7,8,]
