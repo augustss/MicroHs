@@ -554,6 +554,15 @@ deriving instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g)
 -}
 ------------------------------------------------------------------------------
 
+-- | @since base-4.0.0.0
+instance (Data a, Data b) => Data (a -> b) where
+  toConstr _   = error "Data.Data.toConstr(a -> b)"
+  gunfold _ _  = error "Data.Data.gunfold(a -> b)"
+  dataTypeOf _ = mkNoRepType "Prelude.(->)"
+  dataCast2 f  = gcast2 f
+
+------------------------------------------------------------------------------
+
 -- | @since base-4.8.0.0
 instance Data a => Data (Ptr a) where
   toConstr _   = error "Data.Data.toConstr(Ptr)"

@@ -55,7 +55,7 @@ collectTypes a env =
                  let env' = insertBy (comparing fst) (key, TypeInfo []) env  -- create dummy entry
                  in  foldr (processConstr a) ([], env') constrs
                _ ->
-                 ([], env)  -- Primitives have no constructors
+                 ([], collectFunTypes a env)  -- Primitives have no constructors
            info = TypeInfo cDescrs
        in  replaceKey key info finalEnv
 
@@ -77,6 +77,21 @@ extractFields env val =
       updaters = gmapQ collectTypes val
       finalEnv = foldl' (&) env updaters
   in  (fKeys, finalEnv)
+
+-- A function type has no representation, but the types of its argument
+-- and result are part of its description: a serialized function builds
+-- and takes apart values of those types.  dataCast2 gives access to
+-- their Data instances.
+newtype CollectFun a = CollectFun (a -> TypeEnv -> TypeEnv)
+
+collectFunTypes :: forall a . Data a => a -> TypeEnv -> TypeEnv
+collectFunTypes a env =
+  case dataCast2 (CollectFun fun) of
+    Just (CollectFun f) -> f a env
+    Nothing             -> env
+  where
+    fun :: forall d e . (Data d, Data e) => (d -> e) -> TypeEnv -> TypeEnv
+    fun _ = collectTypes (undefined :: e) . collectTypes (undefined :: d)
 
 replaceKey :: (Eq k) => k -> v -> [(k, v)] -> [(k, v)]
 replaceKey k v = map (\(k', v') -> if k' == k then (k, v) else (k', v'))

@@ -1,0 +1,6 @@
+Just [Circle 1.0,Rect 2.0 3.0]
+Nothing
+Just 41
+Nothing
+Just [("inc",11),("dbl",20)]
+[Shape]

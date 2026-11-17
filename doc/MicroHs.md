@@ -278,7 +278,7 @@ Besides the usual modules, `base` has some modules that are specific to MicroHs:
 
 `System.IO.Serialize` can write any value to a handle and read it back, even functions and values with sharing or cycles. The exceptions are values that refer to C data, such as `Ptr`, `FunPtr`, and file handles (except `stdin`, `stdout`, and `stderr`), and `MVar`s, `ThreadId`s, and weak pointers. The value is written in the [combinator file format](COMB.md), so it can only be read by a program with the same version of the runtime.
 
-Use `hSerializeDescr` and `hDeserializeDescr` when you can, since they are safer. They need a `Data` instance for the type. `hSerializeDescr` writes a checksum of the complete type (all constructors and the types of their fields, recursively) before the value, and `hDeserializeDescr` returns `Nothing` if it does not match the type that it is expected to read:
+Use `hSerializeDescr` and `hDeserializeDescr` when you can, since they are safer. They need a `Data` instance for the type. `hSerializeDescr` writes a checksum of the complete type (all constructors and the types of their fields, recursively) before the value, and `hDeserializeDescr` returns `Nothing` if it does not match the type that it is expected to read. Functions have a `Data` instance too, and the checksum of a function type includes its argument and result types, so this also works for functions and for data types with function fields:
 ```haskell
 import Data.Data
 import System.IO
@@ -293,7 +293,7 @@ main = do
   r <- withBinaryFile "shapes.ser" ReadMode hDeserializeDescr
   print (r :: Maybe [Shape])      -- Just [Circle 1.0,Rect 2.0 3.0]
 ```
-`hSerialize` and `hDeserialize` do no check at all, and reading a value as the wrong type will probably crash the program. Use them only for values that have no `Data` instance, such as functions. There are also `writeSerialized` and `readSerialized`, which work on files, and `writeSerializedCompressed`, which compresses the data (`readSerialized` handles both).
+`hSerialize` and `hDeserialize` do no check at all, and reading a value as the wrong type will probably crash the program. Use them only for values whose type has no `Data` instance. There are also `writeSerialized` and `readSerialized`, which work on files, and `writeSerializedCompressed`, which compresses the data (`readSerialized` handles both).
 
 ### Report compliance
 

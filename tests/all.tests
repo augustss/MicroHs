@@ -12,6 +12,7 @@
 Hello
 # IOTest        IOTest.ref
 Serdes
+SerdesDescr
 StringTest
 LargeGetLine
 ListTest
