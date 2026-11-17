@@ -18,7 +18,7 @@ Contents:
 The language is an extended subset of [Haskell 2010](https://www.haskell.org/onlinereport/haskell2010/).
 
 Differences from Haskell 2010 and GHC:
-* All supported extensions are always enabled. The only exception is `CPP`, which must be turned on with `{-# LANGUAGE CPP #-}` or the `-XCPP` flag.
+* All supported extensions are always enabled. The only exception is `CPP`, which must be turned on with `{-# LANGUAGE CPP #-}` or the `-XCPP` flag. Other `LANGUAGE` pragmas are ignored, so a pragma for an unsupported extension (e.g., `StrictData`), or one that turns something off (e.g., `NoImplicitPrelude`), has no effect.
 * Kind variables need an explicit `forall`.
 * Data type contexts are not supported.
 * `main` in the top module given to `mhs` is the program entry point, whatever the module is called.
@@ -43,6 +43,8 @@ The following extensions are supported:
 * [DefaultSignatures](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/default_signatures.html#extension-DefaultSignatures)
 * [DeriveAnyClass](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/derive_any_class.html#extension-DeriveAnyClass)
 * [DeriveDataTypeable](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/deriving_extra.html#extension-DeriveDataTypeable)
+* [DeriveGeneric](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/generics.html#extension-DeriveGeneric)
+* [DeriveLift](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/deriving_extra.html#extension-DeriveLift)
 * [DeriveFoldable](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/deriving_extra.html#extension-DeriveFoldable)
 * [DeriveFunctor](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/deriving_extra.html#extension-DeriveFunctor)
 * [DeriveTraversable](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/deriving_extra.html#extension-DeriveTraversable)
@@ -58,15 +60,17 @@ The following extensions are supported:
 * [ExplicitForAll](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/explicit_forall.html#extension-ExplicitForAll)
 * [ExplicitNamespaces](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/explicit_namespaces.html#extension-ExplicitNamespaces)
 * [ExtendedDefaultRules](https://downloads.haskell.org/ghc/latest/docs/users_guide/ghci.html#extension-ExtendedDefaultRules)
-* ExtraInstanceBindings
+* [ExtraInstanceBindings](#extra-instance-bindings)
 * [FlexibleContexts](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/flexible_contexts.html#extension-FlexibleContexts)
 * [FlexibleInstances](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-FlexibleInstances)
+* [ForeignFunctionInterface](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/ffi.html#extension-ForeignFunctionInterface)
 * [FunctionalDependencies](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/functional_dependencies.html#extension-FunctionalDependencies)
 * [GADTs](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/gadt.html#extension-GADTs)
 * [GADTSyntax](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/gadt_syntax.html#extension-GADTSyntax)
 * [GeneralisedNewtypeDeriving](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/newtype_deriving.html#extension-GeneralisedNewtypeDeriving)
+* [HexFloatLiterals](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/hex_float_literals.html#extension-HexFloatLiterals)
 * [ImportQualifiedPost](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/import_qualified_post.html#extension-ImportQualifiedPost)
-* ImportShadowing
+* [ImportShadowing](#import-shadowing)
 * [IncoherentInstances](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-IncoherentInstances)
 * [InstanceSigs](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-InstanceSigs)
 * [KindSignatures](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/kind_signatures.html#extension-KindSignatures)
@@ -91,10 +95,11 @@ The following extensions are supported:
 * [OverloadedStrings](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/overloaded_strings.html#extension-OverloadedStrings)
 * [PatternSynonyms](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/pattern_synonyms.html#extension-PatternSynonyms)
 * [PolyKinds](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/poly_kinds.html#extension-PolyKinds)
-* PolymorphicComponents
+* [PolymorphicComponents](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/rank_polymorphism.html#extension-RankNTypes) (an old name for `RankNTypes`)
 * [PostfixOperators](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/rebindable_syntax.html#extension-PostfixOperators)
 * [QualifiedDo](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/qualified_do.html#extension-QualifiedDo)
-* QualifiedStrings (see [below](#qualified-strings))
+* [QualifiedStrings](#qualified-strings)
+* [QuantifiedConstraints](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/quantified_constraints.html#extension-QuantifiedConstraints) (only in superclass contexts)
 * [RankNTypes](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/rank_polymorphism.html#extension-RankNTypes)
 * [RecordWildCards](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/record_wildcards.html#extension-RecordWildCards)
 * [RecursiveDo](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/recursive_do.html#extension-RecursiveDo) (without optimal `mdo` desugaring)
@@ -102,10 +107,10 @@ The following extensions are supported:
 * [ScopedTypeVariables](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/scoped_type_variables.html#extension-ScopedTypeVariables)
 * [StandaloneDeriving](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/standalone_deriving.html#extension-StandaloneDeriving)
 * [StandaloneKindSignatures](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/poly_kinds.html#extension-StandaloneKindSignatures)
-* StringInterpolation (see [below](#string-interpolation))
+* [StringInterpolation](#string-interpolation)
 * [TupleSections](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/tuple_sections.html#extension-TupleSections) (only pairs right now)
 * [TypeApplications](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/type_applications.html#extension-TypeApplications)
-* TypeLits
+* [TypeLits](#type-level-literals)
 * [TypeOperators](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/type_operators.html#extension-TypeOperators)
 * [TypeSynonymInstances](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-TypeSynonymInstances)
 * [UndecidableInstances](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-UndecidableInstances)
@@ -113,23 +118,43 @@ The following extensions are supported:
 * [UnicodeSyntax](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/unicode_syntax.html#extension-UnicodeSyntax)
 * [ViewPatterns](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/view_patterns.html#extension-ViewPatterns)
 
+### Deriving
+
 Deriving is supported for `Bounded`, `Data`, `Enum`, `Eq`, `Foldable`, `Functor`, `Generic`, `Generic1`, `Ix`, `Lift`, `Ord`, `Read`, `Show`, and `Traversable`.
 
 `Typeable` is automatic: every `data` type, `newtype`, and class gets a `Typeable` instance. This needs the class `Data.Typeable.Typeable`, which is known in any module that imports the `Prelude`. To avoid the instance for a `data` type or `newtype`, e.g., in a module that does not import the `Prelude`, add an empty `deriving ()` clause. This turns off all deriving for that type, so any other deriving clauses on the same declaration are ignored. There is no way to avoid the instance for a class.
 
-## Records
+### Extra instance bindings
 
-MicroHs implements the record dot extensions, so accessing a field `a` in record `r` is written `r.a`, as well as the usual `a r`. The former is overloaded and can access any `a` field, whereas the latter is the usual monomorphic field selector. Updating a field has the usual Haskell syntax `r{ a = e }`, but the type is overloaded so this can update the `a` field in any record. The type classes `HasField` and `SetField` capture this. `HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty` that can be extracted with `getField`. `SetField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty` that can be set with `setField`.
+An instance declaration can have a second `where` with bindings that are not methods. These bindings can be used in the methods, and they can use the type variables and the context of the instance, but they are not visible outside the instance. This extension is MicroHs only. For example:
+```haskell
+instance Show a => Show (Tree a) where
+    showsPrec _ t = go 0 t
+  where
+    go :: Int -> Tree a -> ShowS
+    go n (Leaf x)   = indent n . shows x . showString "\n"
+    go n (Node l r) = indent n . showString "Node\n" . go (n+2) l . go (n+2) r
+    indent n = showString (replicate n ' ')
+```
+The second `where` must be indented less than the methods, so that it ends the block of methods.
 
-Record updates can also update nested fields, e.g., `r{ a.b.c = e }`.  Note that this will not easily work in GHC, since GHC does not fully implement `OverloadedRecordUpdate`.  When GHC decides how to do it, MicroHs will follow suit.
+### Import shadowing
 
-Record updates cannot change the type of polymorphic fields.
+A top level definition in a module shadows an imported definition with the same name. In Haskell 2010, using such a name is an error, since it is ambiguous. The imported definition can still be used with a qualified name:
+```haskell
+import Data.List
 
-## Qualified strings
+insert :: Int -> [Int] -> [Int]     -- shadows Data.List.insert
+insert x xs = x : xs
 
-A string literal can be qualified with a module name, `M."..."`. This means `M.fromString "..."`, using whatever `fromString` is in scope as `M.fromString`. It gives a lightweight way to have string literals of different types without turning on `OverloadedStrings` globally.
+test = (insert 1 [2, 3], Data.List.insert 2 [1, 3])
+```
 
-## String interpolation
+### Qualified strings
+
+A string literal can be qualified with a module name, `M."..."`. This means `M.fromString "..."`, using whatever `fromString` is in scope as `M.fromString`. It gives a lightweight way to have string literals of different types without turning on `OverloadedStrings` for the whole module.
+
+### String interpolation
 
 A string literal prefixed by `s` can contain interpolated expressions, written `${expr}`:
 ```haskell
@@ -147,11 +172,33 @@ interpolateFinalize (interpolateRaw "foo " `interpolateAppend`
 ```
 The unqualified form uses the definitions in `Data.String.Interpolate`, where `interpolateValue` uses the `Interpolate` class (similar to `Show`, but strings and characters are not quoted) and the result can be any `IsString` type. A qualified form, `M.s"..."`, uses `M.interpolateRaw` etc. instead, so you can provide your own interpretation. `Data.String.Interpolate.Basic` is a simple alternative where all interpolated values must already have the result type.
 
+### Type-level literals
+
+Natural numbers and strings can be used as types, with the kinds `Nat` and `Symbol`. The classes `KnownNat` and `KnownSymbol`, with the methods `natVal` and `symbolVal`, turn them into values. They are all exported from `Data.TypeLits`, which in GHC is called `GHC.TypeLits`. For example:
+```haskell
+import Data.TypeLits
+import Data.Proxy
+
+newtype Vec (n :: Nat) = Vec [Int]
+
+vlen :: forall n . KnownNat n => Vec n -> Integer
+vlen _ = natVal (Proxy :: Proxy n)      -- vlen (Vec [] :: Vec 3) is 3
+```
+In GHC, type-level literals are part of [DataKinds](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/data_kinds.html#extension-DataKinds) (see [type-level literals](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/type_literals.html)). MicroHs only has the literals; it cannot use data types as kinds, and there are no type-level operations on numbers or strings.
+
+## Records
+
+MicroHs implements the overloaded record extensions. A field `a` of a record `r` can be accessed as `r.a`, as well as with the usual `a r`. The former is overloaded and works for any record type with a field `a`, whereas the latter uses the usual monomorphic field selector. A field update has the usual syntax, `r{ a = e }`, but it is also overloaded, so it can update the field `a` of any record type. The type classes `HasField` and `SetField` capture this: `HasField "name" rec ty` means that the record type `rec` has a field `name` of type `ty`, which can be extracted with `getField`, and `SetField "name" rec ty` means that the field can be set with `setField`.
+
+Record updates can also update nested fields, e.g., `r{ a.b.c = e }`. This does not easily work in GHC, since GHC does not fully implement `OverloadedRecordUpdate`. When GHC decides how to do it, MicroHs will follow suit.
+
+Record updates cannot change the type of polymorphic fields.
+
 ## Libraries
 
 The `Prelude` contains the functions from the Haskell Report and a few extensions. The `base` package contains most of what GHC has in `base`.
 
-To completely avoid importing the `Prelude` (which can be needed in `base` to avoid circular imports) use the incantation `import qualified Prelude()`. This will not even try to open `Prelude.hs`.  It also avoids the automagic (qualified) import of `Mhs.Builtin` that normally happens.
+To avoid the `Prelude` completely (which is needed in parts of `base` to avoid circular imports), use `import qualified Prelude()`. The compiler then does not even open `Prelude.hs`, and it also skips the automatic qualified import of `Mhs.Builtin`. Note that the `NoImplicitPrelude` pragma has no effect.
 
 ### Report compliance
 
@@ -202,11 +249,45 @@ foreign import ccall "value ($1 + $2) * 2" addTwice :: CInt -> CInt -> IO CInt
 ```
 The expression is pasted verbatim into the generated C code, so it must be a valid C expression for the argument and result types. A type without `IO` gives a pure value.
 
-There is still a lot of missing FFI functionality compared to GHC.
+Some of the FFI is still missing compared to GHC. In particular, `foreign import ccall "wrapper"` and `foreign import ccall "dynamic"` are not implemented.
+
+### Calling Haskell from C
+
+A function exported with `foreign export ccall` can be called from C. Compile the module with `-c`, which leaves out the C `main` of the runtime, so the module does not need a `main` either. `mhs` also writes the header file `M_stub.h` (for module `M`, next to the output file) with prototypes for `mhs_init` and the exported functions. The C code must call `mhs_init()` once, before it calls any exported function. For example, with
+```haskell
+module ForExp where
+
+foreign export ccall funcName :: Int -> IO Int
+foreign export ccall "other" (*) :: Int -> Int -> Int    -- exported as other
+
+funcName :: Int -> IO Int
+funcName x = do
+  putStrLn "funcName called"
+  pure (x + 1)
+```
+and the C program `main.c`
+```c
+#include <stdio.h>
+#include "ForExp_stub.h"
+
+int main(void) {
+  mhs_init();
+  printf("%d %d\n", (int)funcName(5), (int)other(6, 7));
+  return 0;
+}
+```
+the Haskell code can be made into a shared library:
+```
+mhs -c -optc --shared -optc -fPIC ForExp -olibforexp.so
+cc main.c -L. -lforexp -o main
+```
+On Linux, also add `-Wl,-rpath,'$ORIGIN'` to the `cc` command (or set `LD_LIBRARY_PATH`), so that the library is found when the program runs.
+
+Alternatively, `mhs -c ForExp -oForExpHs.c` writes the C code for the Haskell part. Compile it together with the runtime, `src/runtime/eval.c`, and the C program, with the directories `src/runtime` and `src/runtime/unix` (or another platform) as include directories.
 
 ## Preprocessor
 
-Sadly, compiling a lot of Haskell packages needs the C preprocessor. MicroHs uses `cpphs`, and the distribution contains the combinator code for it, so `make` builds `bin/cpphs`. The symbol `__MHS__` is defined when compiling with MicroHs.
+Sadly, many Haskell packages need the C preprocessor. MicroHs uses `cpphs`, and the distribution contains the combinator code for it, so `make` builds `bin/cpphs`. The symbol `__MHS__` is defined when compiling with MicroHs.
 
 ---
 
@@ -230,7 +311,7 @@ A module `M.N` is looked for as the file `M/N.hs` (or `.lhs`, or `.hsc`, which i
 | `-q` | Be quiet |
 | `-oFILE` | Output to `FILE`. If `FILE` ends in `.comb`, produce a combinator file. If it ends in `.c`, produce a C file. Otherwise compile the combinators together with the runtime system to produce an executable. Default is `out.comb`. |
 | `-r` | Run the program directly instead of writing a file |
-| `-c` | Do not link; just produce an object file |
+| `-c` | Leave out the runtime's C `main`, e.g., to build a library (see [Calling Haskell from C](#calling-haskell-from-c)) |
 | `-eEXPR` | Evaluate `EXPR` (in the context of the given modules) |
 | `--interactive` | Start interactive mode even with module arguments |
 | `-iPATH` | Add `PATH` (colon separated) to the module search path |
@@ -347,6 +428,7 @@ The input line can be edited with Emacs-like keys:
 During an incremental search (Ctrl-R), typed characters extend the search string, Ctrl-R finds the next older match, Backspace undoes the last step, and Ctrl-G aborts the search. Any other key accepts the found line and then performs its usual action.
 
 All input lines are saved in `~/.mhsi`, which is read at startup so the history persists between sessions.
+
 ## Targets
 
 `mhs` compiles the combinators together with the runtime system using a C compiler. How this is done is controlled by the configuration file `mhs.conf` (installed in the `mhs` data directory), and the `-t` flag selects a target.  A target section looks like this:
@@ -380,31 +462,51 @@ The generated JavaScript file contains the WASM code embedded as a blob. Running
 
 The `[mhs]` section of `mhs.conf` has the key `packageDbPath`, which is the default package search path.
 
+## Profiling
+
+Compiling with `-T` adds a counter to every top level function. Running the program with `+RTS -T -RTS` then prints, when the program exits, how many times each function was called. Functions that were never called are left out. For example, for a module `Fib` whose `main` computes `fib 20`:
+```
+$ mhs -T Fib -ofib
+$ ./fib +RTS -T -RTS
+...
+Fib.fib                                                           21891
+```
+Only code compiled with `-T` has counters, so, e.g., functions from installed packages are not counted.
+
+For overall numbers, use `+RTS -v -RTS`, which prints the number of reductions, allocated cells, garbage collections, etc. In interactive mode, `:set +s` shows the time, reductions, and allocated cells for each evaluation.
+
+## Debugging
+
+* `Debug.Trace` has the usual `trace` functions.
+* `-ddump-PASS` prints the program after a compiler pass, e.g., `-ddump-combinator` prints the combinator code of each definition.
+* `+RTS -v -v -v -RTS` prints the whole program after it has been loaded, in the readable form of the [combinator file format](COMB.md#human-readable-format).
+* `cuprint` from `Mhs.Print` prints the combinator graph of a value as it is at the moment, in the same form. `cprint` first evaluates the value fully and simplifies it, but this is fragile.
+
 ---
 
 # Runtime flags
 
 Programs compiled with MicroHs, including `mhs` itself, take runtime flags between `+RTS` and `-RTS`. All other arguments are passed to the running program.
 
-| Flag | Meaning |
-| ---- | ------- |
-| `-HSIZE` | Set the heap size to `SIZE` cells. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `50M`. |
-| `-KSIZE` | Set the stack size to `SIZE` entries. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `300k`. |
-| `-v` | Print statistics when the program exits, e.g., the number of reductions, allocated cells, and garbage collections. Can be repeated for more output. |
-| `-T` | Generate profiling statistics (if the program was compiled with `-T` as well) |
-| `-B` | Ring the bell on every garbage collection |
-| `-rFILE` | Read the combinators from `FILE` instead of `out.comb` (for `mhseval`) |
-| `-oFILE` | Read the program, run a garbage collection, and write the resulting graph to `FILE` |
+* `-HSIZE` set the heap size to `SIZE` cells. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `50M`.
+* `-KSIZE` set the stack size to `SIZE` entries. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `300k`.
+* `-v` print statistics when the program exits, e.g., the number of reductions, allocated cells, and garbage collections. Can be repeated for more output.
+* `-T` print how many times each function was called, for a program compiled with `-T` (see [Profiling](#profiling)).
+* `-B` ring the bell on every garbage collection.
+* `-rFILE` read the combinators from `FILE` instead of `out.comb` (for `mhseval`).
+* `-oFILE` read the program, run a garbage collection, and write the resulting graph to `FILE`.
 
 For example, `./prog +RTS -H1M -v -RTS hello` runs `prog` with a heap of 1M cells and prints statistics at the end, and the program gets the single argument `hello`.
+
+The heap and the stack have a fixed size; they do not grow. A program that runs out of heap stops with the error `heap exhausted`, and one that runs out of stack stops with `stack overflow`. Run it again with a bigger `-H` or `-K`.
 
 ---
 
 # Packages
 
-To avoid compiling everything from source all the time, there is a notion of a precompiled package. A package is a set of modules that are compiled together and can then be installed in a known place. Packages can depend on other installed packages.
+To avoid compiling everything from source every time, modules can be precompiled into packages. A package is a set of modules that are compiled together and then installed in a known place. Packages can depend on other installed packages.
 
-There is no need for any extra flags to `mhs` to use installed packages; they are all visible at all times. When compiling to an executable, only the parts of a package that are actually used are included.
+`mhs` needs no extra flags to use installed packages; all installed packages are always visible. When compiling to an executable, only the parts of a package that are actually used are included.
 
 ## Creating and installing a package with `mhs`
 
@@ -564,7 +666,7 @@ The runtime system is written in C and is mainly in `src/runtime/eval.c`. It is 
 
 The runtime also contains:
 * A mark-scan garbage collector.
-* Lightweight threads (for `Control.Concurrent`, `MVar`, and STM), with non-blocking IO where available.
+* Lightweight threads (for `Control.Concurrent`, `MVar`, and STM), with non-blocking IO where available. Threads are preemptive: the running thread is switched out after a fixed number of reductions, 100000 by default. This can be changed by compiling the runtime with `-DSLICE=N`, e.g., `mhs -optc -DSLICE=10000 ...`.
 * Bignums for `Integer`, using [imath](https://github.com/creachadair/imath) (included); alternatively [GMP](https://gmplib.org/).
 * Serialization and deserialization of arbitrary expressions, preserving sharing and cycles, using the [combinator file format](COMB.md). The only exceptions are C pointers (e.g., file handles) other than `stdin`, `stdout`, and `stderr`.
 * LZMA/LZ77 decompression and Base64 decoding, for compressed combinator code.
@@ -621,7 +723,7 @@ Contributions are very welcome!  Bug reports, missing library functions, ported 
 
 ## Building
 * `make` builds `bin/mhs`, `bin/cpphs`, and `bin/mcabal` from the C files in `generated/`.
-* `make bin/gmhs` builds the compiler with GHC, which is convenient while developing.
+* `make bin/gmhs` builds the compiler with GHC, which is convenient while developing. The interactive mode only works in a compiler built by MicroHs, though.
 * `make newmhs` (or `make newmhsz`, which compresses the combinators) rebuilds `bin/mhs` and `generated/mhs.c` to include changes to the compiler.
 * `make bootstrap` checks that the compiler can still compile itself.
 
@@ -638,16 +740,12 @@ The test suite is in the `tests/` directory. To run it, do
 To add a test, create `MyTest.hs` and `MyTest.ref`, where the latter contains the expected output, and add a line `MyTest` to `tests/all.tests`. The file explains how to give input, expected error output, and compiler flags. Tests that check compiler error messages go in `tests/err.tests` in the same way, with the expected message in the `.ref` file.
 
 ## Adding a primitive
-To add a new primitive:
-* in `src/runtime/eval.c`
-  - add a variant to `enum node_tag`
-  - add an entry to the `primops` table (mapping the name of the primitive to the tag)
-  - add a `case` in `printrec`
-  - implement the primitive by adding a `case` in `evali` (use the other primitives as a guide)
-* in `src/MicroHs/Translate.hs` add an entry to `primTable`, to make the primitive available in interactive mode
-* in `ghc/PrimTable.hs` and `hugs/PrimTable.hs` add an entry to `primOps`, for the GHC and Hugs compiled interactive mode
+To add a new primitive, change `src/runtime/eval.c`:
+* add a variant to `enum node_tag`, after `T_FIRST_REAL_TAG`
+* add an entry to the `primops` table, mapping the name of the primitive to the tag
+* implement the primitive by adding a `case` in `evali` (use the other primitives as a guide)
 
-Then the primitive can be used with `_primitive "myPrimitive"`.
+Then the primitive can be used with `_primitive "myPrimitive"`. The interactive mode reads its code the same way as the runtime, so the primitive works there too.
 
 ## Thank you
 A big thanks goes to the people who have contributed to MicroHs: @amigalemming, @arossato, @benclifford, @claudeha, @dmjio, gay@disroot.org, @gergoerdi, @ikervagyok, @jmaessen, @juhp, @kolmodin, @konsumlamm, @liolin, @lortabac, @MaximilianAlgehed, @meooow25, @philderbeast, @rewbert, @sol, @Superstar64, @thielema, @thimc, @thma, @treeowl, @TristanCacqueray, @tvmaaren, @yobson.
