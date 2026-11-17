@@ -113,7 +113,9 @@ The following extensions are supported:
 * [UnicodeSyntax](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/unicode_syntax.html#extension-UnicodeSyntax)
 * [ViewPatterns](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/view_patterns.html#extension-ViewPatterns)
 
-Deriving is supported for `Bounded`, `Data`, `Enum`, `Eq`, `Foldable`, `Functor`, `Generic`, `Generic1`, `Ix`, `Lift`, `Ord`, `Read`, `Show`, and `Traversable`.  `Typeable` is automatic.
+Deriving is supported for `Bounded`, `Data`, `Enum`, `Eq`, `Foldable`, `Functor`, `Generic`, `Generic1`, `Ix`, `Lift`, `Ord`, `Read`, `Show`, and `Traversable`.
+
+`Typeable` is automatic: every `data` type, `newtype`, and class gets a `Typeable` instance. This needs the class `Data.Typeable.Typeable`, which is known in any module that imports the `Prelude`. To avoid the instance for a `data` type or `newtype`, e.g., in a module that does not import the `Prelude`, add an empty `deriving ()` clause. This turns off all deriving for that type, so any other deriving clauses on the same declaration are ignored. There is no way to avoid the instance for a class.
 
 ## Records
 
