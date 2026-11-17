@@ -3212,6 +3212,11 @@ mark_mvar(struct mvar *mv)
     mark_thread(mt);
 }
 
+#if GCRED
+/* The evaluation stack pointer when the GC started.
+ * The mark phase pushes on the same stack, so stack_ptr cannot be used by gc_red_ok(). */
+stackptr_t gc_eval_stack_ptr;
+
 /*
  * Only allow GC reductions when the node is not near the top of the stack.
  * The reason is that when GC is triggered we are just starting a reduction
@@ -3221,11 +3226,122 @@ mark_mvar(struct mvar *mv)
 static int
 gc_red_ok(NODEPTR n)
 {
-  for (stackptr_t s = stack_ptr; s >= 0 && s >= stack_ptr - 5; s--)
+  for (stackptr_t s = gc_eval_stack_ptr; s >= 0 && s >= gc_eval_stack_ptr - 5; s--)
     if (n.node_ptr == stack[s].node_ptr)
       return 0;
   return 1;
 }
+
+/*
+ * Try to do a reduction of the application node n during GC.
+ * If one applies, n is turned into an indirection to the result, and the result is returned.
+ * Otherwise NIL is returned.
+ * All reductions just select an existing node or a combinator, so nothing is allocated.
+ */
+static NODEPTR
+gc_reduce(NODEPTR n)
+{
+  NODEPTR fun = indir(&FUN(n));
+  NODEPTR arg = indir(&ARG(n));
+  enum node_tag funt = get_XTAG(fun);
+  enum node_tag argt = get_XTAG(arg);
+  enum node_tag funfunt = funt == X_AP ? get_XTAG(indir(&FUN(fun))) : D_NONE;
+  enum node_tag funargt = argt == X_AP ? get_XTAG(indir(&FUN(arg))) : D_NONE;
+  NODEPTR r;
+
+  switch (funfunt) {
+  case T_A:
+    /* A x y --> y.  This is really only fruitful just after parsing. */
+    r = arg;
+    COUNT(red_a);
+    goto red;
+  case T_K:
+    /* K x y --> x */
+    r = indir(&ARG(fun));
+    COUNT(red_k);
+    goto red;
+  case T_B:
+    if (argt == T_I) {
+      /* B x I --> x */
+      r = indir(&ARG(fun));
+      COUNT(red_bxi);
+      goto red;
+    }
+    break;
+  case T_CCB:
+    if (argt == T_I) {
+      /* C'B x I --> x */
+      r = indir(&ARG(fun));
+      COUNT(red_ccbi);
+      goto red;
+    }
+    break;
+  default:
+    break;
+  }
+
+  switch (funt) {
+  case T_I:
+    /* I x --> x */
+    r = arg;
+    COUNT(red_i);
+    goto red;
+  case T_CC:
+    if (argt == T_I) {
+      /* C' I --> C */
+      r = combC;
+      COUNT(red_cci);
+      goto red;
+    }
+    break;
+  case T_CCB:
+    if (argt == X_AP && get_XTAG(indir(&ARG(arg))) == T_P) {
+      NODEPTR funarg = indir(&FUN(arg));
+      if (get_XTAG(funarg) == X_AP &&
+          get_XTAG(indir(&FUN(funarg))) == T_B &&
+          get_XTAG(indir(&ARG(funarg))) == T_C) {
+        /* C'B ((B C) P) --> C */
+        r = combC;
+        COUNT(red_ccbbcp);
+        goto red;
+      }
+    }
+    break;
+  case T_B:
+    if (argt == T_I) {
+      /* B I --> I */
+      r = combI;
+      COUNT(red_bi);
+      goto red;
+    }
+    break;
+  case T_C:
+    if (funargt == T_C) {
+      /* C (C x) --> x */
+      r = indir(&ARG(arg));
+      COUNT(red_cc);
+      goto red;
+    }
+    if (flip_ops[argt] != D_NONE) {
+      /* C op --> flipped op */
+      r = mk_TAG(flip_ops[argt]);
+      COUNT(red_flip);
+      goto red;
+    }
+    break;
+  default:
+    break;
+  }
+  return NIL_NODEPTR;
+
+ red:
+  /* Don't create an indirection loop, e.g., for x = I x */
+  if (r.node_bits == n.node_bits || !gc_red_ok(n))
+    return NIL_NODEPTR;
+  set_IND(n, r);
+  return r;
+}
+#endif  /* GCRED */
 
 /*
  * Marking is a DRAM-latency bound pointer chase: a cell is visited once per
@@ -3293,6 +3409,17 @@ mark(NODEPTR *np)
   num_marked++;
   mark_used(n);
   if (is_AP(FUN(n))) {
+#if GCRED
+    if (want_gc_red) {
+      NODEPTR r = gc_reduce(n);
+      if (!is_NIL(r)) {
+        /* n is now an indirection to r.  Redirect this reference and mark r;
+         * other references to n will be redirected when they are marked. */
+        *np = r;
+        goto top;
+      }
+    }
+#endif  /* GCRED */
     /* Avoid tail recursion */
     np = &FUN(n);
     to_push = &ARG(n);
@@ -3389,6 +3516,9 @@ gc(void)
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
+#if GCRED
+  gc_eval_stack_ptr = stack_ptr;
+#endif
   /* Mark everything reachable from the stack */
   for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
