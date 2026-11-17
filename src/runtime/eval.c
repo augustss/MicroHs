@@ -5,7 +5,11 @@
 #include "extra.c"
 
 /* Extra asserts for debugging */
+#if WANT_STDIO
 #define XASSERT(p) do { if (!(p)) { fprintf(stderr, "XASSERT line %d: %s\n", __LINE__, #p); exit(1); } } while(0)
+#else
+#define XASSERT(p) do { if (!(p)) { ERR("XASSERT"); } } while(0)
+#endif
 //#define XASSERT(p)
 
 //#define ROUND_UP(x, d) ((((x) + (d) - 1) / (d)) * (d))
@@ -606,9 +610,12 @@ enum node_tag { D_NONE,
 
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
-  { "FREE",
-    "INT", "INT64", "DBL", "FLT32", "PTR",
-    "FUNPTR", "FORPTR", "ARR", "THID", "MVAR", "WEAK" };
+  { [D_NONE] = "NONE", [X_AP] = "AP", [D_IND] = "IND",
+    [D_INT] = "INT", [D_INT64] = "INT64", [D_DBL] = "DBL", [D_FLT32] = "FLT32", [D_PTR] = "PTR",
+    [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
+    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK",
+    [V_CONSTR] = "C_", [V_ARM] = "A_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
+  };
 #define TAGNAME(t) tag_names[t]
 
 /***************************************/
@@ -745,12 +752,27 @@ mk_CASE(enum node_tag t, int num_constr)
   return n;
 }
 
+/* t is V_CONSTR or V_ARM, k is the constructor number, n the number of arguments */
 static INLINE NODEPTR
-mk_CON(enum node_tag t, int num_arg, int constr_no)
+mk_CON(enum node_tag t, int constr_no, int num_arg)
 {
   NODEPTR n;
-  n.node_bits = MK_CON(t, num_arg, constr_no);
+  n.node_bits = MK_CON(t, constr_no, num_arg);
   return n;
+}
+
+/* Is the NODEPTR a virtual pointer, i.e., an encoded tag? */
+static INLINE bool
+is_VIRT(NODEPTR n)
+{
+  return (n.node_bits & PTR_TAG_MASK) == PTR_TAG_TAG;
+}
+
+/* The tag of a virtual NODEPTR (without the extra info) */
+static INLINE enum node_tag
+get_VIRT_TAG(NODEPTR n)
+{
+  return (enum node_tag)((n.node_bits >> PTR_TAG_BITS) & PTR_TAG_TAG_MASK);
 }
 
 static INLINE bool
@@ -829,7 +851,7 @@ set_IND(NODEPTR n, NODEPTR t)
   struct node *p = get_node_ptr(n);
   if (!p)
     ERR("set_IND");
-  p->ufun.node_bits = MK_TAG(D_IND);
+  p->ufun = mk_DATA_TAG(D_IND);
   p->uarg.uuind = t;
 }
 
@@ -841,27 +863,38 @@ set_DATA_TAG(NODEPTR n, enum node_tag t)
   n.node_ptr->ufun = mk_DATA_TAG(t);
 }
 
+/*
+ * The tag of any NODEPTR (this is what GETTAG used to be):
+ *  - virtual pointer: the encoded tag (T_xxx or V_xxx)
+ *  - real pointer to an application: X_AP
+ *  - real pointer to a data node: the D_xxx tag (including D_IND)
+ */
 static INLINE enum node_tag
 get_XTAG(NODEPTR n)
 {
-  if (is_AP(n))
+  if (is_VIRT(n))
+    return get_VIRT_TAG(n);
+  NODEPTR f = n.node_ptr->ufun;
+  if (is_AP(f))
     return X_AP;
-  return get_DATA_TAG(n);
+  return (enum node_tag)get_DATA_TAG(f);
 }
 
+/* Number of arms of a virtual V_CASED/V_CASES/V_LOOKD/V_LOOKS */
 static INLINE int
 get_CASE_size(NODEPTR n)
 {
-  struct node *p = get_node_ptr(n);
-  tag_t t = get_DATA_TAG(p->ufun);
+  XASSERT(is_VIRT(n));
+  tag_t t = n.node_bits >> PTR_TAG_BITS;
   return (t >> PTR_TAG_TAG_BITS) & PTR_TAG_NCON_MASK;
 }
 
+/* Constructor number and number of arguments of a virtual V_CONSTR/V_ARM */
 static INLINE void
 get_CON_info(NODEPTR n, int *kp, int *np)
 {
-  struct node *p = get_node_ptr(n);
-  tag_t t = get_DATA_TAG(p->ufun);
+  XASSERT(is_VIRT(n));
+  tag_t t = n.node_bits >> PTR_TAG_BITS;
   *kp = (t >> PTR_TAG_TAG_BITS) & PTR_TAG_NCON_MASK;
   *np = (t >> (PTR_TAG_TAG_BITS + PTR_TAG_NCON_BITS)) & PTR_TAG_NARG_MASK;
 }
@@ -1338,11 +1371,11 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 #define combKK              mk_TAG(T_KK)
 #define combKA              mk_TAG(T_KA)
 #define combP               mk_TAG(T_P)
-#define combIOBIND          mk_TAG(T_IOBIND)
-#define combIORETURN        mk_TAG(T_IORETURN)
-#define combIOTHEN          mk_TAG(T_IOTHEN)
-#define combSETMASKINGSTATE mk_TAG(T_SETMASKINGSTATE)
-#define combPERFORMIO       mk_TAG(T_PERFORMIO)
+#define combIOBIND          mk_TAG(T_IO_BIND)
+#define combIORETURN        mk_TAG(T_IO_RETURN)
+#define combIOTHEN          mk_TAG(T_IO_THEN)
+#define combSETMASKINGSTATE mk_TAG(T_IO_SETMASKINGSTATE)
+#define combPERFORMIO       mk_TAG(T_IO_PERFORMIO)
 #define combBININT1         mk_TAG(T_BININT1)
 #define combBININT2         mk_TAG(T_BININT2)
 #define combUNINT1          mk_TAG(T_UNINT1)
@@ -1640,7 +1673,7 @@ void
 release_throwto(struct mthread *mt)
 {
   wake_throwto(mt);
-  mt->mt_exn->mv_data = NIL;    /* an exception that was never taken */
+  mt->mt_exn->mv_data = NIL_NODEPTR; /* an exception that was never taken */
   for (struct mthread *k; (k = remove_q_head(&mt->mt_exn->mv_takeput)); ) {
 #if THREAD_DEBUG
     if (thread_trace)
@@ -2154,12 +2187,12 @@ pause_exec(void)
       dump_q("timeq", timeq);
       if (0) {
         for(struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
-          printf("mvar %p, data=%p\n", mv, mv->mv_data);
+          printf("mvar %p, data=%p\n", mv, mv->mv_data.node_ptr);
           dump_q("takeput", mv->mv_takeput);
         }
       }
       for(struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-        if (mt->mt_exn->mv_data != NIL) {
+        if (!is_NIL(mt->mt_exn->mv_data)) {
           printf("### bad thread ThreadId#%d mask=%d state=%d\n", (int)mt->mt_id, mt->mt_mask, mt->mt_state);
         }
       }
@@ -2456,6 +2489,7 @@ alloc_node_ptr(void)
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
 {
+  XASSERT(t < V_CONSTR || t > T_FIRST_REAL_TAG); /* V_ tags need extra info, use mk_CON/mk_CASE */
   if (t > T_FIRST_REAL_TAG)
     return mk_TAG(t);
   else {
@@ -2947,7 +2981,12 @@ init_nodes(void)
   cells = mmalloc(heap_size * sizeof(node));
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
   free_map = mmalloc(free_map_nwords * sizeof(bits_t));
+
+  /* The permanent nodes are allocated from the start of the heap.
+   * Afterwards heap_start is moved past them, so they are never GCed. */
+  heap_start = 0;
   mark_all_free();
+  num_free = heap_size;
 
   /* Initialize node name array */
   for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
@@ -2970,8 +3009,8 @@ init_nodes(void)
 
 #if WANT_STDIO
   comb_stdin  = alloc_node(D_FORPTR); mk_std(comb_stdin,  stdin);
-  comb_stdout = alloc_node(D_FORPTR); mk_std(comb_stdout, stdin);
-  comb_stderr = alloc_node(D_FORPTR); mk_std(comb_stderr, stdin);
+  comb_stdout = alloc_node(D_FORPTR); mk_std(comb_stdout, stdout);
+  comb_stderr = alloc_node(D_FORPTR); mk_std(comb_stderr, stderr);
 #endif
 
   /* The displaySomeException compiles to ((C D_1) (U (K2 A))) */
@@ -2988,8 +3027,10 @@ init_nodes(void)
 
   spare_node = alloc_node(D_INT);
 
-  /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
-  heap_start = (heap_start + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
+  /* The permanent nodes occupy [0 .. next_scan_index].
+   * Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
+  heap_start = (next_scan_index + 1 + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
+  mark_all_free();              /* also sets next_scan_index = heap_start */
 
   num_free = heap_size - heap_start;
 }
@@ -3242,7 +3283,7 @@ mark(NODEPTR *np)
   n = indir(np);
   p = get_node_ptr(n);
   if (!p)
-    return;                     /* not a real pointer */
+    goto fin;                   /* not a real pointer, but there may be more pending work */
 
   /* n/p points to a real node */
   if (p < cells || p > cells + heap_size)
@@ -3476,9 +3517,10 @@ gc(void)
 #if 0
   /* For debugging only: mark all free cells */
   for(int n = 0; n < heap_size; n++) {
-    NODEPTR p = HEAPREF(n);
+    NODEPTR p;
+    p.node_ptr = HEAPREF(n);
     if (!is_marked_used(p)) {
-      SETTAG(p, T_FREE);
+      set_DATA_TAG(p, D_NONE);
     }
   }
 #endif
@@ -4134,14 +4176,14 @@ parse(struct parse_ctx *pc, BFILE *f)
 #if WANT_FLOAT32
           r = mkFlt32(strtof(buf, NULL));
 #else
-          r = alloc_node(T_FLT32);
+          r = alloc_node(D_FLT32);
           SETVALUE(r, 0);
 #endif
         } else {
 #if WANT_FLOAT64
           r = mkFlt64(strtod(buf, NULL));
 #else
-          r = alloc_node(T_DBL);
+          r = alloc_node(D_DBL);
           SETVALUE(r, 0);
 #endif
         }
@@ -4261,7 +4303,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse C");
         int n = parse_int(f);
-        r = alloc_node(MK_CON(k, n, V_CONSTR));
+        r = mk_CON(V_CONSTR, k, n);
         PUSH(r);
         break;
       } else {
@@ -4273,7 +4315,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse A");
         int n = parse_int(f);
-        r = alloc_node(MK_CON(k, n, V_ARM));
+        r = mk_CON(V_ARM, k, n);
         PUSH(r);
         break;
       } else {
@@ -4282,7 +4324,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'D':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASE(m, V_CASED));
+        r = mk_CASE(V_CASED, m);
         PUSH(r);
         break;
       } else {
@@ -4291,7 +4333,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'L':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASE(m, V_LOOKD));
+        r = mk_CASE(V_LOOKD, m);
         PUSH(r);
         break;
       } else {
@@ -4300,7 +4342,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'E':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASE(m, V_CASES));
+        r = mk_CASE(V_CASES, m);
         PUSH(r);
         break;
       } else {
@@ -4309,7 +4351,7 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'M':
       if (gobble(f, '_')) {
         int m = parse_int(f);
-        r = alloc_node(MK_CASE(m, V_LOOKS));
+        r = mk_CASE(V_LOOKS, m);
         PUSH(r);
         break;
       } else {
@@ -4325,12 +4367,20 @@ parse(struct parse_ctx *pc, BFILE *f)
         }
       }
 
-      /* Look up the primop (O(1) hash lookup) and use the preallocated node. */
+      /* Look up the primop (O(1) hash lookup) and make a virtual pointer for it. */
       {
         int t = lookup_primop(buf);
         if (t < 0)
           DESER_ERR("unknown primop");
-        r = alloc_node(t);
+        switch (t) {
+#if WANT_STDIO
+        /* The standard handles are real (permanent) FORPTR nodes */
+        case T_IO_STDIN:  r = comb_stdin;  break;
+        case T_IO_STDOUT: r = comb_stdout; break;
+        case T_IO_STDERR: r = comb_stderr; break;
+#endif  /* WANT_STDIO */
+        default:          r = alloc_node(t); break;
+        }
       }
       PUSH(r);
       break;
@@ -4365,7 +4415,7 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
     /* exception */
     if (pc->shared_table)
       FREE(pc->shared_table);
-    return NIL;
+    return NIL_NODEPTR;
   } else {
     checkversion(pc, f);
     numLabels = parse_int(f);
@@ -4400,20 +4450,27 @@ struct print_bits {
   jmp_buf ser_err;
   const char *message;
 };
+/* Virtual NODEPTRs are never shared, so they have no bits. */
 static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
+  if (is_VIRT(n))
+    return;
   heapoffs_t i = LABEL(n);
   bits[i / BITS_PER_WORD] |= (1ULL << (i % BITS_PER_WORD));
 }
 #if WANT_STDIO
 static INLINE void clear_bit(bits_t *bits, NODEPTR n)
 {
+  if (is_VIRT(n))
+    return;
   heapoffs_t i = LABEL(n);
   bits[i / BITS_PER_WORD] &= ~(1ULL << (i % BITS_PER_WORD));
 }
 #endif
 static INLINE int test_bit(bits_t *bits, NODEPTR n)
 {
+  if (is_VIRT(n))
+    return 0;
   heapoffs_t i = LABEL(n);
   return (bits[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) != 0;
 }
@@ -4780,7 +4837,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   }
   if (!prefix) {
-    if (is_AP(n))
+    if (tag != X_AP)
       putb(' ', f);
     if (share) {
       putb(':', f);
@@ -5402,7 +5459,7 @@ bsasciicase(struct bytestring bs, value_t upper)
 static INLINE value_t
 evalbool(NODEPTR n)
 {
-  return GETTAG(evali(n)) == T_A;
+  return eq_NODEPTR(evali(n), combTrue);
 }
 
 /* Evaluate to an INT */
@@ -5626,9 +5683,7 @@ evalstring(NODEPTR n)
 static NODEPTR
 bsconcat_follow(NODEPTR n)
 {
-  while (GETTAG(n) == T_IND)
-    n = GETINDIR(n);
-  return n;
+  return indir(&n);
 }
 
 struct bytestring
@@ -5647,12 +5702,12 @@ bsconcat(NODEPTR list)
     }
     for (;;) {
       n = bsconcat_follow(n);
-      if (GETTAG(n) == T_K)     /* Nil */
+      if (eq_NODEPTR(n, combNil))
         break;
-      if (!(GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O))
+      if (!(get_XTAG(n) == X_AP && get_XTAG(x = indir(&FUN(n))) == X_AP && eq_NODEPTR(indir(&FUN(x)), combCons)))
         ERR("bsconcat: list not evaluated");
       e = bsconcat_follow(ARG(x));
-      if (GETTAG(e) != T_FORPTR)
+      if (get_XTAG(e) != D_FORPTR)
         ERR("bsconcat: element not evaluated");
       struct bytestring bs = FORPTR(e)->payload;
       if (pass == 0) {
@@ -5757,12 +5812,10 @@ evali(NODEPTR an)
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
   struct forptr *xfp;
-  char *msg;
 #if 0
   heapoffs_t l;
 #endif
   enum node_tag tag;
-  tag_t rtag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
 #if WANT_STDIO
@@ -5784,7 +5837,7 @@ evali(NODEPTR an)
 /* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
-#define SETIND(n, x) SETINDIR(n, x)
+#define SETIND(n, x) set_IND(n, x)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
 #define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
 #define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
@@ -5813,14 +5866,15 @@ evali(NODEPTR an)
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
-#define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define SETINT64(n,r)  do { SETTAG((n), T_INT64); SETINT64VALUE((n), (r)); } while(0)
-#define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
-#define SETFLT(n,d)    do { SETTAG((n), T_FLT32); SETFLTVALUE((n), (d)); } while(0)
-#define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
-#define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
-#define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
-#define SETBSTR(n,r)   do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
+/* Overwrite the (real) node n with a data node */
+#define SETINT(n,r)    do { set_DATA_TAG((n), D_INT); SETVALUE((n), (r)); } while(0)
+#define SETINT64(n,r)  do { set_DATA_TAG((n), D_INT64); SETINT64VALUE((n), (r)); } while(0)
+#define SETDBL(n,d)    do { set_DATA_TAG((n), D_DBL); SETDBLVALUE((n), (d)); } while(0)
+#define SETFLT(n,d)    do { set_DATA_TAG((n), D_FLT32); SETFLTVALUE((n), (d)); } while(0)
+#define SETPTR(n,r)    do { set_DATA_TAG((n), D_PTR); PTR(n) = (r); } while(0)
+#define SETFUNPTR(n,r) do { set_DATA_TAG((n), D_FUNPTR); FUNPTR(n) = (r); } while(0)
+#define SETFORPTR(n,r) do { set_DATA_TAG((n), D_FORPTR); FORPTR(n) = (r); } while(0)
+#define SETBSTR(n,r)   do { set_DATA_TAG((n), D_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -5829,28 +5883,32 @@ evali(NODEPTR an)
   /*pp(stdout, an);*/
   if (--glob_slice <= 0)
     yield();
-    {
-    /* first follow AP nodes down the spine */
-    for(;;) {
-      rtag = GETRAWTAG(n);
-      if ((rtag & BIT_MASK) != BIT_AP)
-        break;
-      PUSH(n);
-      n = (NODEPTR)rtag;
+  for(;;) {
+    if (is_VIRT(n)) {
+      /* A virtual pointer, i.e., a combinator, primop, constructor, etc. */
+      tag = get_VIRT_TAG(n);
+      break;
     }
-    /* Skip idirections */
-    if ((rtag & BIT_MASK) == BIT_IN) {
-      /* Follow and short-circuit the chain. */
+    NODEPTR f = FUN(n);
+    if (is_AP(f)) {
+      /* follow AP nodes down the spine */
+      PUSH(n);
+      n = f;
+      continue;
+    }
+    tag = (enum node_tag)get_DATA_TAG(f);
+    if (tag == D_IND) {
+      /* Follow and short-circuit the chain of indirections. */
       NODEPTR on = n;
       do {
-        n = GETINDIR(n);
-      } while(ISINDIR(n));
-      SETINDIR(on, n);          /* and short-circuit them */
-      rtag = GETRAWTAG(n);
+        n = ARG(n);
+      } while (!is_VIRT(n) && get_DATA_TAG(FUN(n)) == D_IND);
+      ARG(on) = n;              /* short-circuit; on is still an IND */
+      continue;                 /* n can be an AP node */
     }
-    tag = TAGOF(rtag);
+    break;
   }
-  /* Invariant: at this point n=current node, tag=GETTAG(n) */
+  /* Invariant: at this point n=current node, tag=get_XTAG(n), and tag is not X_AP or D_IND */
 
   //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
@@ -5858,7 +5916,7 @@ evali(NODEPTR an)
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
-  case T_AP:   PUSH(n);
+  case X_AP:   PUSH(n);
     n = FUN(n); goto top;
 
   case D_INT:    RET;
@@ -6025,10 +6083,10 @@ evali(NODEPTR an)
   case T_UCMP:
     CHECK(2);
     n = ARG(TOP(1));
-    if (GETTAG(n) == T_INT) {
+    if (get_XTAG(n) == D_INT) {
       n = ARG(TOP(0));
       PUSH(combBININT1);
-      if (GETTAG(n) == T_INT)
+      if (get_XTAG(n) == D_INT)
         goto binint1;
     } else {
       PUSH(combBININT2);
@@ -6202,7 +6260,7 @@ evali(NODEPTR an)
     x = evali(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : -1);
+    SETINT(n, get_XTAG(x) == D_INT ? GETVALUE(x) : -1);
     RET;
 
   case T_BSAPPEND:
@@ -6254,17 +6312,17 @@ evali(NODEPTR an)
     /*
     fprintf(stderr, "bin64 op=%s\n", TAGNAME(tag)); fflush(stderr);
     { NODEPTR x = evali(ARG(TOP(1)));
-      fprintf(stderr, "x.tag=%s x.val=%lld\n", TAGNAME(GETTAG(x)), GETINT64VALUE(x)); fflush(stderr);
+      fprintf(stderr, "x.tag=%s x.val=%lld\n", TAGNAME(get_XTAG(x)), GETINT64VALUE(x)); fflush(stderr);
       NODEPTR y = evali(ARG(TOP(0)));
-      fprintf(stderr, "y.tag=%s y.val=%ld\n", TAGNAME(GETTAG(y)), GETVALUE(y)); fflush(stderr);
+      fprintf(stderr, "y.tag=%s y.val=%ld\n", TAGNAME(get_XTAG(y)), GETVALUE(y)); fflush(stderr);
     }
     */
     n = ARG(TOP(1));
-    if (GETTAG(n) == T_INT64) {
+    if (get_XTAG(n) == D_INT64) {
       //fprintf(stderr, "push combBININT64_1\n"); fflush(stderr);
       n = ARG(TOP(0));
       PUSH(combBININT64_1);
-      if (GETTAG(n) == T_INT64) {
+      if (get_XTAG(n) == D_INT64) {
         //fprintf(stderr, "goto binint64_1\n"); fflush(stderr);
         goto binint64_1;
       }
@@ -6287,22 +6345,22 @@ evali(NODEPTR an)
 
 
     /* Convert between different types. */
-#define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
+#define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); set_DATA_TAG(n, t); set(n, get(x)); RET; } while(0)
 #if WANT_INT64
-  case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
-  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE); /* raw double -> int64_t */
-  case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
-  case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
-  case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
-  case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
+  case T_TODBL:    CONV(D_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
+  case T_FROMDBL:  CONV(D_INT64,  SETINT64VALUE, GETINT64VALUE); /* raw double -> int64_t */
+  case T_ITOI64:   CONV(D_INT64,  SETINT64VALUE, GETVALUE);
+  case T_UTOU64:   CONV(D_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
+  case T_I64TOI:   CONV(D_INT,    SETVALUE,      GETINT64VALUE);
+  case T_U64TOU:   CONV(D_INT,    SETVALUE,      GETINT64VALUE);
 #endif  /* WANT_INT64 */
 #if WANT_FLOAT32
-  case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
-  case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
+  case T_TOFLT:    CONV(D_FLT32,  SETINT32VALUE, GETINT32VALUE);
+  case T_FROMFLT:  CONV(D_INT,    SETVALUE,      GETINT32VALUE);
 #endif  /* WANT_FLOAT32 */
-  case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
-  case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
-  case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
+  case T_TOINT:    CONV(D_INT,    SETVALUE,      GETVALUE);
+  case T_TOPTR:    CONV(D_PTR,    SETVALUE,      GETVALUE);
+  case T_TOFUNPTR: CONV(D_FUNPTR, SETVALUE,      GETVALUE);
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
@@ -6625,7 +6683,7 @@ evali(NODEPTR an)
   case T_WKNEW:
     GCCHECK(2);                 /* PAIR + weak */
     CHKARG3;
-    GOPAIR(new_weak_ptr(x, y, 0));
+    GOPAIR(new_weak_ptr(x, y, NIL_NODEPTR));
   case T_WKNEWFIN:
     GCCHECK(3);                 /* PAIR + weak + finalizer */
     CHKARG4;
@@ -6749,7 +6807,7 @@ evali(NODEPTR an)
     bfile = (struct BFILE*)evalptr(x);
     gc();                     /* make sure we have room.  GC during parse is dodgy. */
     x = parse_top(bfile, 0);
-    if (x == NIL)
+    if (is_NIL(x))
       raise_rts(exn_deserialize);
     POP(2);
     GOPAIR(x);                /* allocates a cell, but we did a GC above */
@@ -6758,11 +6816,11 @@ evali(NODEPTR an)
   case T_IO_GETARGREF:
     GCCHECK(2);
     CHKARG1;
-    x = alloc_node(T_ARR);
+    x = alloc_node(D_ARR);
     ARR(x) = argarray;
     GOPAIR(x);
 #endif
-  case T_IO_CCALL:
+  case D_IO_CCALL:
     {
       GCCHECK(1);                 /* room for placeholder */
       int a = (int)GETVALUE(n);   /* function number */
@@ -6844,7 +6902,7 @@ evali(NODEPTR an)
       size_t size = evalint(x);
       struct ioarray *arr = arr_alloc(size, y);
       GCCHECK(2);
-      NODEPTR res = alloc_node(T_ARR);
+      NODEPTR res = alloc_node(D_ARR);
       ARR(res) = arr;
       POP(3);
       GOPAIR(res);
@@ -6855,11 +6913,11 @@ evali(NODEPTR an)
       CHKARG2NP;
       {
       NODEPTR a = evali(x);
-      if (GETTAG(a) != T_ARR)
+      if (get_XTAG(a) != D_ARR)
         ERR("T_ARR_COPY tag");
       struct ioarray *arr = arr_copy(ARR(a));
       GCCHECK(2);
-      NODEPTR res = alloc_node(T_ARR);
+      NODEPTR res = alloc_node(D_ARR);
       ARR(res) = arr;
       POP(2);
       GOPAIR(res);
@@ -6869,7 +6927,7 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
       NODEPTR a = evali(x);
-      if (GETTAG(a) != T_ARR)
+      if (get_XTAG(a) != D_ARR)
         ERR("bad ARR tag");
       GCCHECK(2);
       NODEPTR res = mkInt(ARR(a)->size);
@@ -6881,7 +6939,7 @@ evali(NODEPTR an)
       CHKARG3NP;                /* sets x,y,n */
       size_t i = evalint(y);
       NODEPTR a = evali(x);
-      if (GETTAG(a) != T_ARR)
+      if (get_XTAG(a) != D_ARR)
         ERR("bad ARR tag");
       if (i >= ARR(a)->size)
         ERR("ARR_READ");
@@ -6895,7 +6953,7 @@ evali(NODEPTR an)
       CHKARG4NP;                /* sets x,y,z,n */
       size_t i = evalint(y);
       NODEPTR a = evali(x);
-      if (GETTAG(a) != T_ARR)
+      if (get_XTAG(a) != D_ARR)
         ERR("bad ARR tag");
       if (i >= ARR(a)->size) {
         ERR("ARR_WRITE");
@@ -6910,7 +6968,7 @@ evali(NODEPTR an)
       CHKARG3NP;                /* sets x,y,n */
       size_t i = evalint(y);
       NODEPTR a = evali(x);
-      if (GETTAG(a) != T_ARR)
+      if (get_XTAG(a) != D_ARR)
         ERR("bad ARR tag");
       if (i >= ARR(a)->size) {
         ERR("ARR_TRUNC");
@@ -6927,7 +6985,7 @@ evali(NODEPTR an)
       void *xp = evalptr(x);
       //printf("T_FPNEW xp=%p\n", xp);
       GCCHECK(2);
-      NODEPTR res = alloc_node(T_FORPTR);
+      NODEPTR res = alloc_node(D_FORPTR);
       SETFORPTR(res, mkForPtrP(xp));
       POP(2);
       GOPAIR(res);
@@ -6971,7 +7029,7 @@ evali(NODEPTR an)
       CHKARG2;                /* set x=io, y=ST, n */
       struct mthread *mt = new_thread(new_ap(x, y)); /* copy the world */
       mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
-      NODEPTR res = alloc_node(T_THID);
+      NODEPTR res = alloc_node(D_THID);
       THR(res) = mt;
       GOPAIR(res);
     }
@@ -6980,7 +7038,7 @@ evali(NODEPTR an)
     {
       GCCHECK(2);
       CHKARG1;
-      NODEPTR res = alloc_node(T_THID);
+      NODEPTR res = alloc_node(D_THID);
       THR(res) = runq.mq_head;            /* head of the run queue is the current thread */
       GOPAIR(res);
     }
@@ -7003,7 +7061,7 @@ evali(NODEPTR an)
       GCCHECK(2);
       CHKARG1;
       struct mvar *mv = new_mvar();
-      NODEPTR res = alloc_node(T_MVAR);
+      NODEPTR res = alloc_node(D_MVAR);
       MVAR(res) = mv;
       GOPAIR(res);
     }
@@ -7038,7 +7096,7 @@ evali(NODEPTR an)
       CHKARG2NP;
       NODEPTR res = take_mvar(true, evalmvar(x));
       GCCHECKSAVE(res, 2);
-      if (res != NIL)
+      if (!is_NIL(res))
         res = new_ap(combJust, res);
       else
         res = combNothing;
@@ -7049,7 +7107,7 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
       NODEPTR res = read_mvar(true, evalmvar(x));
-      if (res != NIL) {
+      if (!is_NIL(res)) {
         GCCHECKSAVE(res, 2);
         res = new_ap(combJust, res);
       } else {
@@ -7202,7 +7260,7 @@ evali(NODEPTR an)
     }
 
 #if WANT_TICK
-  case T_TICK:
+  case D_TICK:
     xi = GETVALUE(n);
     CHKARG1;
     // fprintf(stderr, "tick=%s\n", (char*)tick_table[xi].tick_name.string); fflush(stderr);
@@ -7210,36 +7268,36 @@ evali(NODEPTR an)
     GOIND(x);
 #endif
 
-  case T_CASED:
-  case T_CASES:
+  case V_CASED:
+  case V_CASES:
     {
-      /* CASEx_m e ...  -->  e LOOKx_m ... */
-      GCCHECK(1);
+      /* CASEx_m e ...  -->  e LOOKx_m ...
+       * Both CASEx_m and LOOKx_m are virtual pointers, so no allocation is needed. */
+      NODEPTR l = mk_CASE(tag == V_CASED ? V_LOOKD : V_LOOKS, get_CASE_size(n));
       CHKARG1;
-      int m;
-      CASE_SIZE(rtag, m);
       num_look++;
-      NODEPTR l = alloc_node(tag == T_CASED ? MK_LOOKD(m) : MK_LOOKS(m));
-      //fprintf(stderr, "CASE_%d n=%p x=%p l=%p\n", (int)m, n, indir(&x), l);
+      //fprintf(stderr, "CASE_%d n=%p x=%p\n", get_CASE_size(l), n.node_ptr, x.node_ptr);
       GOAP(x, l);
     }
-  case T_LOOKD:
-  case T_LOOKS:
-  case T_ARM:
+  case V_LOOKD:
+  case V_LOOKS:
+  case V_ARM:
     RET;
-  case T_CONSTR:
+  case V_CONSTR:
     {
       int k, m, nn;
-      CONSTR_NO(rtag, k, nn);
+      get_CON_info(n, &k, &nn);
       //fprintf(stderr, "CONSTR_%d_%d\n", (int)k, (int)nn);
       CHECK(nn+1);               /* there should be n constructor arguments + LOOK_m */
       NODEPTR p = ARG(TOP(nn));  /* The LOOKx_m */
-      //fprintf(stderr, "  n=%p p=%p\n", n, p);
-      tag_t ltag = GETRAWTAG(p);
-      CASE_SIZE(ltag, m);
-      if (TAGOF(ltag) == T_LOOKD) {
+      //fprintf(stderr, "  n=%p p=%p\n", n.node_ptr, p.node_ptr);
+      if (!is_VIRT(p))
+        ERR("CONSTR: LOOK not virtual");
+      m = get_CASE_size(p);
+      enum node_tag ltag = get_VIRT_TAG(p);
+      if (ltag == V_LOOKD) {
         /* CONSTR_k_n e1 ... en LOOKD_m f0 ... f{m-1}  -->  fk e1 ... en */
-        /* XXX should sanity check stack depth */
+        CHECK(nn + 1 + m);
         GCCHECK(nn);
         NODEPTR fk = ARG(TOP(nn + 1 + k));
         for (int i = 0; i < nn; i++) {
@@ -7248,24 +7306,25 @@ evali(NODEPTR an)
         POP(nn + 1 + m);
         n = TOP(-1);
         GOIND(fk);
-      } else if (TAGOF(ltag) == T_LOOKS) {
+      } else if (ltag == V_LOOKS) {
         /* CONSTR_k_n e1 ... en LOOKS_m d (ARM_k0_n0 f0) (ARM_k_n fk) (ARM_km_nm f{m-1})  -->  fk e1 ... en
          * CONSTR_k_n e1 ... en LOOKS_m d ...                                             -->  d, when no matching k
          */
+        CHECK(nn + 2 + m);
         NODEPTR d = ARG(TOP(nn + 1));
         for (int i = 0; i < m; i++) {
           NODEPTR a = ARG(TOP(nn + 2 + i));
           num_arm++;
-          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM) {
+          if (get_XTAG(a) != X_AP || get_XTAG(FUN(a)) != V_ARM) {
             num_bad_arm++;
             //            fprintf(stderr, "bad a.tag=%s a.fun.tag=%s\n",
-            //                    TAGNAME(GETTAG(a)), GETTAG(a) == T_AP ? TAGNAME(GETTAG(FUN(a))) : "---");
+            //                    TAGNAME(get_XTAG(a)), get_XTAG(a) == X_AP ? TAGNAME(get_XTAG(FUN(a))) : "---");
             a = evali(a);
           }
-          if (GETTAG(a) != T_AP || GETTAG(FUN(a)) != T_ARM)
+          if (get_XTAG(a) != X_AP || get_XTAG(FUN(a)) != V_ARM)
             ERR("LOOKS, bad table");
           int ki, ni;
-          CONSTR_NO(GETRAWTAG(FUN(a)), ki, ni);
+          get_CON_info(FUN(a), &ki, &ni);
           if (ki == k) {
             if (ni != nn)
               ERR("LOOKS ni");
@@ -7281,13 +7340,13 @@ evali(NODEPTR an)
         n = TOP(-1);
         GOIND(d);
       } else {
-        ERR("CONSTR: no LOOK");
+        ERR1("CONSTR: no LOOK, found %s", TAGNAME(ltag));
       }
     }
 
   default:
     fprintf(stderr, "LAST=%d\n", (int)T_LAST_TAG);
-    ERR1("eval tag %s", TAGNAME(GETTAG(n)));
+    ERR1("eval tag %s", TAGNAME(get_XTAG(n)));
   }
 
 
@@ -7307,7 +7366,7 @@ evali(NODEPTR an)
 #endif  /* WANT_FLOAT64 */
     NODEPTR p;
 
-    tag = GETTAG(TOP(0));
+    tag = get_XTAG(TOP(0));
     switch (tag) {
     case T_BININT2:
       n = ARG(TOP(1));
@@ -7317,17 +7376,17 @@ evali(NODEPTR an)
     case T_BININT1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_INT)
+      if (get_XTAG(n) != D_INT)
         ERR("BININT 0");
 #endif  /* SANITY */
     binint1:
       xu = (uvalue_t)GETVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
-      while (GETTAG(y) == T_IND)
-        y = GETINDIR(y);
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
 #if SANITY
-      if (GETTAG(y) != T_INT)
+      if (get_XTAG(y) != D_INT)
         ERR("BININT 1");
 #endif  /* SANITY */
       yu = (uvalue_t)GETVALUE(y);
@@ -7335,8 +7394,8 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binint:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto binint;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto binint;
       case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
       case T_SUB:   SUB_OVERFLOW(value_t, ru, xu, yu); break;
       case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
@@ -7390,7 +7449,7 @@ evali(NODEPTR an)
       case T_ICMP:  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("BININT");
       }
       SETINT(n, (value_t)ru);
@@ -7399,7 +7458,7 @@ evali(NODEPTR an)
     case T_UNINT1:
       /* The argument */
 #if SANITY
-      if (GETTAG(n) != T_INT)
+      if (get_XTAG(n) != D_INT)
         ERR("UNINT 0");
 #endif
       xu = (uvalue_t)GETVALUE(n);
@@ -7407,8 +7466,8 @@ evali(NODEPTR an)
       POP(2);
       n = TOP(-1);
     unint:
-      switch (GETTAG(p)) {
-      case T_IND:      p = GETINDIR(p); goto unint;
+      switch (get_XTAG(p)) {
+      case D_IND:      p = get_IND(p); goto unint;
       case T_NEG:
 #if WANT_OVERFLOW
                        if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow);
@@ -7420,7 +7479,7 @@ evali(NODEPTR an)
       case T_CLZ:      ru = CLZ(xu); break;
       case T_CTZ:      ru = CTZ(xu); break;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("UNINT");
       }
       SETINT(n, (value_t)ru);
@@ -7435,8 +7494,8 @@ evali(NODEPTR an)
     case T_BININT64_1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_INT64) {
-        //fprintf(stderr, "tag=%s\n", TAGNAME(GETTAG(n))); fflush(stderr);
+      if (get_XTAG(n) != D_INT64) {
+        //fprintf(stderr, "tag=%s\n", TAGNAME(get_XTAG(n))); fflush(stderr);
         ERR("BININT64 0");
       }
 #endif  /* SANITY */
@@ -7444,12 +7503,12 @@ evali(NODEPTR an)
       x64u = (uint64_t)GETINT64VALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
-      while (GETTAG(y) == T_IND)
-        y = GETINDIR(y);
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
       /* The second argument to the shift ops is an int, so use a hack for that */
-      if (GETTAG(y) == T_INT64)
+      if (get_XTAG(y) == D_INT64)
         y64u = (uint64_t)GETINT64VALUE(y);
-      else if (GETTAG(y) == T_INT)
+      else if (get_XTAG(y) == D_INT)
         yu = (uvalue_t)GETVALUE(y);
       else
         ERR("BININT64 1");
@@ -7457,8 +7516,8 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binint64:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto binint64;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto binint64;
       case T_ADD64: ADD_OVERFLOW(int64_t, r64u, x64u, y64u); break;
       case T_SUB64: SUB_OVERFLOW(int64_t, r64u, x64u, y64u); break;
       case T_MUL64: MUL_OVERFLOW(int64_t, r64u, x64u, y64u); break;
@@ -7512,7 +7571,7 @@ evali(NODEPTR an)
       case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("BININT64");
       }
       SETINT64(n, (int64_t)r64u);
@@ -7521,7 +7580,7 @@ evali(NODEPTR an)
     case T_UNINT64_1:
       /* The argument */
 #if SANITY
-      if (GETTAG(n) != T_INT64)
+      if (get_XTAG(n) != D_INT64)
         ERR("UNINT64 0");
 #endif
       x64u = (uint64_t)GETINT64VALUE(n);
@@ -7529,8 +7588,8 @@ evali(NODEPTR an)
       POP(2);
       n = TOP(-1);
     unint64:
-      switch (GETTAG(p)) {
-      case T_IND:        p = GETINDIR(p); goto unint64;
+      switch (get_XTAG(p)) {
+      case D_IND:        p = get_IND(p); goto unint64;
       case T_NEG64:      if ((int64_t)x64u == INT64_MIN) raise_rts(exn_overflow); r64u = -x64u; break;
       case T_UNEG64:     r64u = -x64u; break;
       case T_INV64:      r64u = ~x64u; break;
@@ -7538,7 +7597,7 @@ evali(NODEPTR an)
       case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
       case T_CTZ64:      ru = CTZ64(x64u); SETINT(n, (value_t)ru); goto ret;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("UNINT64");
       }
       SETINT64(n, (int64_t)r64u);
@@ -7554,16 +7613,16 @@ evali(NODEPTR an)
     case T_BINFLT1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_FLT32)
+      if (get_XTAG(n) != D_FLT32)
         ERR("BINDBL 0");
 #endif  /* SANITY */
       xf = GETFLTVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
-      while (GETTAG(y) == T_IND)
-        y = GETINDIR(y);
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
 #if SANITY
-      if (GETTAG(y) != T_FLT32)
+      if (get_XTAG(y) != D_FLT32)
         ERR("BINDBL 1");
 #endif  /* SANITY */
       yf = GETFLTVALUE(y);
@@ -7571,8 +7630,8 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binflt:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto binflt;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto binflt;
       case T_FADD:  rf = xf + yf; break;
       case T_FSUB:  rf = xf - yf; break;
       case T_FMUL:  rf = xf * yf; break;
@@ -7586,7 +7645,7 @@ evali(NODEPTR an)
       case T_FGE:   GOBOOL(xf >= yf);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("BINFLT");
       }
       SETFLT(n, rf);
@@ -7595,7 +7654,7 @@ evali(NODEPTR an)
     case T_UNFLT1:
       /* The argument */
 #if SANITY
-      if (GETTAG(n) != T_FLT32)
+      if (get_XTAG(n) != D_FLT32)
         ERR("UNFLT 0");
 #endif
       xf = GETFLTVALUE(n);
@@ -7603,11 +7662,11 @@ evali(NODEPTR an)
       POP(2);
       n = TOP(-1);
     unflt:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto unflt;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto unflt;
       case T_FNEG:  rf = -xf; break;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("UNFLT");
       }
       SETFLT(n, rf);
@@ -7623,16 +7682,16 @@ evali(NODEPTR an)
     case T_BINDBL1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_DBL)
+      if (get_XTAG(n) != D_DBL)
         ERR("BINDBL 0");
 #endif  /* SANITY */
       xd = GETDBLVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
-      while (GETTAG(y) == T_IND)
-        y = GETINDIR(y);
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
 #if SANITY
-      if (GETTAG(y) != T_DBL)
+      if (get_XTAG(y) != D_DBL)
         ERR("BINDBL 1");
 #endif  /* SANITY */
       yd = GETDBLVALUE(y);
@@ -7640,8 +7699,8 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     bindbl:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto bindbl;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto bindbl;
       case T_DADD:  rd = xd + yd; break;
       case T_DSUB:  rd = xd - yd; break;
       case T_DMUL:  rd = xd * yd; break;
@@ -7655,7 +7714,7 @@ evali(NODEPTR an)
       case T_DGE:   GOBOOL(xd >= yd);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("BINDBL");
       }
       SETDBL(n, rd);
@@ -7664,7 +7723,7 @@ evali(NODEPTR an)
     case T_UNDBL1:
       /* The argument */
 #if SANITY
-      if (GETTAG(n) != T_DBL)
+      if (get_XTAG(n) != D_DBL)
         ERR("UNDBL 0");
 #endif
       xd = GETDBLVALUE(n);
@@ -7672,11 +7731,11 @@ evali(NODEPTR an)
       POP(2);
       n = TOP(-1);
     undbl:
-      switch (GETTAG(p)) {
-      case T_IND:   p = GETINDIR(p); goto undbl;
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto undbl;
       case T_DNEG:  rd = -xd; break;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("UNDBL");
       }
       SETDBL(n, rd);
@@ -7691,16 +7750,16 @@ evali(NODEPTR an)
     case T_BINBS1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
+      if (get_XTAG(n) != D_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 0");
 #endif  /* SANITY */
       xbs = BSTR(n);
       /* Second argument */
       y = ARG(TOP(2));
-      while (GETTAG(y) == T_IND)
-        y = GETINDIR(y);
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
 #if SANITY
-      if (GETTAG(y) != T_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
+      if (get_XTAG(y) != D_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 1");
 #endif  /* SANITY */
       ybs = BSTR(y);
@@ -7708,8 +7767,8 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binbs:
-      switch (GETTAG(p)) {
-      case T_IND:    p = GETINDIR(p); goto binbs;
+      switch (get_XTAG(p)) {
+      case D_IND:    p = get_IND(p); goto binbs;
 
       case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
       case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
@@ -7722,7 +7781,7 @@ evali(NODEPTR an)
       case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
         ERR("BINBS");
       }
       SETBSTR(n, mkForPtrFree(rbs));
@@ -7755,8 +7814,8 @@ die_exn(NODEPTR exn)
 
   in_raise = true;
 
-  if (GETTAG(exn) == T_INT) {
-    /* This is the special hack for RTS generated exception, represented by a T_INT */
+  if (get_XTAG(exn) == D_INT) {
+    /* This is the special hack for RTS generated exception, represented by a D_INT */
     enum rts_exn eexn = GETVALUE(exn);
     static const char *msgs[] =
       { "stack overflow",
@@ -7997,7 +8056,7 @@ MHS_INIT_ARGS(
       ungetb(c, bf);
     }
     prog = parse_top(bf, xffe_table);
-    if (prog == NIL)
+    if (is_NIL(prog))
       ERR("deser failed");
     closeb(bf);
   }
@@ -8074,7 +8133,7 @@ mhs_main(int argc, char **argv)
   run_time += GETTIMEMILLI();
 
 #if WANT_STDIO
-  if (verbose || 1) {
+  if (verbose) {
     if (verbose > 1) {
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
@@ -8152,9 +8211,13 @@ mhs_main(int argc, char **argv)
 /***************************/
 /* Foreign export helpers  */
 
+/* The ffe_value in the C code is a struct node*, but it is really a NODEPTR,
+ * so it can be a virtual pointer. */
 void
-ffe_push(NODEPTR n)
+ffe_push(struct node *p)
 {
+  NODEPTR n;
+  n.node_ptr = p;
   PUSH(n);
 }
 
@@ -8168,7 +8231,7 @@ ffe_pop(void)
 stackptr_t
 ffe_alloc(void)
 {
-  PUSH(alloc_node(T_DBL));
+  PUSH(alloc_node(D_DBL));
   return stack_ptr;
 }
 
@@ -8216,7 +8279,7 @@ apply_sp(uvalue_t sp, void *arg)
 {
   GCCHECK(3);
   NODEPTR f = deref_stableptr(sp);
-  NODEPTR a = alloc_node(T_PTR);
+  NODEPTR a = alloc_node(D_PTR);
   PTR(a) = arg;
   PUSH(new_ap(combPERFORMIO, new_ap(f, a)));
   void *r = evalptr(TOP(0));
@@ -8242,8 +8305,8 @@ MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
 #endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
-/* A Bool is the K (False) or A (True) combinator, not an int node. */
-#define SETBOOL(n, x) SETINDIR((n), (x) ? combTrue : combFalse)
+/* A Bool is the C_0_0 (False) or C_1_0 (True) constructor, not an int node. */
+#define SETBOOL(n, x) SETIND((n), (x) ? combTrue : combFalse)
 MHS_FROM(mhs_from_Bool, SETBOOL, value_t);
 #if WANT_INT64
 MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
