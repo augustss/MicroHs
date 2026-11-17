@@ -7,6 +7,7 @@ foreign import ccall "errno.h &errno" cerrno :: IO (Ptr CInt)
 foreign import ccall "unistd.h getpid" getpid :: IO CInt
 foreign import capi  "value 3+4" seven :: CInt
 foreign import ccall labs :: CLong -> CLong
+foreign import ccall "value ($1 + $2) * 2" addTwice :: CInt -> CInt -> IO CInt
 
 main :: IO ()
 main = do
@@ -18,3 +19,4 @@ main = do
   CInt e <- peek p
   print e
   print (let CInt x = seven in x)
+  print =<< addTwice 1 2
