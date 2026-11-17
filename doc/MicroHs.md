@@ -60,6 +60,7 @@ The following extensions are supported:
 * [ExplicitForAll](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/explicit_forall.html#extension-ExplicitForAll)
 * [ExplicitNamespaces](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/explicit_namespaces.html#extension-ExplicitNamespaces)
 * [ExtendedDefaultRules](https://downloads.haskell.org/ghc/latest/docs/users_guide/ghci.html#extension-ExtendedDefaultRules)
+* [ExtraCommas](#extra-commas)
 * [ExtraInstanceBindings](#extra-instance-bindings)
 * [FlexibleContexts](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/flexible_contexts.html#extension-FlexibleContexts)
 * [FlexibleInstances](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/instances.html#extension-FlexibleInstances)
@@ -78,6 +79,7 @@ The following extensions are supported:
 * [LiberalTypeSynonyms](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/liberal_type_synonyms.html#extension-LiberalTypeSynonyms)
 * [MagicHash](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/magic_hash.html#extension-MagicHash)
 * [MonomorphismRestriction](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/monomorphism.html#extension-MonomorphismRestriction)
+* [MultiClassInstances](#multi-class-instances)
 * [MultilineStrings](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/multiline_strings.html#extension-MultilineStrings)
 * [MultiParamTypeClasses](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/multi_param_type_classes.html#extension-MultiParamTypeClasses)
 * [MultiWayIf](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/multiway_if.html#extension-MultiWayIf)
@@ -124,6 +126,31 @@ Deriving is supported for `Bounded`, `Data`, `Enum`, `Eq`, `Foldable`, `Functor`
 
 `Typeable` is automatic: every `data` type, `newtype`, and class gets a `Typeable` instance. This needs the class `Data.Typeable.Typeable`, which is known in any module that imports the `Prelude`. To avoid the instance for a `data` type or `newtype`, e.g., in a module that does not import the `Prelude`, add an empty `deriving ()` clause. This turns off all deriving for that type, including the `HasField` instances for its record fields, so any other deriving clauses on the same declaration are ignored. There is no way to avoid the instance for a class.
 
+### Extra commas
+
+A comma separated list can have an extra comma at the beginning or at the end. This makes it easier to add, remove, and reorder items, and to make items conditional with CPP. For example:
+```haskell
+module M(
+    Color(Red, Green,),
+    main,
+  ) where
+
+data Color = Red | Green
+  deriving (
+    Eq,
+    Show,
+  )
+
+colors :: [Color]
+colors = [
+    Red,
+    Green,
+  ]
+```
+A leading or trailing comma is allowed in list literals and list comprehensions, export and import lists (and the lists of constructors and methods in them), deriving and `default` clauses, record declarations, record construction and update, guards, and functional dependencies. Only a trailing comma is allowed in a list of names before `::` and in a fixity declaration, e.g., `x, y, :: Int`. Tuples cannot have extra commas, since that would conflict with tuple sections.
+
+GHC will also get this extension; see the [accepted proposal](https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0748-extra-commas.rst).
+
 ### Extra instance bindings
 
 An instance declaration can have a second `where` with bindings that are not methods. These bindings can be used in the methods, and they can use the type variables and the context of the instance, but they are not visible outside the instance. This extension is MicroHs only. For example:
@@ -148,6 +175,38 @@ insert :: Int -> [Int] -> [Int]     -- shadows Data.List.insert
 insert x xs = x : xs
 
 test = (insert 1 [2, 3], Data.List.insert 2 [1, 3])
+```
+
+### Multi-class instances
+
+An instance declaration can define instances of several classes at once, by giving a tuple of class constraints instead of a single one. The methods of all the classes go in the same `where`, and the instance context applies to all of them. This extension is MicroHs only. For example:
+```haskell
+data Color = Red | Green
+
+instance (Eq Color, Show Color) where
+  Red   == Red   = True
+  Green == Green = True
+  _     == _     = False
+  show Red   = "Red"
+  show Green = "Green"
+
+class Describe a where
+  describe :: a -> String
+  describe _ = "something"
+
+class Name a where
+  name :: a -> String
+  name _ = "nameless"
+
+instance Show a => (Describe [a], Name [a]) where
+  describe xs = "a list of length " ++ show (length xs)
+  name = show
+```
+The classes can also be given by a constraint synonym. An instance declaration without a `where` gives instances where all methods have their default definitions:
+```haskell
+type Both a = (Describe a, Name a)
+
+instance Both Bool
 ```
 
 ### Qualified strings
