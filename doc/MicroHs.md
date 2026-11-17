@@ -5,6 +5,7 @@ MicroHs (`mhs`) is a compiler for an extended subset of Haskell. It compiles Has
 Contents:
 * [Language](#language)
 * [Compiler](#compiler)
+* [Runtime flags](#runtime-flags)
 * [Packages](#packages)
 * [Implementation](#implementation)
 * [Platforms](#platforms)
@@ -379,6 +380,24 @@ The `[mhs]` section of `mhs.conf` has the key `packageDbPath`, which is the defa
 
 ---
 
+# Runtime flags
+
+Programs compiled with MicroHs, including `mhs` itself, take runtime flags between `+RTS` and `-RTS`. All other arguments are passed to the running program.
+
+| Flag | Meaning |
+| ---- | ------- |
+| `-HSIZE` | Set the heap size to `SIZE` cells. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `50M`. |
+| `-KSIZE` | Set the stack size to `SIZE` entries. `SIZE` can be suffixed by `k`, `M`, or `G`. The default is `300k`. |
+| `-v` | Print statistics when the program exits, e.g., the number of reductions, allocated cells, and garbage collections. Can be repeated for more output. |
+| `-T` | Generate profiling statistics (if the program was compiled with `-T` as well) |
+| `-B` | Ring the bell on every garbage collection |
+| `-rFILE` | Read the combinators from `FILE` instead of `out.comb` (for `mhseval`) |
+| `-oFILE` | Read the program, run a garbage collection, and write the resulting graph to `FILE` |
+
+For example, `./prog +RTS -H1M -v -RTS hello` runs `prog` with a heap of 1M cells and prints statistics at the end, and the program gets the single argument `hello`.
+
+---
+
 # Packages
 
 To avoid compiling everything from source all the time, there is a notion of a precompiled package. A package is a set of modules that are compiled together and can then be installed in a known place. Packages can depend on other installed packages.
@@ -445,9 +464,9 @@ The compiler pipeline is:
 1. Lexing and layout processing (`Lex`), and parsing to an abstract syntax tree (`Parse`, `Expr`).
 2. Deriving instances (`Deriving`).
 3. Fixity resolution (`Fixity`) and type checking (`TypeCheck`, `TCMonad`), which also translates type classes to dictionary passing.
-4. Desugaring to a simple lambda calculus (`Desugar`, `Exp`), where data types are encoded as functions (`EncodeData`). Data types with at most 6 constructors use Scott encoding; larger types use a constructor number and a tuple of the arguments.
-5. Translation to combinators by bracket abstraction, with optimizations (`Abstract`).
-6. Serialization of the combinator graph (`ExpPrint`), optionally compressed and turned into a C array (`MakeCArray`).
+4. Desugaring to a simple lambda calculus (`Desugar`, `Exp`), where constructors and `case` become special combinators (`EncodeData`), see [Data type encoding](#data-type-encoding).
+5. Translation to combinators by bracket abstraction, with optimizations (`Abstract`), see [Combinators](#combinators).
+6. Serialization of the combinator graph (`ExpPrint`), optionally compressed and turned into a C array (`MakeCArray`), see [Combinator file format](COMB.md).
 
 Other important modules:
 * `Main` decodes flags and drives everything.
@@ -465,6 +484,78 @@ To rebuild the compiler after changing it, use `make newmhs` (or `make newmhsz` 
 
 MicroHs can also be built from scratch in the sense of [bootstrappable.org](https://bootstrappable.org/), using Hugs (`make bin/hmhs`).  This needs [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006), to work around undefined behavior with arithmetic overflow.
 
+## Combinators
+
+Bracket abstraction (`Abstract`) removes all lambdas using `S`, `K`, and `I`. A number of rewrites then introduce the other combinators, which give smaller code and fewer reductions. Some rewrites remove combinators altogether, e.g., `S K x` → `I`, `S (K x) (K y)` → `K (x y)`, `S (K x) I` → `x`, `B I x` → `x`, and `Y (K x)` → `x`.
+
+| Combinator | Reduction | Introduced by |
+| ---------- | --------- | ------------- |
+| `S`   | `S x y z = x z (y z)` | bracket abstraction |
+| `K`   | `K x y = x` | bracket abstraction |
+| `I`   | `I x = x` | bracket abstraction |
+| `B`   | `B x y z = x (y z)` | `S (K x) y` → `B x y` |
+| `C`   | `C x y z = x z y` | `S x (K y)` → `C x y` |
+| `S'`  | `S' x y z w = x (y w) (z w)` | `S (B x y) z` → `S' x y z` |
+| `C'`  | `C' x y z w = x (y w) z` | `C (B x y) z` → `C' x y z` |
+| `B'`  | `B' x y z w = x y (z w)` | `B B` → `B'` |
+| `C'B` | `C'B x y z w = x z (y w)` | `C' B` → `C'B` |
+| `A`   | `A x y = y` | `K I` → `A` |
+| `U`   | `U x y = y x` | `C I` → `U` |
+| `Z`   | `Z x y z = x y` | `B K` → `Z` |
+| `K2`  | `K2 x y z = x` | `Z K` → `K2`, `K (K x)` → `K2 x` |
+| `K3`  | `K3 x y z w = x` | `Z K2` → `K3`, `K (K2 x)` → `K3 x` |
+| `K4`  | `K4 x y z w v = x` | `Z K3` → `K4`, `K (K3 x)` → `K4 x` |
+| `P`   | `P x y z = z x y` | `C (C I x) y` → `P x y`, `B C (C I)` → `P` |
+| `R`   | `R x y z = y z x` | `C C` → `R` |
+| `O`   | `O x y z w = w x y` | `B (B K) P` → `O` |
+| `Y`   | `Y x = x (Y x)` | recursive `let` |
+
+The runtime implements `Y x` by making the redex point to itself, so it builds a cyclic graph. A combinator that returns one of its arguments (e.g., `I`, `K`, and `A`) overwrites the redex with an indirection; the others overwrite it with the result, allocating cells for the new inner applications. The rewrites can increase the arity of an expression, so a few combinators also reduce when they have too few arguments, e.g., `B' x y = B (x y)` and `Z x y = K (x y)`. This keeps the sharing (full laziness) of the original code. The runtime also has the combinators `J`, `L`, `KK`, and `KA`, which the compiler does not generate at the moment.
+
+When the program has been loaded, the garbage collector also does some reductions that make the graph smaller, e.g., `I x` → `x` and `K x y` → `x`. A program can ask for this with `performGCWithReduction` from `System.Mem`.
+
+Besides combinators, the code contains literals, the data type combinators described below, and primitive operations such as `+`, `==`, `seq`, and the IO operations. The runtime lists them all in the `primops` table in `src/runtime/eval.c`.
+
+## Data type encoding
+
+Data types are not encoded as functions; the runtime handles constructors and `case` directly. The encoding is generated by `EncodeData`.
+
+### Constructors
+Constructor number `k` with `n` fields is the combinator `C_k_n`, where the constructors are numbered from 0 in the order they appear in the `data` declaration. A value is the constructor applied to its fields. For example, with `data Maybe a = Nothing | Just a`, `Nothing` is `C_0_0` and `Just 42` is `C_1_1 42`. A constructor applied to at most `n` arguments is in weak head normal form. A constructor with strict fields is a function that evaluates those fields before building the value, e.g., `\ x y -> seq x (C_0_2 x y)` when the first field is strict. A `newtype` constructor is just `I`.
+
+The runtime knows the encoding of booleans, lists, and tuples:
+
+| Type | Constructors |
+| ---- | ------------ |
+| `Bool` | `False` = `C_0_0`, `True` = `C_1_0` |
+| `[a]` | `[]` = `C_0_0`, `(:)` = `C_1_2` |
+| tuples | `()` = `C_0_0`, `(,)` = `C_0_2`, `(,,)` = `C_0_3`, ... |
+
+### Case
+A `case` on a type with `m` constructors normally becomes
+```
+D_m f0 ... f{m-1} e
+```
+where `e` is the scrutinee and the arm `fk` is a function of the fields of constructor `k`. Arms that are not in the `case` are filled in with the default alternative, which ignores the fields. For example:
+```
+case xs of { [] -> a; y:ys -> b }    becomes    D_2 a (\ y ys -> b) xs
+if c then t else e                   becomes    D_2 e t c
+```
+Mutually recursive local definitions are combined into a tuple `v`, and the `i`th of `n` components is selected with `D_1 (\ x1 ... xn -> xi) v`.
+
+If the type has more than 4 constructors and fewer than 3/4 of them have an arm, a sparse `case` is used instead:
+```
+E_m d A_k1_n1 f1 ... A_km_nm fm e
+```
+Here `m` is the number of arms, `d` is the default, and each arm `fi` is preceded by `A_ki_ni`, which gives its constructor number and number of fields. The arms are sorted by constructor number.
+
+The scrutinee comes last so that `\ x -> case x of ...` becomes just `D_m f0 ... f{m-1}` after bracket abstraction, without any extra combinators.
+
+### Evaluation
+The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields.
+
+To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
+
 ## Runtime
 
 The runtime system is written in C and is mainly in `src/runtime/eval.c`. It is a graph reduction machine for combinators, with primitive operations for built in types and for executing IO operations. The C code is reasonably portable and has no dependencies beyond a C compiler and (optionally) a C library.
@@ -473,38 +564,25 @@ The runtime also contains:
 * A mark-scan garbage collector.
 * Lightweight threads (for `Control.Concurrent`, `MVar`, and STM), with non-blocking IO where available.
 * Bignums for `Integer`, using [imath](https://github.com/creachadair/imath) (included); alternatively [GMP](https://gmplib.org/).
-* Serialization and deserialization of arbitrary expressions, preserving sharing and cycles. The only exceptions are C pointers (e.g., file handles) other than `stdin`, `stdout`, and `stderr`.
+* Serialization and deserialization of arbitrary expressions, preserving sharing and cycles, using the [combinator file format](COMB.md). The only exceptions are C pointers (e.g., file handles) other than `stdin`, `stdout`, and `stderr`.
 * LZMA/LZ77 decompression and Base64 decoding, for compressed combinator code.
 * Buffered file I/O with UTF-8 encoding.
 
 ### Types
-Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell and encoded as lambda terms by the compiler. The runtime knows how lists, booleans, and tuples are encoded.
+Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell, and the compiler encodes them with constructor and `case` combinators. The runtime knows how lists, booleans, and tuples are encoded (see [Data type encoding](#data-type-encoding)).
 
 ### Memory layout
-Memory is allocated in cells.  Each cell has room for two pointers (two words, typically 16 bytes), so it can represent an application node.  A few bits indicate if the cell is an application or something else. If it is something else, one word is a tag, e.g., a combinator or an integer, and the other word stores the payload, e.g., the integer value.
+Memory is allocated in cells.  Each cell has room for two pointers (two words, typically 16 bytes), so it can represent an application node.  A few bits indicate if the cell is an application or something else. If it is something else, one word is a tag, e.g., an integer or an indirection, and the other word stores the payload, e.g., the integer value.
+
+Cells are aligned, so the two lowest bits of a real pointer are always 0. A pointer whose lowest bits are `10` does not point anywhere; instead it holds a tag, e.g., a combinator, a primitive, or a constructor. Such values take no space in the heap.
 
 There is a bitmap with one bit per cell. Allocating a cell consists of finding the next free cell using the bitmap and marking it as used; in practice whole runs of free cells are claimed at once. The garbage collector clears the bitmap and then marks every reachable cell. There is no explicit scan phase, since that is baked into the allocation. Allocation is fast, assuming the CPU has some kind of find-first-set instruction.
-
-### Runtime flags
-Runtime flags are given between `+RTS` and `-RTS`. Everything else is available to the running program.
-
-* `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`; default is `50M`
-* `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`; default is `250k`
-* `-rFILE` read combinators from `FILE` (for `mhseval`), instead of `out.comb`
-* `-v` be more verbose, can be repeated
-* `-T` generate profiling statistics (if compiled with `-T` as well)
-* `-B` ring the bell on every GC
-* `-oFILE` read the input, run a garbage collection, and write the resulting graph to `FILE`
-
-For example, `./prog +RTS -H1M -v -RTS hello` runs `prog` with a heap of 1M cells, verbose runtime output, and the program gets the single argument `hello`.
 
 ### Configuration
 The runtime is configured for each platform by a `config.h` in a subdirectory of `src/runtime/`. It contains a number of `WANT_` macros that select functionality, e.g., `WANT_STDIO` (file I/O), `WANT_FLOAT32`/`WANT_FLOAT64` (floating point), `WANT_INT64` (64 bit integers on 32 bit platforms), `WANT_GMP` (use GMP for `Integer`), `WANT_DIR`, `WANT_TIME`, `WANT_SOCKET`, etc. It also defines how to do platform specific things, such as finding the first set bit. Platform specific code goes in `extra.c` in the same directory.
 
 ### Using GMP for `Integer`
 By default, `Integer` uses imath, which is included. To use GMP instead, uncomment the first few lines in the `Makefile`, and adjust where the C compiler finds GMP. To switch between using and not using GMP you need to do `make clean`.
-
-The combinator file format is described in [`COMB.md`](../COMB.md).
 
 ---
 
