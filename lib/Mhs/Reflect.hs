@@ -24,6 +24,7 @@ import Data.Int(Int64)
 import Data.List(stripPrefix)
 import qualified Data.Text as T
 import Data.Text.Encoding(decodeUtf8)
+import Mhs.Array(accumArray, (!))
 import System.IO.Serialize(writeSerializedBS)
 
 type Ident = String
@@ -80,7 +81,7 @@ combVersion = "v9.1"
 parseCombinators :: String -> Prog
 parseCombinators s =
   case stripPrefix (combVersion ++ "\n") s of
-    Just r | (n@(_:_), '\n':r') <- span isDigit r, all isDigit n -> parseGraph r'
+    Just r | (n@(_:_), '\n':r') <- span isDigit r, all isDigit n -> renameLabels (parseGraph r')
     _ -> error $ "Mhs.Reflect: unsupported combinator file format: " ++ show (takeWhile (/= '\n') s)
 
 parseGraph :: String -> Prog
@@ -127,6 +128,21 @@ parseGraph = p [] []
 
     tok = break isSpace
     perr s = error $ "Mhs.Reflect: parse error at " ++ show (take 20 s)
+
+-- The label numbers depend on heap addresses, so they differ between runs.
+-- Rename the labels to _1, _2, ... in the order they are defined, which only
+-- depends on the shape of the graph.
+renameLabels :: Prog -> Prog
+renameLabels (Prog defs e) = Prog [ (ren i, sub d) | (i, d) <- defs ] (sub e)
+  where
+    nums = [ read l | ('_':l, _) <- defs ] :: [Int]
+    tbl = accumArray (\ _ x -> x) 0 (0, maximum (0 : nums)) (zip nums [1 :: Int ..])
+    ren ('_':l) = '_' : show (tbl ! read l)
+    ren i = i
+    sub (Var i) = Var (ren i)
+    sub (App f a) = App (sub f) (sub a)
+    sub (Array es) = Array (map sub es)
+    sub x = x
 
 -- Combinators, primitives, and the data type combinators.
 atom :: String -> Exp

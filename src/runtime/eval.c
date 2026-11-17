@@ -2983,8 +2983,9 @@ init_nodes(void)
   mark_all_free();
   num_free = heap_size;
 
-  /* Initialize node name array */
-  for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+  /* Initialize node name array.
+   * Go backwards, so that the first name of a tag wins, e.g., I and not its aliases ord and chr. */
+  for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
     tag_names[primops[j].tag] = primops[j].name;
 #if GCRED
     flip_ops[primops[j].tag] = primops[j].flipped;
