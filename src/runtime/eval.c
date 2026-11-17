@@ -521,7 +521,7 @@ islinux(void)
 #endif
 
 #if !defined(STACK_SIZE)
-#define STACK_SIZE 250000
+#define STACK_SIZE 300000
 #endif
 
 /***************************************/
