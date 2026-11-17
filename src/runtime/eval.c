@@ -818,6 +818,7 @@ typedef struct PACKED node {
   } uarg;
 } node;
 
+#if 0
 /* If the NODEPTR points to an application, return the FUN */
 static INLINE NODEPTR
 get_FUN(NODEPTR n)
@@ -830,6 +831,7 @@ get_FUN(NODEPTR n)
   }
   return NIL_NODEPTR;
 }
+#endif
 
 /* If the NODEPTR points to an indirection, return it */
 static INLINE NODEPTR
@@ -6002,7 +6004,9 @@ rnf(value_t noerr, NODEPTR n)
   FREE(done);
 }
 
+#if 0
 counter_t num_arm, num_bad_arm;
+#endif
 
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
@@ -7530,9 +7534,13 @@ evali(NODEPTR an)
           }
           int mid = (lo + hi) / 2;
           NODEPTR a = ARG(TOP(nn + 2 + 2*mid));
+#if 0
           num_arm++;
+#endif
           if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM) {
+#if 0
             num_bad_arm++;
+#endif
             a = evali(a);
             if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM)
               ERR("LOOKS, bad table");
@@ -8388,7 +8396,9 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
 #endif
+#if 0
     PRINT("arms=%"PRIcounter" bad=%"PRIcounter"\n", num_arm, num_bad_arm);
+#endif
     // PRINT("%"PCOMMA"15d avg gc stack depth\n", (int)(gc_tot / num_gc));
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
