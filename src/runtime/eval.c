@@ -3382,19 +3382,29 @@ gc_reduce(NODEPTR n)
 #define MARK_PFQ_MAXDEPTH ((stackptr_t)(stack_size / 8))
 #endif
 
+/* Push a pointer to a NODEPTR slot on the stack, for the mark phase. */
+#define PUSH_SLOT(s) do { NODEPTR _q; _q.node_pptr = (s); PUSH(_q); } while(0)
+
 /* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR n;
-  NODEPTR *to_push = 0;         /* silence warning by initializing */
   struct node *p;
+#if MARK_PFQ > 0
+  /* Ring of pending slots whose cells have been prefetched.
+   * Every (possibly nested) mark() call owns its own ring and drains it
+   * before returning, so recursion for integer leaves and the
+   * thread/mvar side structures is unaffected. */
+  NODEPTR *pfq[MARK_PFQ];
+  unsigned pfq_head = 0, pfq_tail = 0, pfq_n = 0;
+#endif
 
   //  mark_depth++;
   //  if (mark_depth % 10000 == 0)
   //    PRINT("mark depth %"PRIcounter"\n", mark_depth);
-  top:
+ top:
   n = indir(np);
   p = get_node_ptr(n);
   if (!p)
@@ -3420,13 +3430,42 @@ mark(NODEPTR *np)
       }
     }
 #endif  /* GCRED */
-    /* Avoid tail recursion */
+#if MARK_PFQ > 0
+    if (stack_ptr - stk <= MARK_PFQ_MAXDEPTH) {
+      /* The probe keeps already-marked (shared) nodes, and virtual pointers,
+       * off the work stack; it only touches the bitmap, not the cell.
+       * The cell itself is not read until the ring has prefetched it, which is
+       * why the mark-integer-leaves shortcut of the plain step below (it needs
+       * the cell's tag) is not used. */
+      if (!is_marked_used(ARG(n)))
+        PUSH_SLOT(&ARG(n));
+      /* FUN becomes a work item too, so the ring can prefetch it.
+       * It is pushed last so that the spine is still walked first. */
+      if (!is_marked_used(FUN(n)))
+        PUSH_SLOT(&FUN(n));
+      goto fin;
+    }
+    /* Stack has grown too much (see MARK_PFQ_MAXDEPTH): plain step. */
+#endif  /* MARK_PFQ */
+    /* Mark integer leaves immediately instead of deferring them while walking
+     * the other branch.  In particular, a string can contain a distinct integer
+     * node (behind an indirection) for every character read from a handle.
+     */
+    if (get_XTAG(indir(&ARG(n))) == D_INT) {
+      mark(&ARG(n));
+    } else if (!is_marked_used(ARG(n))) {
+      /* The probe keeps already-marked (shared) nodes off the work stack. */
+      PREFETCH_READ(ARG(n).node_ptr);   /* won't be popped and dereferenced until later */
+      PUSH_SLOT(&ARG(n));
+    }
+    /* Iterate straight down the spine; keeps the work stack shallow. */
     np = &FUN(n);
-    to_push = &ARG(n);
-  } else {
+    goto top;
+  }
+
   switch (get_DATA_TAG(FUN(n))) {
 #if GCRED && INTTABLE
-   case D_INT:
+  case D_INT:
     {
       /* Replace a small INT by the shared permanent node */
       value_t val = GETVALUE(n);
@@ -3439,7 +3478,7 @@ mark(NODEPTR *np)
       goto fin;
     }
 #endif  /* GCRED && INTTABLE */
-   case D_ARR:
+  case D_ARR:
     {
       struct ioarray *arr = ARR(n);
 
@@ -3451,40 +3490,59 @@ mark(NODEPTR *np)
       // as there's more entries to scan.
       mark_unused(n);
       num_marked--;
-      to_push = np;
-      np = &arr->array[arr->marked++];
-      break;
+      PUSH_SLOT(np);
+      if (!is_marked_used(arr->array[arr->marked]))
+        PUSH_SLOT(&arr->array[arr->marked]);
+      arr->marked++;
+      goto fin;
     }
 
-   case D_FORPTR:
-     FORPTR(n)->finalizer->marked = 1;
-     goto fin;
+  case D_FORPTR:
+    FORPTR(n)->finalizer->marked = 1;
+    goto fin;
 
-   case D_THID:
-     mark_thread(THR(n));
-     goto fin;
+  case D_THID:
+    mark_thread(THR(n));
+    goto fin;
 
-   case D_MVAR:
-     mark_mvar(MVAR(n));
-     goto fin;
+  case D_MVAR:
+    mark_mvar(MVAR(n));
+    goto fin;
 
-   case D_WEAK:
-     WEAK(n)->marked = 1;
-     goto fin;
+  case D_WEAK:
+    WEAK(n)->marked = 1;
+    goto fin;
 
-   default:
-     goto fin;
+  default:
+    goto fin;
   }
-  }
 
-  if (!is_marked_used(*to_push)) {
-    NODEPTR q;
-    q.node_pptr = to_push;
-    PUSH(q);
+ fin:
+#if MARK_PFQ > 0
+  if (stack_ptr - stk <= MARK_PFQ_MAXDEPTH) {
+    /* Top up the ring from the work stack, issuing a prefetch for each
+     * pending cell, then process the oldest entry: by now its cell has had
+     * MARK_PFQ-1 other visits worth of time to arrive in cache. */
+    while (pfq_n < MARK_PFQ && stack_ptr > stk) {
+      NODEPTR *slot = POPTOP().node_pptr;
+      MARK_PREFETCH(slot->node_ptr);
+      pfq[pfq_tail] = slot;
+      pfq_tail = (pfq_tail + 1) % MARK_PFQ;
+      pfq_n++;
+    }
+    if (pfq_n > 0) {
+      np = pfq[pfq_head];
+      pfq_head = (pfq_head + 1) % MARK_PFQ;
+      pfq_n--;
+      goto top;
+    }
+    /* Ring empty here means the loop above found the stack empty. */
+    return;
   }
-  goto top;
-
-  fin:
+  /* Too deep (see MARK_PFQ_MAXDEPTH): plain depth-first pops until the
+   * stack has drained; the ring's pending entries wait, they are picked up
+   * again when the ring is resumed. */
+#endif  /* MARK_PFQ */
   if (stack_ptr > stk) {
     np = POPTOP().node_pptr;
     goto top;
