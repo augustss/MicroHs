@@ -7512,7 +7512,6 @@ evali(NODEPTR an)
     }
 
   default:
-    fprintf(stderr, "LAST=%d\n", (int)T_LAST_TAG);
     ERR1("eval tag %s", TAGNAME(get_XTAG(n)));
   }
 
