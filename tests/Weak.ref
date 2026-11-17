@@ -3,6 +3,6 @@ mkWeak done
 after first gc ("key",Just "val")
 after second gc Nothing
 run final
-after yield
+after finalizer
 about to finalize
 run final2

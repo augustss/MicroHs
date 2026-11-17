@@ -8,7 +8,12 @@ main :: IO ()
 main = do
   let key = "key" :: String
   let val = "val" :: String
-  let final = putStrLn "run final"
+  -- The finalizer for a dead key runs in a new thread, so it could
+  -- print at any time.  Make it wait for a go-ahead, and then signal
+  -- that it is done, so the output does not depend on scheduling.
+  start <- newEmptyMVar
+  done <- newEmptyMVar
+  let final = do takeMVar start; putStrLn "run final"; putMVar done ()
   putStrLn $ "before first gc " ++ show (key, val)
   --putStr $ "test finalizer: "; final
   wk <- mkWeak key val (Just final)
@@ -19,8 +24,9 @@ main = do
   performGC  -- the key is not alive, so the weak pointer should be die
   mval' <- deRefWeak wk
   putStrLn $ "after second gc " ++ show mval'
-  yield     -- give finalizer a chance to run
-  putStrLn "after yield"
+  putMVar start ()  -- let the finalizer print
+  takeMVar done     -- and wait for it to finish
+  putStrLn "after finalizer"
 
   let key2 = "key2" :: String
   let final2 = putStrLn "run final2"
