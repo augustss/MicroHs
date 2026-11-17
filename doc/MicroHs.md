@@ -857,9 +857,12 @@ These have defaults, and can be set with `-D`, e.g., `mhs -optc -DMARK_PFQ=0 ...
 There are three implementations of `Integer`:
 * [imath](https://github.com/creachadair/imath), a small bignum library in C, which is included in the runtime. This is the default.
 * [GMP](https://gmplib.org/), which must be installed separately. To use it, uncomment the first few lines in the `Makefile`, and adjust where the C compiler finds GMP. To switch between using and not using GMP you need to do `make clean`.
-* An implementation in Haskell, in `lib/no-gmp`. It is slower, but the runtime does not need any bignum code. It is used when `config.h` sets both `WANT_IMATH` and `WANT_GMP` to 0, as the `micro` configuration does.
+* An implementation in Haskell, in `lib/no-gmp`. It is slower, but the runtime does not need any bignum code. It is used when the runtime has neither imath nor GMP, i.e., when both `WANT_IMATH` and `WANT_GMP` are 0. The `micro` configuration sets them so, and with the `unix` configuration you can compile the runtime with `-DWANT_IMATH=0`.
 
-imath and GMP have the same interface, so the Haskell code in `lib` is the same for both. The Haskell implementation replaces two modules, `Data.Integer_Type` and `Data.Integer.Internal`. When `mhs` runs from the source tree and its own runtime has neither imath nor GMP, it puts `lib/no-gmp` before `lib` in the module search path. When compiling for such a platform with an ordinary `mhs`, do this yourself, e.g., `mhs -i -i. -i$MHSDIR/lib/no-gmp -i$MHSDIR/lib ...`.
+imath and GMP have the same interface, so the Haskell code in `lib` is the same for both. The Haskell implementation replaces two modules, `Data.Integer_Type` and `Data.Integer.Internal`, which are in `lib/no-gmp`. The library code and the runtime must agree: code compiled for imath or GMP calls C functions that a runtime without them does not have, and it fails with an error like `FFI unknown mpz_cmp`. To compile a program that uses the Haskell implementation, put `lib/no-gmp` before `lib` in the module search path, and compile the runtime without imath, e.g., with `$MHSDIR` being the MicroHs source directory:
+```
+mhs -i -i. -i$MHSDIR/lib/no-gmp -i$MHSDIR/lib -optc -DWANT_IMATH=0 Prog -oprog
+```
 
 ---
 

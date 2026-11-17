@@ -102,12 +102,15 @@
 #endif
 
 /*
- * Use imath for bignums
+ * Use imath for bignums, unless GMP is used.
+ * With -DWANT_IMATH=0 (and no GMP) Integer is implemented in Haskell.
  */
+#if !defined(WANT_IMATH)
 #if WANT_GMP
 #define WANT_IMATH 0
 #else
 #define WANT_IMATH 1
+#endif
 #endif
 
 /*
