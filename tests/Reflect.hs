@@ -40,7 +40,8 @@ answer b = if b then "yes" else "no"
 scale :: Double -> Double
 scale x = primDoubleMul x 2.5
 
--- A case that returns a function.  The arity of the False arm is guessed wrong.
+-- A case that returns a function.  The arms take no fields, which the
+-- function in the arm does not show (id is I), so this needs the arities in D_0_0.
 pick :: Bool -> Int -> Int
 pick b = if b then primIntAdd 1 else id
 

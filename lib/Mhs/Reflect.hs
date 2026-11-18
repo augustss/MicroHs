@@ -5,12 +5,9 @@
 -- The value is serialized to the combinator file format (see doc/COMB.md),
 -- the combinator code is parsed, and then decompiled to lambda expressions
 -- by reducing the combinators symbolically.  Constructors (C_k_n) and the
--- case combinators (D_m and E_m) become constructors and case expressions.
---
--- The arms of a dense case (D_m) carry no arity information, so the number
--- of fields of each arm is a guess: the arity of the function in the arm,
--- i.e., it is assumed that the case does not return a function.
--- The arms of a sparse case (E_m) have their arities in the A_k_n tags.
+-- case combinators (D_a0_..._a{m-1} and E_m) become constructors and case
+-- expressions.  The number of fields of each arm comes from the arities ak
+-- of a dense case, and from the A_k_n tags of a sparse case.
 module Mhs.Reflect(
   Ident, Exp(..), Literal(..), Pat(..), Prog(..),
   reflect, reflectCombinators,
@@ -75,7 +72,7 @@ reflectCombinators a = parseCombinators . unpack <$> writeSerializedBS a
 
 -- This must agree with the version in src/runtime/eval.c.
 combVersion :: String
-combVersion = "v9.1"
+combVersion = "v9.2"
 
 -- | Parse a serialized value, including the header.
 parseCombinators :: String -> Prog
@@ -228,20 +225,36 @@ spine = go []
   where go as (App f a) = go (a:as) f
         go as e = (e, as)
 
--- The case combinators, D_m and E_m, with m.
-caseComb :: String -> Maybe (Char, Int)
-caseComb (c:'_':r) | c == 'D' || c == 'E', not (null r), all isDigit r = Just (c, read r)
+-- The case combinators: D_a0_..._a{m-1}, with the arities of the arms, and E_m.
+data CaseComb = CaseD [Int] | CaseS Int
+
+caseComb :: String -> Maybe CaseComb
+caseComb ('D':'_':r) | Just as <- nums r = Just (CaseD as)
+caseComb ('E':'_':r) | Just [m] <- nums r = Just (CaseS m)
 caseComb _ = Nothing
+
+-- Numbers separated by _
+nums :: String -> Maybe [Int]
+nums r =
+  case span isDigit r of
+    (ds@(_:_), "")      -> Just [read ds]
+    (ds@(_:_), '_':r') -> (read ds :) <$> nums r'
+    _                   -> Nothing
+
+-- The number of arguments of a case combinator, including the scrutinee.
+caseArgs :: CaseComb -> Int
+caseArgs (CaseD as) = length as + 1
+caseArgs (CaseS m) = 2 * m + 2
 
 -- | Decompile combinator code to lambda expressions.
 decompile :: Prog -> Prog
 decompile (Prog defs e) = runF $ do
-  defs' <- mapM (\ (i, d) -> (,) i <$> dec defs d) defs
-  e' <- dec defs e
+  defs' <- mapM (\ (i, d) -> (,) i <$> dec d) defs
+  e' <- dec e
   return (Prog defs' e')
 
-dec :: [(Ident, Exp)] -> Exp -> F Exp
-dec defs = go
+dec :: Exp -> F Exp
+dec = go
   where
     go e =
       case spine e of
@@ -263,8 +276,8 @@ dec defs = go
         (Lit (LPrim "fromUTF8"), Lit (LBytes bs) : as) ->
           apps (Lit (LString (T.unpack (decodeUtf8 bs)))) <$> mapM go as
         (Lit (LPrim c), as)
-          | Just (k, m) <- caseComb c -> do
-            let n = if k == 'D' then m + 1 else 2 * m + 2   -- number of arguments
+          | Just cc <- caseComb c -> do
+            let n = caseArgs cc
             if length as < n then do
               -- The scrutinee (and maybe arms) are missing, so eta expand.
               vs <- fresh (n - length as)
@@ -272,14 +285,16 @@ dec defs = go
               return (foldr Lam b vs)
             else do
               let (cas, rest) = splitAt n as
-              c' <- if k == 'D' then dense cas else sparse cas
+              c' <- case cc of
+                      CaseD ars -> dense ars cas
+                      CaseS _   -> sparse cas
               apps c' <$> mapM go rest
         (f, as) -> apps f <$> mapM go as
 
-    -- D_m f0 ... f{m-1} e
-    dense cas = do
+    -- D_a0_..._a{m-1} f0 ... f{m-1} e
+    dense ars cas = do
       let (arms, [scrut]) = splitAt (length cas - 1) cas
-      arms' <- zipWithM (\ k f -> arm k (arity defs f) f) [0..] arms
+      arms' <- sequence (zipWith3 arm [0..] ars arms)
       s <- go scrut
       return (Case s arms' Nothing)
 
@@ -302,30 +317,6 @@ dec defs = go
       vs <- fresh n
       b <- go (apps f (map Var vs))
       return (PCon k n vs, b)
-
--- The number of arguments a function takes, i.e., the number of lambdas
--- that decompilation gives.  This is used to guess the arity of a case arm.
-arity :: [(Ident, Exp)] -> Exp -> Int
-arity defs = ar (1000 :: Int) []
-  where
-    ar 0 _ _ = 0              -- give up
-    ar fuel seen e =
-      case spine e of
-        (Lit (LPrim c), as)
-          | Just (n, rule) <- combinator c ->
-            if length as >= n then
-              ar (fuel - 1) seen (apps (rule (take n as)) (drop n as))
-            else
-              (n - length as) + ar (fuel - 1) seen (rule (as ++ replicate (n - length as) unknown))
-          | Just (k, m) <- caseComb c ->
-            max 0 ((if k == 'D' then m + 1 else 2 * m + 2) - length as)
-        (Lit (LPrim "Y"), f : as) -> ar (fuel - 1) seen (apps f (unknown : as))
-        (Lit (LTick _), a : as) -> ar (fuel - 1) seen (apps a as)
-        (Con _ n, as) -> max 0 (n - length as)
-        (Var i, as) | i `notElem` seen, Just d <- lookup i defs ->
-          max 0 (ar (fuel - 1) (i : seen) d - length as)
-        _ -> 0
-    unknown = Var "?"
 
 -----------------------------------------------------------------------------
 -- Printing

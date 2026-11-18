@@ -768,14 +768,16 @@ The runtime knows the encoding of booleans, lists, and tuples:
 ### Case
 A `case` on a type with `m` constructors normally becomes
 ```
-D_m f0 ... f{m-1} e
+D_a0_..._a{m-1} f0 ... f{m-1} e
 ```
-where `e` is the scrutinee and the arm `fk` is a function of the fields of constructor `k`. Arms that are not in the `case` are filled in with the default alternative, which ignores the fields. For example:
+where `e` is the scrutinee, `ak` is the number of fields of constructor `k`, and the arm `fk` is a function of those fields. Arms that are not in the `case` are filled in with the default alternative, which ignores the fields. For example:
 ```
-case xs of { [] -> a; y:ys -> b }    becomes    D_2 a (\ y ys -> b) xs
-if c then t else e                   becomes    D_2 e t c
+case xs of { [] -> a; y:ys -> b }    becomes    D_0_2 a (\ y ys -> b) xs
+if c then t else e                   becomes    D_0_0 e t c
 ```
-Mutually recursive local definitions are combined into a tuple `v`, and the `i`th of `n` components is selected with `D_1 (\ x1 ... xn -> xi) v`.
+Mutually recursive local definitions are combined into a tuple `v`, and the `i`th of `n` components is selected with `D_n (\ x1 ... xn -> xi) v`.
+
+The runtime does not need the arities `ak`, since a constructor knows its number of fields. They are there so that the combinator code can be turned back into lambda expressions, e.g., by `Mhs.Reflect`: after bracket abstraction the number of fields cannot be read from an arm (`\ x xs -> x` is just `K`). Below, `D_m` stands for a dense `case` with `m` arms.
 
 If the type has more than 4 constructors and fewer than 3/4 of them have an arm, a sparse `case` is used instead:
 ```
@@ -786,7 +788,7 @@ Here `m` is the number of arms, `d` is the default, and each arm `fi` is precede
 The scrutinee comes last so that `\ x -> case x of ...` becomes just `D_m f0 ... f{m-1}` after bracket abstraction, without any extra combinators.
 
 ### Evaluation
-The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields.
+The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields. A `D_m` uses those 19 bits for an index into a table of case arities, where each entry holds `m` and the arities. Equal entries are shared, and the table is never freed.
 
 To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
 

@@ -26,6 +26,7 @@ import Data.List
 import Data.Maybe
 import MicroHs.Builtin
 import MicroHs.Deriving
+import MicroHs.EncodeData(maxConstructors, maxFields)
 import MicroHs.Error(MhsError(MhsTypeError))
 import MicroHs.Expr
 import MicroHs.Fixity
@@ -1694,6 +1695,12 @@ addValueType adef = do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c _ ets <- cs ]
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
+      -- The runtime encoding of data limits these, see MicroHs.EncodeData.
+      when (length cs > maxConstructors) $
+        tcError (getSLoc tycon) $ "too many constructors, " ++ show (length cs) ++ ", the maximum is " ++ show maxConstructors
+      sequence_ [ tcError (getSLoc c) $ "too many fields, " ++ show n ++ ", the maximum is " ++ show maxFields
+                | (c, n) <- cti, n > maxFields ]
+      let
         addCon (Constr evks ectx c _ ets) = do
           let ts = either id (map snd) ets
               cty = EForall QExpl vks $ EForall QExpl evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts

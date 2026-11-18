@@ -8,10 +8,13 @@ module MicroHs.EncodeData(
   encTuple,
   encTupleSel,
   getEncIf,
+  maxConstructors,
+  maxFields,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Ord(comparing)
 import Data.List(sortBy)
+import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..), impossible)
 import MicroHs.Ident
@@ -21,8 +24,28 @@ import MicroHs.Ident
 -- Encoding of constructors and case
 --
 -- The scrutinee is the last argument, so that \x -> case x of ... eta reduces.
---   Dense:   D_m f0 ... f{m-1} e
+--   Dense:   D_a0_..._a{m-1} f0 ... f{m-1} e      (ak is the number of fields of constructor k)
 --   Sparse:  E_m d A_k1_n1 f1 ... A_km_nm fm e    (arms sorted by constructor number)
+-- The runtime does not need the arities ak, but they make it possible to
+-- turn the combinator code back into lambda expressions.
+
+-- The runtime keeps a constructor number, and the number of arms of a case,
+-- in 11 bits, and the number of fields in 8 bits (see src/runtime/eval.c).
+-- The type checker checks data types against these limits; the checks
+-- below catch anything else, e.g., very big tuples.
+maxConstructors :: Int
+maxConstructors = 2047
+
+maxFields :: Int
+maxFields = 255
+
+checkCons :: Int -> a -> a
+checkCons m a | m > maxConstructors = mhsError $ "too many constructors, " ++ show m ++ ", the maximum is " ++ show maxConstructors
+              | otherwise = a
+
+checkFields :: Int -> a -> a
+checkFields n a | n > maxFields = mhsError $ "too many fields in a constructor or tuple, " ++ show n ++ ", the maximum is " ++ show maxFields
+                | otherwise = a
 
 data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
@@ -33,7 +56,7 @@ encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes@((SPat (ConData cs _ _) _, _) : _) dflt =
   let m = length cs                    -- number of constructors
       a = length pes                   -- number of present arms
-      encCaseDense = apps (cCaseD m) (map arm cs ++ [var])
+      encCaseDense = apps (cCaseD (map snd cs)) (map arm cs ++ [var])
         where arm (c, k) =
                 head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                        [ lams (replicate k dummyIdent) dflt ]
@@ -73,11 +96,11 @@ encConstrLazy k n = cCon k n
 
 -- Special case of encCase
 encIf :: Exp -> Exp -> Exp -> Exp
-encIf c t e = apps (cCaseD 2) [e, t, c]
+encIf c t e = apps (cCaseD [0, 0]) [e, t, c]
 
 -- Recognize an encoded if, see encIf.
 getEncIf :: Exp -> Maybe (Exp, Exp, Exp)
-getEncIf (App (App (App (Lit (LPrim "D_2")) e) t) c) = Just (c, t, e)
+getEncIf (App (App (App (Lit (LPrim "D_0_0")) e) t) c) = Just (c, t, e)
 getEncIf _ = Nothing
 
 encList :: [Exp] -> Exp
@@ -95,19 +118,20 @@ encTuple es = apps (encConstrLazy 0 (length es)) es
 encTupleSel :: Int -> Int -> Exp -> Exp
 encTupleSel m n tup =
   let xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in  apps (cCaseD 1) [foldr Lam (Var (xs !! m)) xs, tup]
+  in  apps (cCaseD [n]) [foldr Lam (Var (xs !! m)) xs, tup]
 
-cCaseD :: Int -> Exp
-cCaseD m = Lit $ LPrim $ "D_" ++ show m
+-- A dense case, given the number of fields of each constructor.
+cCaseD :: [Int] -> Exp
+cCaseD as = checkCons (length as) $ foldr checkFields (Lit $ LPrim $ "D" ++ concatMap (('_' :) . show) as) as
 
 cCaseS :: Int -> Exp
-cCaseS m = Lit $ LPrim $ "E_" ++ show m
+cCaseS m = checkCons m $ Lit $ LPrim $ "E_" ++ show m
 
 cCon :: Int -> Int -> Exp
-cCon k n = Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
+cCon k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
 
 cArm :: Int -> Int -> Exp
-cArm k n = Lit $ LPrim $ "A_" ++ show k ++ "_" ++ show n
+cArm k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ "A_" ++ show k ++ "_" ++ show n
 
 conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks

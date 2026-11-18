@@ -207,6 +207,9 @@ letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
 --        g = sel_1_2 v
 --    in  body
 mutualRec :: Ident -> [LDef] -> Exp -> Exp
+mutualRec _ ies _ | length ies > maxFields =
+  errorMessage (getSLoc (fst (head ies))) $
+    "too many mutually recursive local definitions, " ++ show (length ies) ++ ", the maximum is " ++ show maxFields
 mutualRec v ies body =
   let (is, es) = unzip ies
       n = length is

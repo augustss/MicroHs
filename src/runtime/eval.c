@@ -158,7 +158,7 @@ int num_ffi;
 #endif
 
 
-#define VERSION "v9.1\n"
+#define VERSION "v9.2\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -646,8 +646,8 @@ static const char* tag_names [T_LAST_TAG+1] =
  *   when ttt=
  *     V_CONSTR       kkk = constructor number, nnn = number of constructor arguments
  *     V_ARM          as above
- *     V_CASED        kkk = number of constructors, nnn unused
- *     V_CASES        as above
+ *     V_CASED        nnnkkk = index in the table of case arities, see below
+ *     V_CASES        kkk = number of constructors, nnn unused
  *     V_LOOKD        as above
  *     V_LOOKS        as above
  *     otherwise      kkk, nnn unused
@@ -881,13 +881,66 @@ get_XTAG(NODEPTR n)
   return (enum node_tag)get_DATA_TAG(f);
 }
 
-/* Number of arms of a virtual V_CASED/V_CASES/V_LOOKD/V_LOOKS */
+/* Number of arms of a virtual V_CASES/V_LOOKD/V_LOOKS */
 static INLINE int
 get_CASE_size(NODEPTR n)
 {
   XASSERT(is_VIRT(n));
   tag_t t = n.node_bits >> PTR_TAG_BITS;
   return (t >> PTR_TAG_TAG_BITS) & PTR_TAG_NCON_MASK;
+}
+
+/*
+ * Case arities.
+ * A dense case, D_a0_..._a{m-1}, has m arms, and the arm for constructor k
+ * takes ak arguments, the fields of the constructor.  The interpreter only
+ * uses m, but the arities are needed to turn the graph back into code,
+ * since they cannot be read back from the arms.
+ * The arities are kept in a table, and a V_CASED holds an index into it.
+ * Equal entries are shared, and the entries are never freed.
+ */
+struct case_arity {
+  uint16_t m;                   /* number of arms */
+  uint8_t *arities;             /* arities[k] is the number of fields of constructor k */
+};
+static struct case_arity *case_arities;  /* the table */
+static uint32_t num_case_arities;        /* number of entries in use */
+static uint32_t max_case_arities;        /* number of entries allocated */
+
+#define PTR_TAG_CASED_BITS (PTR_TAG_NCON_BITS + PTR_TAG_NARG_BITS)  /* bits for the table index */
+#define MAX_CASE_ARITIES ((uint32_t)1 << PTR_TAG_CASED_BITS)
+
+/* The case arities of a virtual V_CASED */
+static INLINE struct case_arity *
+get_CASED_arity(NODEPTR n)
+{
+  XASSERT(is_VIRT(n));
+  tag_t t = n.node_bits >> PTR_TAG_BITS;
+  return &case_arities[(t >> PTR_TAG_TAG_BITS) & (MAX_CASE_ARITIES - 1)];
+}
+
+/* Find the arities in the table, or add them, and return the index.
+ * Combinator code is rarely loaded, and the table is small,
+ * so a linear search will do. */
+static uint32_t
+find_case_arity(uint32_t m, const uint8_t *arities)
+{
+  for (uint32_t i = 0; i < num_case_arities; i++) {
+    struct case_arity *c = &case_arities[i];
+    if (c->m == m && memcmp(c->arities, arities, m) == 0)
+      return i;
+  }
+  if (num_case_arities >= max_case_arities) {
+    if (num_case_arities >= MAX_CASE_ARITIES)
+      ERR("too many case arities");
+    max_case_arities = max_case_arities ? 2 * max_case_arities : 64;
+    case_arities = mrealloc(case_arities, max_case_arities * sizeof(struct case_arity));
+  }
+  struct case_arity *c = &case_arities[num_case_arities];
+  c->m = m;
+  c->arities = mmalloc(m);
+  memcpy(c->arities, arities, m);
+  return num_case_arities++;
 }
 
 /* Constructor number and number of arguments of a virtual V_CONSTR/V_ARM */
@@ -3009,10 +3062,13 @@ init_nodes(void)
   comb_stderr = alloc_node(D_FORPTR); mk_std(comb_stderr, stderr);
 #endif
 
-  /* The displaySomeException compiles to (D_1 (U (K2 A))) */
+  /* The displaySomeException compiles to (D_2 (U (K2 A))) */
   x = new_ap(combK2, combA);                 /* (K2 A) */
   x = new_ap(combU, x);                      /* (U (K2 A)) */
-  combShowExn = new_ap(mk_CASE(V_CASED, 1), x); /* (D_1 (U (K2 A))) */
+  {
+    uint8_t arities[1] = { 2 };              /* SomeException has a dictionary and a value */
+    combShowExn = new_ap(mk_CASE(V_CASED, find_case_arity(1, arities)), x); /* (D_2 (U (K2 A))) */
+  }
 
   /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
   combPUnit = new_ap(combP, combUnit);
@@ -4500,6 +4556,8 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse C");
         int n = parse_int(f);
+        if (k < 0 || k > PTR_TAG_NCON_MASK || n < 0 || n > PTR_TAG_NARG_MASK)
+          ERR("parse C");
         r = mk_CON(V_CONSTR, k, n);
         PUSH(r);
         break;
@@ -4512,6 +4570,8 @@ parse(struct parse_ctx *pc, BFILE *f)
         if (!gobble(f, '_'))
           ERR("parse A");
         int n = parse_int(f);
+        if (k < 0 || k > PTR_TAG_NCON_MASK || n < 0 || n > PTR_TAG_NARG_MASK)
+          ERR("parse A");
         r = mk_CON(V_ARM, k, n);
         PUSH(r);
         break;
@@ -4520,8 +4580,16 @@ parse(struct parse_ctx *pc, BFILE *f)
       }
     case 'D':
       if (gobble(f, '_')) {
-        int m = parse_int(f);
-        r = mk_CASE(V_CASED, m);
+        /* D_a0_..._a{m-1}, m is at most 2047 since the LOOKD marker holds m in 11 bits */
+        uint8_t arities[PTR_TAG_NCON_MASK];
+        uint32_t m = 0;
+        do {
+          value_t a = parse_int(f);
+          if (m >= PTR_TAG_NCON_MASK || a < 0 || a > PTR_TAG_NARG_MASK)
+            ERR("parse D");
+          arities[m++] = (uint8_t)a;
+        } while (gobble(f, '_'));
+        r = mk_CASE(V_CASED, find_case_arity(m, arities));
         PUSH(r);
         break;
       } else {
@@ -4539,6 +4607,8 @@ parse(struct parse_ctx *pc, BFILE *f)
     case 'E':
       if (gobble(f, '_')) {
         int m = parse_int(f);
+        if (m < 0 || m > PTR_TAG_NCON_MASK)
+          ERR("parse E");
         r = mk_CASE(V_CASES, m);
         PUSH(r);
         break;
@@ -4984,12 +5054,20 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
 #endif
   case V_CASED:
+    {
+      struct case_arity *c = get_CASED_arity(n);
+      putb('D', f);
+      for (uint32_t k = 0; k < c->m; k++) {
+        putb('_', f);
+        putdecb((value_t)c->arities[k], f);
+      }
+      break;
+    }
   case V_LOOKD:
   case V_CASES:
   case V_LOOKS:
     {
       switch(tag) {
-      case V_CASED: putb('D', f); break;
       case V_LOOKD: putb('L', f); break;
       case V_CASES: putb('E', f); break;
       case V_LOOKS: putb('M', f); break;
@@ -7463,22 +7541,29 @@ evali(NODEPTR an)
     GOIND(x);
 #endif
 
+  /* The scrutinee is the last argument:
+   *   CASED_m f0 ... f{m-1} e
+   *   CASES_m d A_k1_n1 f1 ... A_km_nm fm e
+   * Push the virtual LOOKx_m as a continuation marker and evaluate e.
+   * The arms stay where they are on the stack.
+   * Nothing is allocated, and no heap node is written.
+   */
   case V_CASED:
+    {
+      int m = get_CASED_arity(n)->m;
+      CHECK(m + 1);
+      num_look++;
+      n = ARG(TOP(m));
+      PUSH(mk_CASE(V_LOOKD, m));
+      goto top;
+    }
   case V_CASES:
     {
-      /* The scrutinee is the last argument:
-       *   CASED_m f0 ... f{m-1} e
-       *   CASES_m d A_k1_n1 f1 ... A_km_nm fm e
-       * Push the virtual LOOKx_m as a continuation marker and evaluate e.
-       * The arms stay where they are on the stack.
-       * Nothing is allocated, and no heap node is written.
-       */
       int m = get_CASE_size(n);
-      int a = tag == V_CASED ? m : 2*m + 1;  /* number of arguments before e */
-      CHECK(a + 1);
+      CHECK(2*m + 2);
       num_look++;
-      n = ARG(TOP(a));
-      PUSH(mk_CASE(tag == V_CASED ? V_LOOKD : V_LOOKS, m));
+      n = ARG(TOP(2*m + 1));
+      PUSH(mk_CASE(V_LOOKS, m));
       goto top;
     }
   case V_LOOKD:
@@ -8382,6 +8467,13 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIcounter" stableptr free\n", num_stable_free);
     PRINT("%"PCOMMA"15"PRIcounter" weakptr alloc\n", num_new_weak);
     PRINT("%"PCOMMA"15"PRIcounter" weakptr free\n", num_gc_weak);
+    {
+      /* XXX temporary */
+      size_t bytes = max_case_arities * sizeof(struct case_arity);
+      for (uint32_t i = 0; i < num_case_arities; i++)
+        bytes += case_arities[i].m;
+      PRINT("%"PCOMMA"15d case arity entries (%"PCOMMA"d bytes)\n", (int)num_case_arities, (int)bytes);
+    }
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);

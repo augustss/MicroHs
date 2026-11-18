@@ -3,7 +3,7 @@
 The compiler outputs a program as a combinator graph in a simple text format. The same format is used by the runtime for serializing any value, e.g., by `hSerialize` and `hDeserialize` in `System.IO.Serialize`. Since the code is a graph rather than a tree, the format can express sharing and cycles.
 
 A file has three parts:
-* a header line with the format version, e.g., `v9.1`, which must match the runtime's version exactly
+* a header line with the format version, e.g., `v9.2`, which must match the runtime's version exactly
 * a line with the number of labels used, which the runtime uses to size its label table
 * the graph, followed by an end marker `}`
 
@@ -46,12 +46,12 @@ Atoms are distinguished by the first (or first two) characters. An atom ends at 
 | `^name` | a foreign function imported with the FFI |
 | `;name` | a C function pointer; only `;0` and `;closeb` are allowed |
 | `C_k_n` | constructor number `k` with `n` fields |
-| `D_m` | a `case` with an arm for each of the `m` constructors |
+| `D_a0_..._a{m-1}` | a `case` with an arm for each of the `m` constructors, where `ak` is the number of fields of constructor `k`, e.g., `D_0_2` for a list and `D_0_0` for `Bool` |
 | `E_m` | a sparse `case` with `m` arms |
 | `A_k_n` | the tag for an arm of a sparse `case`, for constructor `k` with `n` fields |
 | anything else | a combinator or primitive, e.g., `S`, `C'B`, `+`, `IO.>>=`, or `fromUTF8` |
 
-The data type atoms (`C_k_n`, `D_m`, `E_m`, and `A_k_n`) are described in [Data type encoding](MicroHs.md#data-type-encoding), and the combinators in [Combinators](MicroHs.md#combinators). The runtime also has the atoms `L_m` and `M_m` for the markers that `case` evaluation pushes on the stack, but they do not occur in files written by the compiler.
+The data type atoms (`C_k_n`, `D_a0_..._a{m-1}`, `E_m`, and `A_k_n`) are described in [Data type encoding](MicroHs.md#data-type-encoding), and the combinators in [Combinators](MicroHs.md#combinators). The runtime also has the atoms `L_m` and `M_m` for the markers that `case` evaluation pushes on the stack, but they do not occur in files written by the compiler.
 
 ### Strings
 A Haskell `String` literal with at least two characters is written as `fromUTF8` applied to its UTF-8 encoding as a `ByteString`, e.g., `fromUTF8 "hello" @`. A shorter string is written as a list, and a `Char` literal as its code, e.g., `#120` for `'x'`. A `ByteString` of more than 100 bytes uses the `$` form.
@@ -85,14 +85,14 @@ main = (f, g)
 
 produces
 ```
-v9.1
+v9.2
 3
 A C_0_2 _0 @_1 @:2 @
 A S' C_0_2 @_0 @_0 @:1 @
 A I :0 @
 _2 @@@ }
 ```
-- The format version is 9.1, and the file uses 3 labels.
+- The format version is 9.2, and the file uses 3 labels.
 - The label 2 is defined as `C_0_2 _0 _1`, i.e., the pair `(f, g)`.  It is the first argument of `A`, which throws it away.
 - The label 1 is defined as `S' C_0_2 _0 _0`, i.e., `g`. `A` throws this away too.
 - The label 0 is defined as `I`, i.e., `f`. `A` throws this away too.
