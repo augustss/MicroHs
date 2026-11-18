@@ -100,14 +100,19 @@ encoding" in `doc/MicroHs.md`):
   overwriting the topmost application node of the redex, so results are
   shared.
 * A constructor is `C_k_n`, and a value is the constructor applied to its
-  fields. `case` is `D_m f0 ... f{m-1} e` or `E_m d A_k1_n1 f1 ... e`. The
+  fields. `case` is `D_a0_..._a{m-1} f0 ... f{m-1} e` (dense, `ak` is the
+  number of fields of constructor `k`) or `E_m d A_k1_n1 f1 ... e`
+  (sparse). The
   constructor and case combinators are tags in the pointer, and use no heap.
   Evaluating a `case` pushes a marker and evaluates the scrutinee. The
   constructor then finds the marker below it, selects the arm, and
   overwrites the case redex with `fk e1 ... en`, which costs n-1 cells.
-* The arms of a `D_m` do not record how many fields they take. The
-  interpreter does not need it, but anything that turns the graph back into
-  code does (see `Mhs.Reflect`, which guesses).
+* Every arm of a `case` has a known number of fields: a dense case has
+  them in its atom (e.g., `D_0_2` for a list), and a sparse case in its
+  `A_k_n` tags. The interpreter does not need them, but anything that turns
+  the graph back into code does, since they cannot be read back from an arm
+  after bracket abstraction (`\ x xs -> x` is just `K`). `Mhs.Reflect`
+  uses them.
 * Strict primitives (`+` on `Int`, etc.) avoid C recursion with markers on
   the stack (`BININT2`, `BININT1`, ...).
 * IO is a function from a world token to a `P` pair. `return` is `P`, and
@@ -305,28 +310,31 @@ faster) after following the rules.
 
 ### Phase 2: groundwork in the compiler and the combinator format
 
-* **Arm arities for `D_m`.** Recovery needs them, and they cannot be read
-  back from an arm after bracket abstraction (`\ x xs -> x` is just `K`).
-  Proposal: the `D_m` tag has 19 bits of payload, which now hold `m` (in
-  practice below 2048, since constructor numbers have 11 bits). Instead,
-  the loader keeps a deduplicated table of case shapes,
-  `{m, arity[0..m-1]}`, read from atoms like `D_2_0_2`, and the tag holds
-  the table index. The interpreter gets `m` from the table with one extra
-  load from a small, frequently used table, and the graph is unchanged.
-  `E_m` already has its arities in its `A_k_n` tags.
+* **Arm arities for dense `case`: done** (2026-11-18, format v9.2). The
+  atom is `D_a0_..._a{m-1}`, without `m`. The runtime keeps a table of
+  `struct case_arity { uint16_t m; uint8_t *arities; }`, found by linear
+  search when code is loaded and never freed, and the `V_CASED` tag holds
+  the index (19 bits). The `case` code reads `m` with one load from the
+  table; a version with a pointer per entry needed one more load and was
+  about 1% slower in wall clock. With the evaluation of `D` and `E` split,
+  the interpreter got slightly faster: -0.4% instructions compiling the
+  compiler, -0.3% on `nfib`, wall clock unchanged. The compiler has 45
+  entries (about 1.3 KB). Its combinator file grew 1% (1.3% compressed).
+  The compiler now checks the limits of the encoding (2047 constructors,
+  255 fields).
 * **Names**, optionally, so that reports can say which definition a hot
   node came from. Runtime nodes have no names, but their code part
   usually refers to definition roots.
-* **Keep full laziness.** It comes from the translation, but the
-  compiler's other transformations could lose it. Add a test that counts
-  evaluations with `trace`, for the cases above.
+* **Keep full laziness: done.** It comes from the translation, but the
+  compiler's other transformations could lose it. `tests/FullLaziness`
+  counts evaluations for the cases above.
 * Perhaps common subexpression elimination of constant expressions, e.g.,
   the same dictionary application at several call sites, so that each
   specialisation is made, and compiled, once. With structural keys the
   copies would share compiled code anyway.
 * Whatever else phase 0 shows to be needed from the compiler.
-* This changes the combinator file format, so bump the version and run
-  `make preparedist`.
+* Anything else that changes the combinator file format needs a version
+  bump and `make preparedist`.
 
 Measure: the interpreter must not get slower (instructions, wall clock,
 and GC time; GC changes do not show in instruction counts).
@@ -423,7 +431,6 @@ them.
   and, as above, the interesting functions are mostly not in the file.
 * What should the threshold be, and does compiling cause noticeable
   pauses?
-* Exact form of the case shape table, and its effect on `E_m`.
 
 ## Risks
 
