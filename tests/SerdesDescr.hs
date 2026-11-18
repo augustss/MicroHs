@@ -1,5 +1,6 @@
 module SerdesDescr(main) where
 
+import Control.Monad(void)
 import Data.Data
 import System.IO
 import System.IO.Serialize
@@ -26,7 +27,7 @@ main = do
   -- Functions have a Data instance.
   write (\ x -> x * 2 + 1 :: Int)
   readBack >>= \ r -> print (fmap ($ 20) (r :: Maybe (Int -> Int)))
-  readBack >>= \ r -> print (fmap (const ()) (r :: Maybe (Int -> Bool)))
+  readBack >>= \ r -> print (void (r :: Maybe (Int -> Bool)))
 
   write [Op "inc" (+ 1), Op "dbl" (* 2)]
   readBack >>= \ r -> print (fmap (map (\ (Op n o) -> (n, o 10))) (r :: Maybe [Op]))
