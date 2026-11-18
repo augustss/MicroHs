@@ -16,7 +16,7 @@ import Data.Ord(comparing)
 import Data.List(sortBy)
 import MicroHs.Error(mhsError)
 import MicroHs.Exp
-import MicroHs.Expr(Con(..), Lit(..), impossible)
+import MicroHs.Expr(Con(..), Lit(..), PrimOp(..), impossible)
 import MicroHs.Ident
 --import Debug.Trace
 
@@ -86,7 +86,7 @@ encConstrStrict k ss =
   let n = length ss         -- constructor arity
       xs = [mkIdent ("$x" ++ show j) | j <- [0 .. n-1] ]
       strict (False:ys) (_:is) e = strict ys is e
-      strict (True :ys) (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
+      strict (True :ys) (x:is) e = app2 (Lit (LPrim (POther "seq"))) (Var x) (strict ys is e)
       strict _          _      e = e
   in  lams xs $ strict ss xs $ apps (cCon k n) (map Var xs)
 
@@ -100,7 +100,7 @@ encIf c t e = apps (cCaseD [0, 0]) [e, t, c]
 
 -- Recognize an encoded if, see encIf.
 getEncIf :: Exp -> Maybe (Exp, Exp, Exp)
-getEncIf (App (App (App (Lit (LPrim "D_0_0")) e) t) c) = Just (c, t, e)
+getEncIf (App (App (App (Lit (LPrim (PCaseD [0, 0]))) e) t) c) = Just (c, t, e)
 getEncIf _ = Nothing
 
 encList :: [Exp] -> Exp
@@ -122,16 +122,16 @@ encTupleSel m n tup =
 
 -- A dense case, given the number of fields of each constructor.
 cCaseD :: [Int] -> Exp
-cCaseD as = checkCons (length as) $ foldr checkFields (Lit $ LPrim $ "D" ++ concatMap (('_' :) . show) as) as
+cCaseD as = checkCons (length as) $ foldr checkFields (Lit $ LPrim $ PCaseD as) as
 
 cCaseS :: Int -> Exp
-cCaseS m = checkCons m $ Lit $ LPrim $ "E_" ++ show m
+cCaseS m = checkCons m $ Lit $ LPrim $ PCaseS m
 
 cCon :: Int -> Int -> Exp
-cCon k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ "C_" ++ show k ++ "_" ++ show n
+cCon k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ PCon k n
 
 cArm :: Int -> Int -> Exp
-cArm k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ "A_" ++ show k ++ "_" ++ show n
+cArm k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ PArm k n
 
 conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks

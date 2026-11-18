@@ -3948,7 +3948,7 @@ solveKnownSymbol loc iCls ts = solveInst loc iCls ts  -- look for a dict argumen
 mkConstDict :: SLoc -> Ident -> Expr -> T (Maybe (Expr, [Goal], [Improve]))
 mkConstDict loc iCls e = do
   let res = EApp (EVar $ mkClassConstructor iCls) fcn
-      fcn = EApp (ELit loc (LPrim "K")) e                -- constant function
+      fcn = EApp (ELit loc (LPrim PK)) e                -- constant function
   return $ Just (res, [], [])
 
 type TySubst = [(TRef, EType)]
