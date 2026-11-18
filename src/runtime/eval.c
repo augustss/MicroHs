@@ -38,6 +38,10 @@
 #define WANT_SOCKET 0
 #endif /* defined(WANT_SOCKET) */
 
+#if !defined(WANT_SAMPLE)
+#define WANT_SAMPLE 0           /* sampling profiler for hot function nodes */
+#endif /* defined(WANT_SAMPLE) */
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -2410,6 +2414,162 @@ static INLINE int is_marked_used(NODEPTR n)
   return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
 
+#if WANT_SAMPLE
+/*
+ * Sampling profiler, to find hot function nodes (see jit-plan.md).
+ * Every sample_interval reductions (+RTS -S[N] -RTS) look at the spine of
+ * the node that is being evaluated.  Evaluation continues after a
+ * reduction with the spine partly unwound, so the outer part of the spine
+ * may already be on the stack.  The application nodes strictly inside the
+ * outermost one are the candidates: partial applications, i.e., function
+ * values, and their parts.  The outermost node is not a candidate, since
+ * it is the redex (or an application of it), which is updated in place,
+ * e.g., by every iteration of a loop.
+ * Each candidate is counted in a hash table by its address.  A node that
+ * is built for one call never recurs, so only shared nodes get counts.
+ * The table is not a GC root; entries for freed nodes are dropped after
+ * every GC.
+ */
+#if !defined(SAMPLE_TABLE_BITS)
+#define SAMPLE_TABLE_BITS 18          /* 16K entries miss about 10% of the recurring nodes in the compiler */
+#endif
+#define SAMPLE_TABLE_SIZE (1 << SAMPLE_TABLE_BITS)
+#define SAMPLE_MAX_DEPTH  32    /* how far down a spine to look */
+#define SAMPLE_REPORT     30    /* number of entries to report */
+#define SAMPLE_DUMP       10    /* number of entries to write to files */
+
+struct sample_entry {
+  NODEPTR   node;               /* NIL when empty */
+  counter_t count;              /* +1 on a hit, -1 on a miss; replaced at 0 */
+  counter_t hits;               /* number of hits since the node got the entry */
+  counter_t outer;              /* number of hits where it was the outermost hit in its spine */
+};
+struct sample_entry *sample_table;
+counter_t sample_interval = 0;           /* 0 means no sampling */
+counter_t sample_left = ~(counter_t)0;   /* reductions until the next sample */
+counter_t num_samples;                   /* number of samples */
+counter_t num_samples_hit;               /* samples where some candidate recurred */
+counter_t num_samples_none;              /* samples without any candidate */
+counter_t sample_miss_heads[T_LAST_TAG+1]; /* the heads of the samples where no candidate recurred */
+
+static INLINE uint32_t
+sample_hash(NODEPTR n)
+{
+  return (uint32_t)((n.node_bits >> 3) * 2654435761u) >> (32 - SAMPLE_TABLE_BITS);
+}
+
+/* Skip indirections. */
+static NODEPTR
+sample_skip_ind(NODEPTR p)
+{
+  while (!is_VIRT(p) && !is_AP(FUN(p)) && get_DATA_TAG(FUN(p)) == D_IND)
+    p = ARG(p);
+  return p;
+}
+
+/* Count one candidate, return its entry if it was already in the table. */
+static struct sample_entry *
+sample_count(NODEPTR p)
+{
+  struct sample_entry *e = &sample_table[sample_hash(p)];
+  if (e->node.node_bits == p.node_bits) {
+    e->count++;
+    e->hits++;
+    return e;
+  }
+  /* A different node.  Decrement, and take over the entry when the count
+   * reaches 0, so the entry goes to the node that is hit most often. */
+  if (e->count > 0)
+    e->count--;
+  if (e->count == 0) {
+    e->node = p;
+    e->count = 1;
+    e->hits = 1;
+    e->outer = 0;
+  }
+  return 0;
+}
+
+void
+sample_node(NODEPTR n)
+{
+  if (!sample_interval) {
+    sample_left = ~(counter_t)0;
+    return;
+  }
+  sample_left = sample_interval;
+  num_samples++;
+
+  /* The part of the spine that is on the stack: the stack entries that
+   * are applications of the node below them. */
+  stackptr_t k = 0;
+  NODEPTR below = sample_skip_ind(n);
+  while (k <= stack_ptr) {
+    NODEPTR s = TOP(k);
+    if (is_VIRT(s) || !is_AP(FUN(s)) || sample_skip_ind(FUN(s)).node_bits != below.node_bits)
+      break;
+    below = s;
+    k++;
+  }
+
+  /* The whole spine, outermost node first. */
+  NODEPTR spine[SAMPLE_MAX_DEPTH];
+  int ns = 0;
+  for (stackptr_t j = k; j > 0 && ns < SAMPLE_MAX_DEPTH; j--)
+    spine[ns++] = TOP(j - 1);
+  NODEPTR p = n;
+  while (ns < SAMPLE_MAX_DEPTH && !is_VIRT(p)) {
+    NODEPTR f = FUN(p);
+    if (!is_AP(f)) {
+      if (get_DATA_TAG(f) == D_IND) {
+        p = ARG(p);
+        continue;
+      }
+      break;                    /* a value */
+    }
+    spine[ns++] = p;
+    p = f;
+  }
+
+  /* The outermost candidate that recurs is presumably the function. */
+  bool hit = false;
+  for (int j = 1; j < ns; j++) {
+    struct sample_entry *e = sample_count(spine[j]);
+    if (e && !hit) {
+      e->outer++;
+      hit = true;
+    }
+  }
+  if (ns <= 1) {
+    num_samples_none++;
+  } else if (hit) {
+    num_samples_hit++;
+  } else {
+    /* Record the head, p, to see what these samples are. */
+    enum node_tag t = is_VIRT(p) ? get_VIRT_TAG(p) : (enum node_tag)get_DATA_TAG(FUN(p));
+    if (t <= T_LAST_TAG)
+      sample_miss_heads[t]++;
+  }
+}
+
+/* Drop the entries for nodes that were not marked by the GC. */
+void
+sample_gc(void)
+{
+  if (!sample_table)
+    return;
+  for (size_t i = 0; i < SAMPLE_TABLE_SIZE; i++) {
+    struct sample_entry *e = &sample_table[i];
+    if (!is_NIL(e->node) && !is_marked_used(e->node)) {
+      e->node = NIL_NODEPTR;
+      e->count = 0;
+      e->hits = 0;
+      e->outer = 0;
+    }
+  }
+}
+#endif  /* WANT_SAMPLE */
+
 /*
  * Bump allocation inside a run of free cells (BUMP_ALLOC, default on).
  *
@@ -3664,6 +3824,10 @@ gc(void)
 
   /* check for unmarked weak pointers */
   sweep_weaks();
+
+#if WANT_SAMPLE
+  sample_gc();
+#endif
 
   gc_mark_time += GETTIMEMILLI();
 
@@ -5159,6 +5323,106 @@ pps(NODEPTR n)
   pp(stdout, n);
 }
 
+#if WANT_SAMPLE
+static int
+sample_cmp(const void *a, const void *b)
+{
+  counter_t x = ((const struct sample_entry *)a)->hits;
+  counter_t y = ((const struct sample_entry *)b)->hits;
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
+/* Serialize the graph of a node to a file, as printb does, but without
+ * raising an exception if it cannot be serialized. */
+static void
+sample_dump(const char *name, NODEPTR n)
+{
+  FILE *f = fopen(name, "w");
+  if (!f)
+    return;
+  BFILE *bf = add_FILE(f);
+  struct print_bits pb;
+  counter_t num_shared = 0;
+  pb.marked_bits = mcalloc(free_map_nwords, sizeof(bits_t));
+  pb.shared_bits = mcalloc(free_map_nwords, sizeof(bits_t));
+  find_sharing(&num_shared, &pb, n);
+  putsb(VERSION, bf);
+  putdecb(num_shared, bf);
+  putb('\n', bf);
+  if (setjmp(pb.ser_err)) {
+    putsb("\ncannot serialize: ", bf);
+    putsb(pb.message, bf);
+    putb('\n', bf);
+  } else {
+    printrec(bf, &pb, n, false);
+    putb('}', bf);
+  }
+  FREE(pb.marked_bits);
+  FREE(pb.shared_bits);
+  closeb(bf);
+}
+
+/* Report the hottest nodes, and write the hottest ones to files. */
+void
+sample_report(void)
+{
+  if (!sample_interval)
+    return;
+  struct sample_entry *es = mmalloc(SAMPLE_TABLE_SIZE * sizeof(struct sample_entry));
+  size_t ne = 0;
+  for (size_t i = 0; i < SAMPLE_TABLE_SIZE; i++)
+    if (!is_NIL(sample_table[i].node))
+      es[ne++] = sample_table[i];
+  qsort(es, ne, sizeof(struct sample_entry), sample_cmp);
+  fprintf(stderr, "sampling: %"PRIcounter" samples, one per %"PRIcounter" reductions\n",
+          num_samples, sample_interval);
+  fprintf(stderr, "  %5.1f%% with a recurring candidate, %5.1f%% without, %5.1f%% with no candidates\n",
+          100.0 * num_samples_hit / num_samples,
+          100.0 * (num_samples - num_samples_hit - num_samples_none) / num_samples,
+          100.0 * num_samples_none / num_samples);
+  fprintf(stderr, "  the heads of the samples without a recurring candidate:");
+  for (int r = 0; r < 12; r++) {
+    int best = -1;
+    for (int t = 0; t <= T_LAST_TAG; t++)
+      if (sample_miss_heads[t] && (best < 0 || sample_miss_heads[t] > sample_miss_heads[best]))
+        best = t;
+    if (best < 0)
+      break;
+    fprintf(stderr, " %s %.1f%%", TAGNAME(best) ? TAGNAME(best) : "?", 100.0 * sample_miss_heads[best] / num_samples);
+    sample_miss_heads[best] = 0;
+  }
+  fprintf(stderr, "\n");
+  fprintf(stderr, "  rank       hits   share      outer  node                head\n");
+  for (size_t k = 0; k < ne && k < SAMPLE_REPORT; k++) {
+    /* Find the head of the node's spine, and the number of arguments it has. */
+    NODEPTR h = es[k].node;
+    int nargs = 0;
+    while (!is_VIRT(h)) {
+      NODEPTR f = FUN(h);
+      if (is_AP(f)) {
+        h = f;
+        nargs++;
+      } else if (get_DATA_TAG(f) == D_IND) {
+        h = ARG(h);
+      } else {
+        break;
+      }
+    }
+    const char *head = is_VIRT(h) && TAGNAME(get_VIRT_TAG(h)) ? TAGNAME(get_VIRT_TAG(h)) : "?";
+    char name[32];
+    name[0] = 0;
+    if (k < SAMPLE_DUMP) {
+      snprintf(name, sizeof name, "mhs-sample-%02d.comb", (int)k + 1);
+      sample_dump(name, es[k].node);
+    }
+    fprintf(stderr, "  %4d %10"PRIcounter" %6.2f%% %10"PRIcounter"  %-18p  %s with %d args  %s\n",
+            (int)k + 1, es[k].hits, 100.0 * es[k].hits / num_samples, es[k].outer,
+            (void *)get_node_ptr(es[k].node), head, nargs, name);
+  }
+  FREE(es);
+}
+#endif  /* WANT_SAMPLE */
+
 void
 pp(FILE *f, NODEPTR n)
 {
@@ -6158,6 +6422,10 @@ evali(NODEPTR an)
 
  top:
   /*pp(stdout, an);*/
+#if WANT_SAMPLE
+  if (--sample_left == 0)
+    sample_node(n);
+#endif
   if (--glob_slice <= 0)
     yield();
   for(;;) {
@@ -8268,6 +8536,13 @@ MHS_INIT_ARGS(
           stack_size = memsize(&p[2]);
         else if (strncmp(p, "-r", 2) == 0)
           inname = &p[2];
+#if WANT_SAMPLE
+        else if (strncmp(p, "-S", 2) == 0) {
+          sample_interval = p[2] ? (counter_t)memsize(&p[2]) : 1000;
+          sample_left = sample_interval;
+          sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
+        }
+#endif
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
           *outnamep = &p[2];
@@ -8430,6 +8705,9 @@ mhs_main(int argc, char **argv)
   }
 #endif  /* WANT_KPERF */
   start_exec(prog);
+#if WANT_SAMPLE
+  sample_report();              /* before the GC below frees everything */
+#endif
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
