@@ -38,7 +38,8 @@ main = do
       exe | target flags == "windows" = "exe"
           | otherwise                 =  ""
       inst = fromMaybe (home </> ".mcabal") (instDirM flags)
-      flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText }
+      flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText
+                     , libraries = getLibraries conf }
 
   install flags'
 
@@ -105,65 +106,71 @@ copyBase flags = do
 
 -- Packages from Hackage depend on base-4.x, and on bytestring, text, etc.,
 -- whose modules are part of the base of mhs.  Say so in Cabal registration
--- files next to the installed packages: one for base, presented at a GHC
--- version, and one for each bundled package, which depends on base and has
--- no package file of its own.  Tools like cabal can then read them instead
--- of keeping a table of their own.
+-- files next to the installed packages: one for base, and one for each
+-- library bundled with it, which depends on base and has no package file
+-- of its own.  Tools like cabal can then read them instead of keeping a
+-- table of their own.  The libraries are given by the [library] sections
+-- of the config file.
 registerBase :: Flags -> IO ()
 registerBase flags = do
   pkg <- readSerialized ("generated" </> "base.pkg") :: IO Package
   let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
       pkgDir = mCabalMhs </> "packages"
-      baseId = showIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg)
+      baseName = showIdent (pkgName pkg)
+      baseId = baseName ++ "-" ++ showVersion (pkgVersion pkg)
+      (bases, libs) = partition ((== baseName) . libName) (libraries flags)
+      base =
+        case bases of
+          [b] | isNothing (libModules b) -> b
+              | otherwise -> error $ "The [library] for " ++ baseName ++ " cannot have modules"
+          _ -> error $ "There must be exactly one [library] for " ++ baseName
+      prefixes l = fromMaybe (error $ "The [library] for " ++ libName l ++ " has no modules") (libModules l)
       modules = map (showIdent . tModuleName)
       exported = modules (pkgExported pkg)
       bundles ps m = any (\ p -> m == p || (p ++ ".") `isPrefixOf` m) ps
-      isBundled m = any (\ (_, _, ps) -> bundles ps m) bundledPackages
+      isBundled m = any (\ l -> bundles (prefixes l) m) libs
       register pid flds = do
         let file = mCabalMhs </> pid <.> "conf"
         msg flags $ "create " ++ file
         unless (dryRun flags) $
           writeFile file $ unlines [ showField f | f@(_, vs) <- flds, not (null vs) ]
   register baseId
-    [ ("name", ["base"]), ("version", [baseVersion]), ("id", [baseId]), ("key", [baseId])
+    [ ("name", [baseName]), ("version", [libVersion base]), ("id", [baseId]), ("key", [baseId])
     , ("exposed", ["True"])
     , ("exposed-modules", filter (not . isBundled) exported)
     , ("hidden-modules", modules (pkgOther pkg))
     , ("library-dirs", [pkgDir])
     , ("ld-options", pkgOptl pkg)
     ]
-  forM_ bundledPackages $ \ (name, vers, ps) -> do
-    let pid = name ++ "-" ++ vers
+  forM_ libs $ \ l -> do
+    let pid = libName l ++ "-" ++ libVersion l
     register pid
-      [ ("name", [name]), ("version", [vers]), ("id", [pid]), ("key", [pid])
+      [ ("name", [libName l]), ("version", [libVersion l]), ("id", [pid]), ("key", [pid])
       , ("exposed", ["True"])
-      , ("exposed-modules", filter (bundles ps) exported)
+      , ("exposed-modules", filter (bundles (prefixes l)) exported)
       , ("depends", [baseId])
       ]
   where
     showField (k, [v]) = k ++ ": " ++ v
     showField (k, vs)  = k ++ ":" ++ concatMap ("\n  " ++) vs
 
--- The version base is presented at, and the packages whose modules are part
--- of base: the version of their API that the modules implement, and the
--- modules (by prefix) that belong to them.  The version numbers are totally
--- fake; they are from GHC.  They are those of builtinPackages in MicroCabal,
--- except for hashable: Data.Hashable has the API of the 1.4 series, and the
--- packages that use it ask for that.
-baseVersion :: String
-baseVersion = "4.19.1.0"
+-- A [library] section of the config file.
+data Library = Library
+  { libName    :: String
+  , libVersion :: String
+  , libModules :: Maybe [String]    -- module prefixes, none for base
+  }
+  deriving (Show)
 
-bundledPackages :: [(String, String, [String])]
-bundledPackages =
-  [ ("bytestring",         "0.12.1.0", ["Data.ByteString"])
-  , ("deepseq",            "1.4.4.0",  ["Control.DeepSeq"])
-  , ("directory",          "1.3.8.1",  ["System.Directory"])
-  , ("hashable",           "1.4.7.0",  ["Data.Hashable"])
-  , ("integer-logarithms", "1.0.4",    ["Math.NumberTheory"])
-  , ("process",            "1.6.18.0", ["System.Process"])
-  , ("stm",                "2.5.3.0",  ["Control.Concurrent.STM", "Control.Monad.STM"])
-  , ("text",               "2.1.1",    ["Data.Text"])
-  ]
+getLibraries :: Config -> [Library]
+getLibraries cnf = [ library kvs | ("library", kvs) <- cnf ]
+  where
+    library kvs =
+      case [ k | (k, _) <- kvs, k `notElem` ["name", "version", "modules"] ] of
+        [] -> Library { libName = field "name", libVersion = field "version"
+                      , libModules = words <$> lookup "modules" kvs }
+        ks -> error $ "Unknown keys in [library]: " ++ unwords ks
+      where field k = fromMaybe (error $ "Missing key in [library]: " ++ k) $ lookup k kvs
 
 checkPath :: Flags -> IO ()
 checkPath flags = do
@@ -296,6 +303,7 @@ data Flags = Flags
   , cconf     :: CConf
   , version   :: String
   , conf      :: String
+  , libraries :: [Library]
   , xflags    :: String
   }
   deriving (Show)
@@ -318,6 +326,7 @@ defaultFlags =
     , cconf     = undefined
     , version   = undefined
     , conf      = undefined
+    , libraries = undefined
     , xflags    = ""
     }
 
