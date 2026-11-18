@@ -14,7 +14,7 @@
  *
  * A JSVal is represented by an integer handle into a table on the JavaScript
  * side (Module.mhsjs), since only numbers can be passed between C and JavaScript.
- * On the Haskell side the handle lives in a T_FORPTR node with a finalizer
+ * On the Haskell side the handle lives in a D_FORPTR node with a finalizer
  * that drops the table entry when the node is garbage collected.
  * Handle 0 means 'undefined'.
  *
@@ -453,7 +453,7 @@ static NORETURN void
 mhs_js_raise(int k)
 {
   GCCHECK(1);
-  NODEPTR n = alloc_node(T_FORPTR);
+  NODEPTR n = alloc_node(D_FORPTR);
   SETFORPTR(n, mk_jsval_forptr(k));
   raise_exn(n);
 }
@@ -549,7 +549,7 @@ js_await(NODEPTR kind, NODEPTR prom)
   int p = mhs_to_JSVal_node(prom);
   GCCHECK(4);
   struct mvar *mv = new_mvar();
-  NODEPTR mvn = alloc_node(T_MVAR);
+  NODEPTR mvn = alloc_node(D_MVAR);
   MVAR(mvn) = mv;
   mhs_js_await(p, new_stableptr(mvn), k);
   mhs_js_awaiting++;
@@ -570,7 +570,7 @@ mhs_js_settle(uvalue_t sp, int err, int kind, int i, double d)
   if (err)
     kind = 0;
   switch (kind) {
-  case 0: v = alloc_node(T_FORPTR); SETFORPTR(v, mk_jsval_forptr(i)); break; /* JSVal */
+  case 0: v = alloc_node(D_FORPTR); SETFORPTR(v, mk_jsval_forptr(i)); break; /* JSVal */
   case 1: case 2: v = mkInt(i); break;                                     /* Int, Word */
   case 3: v = i ? combTrue : combFalse; break;                             /* Bool */
   case 4: v = mkFlt64(d); break;                                           /* Double */
@@ -587,7 +587,7 @@ mhs_js_settle(uvalue_t sp, int err, int kind, int i, double d)
 static char *
 exn_cstring(NODEPTR exn)
 {
-  if (GETTAG(exn) == T_INT) {
+  if (get_XTAG(exn) == D_INT) {
     return strdup(rts_exn_msg(GETVALUE(exn)));
   } else if (ISJSVAL(exn)) {
     return mhs_js_exn_cstring((int)(intptr_t)FORPTR(exn)->payload.bs_array); /* malloc()ed */
@@ -643,7 +643,7 @@ report_callback_exn(NODEPTR exn)
  * is left blocked like any other thread (the JavaScript side runs the threads
  * after the callback returns) and the result is unit; blocking while a thread is
  * in the middle of an import is fatal, since that thread's C stack is in the way.
- * Returns NIL, or the exception if the thread died with an uncaught exception
+ * Returns NIL_NODEPTR, or the exception if the thread died with an uncaught exception
  * (then *msgp is its message, malloc()ed).
  */
 static NODEPTR
@@ -656,7 +656,7 @@ run_callback(char **msgp, int may_block)
   int saved_slice = glob_slice;
   stackptr_t saved_sp = stack_ptr;
   jmp_buf saved_sched;
-  NODEPTR exn = NIL;
+  NODEPTR exn = NIL_NODEPTR;
 
   *msgp = 0;
   memcpy(&saved_sched, &sched, sizeof(jmp_buf));
@@ -687,7 +687,7 @@ run_callback(char **msgp, int may_block)
     TOP(0) = evali(ct->mt_root); /* run it, and keep the result */
     (void)remove_q_head(&runq);
     ct->mt_state = ts_finished;
-    ct->mt_root = NIL;
+    ct->mt_root = NIL_NODEPTR;
     release_throwto(ct);
     break;
   case mt_resched:
@@ -720,7 +720,7 @@ run_callback(char **msgp, int may_block)
     if (runq.mq_head == ct)
       (void)remove_q_head(&runq);
     ct->mt_state = ts_died;
-    ct->mt_root = NIL;
+    ct->mt_root = NIL_NODEPTR;
     release_throwto(ct);
     cur_handler = 0;
     break;
@@ -746,7 +746,7 @@ mhs_js_callback(uvalue_t sp, int ret, int nargs, int *args)
   int r = 0;
   char *msg;
   gc_check(2 * nargs + 8);
-  ffe_push(deref_stableptr(sp));
+  PUSH(deref_stableptr(sp));
   for (int i = 0; i < nargs; i++) {
     mhs_from_JSVal(ffe_alloc(), 0, args[i]);
     ffe_apply();
@@ -754,13 +754,13 @@ mhs_js_callback(uvalue_t sp, int ret, int nargs, int *args)
   /* As ffe_exec(), but run as a thread; run_callback leaves the result at TOP(0)
    * (a callback that returns a value cannot be left blocked) */
   NODEPTR exn = run_callback(&msg, !ret);
-  if (exn == NIL && ret) {
+  if (is_NIL(exn) && ret) {
     GCCHECK(1);
     TOP(0) = new_ap(combI, TOP(0)); /* mhs_to_xxx wants the result at ARG(TOP(0)) */
     r = mhs_to_JSVal(stack_ptr, -1);
   }
   ffe_pop();
-  if (exn != NIL) {
+  if (!is_NIL(exn)) {
     mhs_js_set_callback_error(msg);
     FREE(msg);
   }
@@ -784,11 +784,11 @@ js_ffe_eval(void)
   NODEPTR x;
   GCCHECK(1);
   x = TOP(0);
-  if (GETTAG(x) == T_AP && FUN(x) == combPERFORMIO)
+  if (get_XTAG(x) == X_AP && eq_NODEPTR(FUN(x), combPERFORMIO))
     TOP(0) = ARG(x);                      /* ffe_exec(): the IO action */
   else
     TOP(0) = new_ap(combIORETURN, x);     /* a value */
-  if (run_callback(&msg, 0) != NIL)
+  if (!is_NIL(run_callback(&msg, 0)))
     die_msg(msg);             /* as for the main thread, which an export used to be */
   if (runq.mq_head)
     mhs_js_set_timer(0);      /* run the threads it made runnable */

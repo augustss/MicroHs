@@ -25,13 +25,15 @@ extern int in_js_callback;
 static const uint8_t *run_comb;
 static int run_comblen;
 
+/* NODEPTR is defined further down in eval.c; it is union NodePtr. */
+union NodePtr;
 static void js_init(void);
 static int js_enter_main(int argc, char **argv);
 static int js_suspend(void);
-static void report_callback_exn(NODEPTR exn);
-static NODEPTR js_await(NODEPTR kind, NODEPTR prom);
+static void report_callback_exn(union NodePtr exn);
+static union NodePtr js_await(union NodePtr kind, union NodePtr prom);
 static void js_ffe_eval(void);
 struct mthread;
-static void js_throwto(struct mthread *mt, NODEPTR exn);
+static void js_throwto(struct mthread *mt, union NodePtr exn);
 static void js_yield(void);
 static void js_main_done(void);
