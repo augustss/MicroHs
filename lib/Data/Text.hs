@@ -135,6 +135,7 @@ instance Eq Text where
   (/=) = cmp (/=)
 
 instance Ord Text where
+  compare (T x) (T y) = compare x y
   (<)  = cmp (<)
   (<=) = cmp (<=)
   (>)  = cmp (>)
