@@ -4,6 +4,7 @@ import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Version
 import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Utils
@@ -12,9 +13,13 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
+import System.IO.Serialize
 import System.IO.TimeMilli
 import Text.Printf
 import MicroHs.Config
+import MicroHs.Ident(showIdent)
+import MicroHs.Package
+import MicroHs.TypeCheck(tModuleName)
 
 type CConf = [(Key, Value)]
 
@@ -51,6 +56,7 @@ install flags = do
   time "mkConf" $ mkConf flags'
   time "copyRTS" $ copyRTS flags'
   time "copyBase" $ copyBase flags'
+  time "registerBase" $ registerBase flags'
   time "checkPath" $ checkPath flags'
   time "pgo" $ optMhs flags'
 
@@ -96,6 +102,68 @@ copyBase flags = do
   mkdir flags mCabalMhs
   out <- mhsOut flags ["-Q", "generated" </> "base.pkg", mCabalMhs]
   msg flags out
+
+-- Packages from Hackage depend on base-4.x, and on bytestring, text, etc.,
+-- whose modules are part of the base of mhs.  Say so in Cabal registration
+-- files next to the installed packages: one for base, presented at a GHC
+-- version, and one for each bundled package, which depends on base and has
+-- no package file of its own.  Tools like cabal can then read them instead
+-- of keeping a table of their own.
+registerBase :: Flags -> IO ()
+registerBase flags = do
+  pkg <- readSerialized ("generated" </> "base.pkg") :: IO Package
+  let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
+      pkgDir = mCabalMhs </> "packages"
+      baseId = showIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg)
+      modules = map (showIdent . tModuleName)
+      exported = modules (pkgExported pkg)
+      bundles ps m = any (\ p -> m == p || (p ++ ".") `isPrefixOf` m) ps
+      isBundled m = any (\ (_, _, ps) -> bundles ps m) bundledPackages
+      register pid flds = do
+        let file = mCabalMhs </> pid <.> "conf"
+        msg flags $ "create " ++ file
+        unless (dryRun flags) $
+          writeFile file $ unlines [ showField f | f@(_, vs) <- flds, not (null vs) ]
+  register baseId
+    [ ("name", ["base"]), ("version", [baseVersion]), ("id", [baseId]), ("key", [baseId])
+    , ("exposed", ["True"])
+    , ("exposed-modules", filter (not . isBundled) exported)
+    , ("hidden-modules", modules (pkgOther pkg))
+    , ("library-dirs", [pkgDir])
+    , ("ld-options", pkgOptl pkg)
+    ]
+  forM_ bundledPackages $ \ (name, vers, ps) -> do
+    let pid = name ++ "-" ++ vers
+    register pid
+      [ ("name", [name]), ("version", [vers]), ("id", [pid]), ("key", [pid])
+      , ("exposed", ["True"])
+      , ("exposed-modules", filter (bundles ps) exported)
+      , ("depends", [baseId])
+      ]
+  where
+    showField (k, [v]) = k ++ ": " ++ v
+    showField (k, vs)  = k ++ ":" ++ concatMap ("\n  " ++) vs
+
+-- The version base is presented at, and the packages whose modules are part
+-- of base: the version of their API that the modules implement, and the
+-- modules (by prefix) that belong to them.  The version numbers are totally
+-- fake; they are from GHC.  They are those of builtinPackages in MicroCabal,
+-- except for hashable: Data.Hashable has the API of the 1.4 series, and the
+-- packages that use it ask for that.
+baseVersion :: String
+baseVersion = "4.19.1.0"
+
+bundledPackages :: [(String, String, [String])]
+bundledPackages =
+  [ ("bytestring",         "0.12.1.0", ["Data.ByteString"])
+  , ("deepseq",            "1.4.4.0",  ["Control.DeepSeq"])
+  , ("directory",          "1.3.8.1",  ["System.Directory"])
+  , ("hashable",           "1.4.7.0",  ["Data.Hashable"])
+  , ("integer-logarithms", "1.0.4",    ["Math.NumberTheory"])
+  , ("process",            "1.6.18.0", ["System.Process"])
+  , ("stm",                "2.5.3.0",  ["Control.Concurrent.STM", "Control.Monad.STM"])
+  , ("text",               "2.1.1",    ["Data.Text"])
+  ]
 
 checkPath :: Flags -> IO ()
 checkPath flags = do
