@@ -21,6 +21,7 @@ import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)
 import Data.Version
+import GHC.Exts(Any)
 import GHC.Stack
 import Data.Kind
 import System.Environment
@@ -95,6 +96,9 @@ wantImath = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
+
+-- A value of unknown type.
+type AnyType = Any
 
 ---
 -- This belongs in MicroHs.Error, but Hugs cannot derive Tyoeable

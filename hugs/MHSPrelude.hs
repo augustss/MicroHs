@@ -33,6 +33,7 @@ import Data.Text(Text, append, pack)
 import Data.Typeable
 import Data.Word
 import Data.Version
+import GHC.Exts(Any)
 import Debug.Trace
 import System.Directory (getDirectoryContents)
 import System.IO
@@ -196,6 +197,9 @@ wantImath = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
+
+-- A value of unknown type.
+type AnyType = Any
 
 -------- Control.DeepSeq ------
 
