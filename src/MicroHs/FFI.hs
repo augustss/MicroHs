@@ -167,11 +167,19 @@ mkHdr (ImpStatic _ IValue val, f, t, _) =
       r = checkIO ior
       len = length as
       call = expand val
+      -- $1 is the first argument, as in a JavaScript import; $0 is an error, as there.
       expand [] = []
       expand ('$':c:cs) | isDigit c =
-        let n = digitToInt c                -- $0 is the first argument, as for JavaScript
-        in mkArg (as !! n) n ++ expand cs
+        let k = digitToInt c
+        in  if k < 1 || k > len then
+              errorMessage (getSLoc t) $ "foreign import \"value\": $" ++ show k ++ " is not an argument: " ++ argsAre ++
+                (if k == 0 then " (they start at $1, not $0)" else "")
+            else
+              mkArg (as !! (k - 1)) (k - 1) ++ expand cs
       expand (c:cs) = c : expand cs
+      argsAre | len == 0  = "the import has no arguments"
+              | len == 1  = "the argument is $1"
+              | otherwise = "the arguments are $1 .. $" ++ show len
       fcall =
         if isUnit r then
           call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
