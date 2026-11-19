@@ -33,7 +33,7 @@ import Data.Text(Text, append, pack)
 import Data.Typeable
 import Data.Word
 import Data.Version
-import GHC.Exts(Any)
+import qualified GHC.Exts as Exts
 import Debug.Trace
 import System.Directory (getDirectoryContents)
 import System.IO
@@ -205,7 +205,7 @@ _primitive :: String -> a
 _primitive s = error ("_primitive " ++ s ++ ": not compiled with mhs")
 
 -- A value of unknown type.
-type AnyType = Any
+type AnyType = Exts.Any
 
 -------- Control.DeepSeq ------
 

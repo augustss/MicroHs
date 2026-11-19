@@ -4222,8 +4222,9 @@ poke_ulong(unsigned long *p, value_t w)
   *p = (unsigned long)w;
 }
 
+/* A long long can be bigger than a value_t, so it is passed as itself. */
 static INLINE
-value_t
+long long
 peek_llong(long long *p)
 {
   return *p;
@@ -4231,13 +4232,13 @@ peek_llong(long long *p)
 
 static INLINE
 void
-poke_llong(long long *p, value_t w)
+poke_llong(long long *p, long long w)
 {
-  *p = (long long)w;
+  *p = w;
 }
 
 static INLINE
-value_t
+unsigned long long
 peek_ullong(unsigned long long *p)
 {
   return *p;
@@ -4245,9 +4246,9 @@ peek_ullong(unsigned long long *p)
 
 static INLINE
 void
-poke_ullong(unsigned long long *p, value_t w)
+poke_ullong(unsigned long long *p, unsigned long long w)
 {
-  *p = (unsigned long long)w;
+  *p = w;
 }
 
 static INLINE
