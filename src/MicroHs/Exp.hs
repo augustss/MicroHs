@@ -8,12 +8,13 @@ module MicroHs.Exp(
   allVarsExp, freeVars,
   lams, apps,
   mkForExp, getForExp, IsJavascript,
+  litPrim,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr(Lit(..), PrimOp(..), showLit, CType(..))
+import MicroHs.Expr(Lit(..), PrimOp(..), showLit, CType(..), lPrim)
 import MicroHs.List
 import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
@@ -30,6 +31,10 @@ instance NFData Exp where
   rnf (App a b) = rnf a `seq` rnf b
   rnf (Lam a b) = rnf a `seq` rnf b
   rnf (Lit a) = rnf a
+
+-- A primitive that has no constructor of its own.
+litPrim :: String -> Exp
+litPrim = Lit . lPrim
 
 app2 :: Exp -> Exp -> Exp -> Exp
 app2 f a1 a2 = App (App f a1) a2
@@ -103,7 +108,7 @@ type IsJavascript = Bool
 mkForExp :: IsJavascript -> Exp -> CType -> Exp
 mkForExp js e t = app2 cfe e cty
   where cty = Lit $ LCType t
-        cfe = Lit $ LPrim $ POther $ if js then "FEJS" else "FE"
+        cfe = litPrim $ if js then "FEJS" else "FE"
 
 getForExp :: Exp -> Maybe (IsJavascript, Exp, CType)
 getForExp (App (App (Lit (LPrim (POther "FE"))) e) (Lit (LCType t))) = Just (False, e, t)

@@ -86,7 +86,7 @@ encConstrStrict k ss =
   let n = length ss         -- constructor arity
       xs = [mkIdent ("$x" ++ show j) | j <- [0 .. n-1] ]
       strict (False:ys) (_:is) e = strict ys is e
-      strict (True :ys) (x:is) e = app2 (Lit (LPrim (POther "seq"))) (Var x) (strict ys is e)
+      strict (True :ys) (x:is) e = app2 (litPrim "seq") (Var x) (strict ys is e)
       strict _          _      e = e
   in  lams xs $ strict ss xs $ apps (cCon k n) (map Var xs)
 

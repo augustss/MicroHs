@@ -11,7 +11,7 @@ import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Error(mhsError)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), PrimOp(..), showLit, errorMessage, HasLoc(..), CType)
+import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
 import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
 import MicroHs.List(groupSort)
 import MicroHs.State
@@ -135,7 +135,7 @@ toStringP ae =
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        toStringP (App (Lit (LPrim (POther "fromUTF8"))) (Lit (LBStr (BS.pack (utf8encode s)))))
+        toStringP (App (litPrim "fromUTF8") (Lit (LBStr (BS.pack (utf8encode s)))))
       else
         toStringP (encodeString s)
     Lit (LBStr s) | BS.length s > 100 -> byteString s -- arbitrary limit

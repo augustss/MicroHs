@@ -5,6 +5,7 @@ module System.IO.Serialize(
   writeSerialized,
   writeSerializedCompressed,
   readSerialized, readSerializedH, readSerializedBS,
+  writeSerializedCompressedBS,
   ) where
 import Data.ByteString(ByteString)
 import System.IO
@@ -24,6 +25,9 @@ readSerializedH = errghc
 
 readSerializedBS :: forall a . HasCallStack => ByteString -> IO a
 readSerializedBS = errghc
+
+writeSerializedCompressedBS :: forall a . HasCallStack => a -> IO ByteString
+writeSerializedCompressedBS = errghc
 
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize = errghc

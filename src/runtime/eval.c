@@ -1614,7 +1614,7 @@ cleanup(struct mthread *mt, enum th_state ts)
   for (struct handler *h = cur_handler; h; ) {
     struct handler *n = h;
     h = h->hdl_old;
-    free(n);
+    FREE(n);
   }
   cur_handler = 0;
 }
@@ -3351,7 +3351,7 @@ sweep_weaks(void)
       /* not marked, so unlink and free */
       *wpp = wp->next;
       COUNT(num_gc_weak);
-      free(wp);
+      FREE(wp);
     } else {
       /* point to the next weak_ptr */
       wpp = &wp->next;
@@ -3935,7 +3935,7 @@ gc(void)
     if ((mt->mt_state == ts_died || mt->mt_state == ts_finished) && !mt->mt_mark) {
       COUNT(num_thread_reap);
       *mtp = mt->mt_next;
-      free(mt);
+      FREE(mt);
     } else {
       mt->mt_mark = false;
       mtp = &mt->mt_next;
@@ -3948,7 +3948,7 @@ gc(void)
     if (!mv->mv_mark) {
       COUNT(num_mvar_free);
       *mvp = mv->mv_next;
-      free(mv);
+      FREE(mv);
     } else {
       mv->mv_mark = false;
       mvp = &mv->mv_next;
@@ -4258,8 +4258,9 @@ poke_ulong(unsigned long *p, value_t w)
   *p = (unsigned long)w;
 }
 
+/* A long long can be bigger than a value_t, so it is passed as itself. */
 static INLINE
-value_t
+long long
 peek_llong(long long *p)
 {
   return *p;
@@ -4267,13 +4268,13 @@ peek_llong(long long *p)
 
 static INLINE
 void
-poke_llong(long long *p, value_t w)
+poke_llong(long long *p, long long w)
 {
-  *p = (long long)w;
+  *p = w;
 }
 
 static INLINE
-value_t
+unsigned long long
 peek_ullong(unsigned long long *p)
 {
   return *p;
@@ -4281,9 +4282,9 @@ peek_ullong(unsigned long long *p)
 
 static INLINE
 void
-poke_ullong(unsigned long long *p, value_t w)
+poke_ullong(unsigned long long *p, unsigned long long w)
 {
-  *p = (unsigned long long)w;
+  *p = w;
 }
 
 static INLINE
@@ -4615,7 +4616,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         struct forptr *fp = new_mpz();          /* a new mpz */
         mpz_ptr op = fp->payload.bs_array;      /* get actual pointer */
         mpz_set_str(op, bs.bs_array, 10);       /* convert to an mpz */
-        free(bs.bs_array);
+        FREE(bs.bs_array);
         r = alloc_node(D_FORPTR);
         FORPTR(r) = fp;
         PUSH(r);
@@ -5234,7 +5235,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putsb("%", f);
       putsb(s, f);
       putsb("\"", f);                         /* so we can use parse_string */
-      free(s);
+      FREE(s);
     } else
 #endif  /* WANT_GMP || WANT_IMATH */
     if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
@@ -9273,8 +9274,14 @@ MHS_FROM(mhs_from_CInt, SETINT, int);
 MHS_FROM(mhs_from_CUInt, SETINT, unsigned int);
 MHS_FROM(mhs_from_CLong, SETINT, long);
 MHS_FROM(mhs_from_CULong, SETINT, unsigned long);
+#if WANT_INT64
+/* CLLong and CULLong are newtypes of Int64 and Word64 */
+MHS_FROM(mhs_from_CLLong, SETINT64, long long);
+MHS_FROM(mhs_from_CULLong, SETINT64, unsigned long long);
+#else
 MHS_FROM(mhs_from_CLLong, SETINT, long long);
 MHS_FROM(mhs_from_CULLong, SETINT, unsigned long long);
+#endif
 MHS_FROM(mhs_from_CSize, SETINT, size_t);
 #if WANT_TIME
 MHS_FROM(mhs_from_CTime, SETINT, time_t);
@@ -9322,8 +9329,14 @@ MHS_TO(mhs_to_CInt, evalint, int);
 MHS_TO(mhs_to_CUInt, evalint, unsigned int);
 MHS_TO(mhs_to_CLong, evalint, long);
 MHS_TO(mhs_to_CULong, evalint, unsigned long);
+#if WANT_INT64
+/* CLLong and CULLong are newtypes of Int64 and Word64 */
+MHS_TO(mhs_to_CLLong, evalint64, long long);
+MHS_TO(mhs_to_CULLong, evalint64, unsigned long long);
+#else
 MHS_TO(mhs_to_CLLong, evalint, long long);
 MHS_TO(mhs_to_CULLong, evalint, unsigned long long);
+#endif
 MHS_TO(mhs_to_CSize, evalint, size_t);
 #if WANT_TIME
 MHS_TO(mhs_to_CTime, evalint, time_t);
@@ -9442,9 +9455,9 @@ from_t mhs_add_bwt_compressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_compres
 from_t mhs_add_bwt_decompressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_BWT */
 
-from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
-from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
-from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, CALLOC(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, REALLOC(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_free(int s) { FREE(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
@@ -9871,6 +9884,16 @@ const struct ffi_entry ffi_table[] = {
 #endif  /* WANT_INT64 */
   { "peek_int", 1, mhs_peek_int},
   { "poke_int", 2, mhs_poke_int},
+  { "peek_char", 1, mhs_peek_char},
+  { "poke_char", 2, mhs_poke_char},
+  { "peek_schar", 1, mhs_peek_schar},
+  { "poke_schar", 2, mhs_poke_schar},
+  { "peek_uchar", 1, mhs_peek_uchar},
+  { "poke_uchar", 2, mhs_poke_uchar},
+  { "peek_short", 1, mhs_peek_short},
+  { "poke_short", 2, mhs_poke_short},
+  { "peek_ushort", 1, mhs_peek_ushort},
+  { "poke_ushort", 2, mhs_poke_ushort},
   { "peek_llong", 1, mhs_peek_llong},
   { "peek_long", 1, mhs_peek_long},
   { "peek_ullong", 1, mhs_peek_ullong},

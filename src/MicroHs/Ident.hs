@@ -61,8 +61,10 @@ data SLoc = SLoc FilePath Line Col
 instance Pretty SLoc where
   pPrintPrec d _ (SLoc f l c) = pPrint0 d f <> text "," <> pPrint0 d l <> text ":" <> pPrint0 d c
 
+-- The file name is shared by all the locations in a file, so it is not
+-- traversed.  mkIdentSLoc forces the location of an identifier.
 instance NFData SLoc where
-  rnf (SLoc a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (SLoc a b c) = a `seq` b `seq` c `seq` ()
 
 data Ident = Ident SLoc Text
 --  deriving (Show)
@@ -104,7 +106,7 @@ mkIdent :: String -> Ident
 mkIdent = mkIdentSLoc noSLoc
 
 mkIdentSLoc :: SLoc -> String -> Ident
-mkIdentSLoc l = Ident l . pack
+mkIdentSLoc l s = rnf l `seq` Ident l (pack s)
 
 unIdent :: Ident -> String
 unIdent (Ident _ s) = unpack s
@@ -118,8 +120,17 @@ showIdent (Ident _ i) = unpack i
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text $ unpack i
 
+-- Test if an identifier has the given name.
+-- The pack is outside the lambda, so that a partial application, like the
+-- isIdent "->" in getArrow, does it once instead of on every call.
+-- With  isIdent s (Ident _ i) = pack s == i  the code is
+-- B D_2 (Z (B (==) pack)), and Z (Z x y z = x y) rebuilds the pack each
+-- time the partial application gets an Ident.  Binding the pack with a
+-- let or where does not help, since eLet in the desugarer substitutes a
+-- variable that is used once, even under a lambda.
+-- See the note on Z, B', and C'B in MicroHs.Abstract.
 isIdent :: String -> Ident -> Bool
-isIdent s (Ident _ i) = pack s == i
+isIdent s = (\ t (Ident _ i) -> t == i) (pack s)
 
 qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident
