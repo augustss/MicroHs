@@ -394,7 +394,10 @@ mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
       | otherwise = errorMessage (getSLoc i1) $ "Multiple instances: " ++ showSLoc (getSLoc i2)
     mrg e1 _e2 = e1 -- XXX improve this
     l = unionBy eqInstDict l1 l2
-  in  InstInfo m l fds
+  -- Evaluate the spine of the list.  Otherwise the unions of all the merges
+  -- nest, each with a nubBy over the unevaluated list of the one before,
+  -- and evaluating the list in the end needs a very deep stack.
+  in  length l `seq` InstInfo m l fds
 
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
