@@ -83,7 +83,7 @@ mHSPKG :: String
 mHSPKG = "MHSPKG"
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W][PATH]] [-XCPP] [-DDEF] [-IPATH] [-T] [--profile] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [--embed-packages PKG:...] [--embed-ffis PKG:...] [MODULENAME...|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -123,6 +123,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
       \-PPKG              Build package PKG\n\
       \-pFILE             Pre-load package\n\
+      \--profile          Generate a profiling executable, it writes PROGRAM.prof\n\
       \-pgmF CMD          Use CMD for the -F preprocessor\n\
       \-Q PKG [DIR]       Install package PKG\n\
       \-q                 Decrease verbosity (flag can be repeated)\n\
@@ -157,6 +158,7 @@ decodeArgs f mdls (arg:args) =
     '-':'C':'W':s@(_:_) -> decodeArgs f{writeCache = True, cacheName = s} mdls args
     '-':'C':s@(_:_)     -> decodeArgs f{readCache = True, writeCache = True, cacheName = s} mdls args
     "-T"        -> decodeArgs f{useTicks = True} mdls args
+    "--profile" -> decodeArgs f{profile = True, cArgs = cArgs f ++ ["-DWANT_PROFILE=1"]} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-b64"      -> decodeArgs f{base64 = True} mdls args
@@ -360,8 +362,10 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
-    (forExps, outCMdl@(outDefs, _xxx)) = renumberCMdl cmdl
-    outData = toStringCMdl outCMdl
+    (forExps, outCMdl@(outDefs, _xxx), labelNames) = renumberCMdlNames cmdl
+    -- With --profile the names of the labels come after the program, for the profiling runtime.
+    outData = toStringCMdl outCMdl ++
+              (if profile flags then "\n#names\n" ++ unlines [ l ++ " " ++ showIdent i | (l, i) <- labelNames ] else "")
     numOutDefs = length outData
     numDefs = length allDefs
   when (verbosityGT flags 0) $

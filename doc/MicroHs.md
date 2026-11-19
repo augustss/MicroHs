@@ -578,6 +578,24 @@ Fib.fib                                                           21891
 ```
 Only code compiled with `-T` has counters, so, e.g., functions from installed packages are not counted.
 
+The counters are extra code, so they change the program somewhat. Compiling with `--profile` instead does not change the code: it builds the program with a profiling runtime, which counts what every reduction does. When the program exits it writes `PROGRAM.prof`, with the reductions, unwinding steps (following the spine of an application), and allocated cells of each top level definition. All definitions are counted, also those from packages, and an instance counts as one definition. A reduction is charged to the code that runs, and a function value is charged to the definition that created it, wherever it is called. For example, a function created by applying a function to a type class dictionary is charged to that function. Local definitions are part of the top level definition they are in. The file ends with the nodes of the loaded program that most reductions were charged to, with their definition and their position in it.
+```
+$ mhs --profile Fib -ofib
+$ ./fib
+10946
+$ head -9 fib.prof
+Profile of ./fib
+         230947 reductions (num_reductions 230944)
+         572243 unwinding steps
+         187382 cells allocated
+             20 reductions, 290 cells allocated by the runtime itself
+Self costs; a closure is charged to the definition that created it.
+
+     reductions    %red   cum%     unwinding steps   cells allocated  definition
+         229853  99.53  99.53              569166            186070  Fib.fib
+```
+The profiling runtime uses 56 bytes per cell instead of 16, and is about 40% slower.
+
 For overall numbers, use `+RTS -v -RTS`, which prints the number of reductions, allocated cells, garbage collections, etc. In interactive mode, `:set +s` shows the time, reductions, and allocated cells for each evaluation.
 
 ## Debugging
