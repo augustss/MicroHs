@@ -1,6 +1,7 @@
 module Storable(main) where
 import Data.Int
 import Data.Word
+import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
@@ -9,6 +10,9 @@ import Foreign.Storable
 
 pokePeek :: (Storable a, Bounded a) => IO a
 pokePeek = alloca (\p -> poke p maxBound >> peek p)
+
+roundTrip :: Storable a => a -> IO a
+roundTrip x = alloca (\p -> poke p x >> peek p)
 
 main :: IO ()
 main = do
@@ -42,3 +46,19 @@ main = do
   pokePeek @Int16  >>= print
   pokePeek @Int32  >>= print
   pokePeek @Int64  >>= print
+
+  -- The C types, with values that fit on any platform.
+  roundTrip (65 :: CChar) >>= print
+  roundTrip (-128 :: CSChar) >>= print
+  roundTrip (255 :: CUChar) >>= print
+  roundTrip (-32768 :: CShort) >>= print
+  roundTrip (65535 :: CUShort) >>= print
+  roundTrip (-2147483648 :: CInt) >>= print
+  roundTrip (4294967295 :: CUInt) >>= print
+  roundTrip (-2147483648 :: CLong) >>= print
+  roundTrip (4294967295 :: CULong) >>= print
+  roundTrip (minBound :: CLLong) >>= print
+  roundTrip (maxBound :: CULLong) >>= print
+  roundTrip (4294967295 :: CSize) >>= print
+  roundTrip (1.5 :: CFloat) >>= print
+  roundTrip (2.5 :: CDouble) >>= print

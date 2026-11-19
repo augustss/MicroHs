@@ -352,8 +352,12 @@ ctlCodes =
    ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'),
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
+-- Stop as soon as the code point is too big, so that it cannot overflow.
 conv :: SLoc -> Int -> Int -> String -> String
-conv loc b r (c:ds) | isHexDigit c && n < b = conv loc b (r * b + n) ds
+conv loc b r (c:ds) | isHexDigit c && n < b =
+  let r' = r * b + n
+  in  if r' > 0x10ffff then mhsErrorLoc loc "Bad \\ escape: character code is too big"
+      else conv loc b r' ds
   where n = digitToInt c
 conv loc _ r ds = chr r : decodeEscs loc ds
 

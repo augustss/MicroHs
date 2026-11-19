@@ -84,11 +84,15 @@ loadEmbedded flags ach =
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
 getCached flags = do
-  mcash <- loadCached (cacheName flags)
+  mcash <- loadCached mhsVersion (cacheName flags)
   case mcash of
-    Nothing ->
+    NoCacheFile ->
       return emptyCache
-    Just cash -> do
+    OtherCompiler -> do
+      when (verbosityGT flags 0) $
+        putStrLn $ "Ignoring saved cache " ++ show (cacheName flags) ++ ", it was written by another compiler"
+      return emptyCache
+    LoadedCache cash -> do
       when (loading flags || verbosityGT flags 0) $
         putStrLn $ "Loading saved cache " ++ show (cacheName flags)
       validateCache flags cash
@@ -98,7 +102,7 @@ maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
       putStrLn $ "Saving cache " ++ show (cacheName flags)
-    saveCache (cacheName flags) cash
+    saveCache mhsVersion (cacheName flags) cash
 
 -- Load the real modules for imported boot modules.
 -- Doing so can result in more boot imports, so we recurse.
@@ -402,7 +406,7 @@ hasLangCPP fn = do
       scanFor s (_:cs) = scanFor s cs
       scanFor' _ [] = False
       scanFor' s ('#':'-':'}':cs) = scanFor s cs
-      scanFor' s (' ':cs) | s `isPrefixOf` cs = True
+      scanFor' s (c:cs) | (c == ' ' || c == ',') && s `isPrefixOf` cs = True
       scanFor' s (_:cs) = scanFor' s cs
   scanFor "cpp" . map toLower <$> readFile fn
 

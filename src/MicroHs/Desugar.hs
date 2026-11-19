@@ -85,7 +85,7 @@ ccall t f =
       -- pure function, need a performIO.
       --   ^f  -->  \ x1 ... xn -> performIO (^f x1 ... xn)
       let xs = map (\ i -> mkIdent $ '_' : show i) [1..length as]
-          perf = Lit $ LPrim $ POther "IO.performIO"
+          perf = litPrim "IO.performIO"
           call = App perf $ apps f (map Var xs)
       in  foldr Lam call xs
 
@@ -389,7 +389,7 @@ dsLazy (ps, sub, rhs) =
   in  (ps', sub, \ d -> dsBinds (reverse rbs) $ foldr eSeq (rhs d) (reverse ris))
 
 eSeq :: Exp -> Exp -> Exp
-eSeq e1 e2 = App (App (Lit (LPrim (POther "seq"))) e1) e2
+eSeq e1 e2 = App (App (litPrim "seq") e1) e2
 
 -- XXX quadratic.  but only used for short lists
 groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
@@ -695,9 +695,9 @@ optCase ae = opt [] ae
         linear var ((k, rhs):kes) dflt = encIf (eqInt k var) rhs (linear var kes dflt)
 
         eqInt :: Int -> Exp -> Exp
-        eqInt i x = app2 (Lit (LPrim (POther "=="))) (Lit (LInt i)) x
+        eqInt i x = app2 (litPrim "==") (Lit (LInt i)) x
         gtInt :: Int -> Exp -> Exp
-        gtInt i x = app2 (Lit (LPrim (POther ">"))) (Lit (LInt i)) x
+        gtInt i x = app2 (litPrim ">") (Lit (LInt i)) x
 
 -- Switch to binary search with >= binLimit arms
 -- Experimentally, this seems to be the sweet spot.
