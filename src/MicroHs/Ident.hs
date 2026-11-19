@@ -120,8 +120,17 @@ showIdent (Ident _ i) = unpack i
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text $ unpack i
 
+-- Test if an identifier has the given name.
+-- The pack is outside the lambda, so that a partial application, like the
+-- isIdent "->" in getArrow, does it once instead of on every call.
+-- With  isIdent s (Ident _ i) = pack s == i  the code is
+-- B D_2 (Z (B (==) pack)), and Z (Z x y z = x y) rebuilds the pack each
+-- time the partial application gets an Ident.  Binding the pack with a
+-- let or where does not help, since eLet in the desugarer substitutes a
+-- variable that is used once, even under a lambda.
+-- See the note on Z, B', and C'B in MicroHs.Abstract.
 isIdent :: String -> Ident -> Bool
-isIdent s (Ident _ i) = pack s == i
+isIdent s = (\ t (Ident _ i) -> t == i) (pack s)
 
 qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident
