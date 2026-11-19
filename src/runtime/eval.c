@@ -608,6 +608,7 @@ enum node_tag { D_NONE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
                 T_BALANCEL, T_BALANCER,  /* experiment: IdentMap balancing */
+                T_IDENTEQ,               /* experiment: (==) on Ident */
                 T_LAST_TAG,
                 T_XXX = 0x7fffffff
 };
@@ -2956,6 +2957,7 @@ struct {
   { "rnf", T_RNF },
   { "balanceL", T_BALANCEL },
   { "balanceR", T_BALANCER },
+  { "identEq", T_IDENTEQ },
   { "fromUTF8", T_BSFROMUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
   { "tailUTF8", T_BSTAILUTF8 },
@@ -6220,6 +6222,59 @@ map_balance(enum node_tag tag)
   return res;
 }
 
+/*
+ * Experiment: (==) on Ident as a primitive, to see what compiled code for
+ * it would gain.  The compiler uses it when useIdentEqPrimitive in
+ * MicroHs.Ident is True.
+ * An Ident is  Ident SLoc Text,  i.e., C_0_2 applied to the location and
+ * the name, and Text is a newtype of ByteString.  So the name is the last
+ * field, and it evaluates to a bytestring.
+ */
+#define IDENT_CON mk_CON(V_CONSTR, 0, 2)
+
+/* The slot of the name of an Ident in WHNF. */
+static NODEPTR *
+ident_name(NODEPTR *np)
+{
+  NODEPTR p = indir(np);
+#if SANITY
+  if (is_VIRT(p) || is_VIRT(indir(&FUN(p))) || indir(&FUN(indir(&FUN(p)))).node_bits != IDENT_CON.node_bits)
+    ERR("ident_name");
+#endif  /* SANITY */
+  return &ARG(p);
+}
+
+/* (==) on the two Idents on the top of the stack.  Evaluating can GC, so,
+ * as in map_balance, the pointers are read from the slots after the last
+ * evaluation. */
+static NOINLINE int
+ident_eq(void)
+{
+  NODEPTR *xp = &ARG(TOP(0)), *yp = &ARG(TOP(1));
+  NODEPTR *xn, *yn;
+  NODEPTR x, y;
+  struct bytestring xbs, ybs;
+
+  (void)evali(*xp);
+  xn = ident_name(xp);
+  (void)evali(*xn);
+  (void)evali(*yp);
+  yn = ident_name(yp);
+  (void)evali(*yn);
+  x = indir(xn);
+  y = indir(yn);
+#if SANITY
+  if (get_XTAG(x) != D_FORPTR || FORPTR(x)->finalizer->fptype != FP_BSTR ||
+      get_XTAG(y) != D_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
+    ERR("ident_eq");
+#endif  /* SANITY */
+  if (x.node_bits == y.node_bits)
+    return 1;
+  xbs = BSTR(x);
+  ybs = BSTR(y);
+  return xbs.bs_size == ybs.bs_size && memcmp(xbs.bs_array, ybs.bs_array, xbs.bs_size) == 0;
+}
+
 #if WANT_INT64
 /* Evaluate to an INT */
 static INLINE uint64_t
@@ -7453,6 +7508,12 @@ evali(NODEPTR an)
     CHECK(4);
     n = map_balance(tag);
     goto ap;
+  case T_IDENTEQ:
+    CHECK(2);
+    r = ident_eq();
+    POP(2);
+    n = TOP(-1);
+    GOBOOL(r);
 
   case T_RNF:
     if (doing_rnf) RET;

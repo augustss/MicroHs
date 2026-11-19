@@ -71,7 +71,17 @@ instance Show Ident where
   show = showIdent
 
 instance Eq Ident where
-  Ident _ i == Ident _ j  =  i == j
+  (==) | useIdentEqPrimitive && compiledWithMhs = _primitive "identEq"
+       | otherwise                              = eqIdentHs
+
+-- Experiment: (==) on Ident can be done by a primitive in the runtime,
+-- written in C, to see what compiled code for it would gain.
+-- It is not used by default.  Only mhs has it.
+useIdentEqPrimitive :: Bool
+useIdentEqPrimitive = False
+
+eqIdentHs :: Ident -> Ident -> Bool
+eqIdentHs (Ident _ i) (Ident _ j) = i == j
 
 instance Ord Ident where
   compare (Ident _ i) (Ident _ j) = compare i j
