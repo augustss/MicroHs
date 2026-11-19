@@ -21,8 +21,7 @@ pieces =
 
 -- A deterministic generator: a list of seeds from a linear congruential
 -- generator.  The arithmetic is on Integer, since Int may have 32 bits
--- (emscripten) and MicroHs checks Int arithmetic for overflow; the seeds
--- are below 2^31, so they fit in any Int.
+-- (emscripten); the seeds are below 2^31, so they fit in any Int.
 seeds :: [Int]
 seeds = L.map fromInteger (L.tail (L.iterate (\ x -> (x * 1103515245 + 12345) `mod` 2147483648) (42 :: Integer)))
 

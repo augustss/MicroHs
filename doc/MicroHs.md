@@ -25,7 +25,7 @@ Differences from Haskell 2010 and GHC:
 * Many things that should be errors (but are mostly harmless) are not reported.
 * Source code and text file I/O always use UTF-8.
 * `BangPatterns` are parsed, but only have an effect in a top level `let`/`where`.
-* `Int` arithmetic raises an exception on overflow instead of wrapping (on platforms where the runtime enables it).
+* `Int8`, `Int16`, and `Int32` arithmetic raises an exception on overflow instead of wrapping. `Int` and `Int64` wrap, as in GHC, unless the runtime is compiled with `-DWANT_OVERFLOW=1`.
 * Unboxed tuple and sum syntax is accepted, but nothing is actually unboxed.
 * Mutually recursive modules are allowed, the same way as in GHC, using `.hs-boot` files.
 
