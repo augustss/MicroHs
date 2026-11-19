@@ -92,8 +92,8 @@ jsAwait :: EType -> Exp -> Exp
 jsAwait t f =
   case getArrows (dropForallContext t) of
     (as, EApp (EVar io) r) | io == identIO ->
-      let g = App (App (Lit (LPrim "C")) (Lit (LPrim "IO.>>="))) (App (Lit (LPrim "IO.jsawait")) (Lit (LInt (jsAwaitKind r))))
-      in  App (iterate (App (Lit (LPrim "B"))) g !! length as) f
+      let g = App (App (Lit (LPrim PC)) (litPrim "IO.>>=")) (App (litPrim "IO.jsawait") (Lit (LInt (jsAwaitKind r))))
+      in  App (iterate (App (Lit (LPrim PB))) g !! length as) f
     _ -> errorMessage (getSLoc t) "foreign import javascript interruptible must return IO"
 
 -- The kind number IO.jsawait gets: the constructor index of JSKind, which
