@@ -61,8 +61,10 @@ data SLoc = SLoc FilePath Line Col
 instance Pretty SLoc where
   pPrintPrec d _ (SLoc f l c) = pPrint0 d f <> text "," <> pPrint0 d l <> text ":" <> pPrint0 d c
 
+-- The file name is shared by all the locations in a file, so it is not
+-- traversed.  mkIdentSLoc forces the location of an identifier.
 instance NFData SLoc where
-  rnf (SLoc a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (SLoc a b c) = a `seq` b `seq` c `seq` ()
 
 data Ident = Ident SLoc Text
 --  deriving (Show)
@@ -104,7 +106,7 @@ mkIdent :: String -> Ident
 mkIdent = mkIdentSLoc noSLoc
 
 mkIdentSLoc :: SLoc -> String -> Ident
-mkIdentSLoc l = Ident l . pack
+mkIdentSLoc l s = rnf l `seq` Ident l (pack s)
 
 unIdent :: Ident -> String
 unIdent (Ident _ s) = unpack s
