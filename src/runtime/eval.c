@@ -607,6 +607,7 @@ enum node_tag { D_NONE,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
+                T_BALANCEL, T_BALANCER,  /* experiment: IdentMap balancing */
                 T_LAST_TAG,
                 T_XXX = 0x7fffffff
 };
@@ -2953,6 +2954,8 @@ struct {
   { "icmp", T_ICMP },
   { "ucmp", T_UCMP },
   { "rnf", T_RNF },
+  { "balanceL", T_BALANCEL },
+  { "balanceR", T_BALANCER },
   { "fromUTF8", T_BSFROMUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
   { "tailUTF8", T_BSTAILUTF8 },
@@ -6013,6 +6016,209 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
+/*
+ * Experiment: balanceL and balanceR from MicroHs.IdentMap written by hand,
+ * to see what compiled code for them would gain.  The type is
+ *   data Map a = Nil | One Ident a | Node (Map a) Int Ident a (Map a)
+ * The sizes are computed strictly, and the nodes are built directly.
+ * They must agree with the Haskell definitions, including when a
+ * node becomes a One.
+ * The compiler uses them when useBalancePrimitives in MicroHs.IdentMap
+ * is True.  See the JIT plan for the results.
+ */
+#define MAP_NIL  mk_CON(V_CONSTR, 0, 0)
+#define MAP_ONE  mk_CON(V_CONSTR, 1, 2)
+#define MAP_NODE mk_CON(V_CONSTR, 2, 5)
+#define MAP_OMEGA 2
+#define MAP_ALPHA 2
+#define MAP_NODE_CELLS 6        /* five applications and the size */
+
+/*
+ * Evaluating can GC, and the GC short-circuits indirections and frees them
+ * (and the first GCs after loading also rewrite the graph).  So no NODEPTR
+ * is kept across an evaluation.  A map is named by a slot that points to it,
+ * starting from the arguments on the stack, and the pointers are read from
+ * the slots after the last GCCHECK.  A slot is a field of an application
+ * that is reachable, and cells do not move, so the slot stays valid.
+ * NULL names Nil.
+ */
+
+/* The field slots of the map that np points to, which is in WHNF.
+ * f[0] is the last field.  Returns the number of fields:
+ * 0 for Nil, 2 for One, 5 for Node. */
+static int
+map_fields(NODEPTR *np, NODEPTR **f)
+{
+  int i = 0;
+  if (!np)
+    return 0;
+  for (NODEPTR p = indir(np); !is_VIRT(p); p = indir(&FUN(p))) {
+    if (i >= 5)
+      ERR("map_fields");
+    f[i++] = &ARG(p);
+  }
+  if (i != 0 && i != 2 && i != 5)
+    ERR("map_fields");
+  return i;
+}
+
+#define MAP_LEFT  4             /* field numbers of a Node, counted from the end */
+#define MAP_SIZE  3
+#define MAP_RIGHT 0
+
+/* The slot of the left or right subtree of a map in WHNF.  A One has Nil subtrees. */
+static NODEPTR *
+map_sub(NODEPTR *np, int which)
+{
+  NODEPTR *f[5];
+  return map_fields(np, f) == 5 ? f[which] : NULL;
+}
+
+/* Evaluate a map, and the size field of a Node, and return the size. */
+static value_t
+map_eval(NODEPTR *np)
+{
+  NODEPTR *f[5];
+  if (!np)
+    return 0;
+  (void)evali(*np);
+  switch (map_fields(np, f)) {
+  case 0:  return 0;
+  case 2:  return 1;
+  default: return evalint(*f[MAP_SIZE]);
+  }
+}
+
+/* The map in a slot, in WHNF. */
+static NODEPTR
+map_ptr(NODEPTR *np)
+{
+  return np ? indir(np) : MAP_NIL;
+}
+
+/* The key and the value of a One or a Node. */
+static void
+map_kv(NODEPTR *np, NODEPTR *kp, NODEPTR *vp)
+{
+  NODEPTR *f[5];
+  if (map_fields(np, f) == 2) {
+    *kp = *f[1]; *vp = *f[0];
+  } else {
+    *kp = *f[2]; *vp = *f[1];
+  }
+}
+
+/* The node l k v r as an application f a, where sl and sr are the sizes of l and r.
+ * This is IdentMap.node, which is the same as node' when l or r is not Nil.
+ * Uses MAP_NODE_CELLS-1 cells, and does not GC. */
+static void
+map_mk(NODEPTR *fp, NODEPTR *ap, NODEPTR l, value_t sl, NODEPTR k, NODEPTR v, NODEPTR r, value_t sr)
+{
+  if (sl + sr == 0) {
+    *fp = new_ap(MAP_ONE, k);
+    *ap = v;
+  } else {
+    *fp = new_ap(new_ap(new_ap(new_ap(MAP_NODE, l), mkInt(sl + sr + 1)), k), v);
+    *ap = r;
+  }
+}
+
+/* As map_mk, but returns a new node.  Uses MAP_NODE_CELLS cells. */
+static NODEPTR
+map_new(NODEPTR l, value_t sl, NODEPTR k, NODEPTR v, NODEPTR r, value_t sr)
+{
+  NODEPTR f, a;
+  map_mk(&f, &a, l, sl, k, v, r, sr);
+  return new_ap(f, a);
+}
+
+/* balanceL (tag is T_BALANCEL) or balanceR applied to the four arguments
+ * on the top of the stack.  The arguments are popped, and the redex is
+ * overwritten with the result, an application, which is returned.
+ * It is not inlined, and has a single result, so that evali is not
+ * compiled worse (passing &x and &y from evali cost 4% instructions). */
+static NOINLINE NODEPTR
+map_balance(enum node_tag tag)
+{
+  NODEPTR f, a, res;
+  NODEPTR *fp = &f, *ap = &a;
+  NODEPTR *lp = &ARG(TOP(0)), *rp = &ARG(TOP(3));
+  NODEPTR k, v, k1, v1, k2, v2;
+  NODEPTR *ap1, *bp, *cp, *dp;
+  value_t sl, sr, sa, sb, sc, sd;
+
+  sl = map_eval(lp);
+  sr = map_eval(rp);
+  if (sl + sr <= 1 ||
+      (tag == T_BALANCEL ? sl <= MAP_OMEGA * sr : sr <= MAP_OMEGA * sl)) {
+    GCCHECK(MAP_NODE_CELLS);
+    map_mk(fp, ap, map_ptr(lp), sl, ARG(TOP(1)), ARG(TOP(2)), map_ptr(rp), sr);
+  } else if (tag == T_BALANCEL) {
+    /* rotateR, l is Node ll _ lk lv lr */
+    sa = map_eval(map_sub(lp, MAP_LEFT));       /* ll */
+    sb = map_eval(map_sub(lp, MAP_RIGHT));      /* lr */
+    if (sb < MAP_ALPHA * sa) {
+      /* singleR (Node ll _ lk lv lr) k v r = node' ll lk lv (node lr k v r) */
+      GCCHECK(2 * MAP_NODE_CELLS);
+      ap1 = map_sub(lp, MAP_LEFT); bp = map_sub(lp, MAP_RIGHT);
+      map_kv(lp, &k1, &v1);
+      k = ARG(TOP(1)); v = ARG(TOP(2));
+      map_mk(fp, ap, map_ptr(ap1), sa, k1, v1,
+             map_new(map_ptr(bp), sb, k, v, map_ptr(rp), sr), sb + sr + 1);
+    } else {
+      /* doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r =
+       *   node' (node ll lk lv lrl) lrk lrv (node lrr k v r)
+       * A One for lr is Node Nil _ lrk lrv Nil. */
+      if (sb == 0)
+        ERR("balanceL");
+      sc = map_eval(map_sub(map_sub(lp, MAP_RIGHT), MAP_LEFT));   /* lrl */
+      sd = map_eval(map_sub(map_sub(lp, MAP_RIGHT), MAP_RIGHT));  /* lrr */
+      GCCHECK(3 * MAP_NODE_CELLS);
+      ap1 = map_sub(lp, MAP_LEFT); bp = map_sub(lp, MAP_RIGHT);
+      cp = map_sub(bp, MAP_LEFT); dp = map_sub(bp, MAP_RIGHT);
+      map_kv(lp, &k1, &v1);
+      map_kv(bp, &k2, &v2);
+      k = ARG(TOP(1)); v = ARG(TOP(2));
+      map_mk(fp, ap, map_new(map_ptr(ap1), sa, k1, v1, map_ptr(cp), sc), sa + sc + 1, k2, v2,
+                     map_new(map_ptr(dp), sd, k, v, map_ptr(rp), sr), sd + sr + 1);
+    }
+  } else {
+    /* rotateL, r is Node rl _ rk rv rr */
+    sa = map_eval(map_sub(rp, MAP_LEFT));       /* rl */
+    sb = map_eval(map_sub(rp, MAP_RIGHT));      /* rr */
+    if (sa < MAP_ALPHA * sb) {
+      /* singleL l k v (Node rl _ rk rv rr) = node' (node l k v rl) rk rv rr */
+      GCCHECK(2 * MAP_NODE_CELLS);
+      ap1 = map_sub(rp, MAP_LEFT); bp = map_sub(rp, MAP_RIGHT);
+      map_kv(rp, &k1, &v1);
+      k = ARG(TOP(1)); v = ARG(TOP(2));
+      map_mk(fp, ap, map_new(map_ptr(lp), sl, k, v, map_ptr(ap1), sa), sl + sa + 1, k1, v1,
+             map_ptr(bp), sb);
+    } else {
+      /* doubleL l k v (Node (Node rll _ rlk rlv rlr) _ rk rv rr) =
+       *   node' (node l k v rll) rlk rlv (node rlr rk rv rr)
+       * A One for rl is Node Nil _ rlk rlv Nil. */
+      if (sa == 0)
+        ERR("balanceR");
+      sc = map_eval(map_sub(map_sub(rp, MAP_LEFT), MAP_LEFT));    /* rll */
+      sd = map_eval(map_sub(map_sub(rp, MAP_LEFT), MAP_RIGHT));   /* rlr */
+      GCCHECK(3 * MAP_NODE_CELLS);
+      ap1 = map_sub(rp, MAP_LEFT); bp = map_sub(rp, MAP_RIGHT);
+      cp = map_sub(ap1, MAP_LEFT); dp = map_sub(ap1, MAP_RIGHT);
+      map_kv(rp, &k1, &v1);
+      map_kv(ap1, &k2, &v2);
+      k = ARG(TOP(1)); v = ARG(TOP(2));
+      map_mk(fp, ap, map_new(map_ptr(lp), sl, k, v, map_ptr(cp), sc), sl + sc + 1, k2, v2,
+                     map_new(map_ptr(dp), sd, k1, v1, map_ptr(bp), sb), sd + sb + 1);
+    }
+  }
+  POP(4);
+  res = TOP(-1);
+  FUN(res) = f;
+  ARG(res) = a;
+  return res;
+}
+
 #if WANT_INT64
 /* Evaluate to an INT */
 static INLINE uint64_t
@@ -7241,6 +7447,11 @@ evali(NODEPTR an)
     GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+  case T_BALANCEL:
+  case T_BALANCER:
+    CHECK(4);
+    n = map_balance(tag);
+    goto ap;
 
   case T_RNF:
     if (doing_rnf) RET;

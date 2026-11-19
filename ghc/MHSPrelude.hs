@@ -97,6 +97,12 @@ wantImath = False
 compiledWithMhs :: Bool
 compiledWithMhs = False
 
+-- In mhs _primitive is a keyword for a primitive of the runtime.
+-- Other compilers have no such primitives, so code that uses one
+-- must be guarded by compiledWithMhs.
+_primitive :: String -> a
+_primitive s = error ("_primitive " ++ s ++ ": not compiled with mhs")
+
 -- A value of unknown type.
 type AnyType = Any
 

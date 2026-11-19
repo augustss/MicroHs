@@ -167,6 +167,12 @@ alpha = 2
 --delta :: Int
 --delta = 0
 
+-- Experiment: balanceL and balanceR can be done by primitives in the runtime,
+-- written in C, to see what compiled code for them would gain.
+-- They are not used by default.  Only mhs has them.
+useBalancePrimitives :: Bool
+useBalancePrimitives = False
+
 -- Make a tree from left, key, and right, restoring the balance if the left side
 -- is too big, because it has grown or the right side has shrunk.
 -- With size Nil = 0 and size (One _ _) = 1 all the cases follow the same rule:
@@ -175,7 +181,11 @@ alpha = 2
 -- sides, makes this much cheaper, and so does only checking the side that
 -- can be too big.
 balanceL :: forall a . Map a -> Ident -> a -> Map a -> Map a
-balanceL left key val right =
+balanceL | useBalancePrimitives && compiledWithMhs = _primitive "balanceL"
+         | otherwise                               = balanceLHs
+
+balanceLHs :: forall a . Map a -> Ident -> a -> Map a -> Map a
+balanceLHs left key val right =
   let sl = size left
       sr = size right
   in  if sl + sr <= 1 then
@@ -187,7 +197,11 @@ balanceL left key val right =
 
 -- As balanceL, when the right side can be too big.
 balanceR :: forall a . Map a -> Ident -> a -> Map a -> Map a
-balanceR left key val right =
+balanceR | useBalancePrimitives && compiledWithMhs = _primitive "balanceR"
+         | otherwise                               = balanceRHs
+
+balanceRHs :: forall a . Map a -> Ident -> a -> Map a -> Map a
+balanceRHs left key val right =
   let sl = size left
       sr = size right
   in  if sl + sr <= 1 then
