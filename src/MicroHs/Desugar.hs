@@ -45,7 +45,7 @@ dsDef flags mn ffiNo adef =
                  map fst (either id (map snd) ets)   -- strict flags
           in (qualIdent mn c, encConstr i n ss)
       in  zipWith dsConstr [0::Int ..] cs
-    Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
+    Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim PI)) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
     ForImp cc _ ie i at ->
       -- An explicit forall (as GHC allows) does not change the C type.
@@ -85,7 +85,7 @@ ccall t f =
       -- pure function, need a performIO.
       --   ^f  -->  \ x1 ... xn -> performIO (^f x1 ... xn)
       let xs = map (\ i -> mkIdent $ '_' : show i) [1..length as]
-          perf = Lit $ LPrim "IO.performIO"
+          perf = Lit $ LPrim $ POther "IO.performIO"
           call = App perf $ apps f (map Var xs)
       in  foldr Lam call xs
 
@@ -191,7 +191,7 @@ letE i e b = eLet i e b          -- do some minor optimizations
 -- Do a single recursive definition 'let i = e in b'
 -- by 'let i = Y (\i.e) in b'
 letRecE :: Ident -> Exp -> Exp -> Exp
-letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
+letRecE i e b = letE i (App (Lit (LPrim PY)) (Lam i e)) b
 
 -- Do mutual recursion by tupling up all the definitions.
 --  let f = ... g ...
@@ -389,7 +389,7 @@ dsLazy (ps, sub, rhs) =
   in  (ps', sub, \ d -> dsBinds (reverse rbs) $ foldr eSeq (rhs d) (reverse ris))
 
 eSeq :: Exp -> Exp -> Exp
-eSeq e1 e2 = App (App (Lit (LPrim "seq")) e1) e2
+eSeq e1 e2 = App (App (Lit (LPrim (POther "seq"))) e1) e2
 
 -- XXX quadratic.  but only used for short lists
 groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
@@ -695,9 +695,9 @@ optCase ae = opt [] ae
         linear var ((k, rhs):kes) dflt = encIf (eqInt k var) rhs (linear var kes dflt)
 
         eqInt :: Int -> Exp -> Exp
-        eqInt i x = app2 (Lit (LPrim "==")) (Lit (LInt i)) x
+        eqInt i x = app2 (Lit (LPrim (POther "=="))) (Lit (LInt i)) x
         gtInt :: Int -> Exp -> Exp
-        gtInt i x = app2 (Lit (LPrim ">")) (Lit (LInt i)) x
+        gtInt i x = app2 (Lit (LPrim (POther ">"))) (Lit (LInt i)) x
 
 -- Switch to binary search with >= binLimit arms
 -- Experimentally, this seems to be the sweet spot.

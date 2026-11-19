@@ -1094,7 +1094,6 @@ counter_t num_stable_alloc = 0;
 counter_t num_stable_free = 0;
 counter_t num_new_weak = 0;
 counter_t num_gc_weak = 0;
-counter_t num_look = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -7820,7 +7819,6 @@ evali(NODEPTR an)
     {
       int m = get_CASED_arity(n)->m;
       CHECK(m + 1);
-      num_look++;
       n = ARG(TOP(m));
       PUSH(mk_CASE(V_LOOKD, m));
       goto top;
@@ -7829,7 +7827,6 @@ evali(NODEPTR an)
     {
       int m = get_CASE_size(n);
       CHECK(2*m + 2);
-      num_look++;
       n = ARG(TOP(2*m + 1));
       PUSH(mk_CASE(V_LOOKS, m));
       goto top;
@@ -8727,7 +8724,6 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
     PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
-    PRINT("%"PCOMMA"15"PRIcounter"   look cells\n", num_look);
     PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);

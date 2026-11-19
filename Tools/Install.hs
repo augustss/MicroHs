@@ -4,6 +4,7 @@ import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Version
 import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Utils
@@ -12,9 +13,13 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
+import System.IO.Serialize
 import System.IO.TimeMilli
 import Text.Printf
 import MicroHs.Config
+import MicroHs.Ident(showIdent)
+import MicroHs.Package
+import MicroHs.TypeCheck(tModuleName)
 
 type CConf = [(Key, Value)]
 
@@ -33,7 +38,8 @@ main = do
       exe | target flags == "windows" = "exe"
           | otherwise                 =  ""
       inst = fromMaybe (home </> ".mcabal") (instDirM flags)
-      flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText }
+      flags' = flags { exeSuffix = exe, cconf = cc, instDir = inst, conf = confText
+                     , libraries = getLibraries conf }
 
   install flags'
 
@@ -51,6 +57,7 @@ install flags = do
   time "mkConf" $ mkConf flags'
   time "copyRTS" $ copyRTS flags'
   time "copyBase" $ copyBase flags'
+  time "registerBase" $ registerBase flags'
   time "checkPath" $ checkPath flags'
   time "pgo" $ optMhs flags'
 
@@ -96,6 +103,74 @@ copyBase flags = do
   mkdir flags mCabalMhs
   out <- mhsOut flags ["-Q", "generated" </> "base.pkg", mCabalMhs]
   msg flags out
+
+-- Packages from Hackage depend on base-4.x, and on bytestring, text, etc.,
+-- whose modules are part of the base of mhs.  Say so in Cabal registration
+-- files next to the installed packages: one for base, and one for each
+-- library bundled with it, which depends on base and has no package file
+-- of its own.  Tools like cabal can then read them instead of keeping a
+-- table of their own.  The libraries are given by the [library] sections
+-- of the config file.
+registerBase :: Flags -> IO ()
+registerBase flags = do
+  pkg <- readSerialized ("generated" </> "base.pkg") :: IO Package
+  let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
+      pkgDir = mCabalMhs </> "packages"
+      baseName = showIdent (pkgName pkg)
+      baseId = baseName ++ "-" ++ showVersion (pkgVersion pkg)
+      (bases, libs) = partition ((== baseName) . libName) (libraries flags)
+      base =
+        case bases of
+          [b] | isNothing (libModules b) -> b
+              | otherwise -> error $ "The [library] for " ++ baseName ++ " cannot have modules"
+          _ -> error $ "There must be exactly one [library] for " ++ baseName
+      prefixes l = fromMaybe (error $ "The [library] for " ++ libName l ++ " has no modules") (libModules l)
+      modules = map (showIdent . tModuleName)
+      exported = modules (pkgExported pkg)
+      bundles ps m = any (\ p -> m == p || (p ++ ".") `isPrefixOf` m) ps
+      isBundled m = any (\ l -> bundles (prefixes l) m) libs
+      register pid flds = do
+        let file = mCabalMhs </> pid <.> "conf"
+        msg flags $ "create " ++ file
+        unless (dryRun flags) $
+          writeFile file $ unlines [ showField f | f@(_, vs) <- flds, not (null vs) ]
+  register baseId
+    [ ("name", [baseName]), ("version", [libVersion base]), ("id", [baseId]), ("key", [baseId])
+    , ("exposed", ["True"])
+    , ("exposed-modules", filter (not . isBundled) exported)
+    , ("hidden-modules", modules (pkgOther pkg))
+    , ("library-dirs", [pkgDir])
+    , ("ld-options", pkgOptl pkg)
+    ]
+  forM_ libs $ \ l -> do
+    let pid = libName l ++ "-" ++ libVersion l
+    register pid
+      [ ("name", [libName l]), ("version", [libVersion l]), ("id", [pid]), ("key", [pid])
+      , ("exposed", ["True"])
+      , ("exposed-modules", filter (bundles (prefixes l)) exported)
+      , ("depends", [baseId])
+      ]
+  where
+    showField (k, [v]) = k ++ ": " ++ v
+    showField (k, vs)  = k ++ ":" ++ concatMap ("\n  " ++) vs
+
+-- A [library] section of the config file.
+data Library = Library
+  { libName    :: String
+  , libVersion :: String
+  , libModules :: Maybe [String]    -- module prefixes, none for base
+  }
+  deriving (Show)
+
+getLibraries :: Config -> [Library]
+getLibraries cnf = [ library kvs | ("library", kvs) <- cnf ]
+  where
+    library kvs =
+      case [ k | (k, _) <- kvs, k `notElem` ["name", "version", "modules"] ] of
+        [] -> Library { libName = field "name", libVersion = field "version"
+                      , libModules = words <$> lookup "modules" kvs }
+        ks -> error $ "Unknown keys in [library]: " ++ unwords ks
+      where field k = fromMaybe (error $ "Missing key in [library]: " ++ k) $ lookup k kvs
 
 checkPath :: Flags -> IO ()
 checkPath flags = do
@@ -228,6 +303,7 @@ data Flags = Flags
   , cconf     :: CConf
   , version   :: String
   , conf      :: String
+  , libraries :: [Library]
   , xflags    :: String
   }
   deriving (Show)
@@ -250,6 +326,7 @@ defaultFlags =
     , cconf     = undefined
     , version   = undefined
     , conf      = undefined
+    , libraries = undefined
     , xflags    = ""
     }
 

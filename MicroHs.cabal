@@ -106,7 +106,6 @@ executable mhs
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
-                       PrimTable
 --                       MhsEval
                        MHSPrelude
                        System.IO.MD5

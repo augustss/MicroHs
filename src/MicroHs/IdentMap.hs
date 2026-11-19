@@ -116,9 +116,9 @@ insertWith comb k v = ins
     ins (One a v) = ins (Node Nil 1 a v Nil)
     ins (Node left _ key val right) =
       case k `compare` key of
-        LT -> balance (ins left) key val right
+        LT -> balanceL (ins left) key val right
         EQ -> node left k (comb v val) right
-        GT -> balance left key val (ins right)
+        GT -> balanceR left key val (ins right)
 
 delete :: forall a . Ident -> Map a -> Map a
 delete k = del
@@ -128,9 +128,9 @@ delete k = del
                     | otherwise = t
     del (Node left _ key val right) =
       case k `compare` key of
-        LT -> balance (del left) key val right
+        LT -> balanceR (del left) key val right
         EQ -> glue left right
-        GT -> balance left key val (del right)
+        GT -> balanceL left key val (del right)
       where
         glue Nil right = right
         glue left Nil = left
@@ -148,7 +148,7 @@ extractMin (One key val) = (key, val, Nil)
 extractMin (Node Nil _ key val right) = (key, val, right)
 extractMin (Node left _ key val right) =
   case extractMin left of
-    (min, vmin, left') -> (min, vmin, balance left' key val right)
+    (min, vmin, left') -> (min, vmin, balanceR left' key val right)
 
 extractMax :: forall a . Map a -> (Ident, a, Map a)
 extractMax Nil = undefined
@@ -156,7 +156,7 @@ extractMax (One key val) = (key, val, Nil)
 extractMax (Node left _ key val Nil) = (key, val, left)
 extractMax (Node left _ key val right) =
   case extractMax right of
-    (max, vmax, right') -> (max, vmax, balance left key val right')
+    (max, vmax, right') -> (max, vmax, balanceL left key val right')
 
 -- omega=2 is not valid in the sense that balance can always be restored.
 -- But it gives the best performance on benchmarks, so we use it.
@@ -167,34 +167,45 @@ alpha = 2
 --delta :: Int
 --delta = 0
 
-balance :: forall a . Map a -> Ident -> a -> Map a -> Map a
-balance       Nil                key val        Nil               = One key val
-balance       Nil                key val right@(One _ _)          = Node Nil  2 key val right
-balance       Nil                key val right@(Node rl _ _ _ rr)
-                                        | size rl < alpha*size rr = singleL Nil key val right
-                                        | otherwise               = doubleL Nil key val right
-balance left@(One _ _)           key val        Nil               = Node left 2 key val Nil
-balance left@(One _ _)           key val right@(One _ _)          = Node left 3 key val right
-balance left@(One _ _)           key val right@(Node rl sr _ _ rr)
-                                        | sr > omega {- *1+delta-}= if size rl < alpha*size rr then singleL left key val right
-                                                                                               else doubleL left key val right
-                                        | otherwise               = Node left (2 + sr) key val right
-balance left@(Node ll  _ _ _ lr) key val        Nil
-                                        | size lr < alpha*size ll = singleR left key val Nil
-                                        | otherwise               = doubleR left key val Nil
-balance left@(Node ll sl _ _ lr) key val right@(One _ _)
-                                        | sl > omega {- *1+delta-}= if size lr < alpha*size ll then singleR left key val right
-                                                                                               else doubleR left key val right
-                                        | otherwise               = Node left (2 + sl) key val right
-balance left@(Node ll sl _ _ lr) key val right@(Node rl sr _ _ rr)
-  | sr > omega * sl {- + delta -} =
-         if size rl < alpha*size rr then singleL left key val right
-                                    else doubleL left key val right
-  | sl > omega * sr {- + delta -} =
-         if size lr < alpha*size ll then singleR left key val right
-                                    else doubleR left key val right
-  | otherwise =
-         node left key val right
+-- Make a tree from left, key, and right, restoring the balance if the left side
+-- is too big, because it has grown or the right side has shrunk.
+-- With size Nil = 0 and size (One _ _) = 1 all the cases follow the same rule:
+-- rotate when one side is more than omega times the other.
+-- Computing the sizes once, instead of matching on the constructors of both
+-- sides, makes this much cheaper, and so does only checking the side that
+-- can be too big.
+balanceL :: forall a . Map a -> Ident -> a -> Map a -> Map a
+balanceL left key val right =
+  let sl = size left
+      sr = size right
+  in  if sl + sr <= 1 then
+        if sl + sr == 0 then One key val else Node left (sl + sr + 1) key val right
+      else if sl > omega * sr then
+        rotateR left key val right
+      else
+        Node left (sl + sr + 1) key val right
+
+-- As balanceL, when the right side can be too big.
+balanceR :: forall a . Map a -> Ident -> a -> Map a -> Map a
+balanceR left key val right =
+  let sl = size left
+      sr = size right
+  in  if sl + sr <= 1 then
+        if sl + sr == 0 then One key val else Node left (sl + sr + 1) key val right
+      else if sr > omega * sl then
+        rotateL left key val right
+      else
+        Node left (sl + sr + 1) key val right
+
+rotateL :: forall a . Map a -> Ident -> a -> Map a -> Map a
+rotateL left key val right@(Node rl _ _ _ rr) | size rl < alpha * size rr = singleL left key val right
+                                               | otherwise                 = doubleL left key val right
+rotateL _ _ _ _ = undefined
+
+rotateR :: forall a . Map a -> Ident -> a -> Map a -> Map a
+rotateR left@(Node ll _ _ _ lr) key val right | size lr < alpha * size ll = singleR left key val right
+                                               | otherwise                 = doubleR left key val right
+rotateR _ _ _ _ = undefined
 
 singleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
 singleL l k v (Node rl _ rk rv rr) = node' (node l k v rl) rk rv rr

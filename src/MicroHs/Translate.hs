@@ -15,7 +15,6 @@ import Data.Maybe
 import Data.String
 import Unsafe.Coerce
 
-import PrimTable
 import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Error(mhsError)
 import MicroHs.Expr

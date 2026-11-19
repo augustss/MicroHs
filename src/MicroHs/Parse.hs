@@ -909,7 +909,7 @@ pAExpr' =
   <|> (lpar *> (ESectL <$> pExprOp) <*> (pOperComma <* rpar))
   <|> (lpar *> (ESectR <$> pOperCommaNoMinus) <*> (pExprOp <* rpar))
   <|> (lpar *> (ESelect <$> some pSelect <* rpar))
-  <|> (pKeyword "_primitive" *> (ELit noSLoc . LPrim <$> pString))
+  <|> (pKeyword "_primitive" *> (ELit noSLoc . LPrim . mkPrimOp <$> pString))
   <|> (pSpec '@' *> (ETypeArg <$> pAType))
   <|> (pSpec 'L' *> (uTuple <$> sepBy pExpr comma <* pSpec 'R'))
   <|> pUSummand pExpr

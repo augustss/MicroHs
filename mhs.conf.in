@@ -83,3 +83,64 @@ cc = "$CC"
 ccflags = "$MHSCCFLAGS"
 cclibs = "$MHSCCLIBS"
 conf = "$MHSCONF"
+
+-- Library keys
+--  name      the name of the library
+--  version   the version of the library
+--  modules   the modules of the library, separated by spaces;
+--            a module also stands for all the modules below it,
+--            e.g., Data.Text includes Data.Text.IO
+--
+-- The libraries are the base package, and the libraries whose modules
+-- are part of it.  The installer writes a Cabal registration file for each,
+-- so that tools like cabal know that these libraries are already installed.
+-- The library named like the base package has no modules key; it gets the
+-- modules of base that no other library has.  The other libraries depend on it.
+--
+-- The version numbers are fake, they are from GHC.  They are those of
+-- builtinPackages in MicroCabal, except for hashable: Data.Hashable has
+-- the API of the 1.4 series, and the packages that use it ask for that.
+
+[library]
+name = "base"
+version = "4.19.1.0"
+
+[library]
+name = "bytestring"
+version = "0.12.1.0"
+modules = "Data.ByteString"
+
+[library]
+name = "deepseq"
+version = "1.4.4.0"
+modules = "Control.DeepSeq"
+
+[library]
+name = "directory"
+version = "1.3.8.1"
+modules = "System.Directory"
+
+[library]
+name = "hashable"
+version = "1.4.7.0"
+modules = "Data.Hashable"
+
+[library]
+name = "integer-logarithms"
+version = "1.0.4"
+modules = "Math.NumberTheory"
+
+[library]
+name = "process"
+version = "1.6.18.0"
+modules = "System.Process"
+
+[library]
+name = "stm"
+version = "2.5.3.0"
+modules = "Control.Concurrent.STM Control.Monad.STM"
+
+[library]
+name = "text"
+version = "2.1.1"
+modules = "Data.Text"

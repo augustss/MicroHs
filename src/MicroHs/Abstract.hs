@@ -5,7 +5,7 @@ module MicroHs.Abstract(
 import qualified Prelude(); import MHSPrelude
 import MicroHs.Ident
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..))
+import MicroHs.Expr(Lit(..), PrimOp(..))
 
 --
 -- Used combinators
@@ -40,61 +40,80 @@ getApp ae =
     App f a -> IsApp f a
     _       -> NotApp
 
-isPrim :: String -> Exp -> Bool
-isPrim s ae =
-  case ae of
-    Lit (LPrim ss) -> s == ss
-    _       -> False
-
 isK :: Exp -> Bool
-isK = isPrim "K"
+isK ae =
+  case ae of
+    Lit (LPrim PK) -> True
+    _ -> False
 
 isI :: Exp -> Bool
-isI = isPrim "I"
+isI ae =
+  case ae of
+    Lit (LPrim PI) -> True
+    _ -> False
 
 isB :: Exp -> Bool
-isB = isPrim "B"
+isB ae =
+  case ae of
+    Lit (LPrim PB) -> True
+    _ -> False
 
 isC :: Exp -> Bool
-isC = isPrim "C"
+isC ae =
+  case ae of
+    Lit (LPrim PC) -> True
+    _ -> False
 
 isC' :: Exp -> Bool
-isC' = isPrim "C'"
+isC' ae =
+  case ae of
+    Lit (LPrim PC') -> True
+    _ -> False
 
 isY :: Exp -> Bool
-isY = isPrim "Y"
+isY ae =
+  case ae of
+    Lit (LPrim PY) -> True
+    _ -> False
 
 isP :: Exp -> Bool
-isP = isPrim "P"
+isP ae =
+  case ae of
+    Lit (LPrim PP) -> True
+    _ -> False
 
 isZ :: Exp -> Bool
-isZ = isPrim "Z"
-
-{-
-isU :: Exp -> Bool
-isU = isPrim "U"
--}
+isZ ae =
+  case ae of
+    Lit (LPrim PZ) -> True
+    _ -> False
 
 isK2 :: Exp -> Bool
-isK2 = isPrim "K2"
+isK2 ae =
+  case ae of
+    Lit (LPrim PK2) -> True
+    _ -> False
 
 isK3 :: Exp -> Bool
-isK3 = isPrim "K3"
+isK3 ae =
+  case ae of
+    Lit (LPrim PK3) -> True
+    _ -> False
 
 cI :: Exp
-cI = Lit (LPrim "I")
+cI = Lit (LPrim PI)
 
 cK :: Exp
-cK = Lit (LPrim "K")
+cK = Lit (LPrim PK)
 
 cS :: Exp
-cS = Lit (LPrim "S")
+cS = Lit (LPrim PS)
 
 cP :: Exp
-cP = Lit (LPrim "P")
+cP = Lit (LPrim PP)
 
 cC :: Exp
-cC = Lit (LPrim "C")
+cC = Lit (LPrim PC)
 
 --------------------
 
@@ -219,7 +238,7 @@ aB a1 a2 =
       NotApp -> r
       IsApp cb ck ->
         if isB cb && isK ck && isP a2 then
-          Lit (LPrim "O")
+          Lit (LPrim PO)
         else
           r
 
@@ -248,7 +267,7 @@ aB3 a1 a2 =
   if isI a1 then
     a2
   else
-    app2 (Lit (LPrim "B")) a1 a2
+    app2 (Lit (LPrim PB)) a1 a2
 
 {-
 aB (App CB CK) CP             = CO -- Cons
@@ -259,10 +278,10 @@ aB e1          e2             = app2 CB e1 e2
 -}
 
 aS' :: Exp -> Exp -> Exp -> Exp
-aS' e1 e2 e3 = app3 (Lit (LPrim "S'")) e1 e2 e3
+aS' e1 e2 e3 = app3 (Lit (LPrim PS')) e1 e2 e3
 
 aC' :: Exp -> Exp -> Exp -> Exp
-aC' e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
+aC' e1 e2 e3 = app3 (Lit (LPrim PC')) e1 e2 e3
 
 improveT :: Exp -> Exp
 improveT ae =
@@ -274,27 +293,27 @@ improveT ae =
         aa = improveT a
       in
         if isK ff && isI aa then
-          Lit (LPrim "A")
+          Lit (LPrim PA)
 {- Using I x --> x does not improve things.
         else if isI ff then
           aa
 -}
         else if isB ff && isK aa then
-          Lit (LPrim "Z")
+          Lit (LPrim PZ)
         else if isC ff && isI aa then
-          Lit (LPrim "U")
+          Lit (LPrim PU)
         else if isB ff && isB aa then
-          Lit (LPrim "B'")
+          Lit (LPrim PB')
         else if isC ff && isC aa then
-          Lit (LPrim "R")
+          Lit (LPrim PR)
         else if isC' ff && isB aa then
-          Lit (LPrim "C'B")
+          Lit (LPrim PC'B)
         else if isZ ff && isK aa then
-          Lit (LPrim "K2")
+          Lit (LPrim PK2)
         else if isZ ff && isK2 aa then
-          Lit (LPrim "K3")
+          Lit (LPrim PK3)
         else if isZ ff && isK3 aa then
-          Lit (LPrim "K4")
+          Lit (LPrim PK4)
         else
           let
             def =
@@ -319,10 +338,12 @@ improveT ae =
 
 
 kApp :: Exp -> Exp -> Exp
-kApp (Lit (LPrim "K")) (App (Lit (LPrim ('K':s))) x)
-  | s == ""  = App (Lit (LPrim "K2")) x
-  | s == "2" = App (Lit (LPrim "K3")) x
-  | s == "3" = App (Lit (LPrim "K4")) x
+kApp f@(Lit (LPrim PK)) a@(App (Lit (LPrim k)) x) =
+  case k of
+    PK  -> App (Lit (LPrim PK2)) x
+    PK2 -> App (Lit (LPrim PK3)) x
+    PK3 -> App (Lit (LPrim PK4)) x
+    _   -> App f a
 kApp f a = App f a
 
 {-
@@ -386,24 +407,26 @@ improveT e = e
 reduce :: Exp -> Exp
 reduce e = red e []
   where
+    isPrim p (Lit (LPrim p')) = p == p'
+    isPrim _ _ = False
     -- No duplication, nor cycles, so no S, S', Y
     red (App f a) as                      = red f (reduce a : as)
     red f (x:as)         | isI          f && xxx "I" = red x as
-    red f (x:y:as)       | isPrim "A"   f && xxx "A" = red y as
-                         | isPrim "U"   f && xxx "U" = red y (x : as)
+    red f (x:y:as)       | isPrim PA   f && xxx "A" = red y as
+                         | isPrim PU   f && xxx "U" = red y (x : as)
                          | isK          f && xxx "K" = red x as
     red f (x:y:z:as)     | isB          f && xxx "B" = red x (App y z : as)
                          | isC          f && xxx "C" = red x (z : y : as)
-                         | isPrim "Z"   f && xxx "Z" = red x (y : as)
+                         | isPrim PZ   f && xxx "Z" = red x (y : as)
                          | isP          f && xxx "P" = red z (x : y : as)
-                         | isPrim "R"   f && xxx "R" = red y (z : x : as)
-                         | isPrim "K2"  f && xxx "K2" = red x as
-    red f (x:y:z:w:as)   | isPrim "B'"  f && xxx "B'" = red x (y : App z w : as)
-                         | isPrim "C'"  f && xxx "C'" = red x (App y w : z : as)
-                         | isPrim "O"   f && xxx "O" = red w (x : y : as)
-                         | isPrim "K3"  f && xxx "K3" = red x as
-                         | isPrim "C'B" f && xxx "C'B" = red x (z : App y w : as)
-    red f (x:_:_:_:_:as) | isPrim "K4"  f && xxx "K4" = red x as
+                         | isPrim PR   f && xxx "R" = red y (z : x : as)
+                         | isPrim PK2  f && xxx "K2" = red x as
+    red f (x:y:z:w:as)   | isPrim PB'  f && xxx "B'" = red x (y : App z w : as)
+                         | isPrim PC'  f && xxx "C'" = red x (App y w : z : as)
+                         | isPrim PO   f && xxx "O" = red w (x : y : as)
+                         | isPrim PK3  f && xxx "K3" = red x as
+                         | isPrim PC'B f && xxx "C'B" = red x (z : App y w : as)
+    red f (x:_:_:_:_:as) | isPrim PK4  f && xxx "K4" = red x as
 
     red f as                              = foldl App f as
 

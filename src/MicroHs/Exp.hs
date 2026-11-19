@@ -3,7 +3,6 @@
 -- See LICENSE file for full license.
 module MicroHs.Exp(
   Exp(..),
-  PrimOp,
   substExp,
   app2, app3,
   allVarsExp, freeVars,
@@ -14,12 +13,10 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr(Lit(..), showLit, CType(..))
+import MicroHs.Expr(Lit(..), PrimOp(..), showLit, CType(..))
 import MicroHs.List
 import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
-
-type PrimOp = String
 
 data Exp
   = Var Ident
@@ -106,9 +103,9 @@ type IsJavascript = Bool
 mkForExp :: IsJavascript -> Exp -> CType -> Exp
 mkForExp js e t = app2 cfe e cty
   where cty = Lit $ LCType t
-        cfe = Lit $ LPrim $ if js then "FEJS" else "FE"
+        cfe = Lit $ LPrim $ POther $ if js then "FEJS" else "FE"
 
 getForExp :: Exp -> Maybe (IsJavascript, Exp, CType)
-getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (False, e, t)
-getForExp (App (App (Lit (LPrim "FEJS")) e) (Lit (LCType t))) = Just (True, e, t)
+getForExp (App (App (Lit (LPrim (POther "FE"))) e) (Lit (LCType t))) = Just (False, e, t)
+getForExp (App (App (Lit (LPrim (POther "FEJS"))) e) (Lit (LCType t))) = Just (True, e, t)
 getForExp _ = Nothing
