@@ -346,11 +346,13 @@ rest is the size field, `sl + sr + 1`, which is a thunk in the Haskell
 code. Computing it eagerly needs no strictness analysis, since `sl` and `sr`
 have already been evaluated for the comparisons; it is cheap eagerness,
 i.e., doing a cheap primitive on evaluated values. It must not raise an
-exception that the lazy code would not, so with `WANT_OVERFLOW` the code has
-to build the thunk instead when the addition overflows. The only other
-thing the C code does that the Haskell code does not is to evaluate the sizes of
-the two grandchildren in a double rotation (3.6% of the calls), so code
-that keeps the laziness exactly should get almost all of the gain.
+exception that the lazy code would not. `Int` arithmetic wraps around
+(`WANT_OVERFLOW` is off since 2026-11-19), so `+` cannot raise. With
+`WANT_OVERFLOW` the code would have to build the thunk instead when the
+addition overflows. The only other thing the C code does that the Haskell
+code does not is to evaluate the sizes of the two grandchildren in a double
+rotation (3.6% of the calls), so code that keeps the laziness exactly
+should get almost all of the gain.
 
 So code that is lazy and allocates a lot, like the compiler, can gain too,
 when it has hot functions with strict parts. Two of the rules above
