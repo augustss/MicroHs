@@ -828,7 +828,7 @@ typedef struct PACKED node {
   counter_t          prof_unwind; /* unwinding steps charged to this node */
   counter_t          prof_alloc;  /* cells allocated by reductions charged to this node */
   uint32_t           prof_label;  /* the label of the definition + 1, 0 for none, PROF_MAIN for the main expression */
-  uint32_t           prof_spare;
+  uint32_t           prof_ctx;    /* the call context the node was created in, see prof_push */
 #endif  /* WANT_PROFILE */
 } node;
 
@@ -2524,6 +2524,110 @@ static struct node *prof_def_start = 0;        /* the first cell of the definiti
 static heapoffs_t prof_nlabels = 0;            /* number of labels in the program */
 static char **prof_names = 0;                  /* the name of each label, see prof_end_load */
 #define PROF_MAIN 0xffffffff                   /* prof_label of the main expression */
+#define PROF_LOADED(p) ((p) >= prof_lo && (p) < prof_hi)
+
+/*
+ * Call contexts, to find the callers of a definition.  A context is a chain of
+ * definitions, like a call stack, in which a definition occurs at most once.
+ * The context of a reduction is the caller's context, i.e., that of the
+ * innermost application on the spine that was built at run time, extended
+ * with the definition the reduction is charged to (prof_push).  If that
+ * definition is already in the chain, the chain is cut back to it, so
+ * recursion does not make chains grow.  A new node gets the context of the
+ * reduction that creates it, and so does the node a reduction overwrites (see
+ * ap and ap2 in evali), so a tail call is made from the context of the code
+ * that makes it.  Context 0 is the top level, e.g., for evaluating a CAF.
+ */
+struct prof_context {
+  uint32_t  parent;             /* the caller's context */
+  uint32_t  label;              /* the definition, as prof_label */
+  counter_t red;                /* reductions in this context */
+  counter_t alloc;              /* cells allocated in this context */
+};
+#define PROF_TOP_LABEL 0xfffffffe                       /* label of context 0 */
+static struct prof_context prof_ctx0 = { 0, PROF_TOP_LABEL, 0, 0 };
+static struct prof_context *prof_ctxs = &prof_ctx0;    /* all contexts */
+static uint32_t prof_nctxs = 1, prof_maxctxs = 1;
+static uint32_t prof_ctx_cur = 0;                       /* the context of new nodes */
+/* A hash table of the results of prof_push, the key is context<<32 | label */
+#define PROF_NO_KEY UINT64_MAX
+static uint64_t *prof_memo_keys = 0;
+static uint32_t *prof_memo_vals = 0;
+static uint64_t prof_memo_size = 0, prof_memo_used = 0;
+
+static INLINE uint64_t
+prof_hash(uint64_t key, uint64_t size)
+{
+  return (key * 0x9E3779B97F4A7C15ULL) >> 20 & (size - 1);
+}
+
+static void
+prof_memo_insert(uint64_t key, uint32_t val)
+{
+  uint64_t h = prof_hash(key, prof_memo_size);
+  while (prof_memo_keys[h] != PROF_NO_KEY)
+    h = (h + 1) & (prof_memo_size - 1);
+  prof_memo_keys[h] = key;
+  prof_memo_vals[h] = val;
+  prof_memo_used++;
+}
+
+static void
+prof_memo_grow(void)
+{
+  uint64_t *okeys = prof_memo_keys, osize = prof_memo_size;
+  uint32_t *ovals = prof_memo_vals;
+  prof_memo_size = osize ? 2 * osize : 1 << 16;
+  prof_memo_keys = mmalloc(prof_memo_size * sizeof(uint64_t));
+  prof_memo_vals = mmalloc(prof_memo_size * sizeof(uint32_t));
+  for (uint64_t h = 0; h < prof_memo_size; h++)
+    prof_memo_keys[h] = PROF_NO_KEY;
+  prof_memo_used = 0;
+  for (uint64_t h = 0; h < osize; h++)
+    if (okeys[h] != PROF_NO_KEY)
+      prof_memo_insert(okeys[h], ovals[h]);
+  if (okeys) {
+    FREE(okeys);
+    FREE(ovals);
+  }
+}
+
+/* The context for code of definition lab called from context ctx. */
+static uint32_t
+prof_push(uint32_t ctx, uint32_t lab)
+{
+  uint64_t key = (uint64_t)ctx << 32 | lab;
+  uint64_t h;
+  uint32_t c;
+
+  if (2 * (prof_memo_used + 1) > prof_memo_size)
+    prof_memo_grow();
+  for (h = prof_hash(key, prof_memo_size); prof_memo_keys[h] != PROF_NO_KEY; h = (h + 1) & (prof_memo_size - 1))
+    if (prof_memo_keys[h] == key)
+      return prof_memo_vals[h];
+  /* Not seen before: cut back to lab if it is in the chain, or else extend the chain. */
+  for (c = ctx; c != 0 && prof_ctxs[c].label != lab; c = prof_ctxs[c].parent)
+    ;
+  if (c == 0) {
+    if (prof_nctxs == prof_maxctxs) {
+      struct prof_context *o = prof_ctxs;
+      if (prof_nctxs >= 0xfffffff0)
+        ERR("profiling: too many call contexts");
+      prof_maxctxs = prof_maxctxs < 0x10000 ? 0x10000 : prof_maxctxs < 0x7ffffff8 ? 2 * prof_maxctxs : 0xfffffff0;
+      prof_ctxs = mmalloc(prof_maxctxs * sizeof(struct prof_context));
+      memcpy(prof_ctxs, o, prof_nctxs * sizeof(struct prof_context));
+      if (o != &prof_ctx0)
+        FREE(o);
+    }
+    c = prof_nctxs++;
+    prof_ctxs[c].parent = ctx;
+    prof_ctxs[c].label = lab;
+    prof_ctxs[c].red = 0;
+    prof_ctxs[c].alloc = 0;
+  }
+  prof_memo_insert(key, c);
+  return c;
+}
 
 static INLINE void
 prof_new(struct node *p)
@@ -2540,9 +2644,12 @@ prof_new(struct node *p)
     p->prof_unwind = 0;
     p->prof_alloc = 0;
     p->prof_label = 0;
+    p->prof_ctx = 0;
   } else {
     p->prof_src = prof_cur;
     prof_cur->prof_alloc++;
+    p->prof_ctx = prof_ctx_cur;
+    prof_ctxs[prof_ctx_cur].alloc++;
   }
 }
 
@@ -6189,11 +6296,13 @@ counter_t num_arm, num_bad_arm;
  * BININT markers) are skipped.  A constructor selecting a case arm is charged
  * to the case, which is below the constructor's fields and the marker.
  * Every pass through the top of evali is charged somewhere, so the counts add
- * up to num_reductions.  The source is also what new nodes get. */
+ * up to num_reductions.  The source is also what new nodes get.
+ * The reduction is also charged to a call context, see prof_push. */
 static INLINE void
 prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
 {
-  struct node *src = 0;
+  struct node *src = 0, *p;
+  uint32_t caller = 0, ctx;
   stackptr_t i = stack_ptr;
   if (tag == V_CONSTR) {
     int k, nn;
@@ -6207,14 +6316,37 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
       break;
     }
   }
-  if (!src)
-    src = is_VIRT(n) ? &prof_runtime : NPTR(n)->prof_src;
+  /* The caller: the innermost application built at run time */
+  for (; i > stk; i--) {
+    if (!is_VIRT(stack[i])) {
+      p = NPTR(stack[i]);
+      if (!PROF_LOADED(p)) {
+        caller = p->prof_ctx;
+        break;
+      }
+    }
+  }
+  if (!src) {
+    if (is_VIRT(n)) {
+      src = &prof_runtime;
+    } else {
+      p = NPTR(n);
+      src = p->prof_src;
+      if (!PROF_LOADED(p))
+        caller = p->prof_ctx;
+    }
+  }
   src->prof_red++;
   prof_cur = src;
+  ctx = prof_ctxs[caller].label == src->prof_label ? caller : prof_push(caller, src->prof_label);
+  prof_ctxs[ctx].red++;
+  prof_ctx_cur = ctx;
 }
 #define PROF_UNWIND(n) (NPTR(n)->prof_src->prof_unwind++)
+#define PROF_OVERWRITE(n) (NPTR(n)->prof_ctx = prof_ctx_cur)
 #else
 #define PROF_UNWIND(n) do { } while(0)
+#define PROF_OVERWRITE(n) do { } while(0)
 #endif  /* WANT_PROFILE */
 
 /* Evaluate a node, returns when the node is in WHNF. */
@@ -6225,6 +6357,7 @@ evali(NODEPTR an)
   stackptr_t stk = stack_ptr;
 #if WANT_PROFILE
   struct node *prof_saved = prof_cur; /* a strict primitive allocates after evaluating its arguments */
+  uint32_t prof_ctx_saved = prof_ctx_cur;
 #endif
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
@@ -6335,9 +6468,10 @@ evali(NODEPTR an)
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
-  ap2:         PROF_UNWIND(n); PUSH(n); n = FUN(n);
+    /* n has been overwritten by GOAP and friends, see prof_push */
+  ap2:         PROF_OVERWRITE(n); PROF_UNWIND(n); PUSH(n); n = FUN(n);
   ap:
-  case X_AP:   PROF_UNWIND(n); PUSH(n);
+  case X_AP:   PROF_OVERWRITE(n); PROF_UNWIND(n); PUSH(n);
     n = FUN(n); goto top;
 
   case D_INT:    RET;
@@ -8246,6 +8380,7 @@ evali(NODEPTR an)
 #endif
 #if WANT_PROFILE
   prof_cur = prof_saved;
+  prof_ctx_cur = prof_ctx_saved;
 #endif
   //fprintf(stderr, "evali exit stack_ptr=%d\n", (int)stack_ptr);
   return n;
@@ -8407,6 +8542,137 @@ prof_label_name(uint32_t lab, char *buf, size_t size)
 }
 
 #define PROF_HOT_NODES 200
+#define PROF_CALLER_DEFS 20     /* the definitions whose callers are shown */
+#define PROF_CALLERS 10         /* the callers and the call chains shown for each */
+#define PROF_CHAIN 6            /* the callers shown in a call chain */
+#define PROF_MORE 0xfffffffd    /* the chain continues */
+
+/* Some callers of a context, the most recent first.  Unused entries are
+ * PROF_TOP_LABEL, and PROF_MORE ends a chain that was cut off. */
+struct prof_chain {
+  uint32_t  lab[PROF_CHAIN + 1];
+  counter_t red, alloc;
+};
+
+static int
+prof_cmp_chain_lab(const void *a, const void *b)
+{
+  const uint32_t *x = ((const struct prof_chain *)a)->lab, *y = ((const struct prof_chain *)b)->lab;
+  for (int k = 0; k <= PROF_CHAIN; k++)
+    if (x[k] != y[k])
+      return x[k] < y[k] ? -1 : 1;
+  return 0;
+}
+
+static int
+prof_cmp_chain_red(const void *a, const void *b)
+{
+  counter_t x = ((const struct prof_chain *)a)->red, y = ((const struct prof_chain *)b)->red;
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
+/* Fill chs with the chains of depth callers for the contexts of label lab,
+ * summed over equal chains and sorted by reductions.  Returns their number. */
+static uint32_t
+prof_chains(struct prof_chain *chs, uint32_t lab, int depth)
+{
+  uint32_t m = 0, c, a;
+  int k;
+  for (c = 1; c < prof_nctxs; c++) {
+    if (prof_ctxs[c].label != lab)
+      continue;
+    struct prof_chain *ch = &chs[m++];
+    for (k = 0; k <= PROF_CHAIN; k++)
+      ch->lab[k] = PROF_TOP_LABEL;
+    for (a = prof_ctxs[c].parent, k = 0; k < depth && a != 0; k++, a = prof_ctxs[a].parent)
+      ch->lab[k] = prof_ctxs[a].label;
+    if (a != 0 && depth > 1)
+      ch->lab[k] = PROF_MORE;
+    ch->red = prof_ctxs[c].red;
+    ch->alloc = prof_ctxs[c].alloc;
+  }
+  qsort(chs, m, sizeof *chs, prof_cmp_chain_lab);
+  uint32_t n = 0;
+  for (uint32_t j = 0; j < m; j++) {
+    if (n > 0 && prof_cmp_chain_lab(&chs[n-1], &chs[j]) == 0) {
+      chs[n-1].red += chs[j].red;
+      chs[n-1].alloc += chs[j].alloc;
+    } else {
+      chs[n++] = chs[j];
+    }
+  }
+  qsort(chs, n, sizeof *chs, prof_cmp_chain_red);
+  return n;
+}
+
+/* The callers of the definitions with the most reductions, see prof_push. */
+static void
+prof_report_callers(FILE *f, heapoffs_t *order, heapoffs_t nl)
+{
+  struct prof_chain *chs;
+  uint32_t c, cnt, maxcnt = 0, n, j;
+  char buf[64];
+  int shown = 0, k;
+
+  /* Count the contexts per label, to size chs. */
+  counter_t *nctx = mmalloc(nl * sizeof(counter_t));
+  for (heapoffs_t i = 0; i < nl; i++)
+    nctx[i] = 0;
+  for (c = 1; c < prof_nctxs; c++) {
+    uint32_t lab = prof_ctxs[c].label;
+    heapoffs_t i = lab == PROF_MAIN ? nl - 1 : lab;
+    if (i < nl && ++nctx[i] > maxcnt)
+      maxcnt = (uint32_t)nctx[i];
+  }
+  chs = mmalloc((maxcnt + 1) * sizeof(struct prof_chain));
+
+  fprintf(f, "\n%u call contexts.\n", (unsigned)prof_nctxs);
+  fprintf(f, "Callers of the definitions with the most reductions.  The caller is the\n");
+  fprintf(f, "definition that built the application; in a call chain the most recent\n");
+  fprintf(f, "caller comes first.  Recursion is cut back to the first call.\n");
+  for (heapoffs_t jj = 0; jj < nl && shown < PROF_CALLER_DEFS; jj++) {
+    heapoffs_t i = order[jj];
+    uint32_t lab = i == nl - 1 ? PROF_MAIN : (uint32_t)i;
+    counter_t self = 0;
+    cnt = 0;
+    for (c = 1; c < prof_nctxs; c++)
+      if (prof_ctxs[c].label == lab) {
+        self += prof_ctxs[c].red;
+        cnt++;
+      }
+    if (!self)
+      continue;
+    shown++;
+    fprintf(f, "\n%s: %"PRIcounter" reductions in %u contexts\n", prof_label_name(lab, buf, sizeof buf), self, (unsigned)cnt);
+    for (int depth = 1; depth <= PROF_CHAIN; depth += PROF_CHAIN - 1) {
+      n = prof_chains(chs, lab, depth);
+      fprintf(f, "     reductions   %%self   cells allocated  %s\n", depth == 1 ? "caller" : "call chain");
+      for (j = 0; j < n && j < PROF_CALLERS; j++) {
+        fprintf(f, "%15"PRIcounter" %7.2f %17"PRIcounter"  ", chs[j].red, 100.0 * chs[j].red / self, chs[j].alloc);
+        for (k = 0; k <= PROF_CHAIN; k++) {
+          uint32_t l = chs[j].lab[k];
+          if (l == PROF_TOP_LABEL) {
+            if (k == 0)
+              fprintf(f, "<top level>");
+            break;
+          }
+          if (k > 0)
+            fprintf(f, " <- ");
+          fprintf(f, "%s", l == PROF_MORE ? "..." : prof_label_name(l, buf, sizeof buf));
+        }
+        fprintf(f, "\n");
+      }
+      if (n > PROF_CALLERS) {
+        counter_t rest = 0;
+        for (; j < n; j++)
+          rest += chs[j].red;
+        fprintf(f, "%15"PRIcounter" %7.2f %17s  (%u more)\n", rest, 100.0 * rest / self, "", (unsigned)(n - PROF_CALLERS));
+      }
+    }
+  }
+  FREE(chs);
+  FREE(nctx);
+}
 
 /* Write the profile to PROGRAM.prof, see prof_charge.  The counts of the loaded
  * nodes are summed per definition; then come the loaded nodes with the most
@@ -8482,6 +8748,8 @@ prof_report(void)
             red[i], 100.0 * red[i] / tred, 100.0 * cum / tred, unw[i], alc[i],
             prof_label_name(i == nl - 1 ? PROF_MAIN : (uint32_t)i, buf, sizeof buf));
   }
+
+  prof_report_callers(f, order, nl);
 
   /* The loaded nodes with the most reductions */
   hot = mmalloc((nhot + 1) * sizeof(struct node *));
