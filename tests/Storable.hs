@@ -48,5 +48,17 @@ main = do
   pokePeek @Int64  >>= print
 
   -- The C types, with values that fit on any platform.
+  roundTrip (65 :: CChar) >>= print
+  roundTrip (-128 :: CSChar) >>= print
+  roundTrip (255 :: CUChar) >>= print
+  roundTrip (-32768 :: CShort) >>= print
+  roundTrip (65535 :: CUShort) >>= print
+  roundTrip (-2147483648 :: CInt) >>= print
+  roundTrip (4294967295 :: CUInt) >>= print
+  roundTrip (-2147483648 :: CLong) >>= print
+  roundTrip (4294967295 :: CULong) >>= print
   roundTrip (minBound :: CLLong) >>= print
   roundTrip (maxBound :: CULLong) >>= print
+  roundTrip (4294967295 :: CSize) >>= print
+  roundTrip (1.5 :: CFloat) >>= print
+  roundTrip (2.5 :: CDouble) >>= print
