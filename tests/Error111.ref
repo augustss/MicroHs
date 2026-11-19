@@ -1,0 +1,5 @@
+./Error111.hs:4:29: error: Bad \ escape: character code is too big
+  |
+4 | main = putStrLn "abc\x110000"
+  |                             ^
+
