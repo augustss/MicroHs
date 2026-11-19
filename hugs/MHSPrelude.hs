@@ -33,7 +33,7 @@ import Data.Text(Text, append, pack)
 import Data.Typeable
 import Data.Word
 import Data.Version
-import GHC.Exts(Any)
+import qualified GHC.Exts as Exts
 import Debug.Trace
 import System.Directory (getDirectoryContents)
 import System.IO
@@ -199,7 +199,7 @@ compiledWithMhs :: Bool
 compiledWithMhs = False
 
 -- A value of unknown type.
-type AnyType = Any
+type AnyType = Exts.Any
 
 -------- Control.DeepSeq ------
 
