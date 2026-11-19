@@ -2536,7 +2536,8 @@ static char **prof_names = 0;                  /* the name of each label, see pr
  * recursion does not make chains grow.  A new node gets the context of the
  * reduction that creates it, and so does the node a reduction overwrites (see
  * ap and ap2 in evali), so a tail call is made from the context of the code
- * that makes it.  Context 0 is the top level, e.g., for evaluating a CAF.
+ * that makes it.  Context 0 is the top level; a CAF is called from there, by
+ * the definition it is in (see prof_charge).
  */
 struct prof_context {
   uint32_t  parent;             /* the caller's context */
@@ -6301,8 +6302,9 @@ counter_t num_arm, num_bad_arm;
 static INLINE void
 prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
 {
-  struct node *src = 0, *p;
+  struct node *src = 0, *p, *caf = 0;
   uint32_t caller = 0, ctx;
+  int found = 0;
   stackptr_t i = stack_ptr;
   if (tag == V_CONSTR) {
     int k, nn;
@@ -6316,15 +6318,19 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
       break;
     }
   }
-  /* The caller: the innermost application built at run time */
-  for (; i > stk; i--) {
-    if (!is_VIRT(stack[i])) {
-      p = NPTR(stack[i]);
-      if (!PROF_LOADED(p)) {
-        caller = p->prof_ctx;
-        break;
-      }
+  /* The caller: the innermost application built at run time, in the
+   * expression being evaluated, which ends at a marker (a strict argument or a
+   * case scrutinee) or the bottom of this evali.  If there is none, the
+   * expression is part of the loaded program, i.e., a CAF, and its caller is
+   * the definition it is in, called from the top level. */
+  for (; i > stk && !is_VIRT(stack[i]); i--) {
+    p = NPTR(stack[i]);
+    if (!PROF_LOADED(p)) {
+      caller = p->prof_ctx;
+      found = 1;
+      break;
     }
+    caf = p;
   }
   if (!src) {
     if (is_VIRT(n)) {
@@ -6332,10 +6338,16 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
     } else {
       p = NPTR(n);
       src = p->prof_src;
-      if (!PROF_LOADED(p))
+      if (!PROF_LOADED(p)) {
         caller = p->prof_ctx;
+        found = 1;
+      } else {
+        caf = p;
+      }
     }
   }
+  if (!found && caf)
+    caller = prof_push(0, caf->prof_label);
   src->prof_red++;
   prof_cur = src;
   ctx = prof_ctxs[caller].label == src->prof_label ? caller : prof_push(caller, src->prof_label);

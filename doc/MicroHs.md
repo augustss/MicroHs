@@ -578,7 +578,7 @@ Fib.fib                                                           21891
 ```
 Only code compiled with `-T` has counters, so, e.g., functions from installed packages are not counted.
 
-The counters are extra code, so they change the program somewhat. Compiling with `--profile` instead does not change the code: it builds the program with a profiling runtime, which counts what every reduction does. When the program exits it writes `PROGRAM.prof`, with the reductions, unwinding steps (following the spine of an application), and allocated cells of each top level definition. All definitions are counted, also those from packages, and an instance counts as one definition. A reduction is charged to the code that runs, and a function value is charged to the definition that created it, wherever it is called. For example, a function created by applying a function to a type class dictionary is charged to that function. Local definitions are part of the top level definition they are in. The file ends with the nodes of the loaded program that most reductions were charged to, with their definition and their position in it.
+The counters are extra code, so they change the program somewhat. Compiling with `--profile` instead does not change the code: it builds the program with a profiling runtime, which counts what every reduction does. When the program exits it writes `PROGRAM.prof`, with the reductions, unwinding steps (following the spine of an application), and allocated cells of each top level definition. All definitions are counted, also those from packages, and an instance counts as one definition. A reduction is charged to the code that runs, and a function value is charged to the definition that created it, wherever it is called. For example, a function created by applying a function to a type class dictionary is charged to that function. Local definitions are part of the top level definition they are in. After the table come the callers of the 20 definitions with the most reductions, see below. The file ends with the nodes of the loaded program that most reductions were charged to, with their definition and their position in it.
 ```
 $ mhs --profile Fib -ofib
 $ ./fib
@@ -594,7 +594,17 @@ Self costs; a closure is charged to the definition that created it.
      reductions    %red   cum%     unwinding steps   cells allocated  definition
          229853  99.53  99.53              569166            186070  Fib.fib
 ```
-The profiling runtime uses 56 bytes per cell instead of 16, and is about 40% slower.
+Every reduction is also charged to a call chain, much like a call stack. The caller is the definition that built the application, so an unevaluated expression is called by the definition that created it, not by the one that evaluates it. A recursive call is cut back to the first call, so the chains stay short. A CAF, which includes an expression that full laziness has floated out of a function, is called by the definition it is in. For each definition the profile shows the callers and the call chains, with the most recent caller first and at most six callers. For example, in the same profile, the `Eq` instance for handle states is mostly called by `elem`, from `withHandleM`:
+```
+inst$Data.Eq.Eq@System.IO_Handle.HandleState: 56 reductions in 2 contexts
+     reductions   %self   cells allocated  caller
+             54   96.43                60  Data.List.elem
+              2    3.57                 1  Data.Eq.==
+     reductions   %self   cells allocated  call chain
+             54   96.43                60  Data.List.elem <- System.IO.Internal.withHandleM <- System.IO.Base.hPutChar <- System.IO.Base.hPutStr <- System.IO.Base.hPutStrLn
+              2    3.57                 1  Data.Eq.== <- Data.List.elem <- System.IO.Internal.withHandleM <- System.IO.Base.hPutChar <- System.IO.Base.hPutStr <- System.IO.Base.hPutStrLn
+```
+The profiling runtime uses 56 bytes per cell instead of 16, and is about 65% slower.
 
 For overall numbers, use `+RTS -v -RTS`, which prints the number of reductions, allocated cells, garbage collections, etc. In interactive mode, `:set +s` shows the time, reductions, and allocated cells for each evaluation.
 
