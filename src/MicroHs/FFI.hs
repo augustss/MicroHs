@@ -2,7 +2,7 @@ module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
-import MicroHs.Desugar(LDef, JSKind(..), jsKind)
+import MicroHs.Desugar(LDef, JSKind(..), jsKind, jsAsync)
 import MicroHs.Error(mhsError)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -212,11 +212,13 @@ mkHdr (ImpJS sf s, f, ty, _) =
   -- emscripten like any other JavaScript in the program.  It is passed to _EM_JS
   -- (what EM_JS expands to) as a C string, so the code need not consist of C tokens.
   -- The code is an expression or statements (with 'return'), see jsIsStatements.
-  -- With 'unsafe' a JavaScript exception is fatal, with 'safe' it is turned into
-  -- a Haskell JSException.  With 'interruptible' the code runs as an async function
-  -- (so it can use await) and the C function returns its Promise as a JSVal; the
-  -- desugarer wraps the import so that the Haskell thread waits for the Promise
-  -- (MicroHs.Desugar.jsAwait, the IO.jsawait primitive), which converts the result.
+  -- As in GHC's WebAssembly backend, an 'unsafe' import is synchronous, and a
+  -- JavaScript exception in it is fatal.  Any other import ('safe', 'interruptible',
+  -- or without a safety annotation, see MicroHs.Desugar.jsAsync) is asynchronous:
+  -- the code runs as an async function (so it can use await) and the C function
+  -- returns its Promise as a JSVal; the desugarer wraps the import so that the Haskell
+  -- thread waits for the Promise (MicroHs.Desugar.jsAwait, the IO.jsawait primitive),
+  -- which converts the result, or raises a JSException if the Promise is rejected.
   let (as, ior) = getArrows (dropForallContext ty)
       rt = checkIO ior
       rk = jsKind rt
@@ -253,8 +255,9 @@ mkHdr (ImpJS sf s, f, ty, _) =
       -- The code can use mhsjs, the JSVal table.
       convs = "var mhsjs = Module.mhsjs; " ++ concat (zipWith conv as ixs)
       -- The code as a function of no arguments; the newline ends a trailing // comment.
-      async = if sf == Interruptible then "async " else ""
-      thunk = if jsIsStatements s then "(" ++ async ++ "() => {" ++ s ++ "\n})" else "(" ++ async ++ "() => (" ++ s ++ "\n))"
+      async = jsAsync sf s
+      asyncKw = if async then "async " else ""
+      thunk = if jsIsStatements s then "(" ++ asyncKw ++ "() => {" ++ s ++ "\n})" else "(" ++ asyncKw ++ "() => (" ++ s ++ "\n))"
       value = thunk ++ "()"
       res =
         case rk of
@@ -265,34 +268,29 @@ mkHdr (ImpJS sf s, f, ty, _) =
       body
         -- The Promise of the async function; an exception in the argument conversion
         -- (e.g. a freed JSVal) becomes a rejected Promise, i.e. a JSException.
-        | sf == Interruptible =
+        | async =
             "try { " ++ convs ++ "return Module.mhsjs.newJSVal(" ++ value ++ "); }" ++
             " catch (e) { return Module.mhsjs.newJSVal(Promise.reject(e)); }"
-        -- With unsafe a JavaScript exception is fatal: it unwinds the C stack, so the runtime
-        -- is marked as stopped (Module.mhsjs.fatal) before the exception propagates.
-        | sf == Unsafe =
-            "try { " ++ convs ++ res ++ " } catch (e) { throw Module.mhsjs.fatal(e); }"
-        -- With safe any JavaScript exception (also in the argument conversion, e.g. a
-        -- freed JSVal) is saved and raised as a JSException by mhs_js_check_error.
+        -- Synchronous (unsafe): a JavaScript exception is fatal.  It unwinds the C stack,
+        -- so the runtime is marked as stopped (Module.mhsjs.fatal) before it propagates.
         | otherwise =
-            "try { " ++ convs ++ res ++ " } catch (e) { Module.mhsjs.error = e; Module.mhsjs.hasError = true; return 0; }"
-      cret = if sf == Interruptible then "int" else ctypeOf rt
+            "try { " ++ convs ++ res ++ " } catch (e) { throw Module.mhsjs.fatal(e); }"
+      cret = if async then "int" else ctypeOf rt
       emjs = "_EM_JS(" ++ cret ++ ", " ++ jsName ++ ", " ++ jsName ++ ", " ++ params ++ ", " ++ cString ("{ " ++ body ++ " }") ++ ")\n"
       cargs = intercalate ", " (zipWith mkJSArg as ixs)
       call = jsName ++ "(" ++ cargs ++ ")"
-      check = if sf == Unsafe then "" else "mhs_js_check_error(); "
       ret r = case rk of
                 KUnit -> "return mhs_from_Unit(s, " ++ show n ++ ")"
                 _     -> "return mhs_from_" ++ jsTypeName rt ++ "(s, " ++ show n ++ ", " ++ r ++ ")"
       fbody =
         case rk of
-          KUnit -> call ++ "; " ++ check ++ ret ""
-          _     -> cret ++ " r = " ++ call ++ "; " ++ check ++ ret "r"
+          KUnit -> call ++ "; " ++ ret ""
+          _     -> cret ++ " r = " ++ call ++ "; " ++ ret "r"
   in  if not (null badParams) then
         errorMessage (getSLoc ty) $ "foreign import javascript: " ++ intercalate ", " badParams ++
           " is not an argument: " ++ paramsAre ++
           (if any (all (== '0') . tail) badParams then " (they start at $1, not $0)" else "")
-      else if sf == Interruptible then
+      else if async then
         emjs ++ mkMhsFun f ("int r = " ++ call ++ "; return mhs_from_JSVal(s, " ++ show n ++ ", r)")
       else
         emjs ++ mkMhsFun f fbody

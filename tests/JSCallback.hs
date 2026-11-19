@@ -10,38 +10,38 @@ import GHC.Wasm.Prim
 import System.Mem (performGC)
 
 -- Call the callback from the JavaScript event loop (after ms milliseconds).
-foreign import javascript "setTimeout(() => $1(), $2)" later :: JSVal -> Int -> IO ()
+foreign import javascript unsafe "setTimeout(() => $1(), $2)" later :: JSVal -> Int -> IO ()
 -- Call the callback from a JavaScript timer, and report an exception thrown by it.
-foreign import javascript "setTimeout(() => { try { $1() } catch (e) { console.log('JavaScript caught: ' + e.message) } }, $2)"
+foreign import javascript unsafe "setTimeout(() => { try { $1() } catch (e) { console.log('JavaScript caught: ' + e.message) } }, $2)"
   laterCatch :: JSVal -> Int -> IO ()
 -- Call an asynchronous callback (returns a Promise) and report a rejection.
-foreign import javascript "$1().then(() => console.log('promise resolved'), e => console.log('promise rejected: ' + e.message))"
+foreign import javascript unsafe "$1().then(() => console.log('promise resolved'), e => console.log('promise rejected: ' + e.message))"
   callAsync :: JSVal -> IO ()
 -- A Promise that resolves after ms milliseconds.
-foreign import javascript "new Promise(r => setTimeout(() => r(42), $1))" delayed :: Int -> IO JSVal
+foreign import javascript unsafe "new Promise(r => setTimeout(() => r(42), $1))" delayed :: Int -> IO JSVal
 foreign import javascript interruptible "return await $1" await :: JSVal -> IO JSVal
-foreign import javascript "$1" jsValToInt :: JSVal -> IO Int
-foreign import javascript "({ n: $1 })" mkObj :: Int -> IO JSVal
-foreign import javascript safe "$1.n" getN :: JSVal -> IO Int
-foreign import javascript "mhsjs.kv.size" tableSize :: IO Int
+foreign import javascript unsafe "$1" jsValToInt :: JSVal -> IO Int
+foreign import javascript unsafe "({ n: $1 })" mkObj :: Int -> IO JSVal
+foreign import javascript unsafe "$1.n" getN :: JSVal -> IO Int
+foreign import javascript safe "$1.n" getNSafe :: JSVal -> IO Int
+foreign import javascript unsafe "mhsjs.kv.size" tableSize :: IO Int
 -- Call a callback that returns a value, and report what it returned.
-foreign import javascript "return $1()" call0 :: JSVal -> IO JSVal
-foreign import javascript "$1" intToJSVal :: Int -> IO JSVal
+foreign import javascript unsafe "return $1()" call0 :: JSVal -> IO JSVal
+foreign import javascript unsafe "$1" intToJSVal :: Int -> IO JSVal
 -- Keep a callback on the JavaScript side, and call it later.
-foreign import javascript "globalThis.savedCb = $1" saveCb :: JSVal -> IO ()
+foreign import javascript unsafe "globalThis.savedCb = $1" saveCb :: JSVal -> IO ()
 foreign import javascript safe "globalThis.savedCb()" callSavedCb :: IO ()
 -- The same code in a synchronous and an interruptible import.
-foreign import javascript safe "return $1 + 1" plus1 :: Int -> IO Int
+foreign import javascript unsafe "return $1 + 1" plus1 :: Int -> IO Int
 foreign import javascript interruptible "return $1 + 1" plus1Async :: Int -> IO Int
-foreign import javascript safe "throw new Error('callback boom')" jsThrow :: IO ()
 foreign import javascript unsafe "throw new Error('unsafe boom')" jsThrowUnsafe :: IO ()
 -- Call the callback n times, ignoring the errors it throws.
-foreign import javascript "for (var i = 0; i < $2; i++) { try { $1() } catch (e) {} }" callMany :: JSVal -> Int -> IO ()
+foreign import javascript unsafe "for (var i = 0; i < $2; i++) { try { $1() } catch (e) {} }" callMany :: JSVal -> Int -> IO ()
 -- Call the value callback $1, and report whether it threw an error about a freed JSVal.
-foreign import javascript "try { $1(); console.log('freed result: no error?') } catch (e) { console.log('freed result: ' + (e.message.indexOf('freed') >= 0 ? 'error' : e.message)) }"
+foreign import javascript unsafe "try { $1(); console.log('freed result: no error?') } catch (e) { console.log('freed result: ' + (e.message.indexOf('freed') >= 0 ? 'error' : e.message)) }"
   callFreed :: JSVal -> IO ()
 -- Call the callback now, and report an exception thrown by it.
-foreign import javascript "try { $1() } catch (e) { console.log('JavaScript caught: ' + e.message) }" callCatch :: JSVal -> IO ()
+foreign import javascript unsafe "try { $1() } catch (e) { console.log('JavaScript caught: ' + e.message) }" callCatch :: JSVal -> IO ()
 
 -- An exception that cannot be shown.
 data BadShow = BadShow
@@ -50,11 +50,11 @@ instance Show BadShow where
 instance Exception BadShow
 
 -- Call the value callback $1 now, and report whether its result arrived or it threw.
-foreign import javascript "try { var r = $1(); console.log('callback 19b: ' + (r && r.n === 19 ? 'result arrived' : 'result lost')) } catch (e) { console.log('callback 19b threw: ' + e.message) }"
+foreign import javascript unsafe "try { var r = $1(); console.log('callback 19b: ' + (r && r.n === 19 ? 'result arrived' : 'result lost')) } catch (e) { console.log('callback 19b threw: ' + e.message) }"
   callValueCatch :: JSVal -> IO ()
 
 -- From the event loop: call the value callback $1, and report to $2 whether its result arrived.
-foreign import javascript "setTimeout(() => { var ok; try { ok = $1().n === 13 ? 1 : 0; } catch (e) { console.log('ERROR: ' + e.message); ok = 0; } $2(ok); }, 10)"
+foreign import javascript unsafe "setTimeout(() => { var ok; try { ok = $1().n === 13 ? 1 : 0; } catch (e) { console.log('ERROR: ' + e.message); ok = 0; } $2(ok); }, 10)"
   laterValue :: JSVal -> JSVal -> IO ()
 
 main :: IO ()
@@ -113,11 +113,12 @@ main = do
   v <- await =<< delayed 50
   jsValToInt v >>= \ n -> putStrLn ("main: await done " ++ show n)
 
-  -- 6. Freeing a JSVal twice is harmless; using it afterwards is a JSException with safe.
+  -- 6. Freeing a JSVal twice is harmless; using it afterwards is a JSException with safe
+  --    (an asynchronous import).
   o <- mkObj 7
   freeJSVal o
   freeJSVal o
-  r <- try (getN o)
+  r <- try (getNSafe o)
   putStrLn $ either (\ e -> if "freed" `isInfixOf` show (e :: JSException) then "use after free: caught" else show e) (const "use after free: no exception?") r
 
   -- 7. Many short-lived JSVals do not grow the handle table without bound
@@ -160,7 +161,9 @@ main = do
 
   -- 11. A callback dying of an uncaught JSException does not leak the exception's
   --     value: it is an ordinary JSVal, which the GC frees with the exception.
-  cb11 <- syncCallback jsThrow
+  --     (The callback is called from the code of an import, so it must not block,
+  --     and it cannot get its JSException from an asynchronous import.)
+  cb11 <- syncCallback $ mkObj 11 >>= throwIO . JSException
   performGC
   s2 <- tableSize
   callMany cb11 50

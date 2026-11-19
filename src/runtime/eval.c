@@ -7438,7 +7438,10 @@ evali(NODEPTR an)
       x = evali(x);
       NODEPTR val = ARG(x);
       if (GETVALUE(ARG(FUN(x))))
-        raise_exn(val);         /* a JSException with the error */
+        /* A JSException: the exception is the JSVal node itself, which primIsInt
+         * reports as exn_jsexception and rtsExn wraps in a JSException, so the GC
+         * frees the value with the exception. */
+        raise_exn(val);
       GCCHECKSAVE(val, 1);
       POP(2);
       GOPAIR(val);

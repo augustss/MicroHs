@@ -105,7 +105,6 @@ uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
 #if defined(__EMSCRIPTEN__)
 uintptr_t          mhs_to_HsStablePtr(intptr_t, int);
 int                mhs_to_JSVal(intptr_t, int);
-void               mhs_js_check_error(void);
 #endif
 
 /* The JavaScript FFI (GHC.Wasm.Prim, Control.Exception.Internal); do nothing without JavaScript. */

@@ -27,6 +27,9 @@ rethrown TypeError
 unicode message: ok
 42
 caught nope
+43
+45
+caught default boom
 main done
 async callback called
 woken by callback

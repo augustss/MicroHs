@@ -21,11 +21,13 @@
 -- the Haskell function; "wrapper" does the same but the JavaScript function
 -- runs the Haskell code later and returns a Promise.
 --
--- With 'unsafe' (the default) a JavaScript exception in the code is fatal.
--- With 'safe' it is raised as a JSException.
--- With 'interruptible' the code is an async function, so it can use 'await';
--- the calling Haskell thread waits for the result (the other threads keep
--- running).  A rejected Promise raises a JSException.
+-- As in GHC's WebAssembly backend, an 'unsafe' import is synchronous: the whole
+-- runtime waits for it, and a JavaScript exception in the code is fatal.
+-- Any other import ('safe', 'interruptible', or one without a safety annotation)
+-- is asynchronous: the code is an async function, so it can use 'await', and
+-- only the calling Haskell thread waits for the result (the other threads keep
+-- running).  A JavaScript exception, or a rejected Promise, raises a JSException.
+-- An asynchronous import must return IO.
 module GHC.Wasm.Prim(
   JSVal,
   JSString(..),
@@ -67,10 +69,10 @@ jsvalHandle v = primForeignPtrToPtr (primUnsafeCoerce v)
 
 foreign import ccall "js_free_jsval" c_js_free_jsval :: Ptr () -> IO ()
 
-foreign import javascript "null" jsNull :: JSVal
-foreign import javascript "undefined" jsUndefined :: JSVal
-foreign import javascript "$1 === null" isNull :: JSVal -> Bool
-foreign import javascript "$1 === undefined" isUndefined :: JSVal -> Bool
+foreign import javascript unsafe "null" jsNull :: JSVal
+foreign import javascript unsafe "undefined" jsUndefined :: JSVal
+foreign import javascript unsafe "$1 === null" isNull :: JSVal -> Bool
+foreign import javascript unsafe "$1 === undefined" isUndefined :: JSVal -> Bool
 
 ----------------------------------------
 -- Strings, converted via UTF-8
@@ -79,9 +81,9 @@ foreign import javascript "$1 === undefined" isUndefined :: JSVal -> Bool
 -- (TextDecoder decodes exactly the n bytes; UTF8ToString stops at a NUL in some
 -- emscripten versions).  The decoder is created once, with ignoreBOM: a default
 -- TextDecoder drops a leading U+FEFF (a byte order mark) from the decoded text.
-foreign import javascript "(mhsjs.utf8Decoder || (mhsjs.utf8Decoder = new TextDecoder('utf-8', { ignoreBOM: true }))).decode(Module.HEAPU8.subarray($1, $1 + $2))" js_fromUTF8 :: Ptr a -> Int -> IO JSString
-foreign import javascript "Module.lengthBytesUTF8($1)" js_utf8Length :: JSString -> IO Int
-foreign import javascript "Module.stringToUTF8($1, $2, $3)" js_toUTF8 :: JSString -> Ptr a -> Int -> IO ()
+foreign import javascript unsafe "(mhsjs.utf8Decoder || (mhsjs.utf8Decoder = new TextDecoder('utf-8', { ignoreBOM: true }))).decode(Module.HEAPU8.subarray($1, $1 + $2))" js_fromUTF8 :: Ptr a -> Int -> IO JSString
+foreign import javascript unsafe "Module.lengthBytesUTF8($1)" js_utf8Length :: JSString -> IO Int
+foreign import javascript unsafe "Module.stringToUTF8($1, $2, $3)" js_toUTF8 :: JSString -> Ptr a -> Int -> IO ()
 
 textToJSString :: Text -> JSString
 textToJSString t = unsafePerformIO $ BS.useAsCStringLen (encodeUtf8 t) (uncurry js_fromUTF8)

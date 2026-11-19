@@ -38,7 +38,7 @@ static int run_comblen = 0;
 int mhs_js_awaiting = 0;        /* threads waiting for a Promise (IO.jsawait), which will wake them */
 uvalue_t num_jsval_alloc = 0;   /* JSVal handles created since the last GC */
 
-/* Wait for the JavaScript Promise p from Haskell: see the interruptible imports
+/* Wait for the JavaScript Promise p from Haskell: see the asynchronous imports
  * section (mhs_js_settle) further down. */
 EM_JS(void, mhs_js_await, (int p, uvalue_t sp, int kind), {
   var M = Module.mhsjs, v;
@@ -101,8 +101,6 @@ EM_JS(void, mhs_js_init, (void), {
     },
     /* Called by the garbage collector when the Haskell side no longer references the handle. */
     dropJSVal: function(k) { M.kv.delete(k); },
-    error: undefined,
-    hasError: false,
     /* Error from an uncaught Haskell exception in a callback, thrown to the JavaScript caller. */
     callbackError: null,
     /* Set (to an Error) once the runtime has stopped: after exit() (a fatal runtime
@@ -148,7 +146,7 @@ EM_JS(void, mhs_js_init, (void), {
     /* Run the runnable Haskell threads from the JavaScript event loop, see mhs_js_run_threads.
      * Nothing to do once the runtime has stopped: a timer has no caller to throw to. */
     runThreads: function() { if (!M.dead) M.enter(_mhs_js_run_threads); },
-    /* An interruptible import: when the Promise p settles, store its value (converted
+    /* An asynchronous import: when the Promise p settles, store its value (converted
      * as kind says, see mhs_js_settle) or its error in the MVar behind the stable
      * pointer sp, and run the thread that waits for it. */
     await: function(p, sp, kind) {
@@ -445,36 +443,6 @@ mhs_to_JSVal_node(NODEPTR n)
   return (int)(intptr_t)fp->payload.bs_array;
 }
 
-/* Raise the JavaScript value with handle k (from a 'safe' or 'interruptible' import)
- * as a Haskell exception.  The exception is the JSVal node itself: primIsInt reports it
- * as exn_jsexception, and rtsExn (Control.Exception.Internal) wraps it in a JSException.
- * So the value travels with the exception, and the GC frees it with the exception. */
-static NORETURN void
-mhs_js_raise(int k)
-{
-  GCCHECK(1);
-  NODEPTR n = alloc_node(D_FORPTR);
-  SETFORPTR(n, mk_jsval_forptr(k));
-  raise_exn(n);
-}
-
-EM_JS(int, mhs_js_take_error, (void), {
-  var M = Module.mhsjs;
-  if (!M.hasError) return 0;
-  M.hasError = false;
-  var k = M.newJSVal(M.error);
-  M.error = undefined;
-  return k;
-});
-
-void
-mhs_js_check_error(void)
-{
-  int k = mhs_js_take_error();
-  if (k)
-    mhs_js_raise(k);
-}
-
 /* The two runtime functions the library calls through ordinary foreign imports
  * (so their stubs are generated like any other import; the JSVal is passed as the
  * payload of its foreign pointer, i.e. the handle, see Control.Exception.Internal):
@@ -531,7 +499,8 @@ EM_JS(void, mhs_js_set_callback_error, (const char *msg), {
 });
 
 /*
- * Interruptible imports: foreign import javascript interruptible "code" f :: ... -> IO r
+ * Asynchronous imports: foreign import javascript [safe|interruptible] "code" f :: ... -> IO r
+ * (every import that is not unsafe, as in GHC's WebAssembly backend).
  * The import itself returns the Promise of its (async) JavaScript code as a JSVal, and
  * the compiler wraps it so that the thread then waits with the IO.jsawait primitive
  * (see MicroHs.Desugar.jsAwait): that creates an MVar, asks the JavaScript side to
@@ -639,7 +608,7 @@ report_callback_exn(NODEPTR exn)
  *  - or in the middle of a thread that called JavaScript (a synchronous callback
  *    invoked by the JavaScript code of an import).
  * The thread runs first and without preemption.  If it blocks (e.g. takeMVar, or
- * an interruptible import) while the scheduler is idle and may_block is set, it
+ * an asynchronous import) while the scheduler is idle and may_block is set, it
  * is left blocked like any other thread (the JavaScript side runs the threads
  * after the callback returns) and the result is unit; blocking while a thread is
  * in the middle of an import is fatal, since that thread's C stack is in the way.

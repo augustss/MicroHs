@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
 module MicroHs.Desugar(
-  JSKind(..), jsKind,
+  JSKind(..), jsKind, jsAsync,
   desugar,
   LDef, showLDefs,
   encodeInteger,
@@ -54,9 +54,9 @@ dsDef flags mn ffiNo adef =
           dropForalls ty = ty
           t = dropForalls at
           imp = Lit $ mkForImp mn ffiNo cc sf ie i t
-      in  case (cc, sf) of
-            (Cjavascript, Interruptible) -> [(i, jsAwait t imp)]
-            _                            -> [(i, ccall t imp)]
+      in  case cc of
+            Cjavascript | jsAsync sf (fromMaybe "" ie) -> [(i, jsAwait t imp)]
+            _                                          -> [(i, ccall t imp)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -80,8 +80,8 @@ dsDef flags mn ffiNo adef =
 
 -- Code for a 'foreign import'.
 -- If the function is impure then wrap a performIO around the call.
--- An interruptible JavaScript import
---   foreign import javascript interruptible "code" f :: a1 -> ... -> an -> IO r
+-- An asynchronous JavaScript import (see jsAsync)
+--   foreign import javascript [safe|interruptible] "code" f :: a1 -> ... -> an -> IO r
 -- is compiled (MicroHs.FFI) into a C function that returns the Promise of the
 -- (async) JavaScript code as a JSVal.  Wrap it so that the thread then waits for
 -- the Promise with the IO.jsawait primitive, which converts the settled value to r
@@ -94,7 +94,14 @@ jsAwait t f =
     (as, EApp (EVar io) r) | io == identIO ->
       let g = App (App (Lit (LPrim PC)) (litPrim "IO.>>=")) (App (litPrim "IO.jsawait") (Lit (LInt (jsAwaitKind r))))
       in  App (iterate (App (Lit (LPrim PB))) g !! length as) f
-    _ -> errorMessage (getSLoc t) "foreign import javascript interruptible must return IO"
+    _ -> errorMessage (getSLoc t) "foreign import javascript: only an unsafe (synchronous) import can return a type that is not IO"
+
+-- Is a JavaScript import asynchronous?  As in GHC's WebAssembly backend, an import
+-- is asynchronous unless it is unsafe: safe, interruptible, and an import without a
+-- safety annotation (which is safe, as in the Haskell report) are all asynchronous.
+-- A "wrapper" import makes a callback; it runs no JavaScript code of its own.
+jsAsync :: Safety -> String -> Bool
+jsAsync sf s = sf /= Unsafe && s `notElem` ["wrapper", "wrapper sync"]
 
 -- The kind number IO.jsawait gets: the constructor index of JSKind, which
 -- mhs_js_settle in eval.c decodes (0 = JSVal, ..., 7 = ()).

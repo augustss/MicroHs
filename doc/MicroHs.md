@@ -394,8 +394,9 @@ foreign import javascript [unsafe|safe|interruptible] "code" name :: type
 The string is JavaScript code, with the arguments as `$1`, `$2`, etc.
 It can be an expression, or statements that use `return`:
 ```Haskell
-foreign import javascript "$1 + $2"                            add     :: Int -> Int -> Int
-foreign import javascript "return document.getElementById($1)" getElem :: JSString -> IO JSVal
+foreign import javascript unsafe "$1 + $2"                            add     :: Int -> Int -> Int
+foreign import javascript unsafe "return document.getElementById($1)" getElem :: JSString -> IO JSVal
+foreign import javascript "return (await fetch($1)).status"             status  :: JSString -> IO Int
 ```
 * The code becomes an emscripten `EM_JS` function in the output, so it is ordinary JavaScript
   that emscripten's optimizer sees; nothing is compiled at run time.
@@ -410,17 +411,19 @@ newtypes of these (e.g., `JSString`), and `()` as a result.
 There is no automatic conversion of `String`, `Text`, lists, or 64 bit integers;
 strings go through `toJSString`/`textToJSString` (see below).
 
-The safety annotation selects what happens on a JavaScript exception, and whether the code can wait:
+As in GHC's WebAssembly backend, the safety annotation selects whether the import is synchronous or asynchronous:
 
-| annotation | the code is | a JavaScript exception |
-|---|---|---|
-| `unsafe` (the default) | a function | is fatal |
-| `safe` | a function in a `try`/`catch` | is raised as a `JSException` |
-| `interruptible` | an `async` function, so it can use `await` | is raised as a `JSException`; so is a rejected Promise |
+| annotation | the code is | while it runs | a JavaScript exception |
+|---|---|---|---|
+| `unsafe` | a function | the whole runtime waits | is fatal (use a JavaScript `catch`) |
+| `safe`, `interruptible`, or none | an `async` function, so it can use `await` | only the calling thread waits for its Promise; the other threads keep running | is raised as a `JSException`; so is a rejected Promise |
 
-With `interruptible` the calling Haskell thread waits for the Promise while the other threads keep running.
-Note that, unlike the Haskell report, an import without a safety annotation is `unsafe`
-(a JavaScript exception in it is a programming error, as with GHC's JavaScript backend).
+An import without a safety annotation is `safe`, as in the Haskell report, so it is asynchronous.
+* A synchronous import is cheaper, and the JavaScript code can call back into Haskell (see below).
+  Use `unsafe` for code that does not wait for anything.
+* An asynchronous import must return `IO`; only an `unsafe` import can be a pure function.
+* The code of an asynchronous import returns a Promise of its value, so an import that should return a
+  Promise itself (as a `JSVal`, e.g., to `await` it later) must be `unsafe`.
 
 #### JavaScript values
 A `JSVal` is a reference to a JavaScript value, which is kept in a table on the JavaScript side
@@ -450,11 +453,12 @@ foreign import javascript "wrapper sync" mkHandler :: (JSVal -> IO ()) -> IO JSV
 
 A callback runs as a Haskell thread of its own (so `catch`, `forkIO`, `putMVar`, etc. work),
 first and without preemption.
-* Called from the JavaScript event loop it may block (e.g., in `takeMVar` or an `interruptible` import):
+* Called from the JavaScript event loop it may block (e.g., in `takeMVar` or an asynchronous import):
   it then waits like any other thread, and its JavaScript caller gets `undefined`
   (or, for `"wrapper"`, an already resolved Promise).
 * A callback that returns a value, one called from the JavaScript code of an import (a Haskell thread
   is then on the C stack), and a `foreign export` called from JavaScript must not block; that is a fatal error.
+  So they can only use `unsafe` imports.
 * An uncaught Haskell exception in a callback is thrown to the JavaScript caller as an `Error`
   (an asynchronous callback rejects its Promise).
 * A callback is released when its `JSVal` is garbage collected or freed with `freeJSVal`.

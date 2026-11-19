@@ -9,7 +9,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import GHC.Wasm.Prim
 
-foreign import javascript "setTimeout(() => { try { $1(); console.log('later: the callback ran') } catch (e) { console.log('later: ' + (String(e.message).indexOf('runtime has stopped') >= 0 ? 'refused' : e.message)) } }, 50)"
+foreign import javascript unsafe "setTimeout(() => { try { $1(); console.log('later: the callback ran') } catch (e) { console.log('later: ' + (String(e.message).indexOf('runtime has stopped') >= 0 ? 'refused' : e.message)) } }, 50)"
   later :: JSVal -> IO ()
 
 main :: IO ()

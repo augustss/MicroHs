@@ -8,40 +8,46 @@ import Foreign.Ptr
 import GHC.Wasm.Prim
 import System.Mem(performGC)
 
-foreign import javascript "$1 + $2"                     add        :: Int -> Int -> Int
-foreign import javascript "return $1 * $2;"             mul        :: Double -> Double -> Double
-foreign import javascript "$1 > 3"                      gt3        :: Int -> Bool
-foreign import javascript "$1 ? 'yes' : 'no'"           boolStr    :: Bool -> JSString
-foreign import javascript "String.fromCodePoint($1)"    charStr    :: Char -> JSString
-foreign import javascript "$1.codePointAt(0)"           firstChar  :: JSString -> Char
-foreign import javascript "String($1)"                  wordStr    :: Word -> JSString
-foreign import javascript "({ a: $1, b: $2 })"          mkObj      :: Int -> JSString -> IO JSVal
-foreign import javascript "$1[$2]"                      getProp    :: JSVal -> JSString -> IO JSVal
-foreign import javascript "$1[$2] = $3"                 setProp    :: JSVal -> JSString -> JSVal -> IO ()
-foreign import javascript "JSON.stringify($1)"          stringify  :: JSVal -> IO JSString
-foreign import javascript "typeof $1"                   typeOf     :: JSVal -> IO JSString
-foreign import javascript "$1"                          intToJSVal :: Int -> IO JSVal
-foreign import javascript "$1"                          jsValToInt :: JSVal -> IO Int
-foreign import javascript "$1"                          strToJSVal :: JSString -> IO JSVal
-foreign import javascript "[1,2,3].map($1)"             mapJS      :: JSVal -> IO JSVal
-foreign import javascript "$1()"                        call0      :: JSVal -> IO JSVal
-foreign import javascript "$1($2, $3)"                  call2      :: JSVal -> JSVal -> JSVal -> IO JSVal
-foreign import javascript "Promise.resolve().then($1)"  later      :: JSVal -> IO ()
-foreign import javascript "$1.then($2)"                 thenP      :: JSVal -> JSVal -> IO ()
-foreign import javascript "mhsjs.kv.size"               tableSize  :: IO Int
-foreign import javascript "globalThis"                  global     :: JSVal
-foreign import javascript "typeof globalThis.mhsjs_free_test"
+foreign import javascript unsafe "$1 + $2"                     add        :: Int -> Int -> Int
+foreign import javascript unsafe "return $1 * $2;"             mul        :: Double -> Double -> Double
+foreign import javascript unsafe "$1 > 3"                      gt3        :: Int -> Bool
+foreign import javascript unsafe "$1 ? 'yes' : 'no'"           boolStr    :: Bool -> JSString
+foreign import javascript unsafe "String.fromCodePoint($1)"    charStr    :: Char -> JSString
+foreign import javascript unsafe "$1.codePointAt(0)"           firstChar  :: JSString -> Char
+foreign import javascript unsafe "String($1)"                  wordStr    :: Word -> JSString
+foreign import javascript unsafe "({ a: $1, b: $2 })"          mkObj      :: Int -> JSString -> IO JSVal
+foreign import javascript unsafe "$1[$2]"                      getProp    :: JSVal -> JSString -> IO JSVal
+foreign import javascript unsafe "$1[$2] = $3"                 setProp    :: JSVal -> JSString -> JSVal -> IO ()
+foreign import javascript unsafe "JSON.stringify($1)"          stringify  :: JSVal -> IO JSString
+foreign import javascript unsafe "typeof $1"                   typeOf     :: JSVal -> IO JSString
+foreign import javascript unsafe "$1"                          intToJSVal :: Int -> IO JSVal
+foreign import javascript unsafe "$1"                          jsValToInt :: JSVal -> IO Int
+foreign import javascript unsafe "$1"                          strToJSVal :: JSString -> IO JSVal
+foreign import javascript unsafe "[1,2,3].map($1)"             mapJS      :: JSVal -> IO JSVal
+foreign import javascript unsafe "$1()"                        call0      :: JSVal -> IO JSVal
+foreign import javascript unsafe "$1($2, $3)"                  call2      :: JSVal -> JSVal -> JSVal -> IO JSVal
+foreign import javascript unsafe "Promise.resolve().then($1)"  later      :: JSVal -> IO ()
+foreign import javascript unsafe "$1.then($2)"                 thenP      :: JSVal -> JSVal -> IO ()
+foreign import javascript unsafe "mhsjs.kv.size"               tableSize  :: IO Int
+foreign import javascript unsafe "globalThis"                  global     :: JSVal
+foreign import javascript unsafe "typeof globalThis.mhsjs_free_test"
                                                         freeTest   :: IO JSString
 foreign import javascript safe "$1.no.such"             badProp    :: JSVal -> IO JSVal
 foreign import javascript safe "throw new Error('\955 boom')" throwUni :: IO ()
 foreign import javascript interruptible "await $1"      await      :: JSVal -> IO JSVal
 foreign import javascript interruptible "$1"            idPtr      :: Ptr a -> IO (Ptr a)
-foreign import javascript "new Promise(function (r) { Promise.resolve().then(function () { r($1) }) })"
+-- As in GHC's WebAssembly backend, an import without a safety annotation, and a
+-- safe one, are asynchronous, like an interruptible one.
+foreign import javascript "return await $1"             awaitDefault :: JSVal -> IO JSVal
+foreign import javascript safe "await new Promise(r => setTimeout(r, 1)); return $1 + 1"
+                                                        safeLater  :: Int -> IO Int
+foreign import javascript "throw new Error('default boom')" throwDefault :: IO ()
+foreign import javascript unsafe "new Promise(function (r) { Promise.resolve().then(function () { r($1) }) })"
                                                         delayed    :: Int -> IO JSVal
-foreign import javascript "Promise.reject(new Error('nope'))"
+foreign import javascript unsafe "Promise.reject(new Error('nope'))"
                                                         rejected   :: IO JSVal
 -- Multi-line code with a comment
-foreign import javascript "// a comment\n\
+foreign import javascript unsafe "// a comment\n\
                           \ var s = 0;\n\
                           \ for (var i = 1; i <= $1; i++) s += i;\n\
                           \ return s; // done"
@@ -104,7 +110,7 @@ main = do
   freeJSVal o
   freeJSVal dbl
 
-  -- JavaScript exceptions with safe imports
+  -- JavaScript exceptions with safe (asynchronous) imports
   r1 <- try (badProp n)
   case r1 of
     Left e@(JSException _) -> putStrLn $ "caught " ++ (if "TypeError" `isInfixOf` show e then "TypeError" else show e)
@@ -124,6 +130,11 @@ main = do
   case r2 of
     Left e@(JSException _) -> putStrLn $ "caught " ++ (if "nope" `isInfixOf` show e then "nope" else show e)
     Right _ -> putStrLn "no exception"
+  -- so do safe imports, and imports without a safety annotation
+  delayed 43 >>= awaitDefault >>= jsValToInt >>= print
+  safeLater 44 >>= print
+  r3 <- try throwDefault
+  putStrLn $ either (\ e -> if "default boom" `isInfixOf` show (e :: JSException) then "caught default boom" else show e) (const "no exception") r3
 
   -- asynchronous callbacks run after main has finished
   done <- syncCallback1 $ \ _ -> putStrLn "promise resolved"

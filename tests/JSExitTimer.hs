@@ -7,7 +7,7 @@ module JSExitTimer(main) where
 import Control.Concurrent
 import GHC.Wasm.Prim
 
-foreign import javascript "setTimeout(() => $1(), $2)" later :: JSVal -> Int -> IO ()
+foreign import javascript unsafe "setTimeout(() => $1(), $2)" later :: JSVal -> Int -> IO ()
 
 main :: IO ()
 main = do
