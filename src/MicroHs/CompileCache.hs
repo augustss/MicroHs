@@ -5,9 +5,10 @@ module MicroHs.CompileCache(
   lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPathPkgs, getPkgs, getEmbedPkgs,
   getCacheTables, setCacheTables,
-  saveCache, loadCached,
+  saveCache, loadCached, LoadedCache(..),
   ) where
 import qualified Prelude(); import MHSPrelude
+import qualified Data.ByteString.Char8 as BS
 import MicroHs.Desugar(LDef)
 import MicroHs.Error(mhsErrorLoc)
 import MicroHs.Expr(IdentModule, getSLoc)
@@ -142,15 +143,41 @@ addPackage mf p c = c{
   }
   where ins t = M.insert (tModuleName t) (PkgMdl t)
 
-saveCache :: FilePath -> Cache -> IO ()
-saveCache fn cash = writeSerializedCompressed fn (forceCache cash)
+-- The cache file starts with a line that says which compiler wrote it,
+-- followed by the serialized cache.  Deserializing does no type checking,
+-- so a cache written by another compiler, where the types can differ,
+-- must not be read.
+-- Change cacheFormat when the layout of the cache changes.
+cacheFormat :: Int
+cacheFormat = 1
 
-loadCached :: FilePath -> IO (Maybe Cache)
-loadCached fn = do
+-- The first line of the cache file, for a compiler version.
+cacheHeader :: String -> BS.ByteString
+cacheHeader version = BS.pack $ "MicroHs cache, compiler " ++ version ++ ", format " ++ show cacheFormat ++ "\n"
+
+saveCache :: String -> FilePath -> Cache -> IO ()
+saveCache version fn cash = do
+  bs <- writeSerializedCompressedBS (forceCache cash)
+  h <- openBinaryFile fn WriteMode
+  BS.hPut h (cacheHeader version)
+  BS.hPut h bs
+  hClose h
+
+data LoadedCache
+  = NoCacheFile                         -- there is no cache file
+  | OtherCompiler                       -- the cache was written by another compiler
+  | LoadedCache Cache
+
+loadCached :: String -> FilePath -> IO LoadedCache
+loadCached version fn = do
   mhin <- openBinaryFileM fn ReadMode
   case mhin of
     Nothing ->
-      return Nothing
+      return NoCacheFile
     Just hin -> do
-      hClose hin
-      Just <$> readSerialized fn
+      bs <- BS.hGetContents hin
+      let hdr = cacheHeader version
+      if hdr `BS.isPrefixOf` bs then
+        LoadedCache <$> readSerializedBS (BS.drop (BS.length hdr) bs)
+      else
+        return OtherCompiler

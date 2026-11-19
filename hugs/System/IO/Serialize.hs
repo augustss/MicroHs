@@ -9,6 +9,7 @@ module System.IO.Serialize(
   writeSerializedCompressed,
   readSerialized,
   readSerializedBS,
+  writeSerializedCompressedBS,
   ) where
 import Data.ByteString(ByteString)
 --import System.IO
@@ -33,6 +34,9 @@ readSerialized = errhugs
 
 readSerializedBS :: forall a . ByteString -> IO a
 readSerializedBS = errhugs
+
+writeSerializedCompressedBS :: forall a . a -> IO ByteString
+writeSerializedCompressedBS = errhugs
 
 errhugs :: a
 errhugs = error "System.IO.Serialize: serialization not available with hugs"
