@@ -519,7 +519,8 @@ eLet i e b =
         case filter (== i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
           -- The single use substitution is essential for performance.
-          [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
+          [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda,
+                                  -- see the note on Z in MicroHs.Abstract
           _   -> App (Lam i b) e  -- just use a beta redex
 
 -- Change from x to y inside e.

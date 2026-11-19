@@ -283,6 +283,22 @@ aS' e1 e2 e3 = app3 (Lit (LPrim PS')) e1 e2 e3
 aC' :: Exp -> Exp -> Exp -> Exp
 aC' e1 e2 e3 = app3 (Lit (LPrim PC')) e1 e2 e3
 
+-- Note: Z, B', and C'B lose some full laziness.
+-- A shared partial application  B K x y  reduces in place to  K (x y),
+-- so all its uses share x y.  But  Z x y  cannot reduce until it gets a
+-- third argument, and then it builds x y afresh every time.  The same goes
+-- for B' (B B x y = B (x y)) and C'B (C' B x y z = B (x z) y).
+-- It matters when the partial application is used many times and x y does
+-- real work, see MicroHs.Ident.isIdent.
+-- Dropping the rewrites is no fix: without all three a self-compile takes
+-- 1.9% more instructions, because the extra sharing keeps 25% more cells
+-- live (2026-11-19).
+-- A better fix would be to float out the expressions that can do work,
+-- e.g., saturated applications, before bracket abstraction, as a let just
+-- outside the innermost lambda that binds one of their free variables.
+-- The shared value is then an argument node, and these combinators only
+-- rebuild cheap partial applications.  For this to work, eLet in
+-- MicroHs.Desugar must not substitute such a let back under the lambda.
 improveT :: Exp -> Exp
 improveT ae =
   case getApp ae of
