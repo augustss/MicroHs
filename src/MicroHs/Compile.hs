@@ -237,6 +237,11 @@ compileModule flags impt mn pathfn file = do
   case impt of
     ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
     ImpBoot   -> return ()
+  -- It is possible to do a GC with reductions (System.Mem.performGCWithReduction)
+  -- here, after the first module has been compiled.  By then many CAFs and partial
+  -- applications in the compiler have been evaluated, and the GC simplifies them.
+  -- In a self-compile it saves about 0.5% of the instructions, which is too little
+  -- to bother.
   return (cmdl, syms, tThis + tImp)
 
 compileModuleP :: Flags -> ImpType -> EModule -> CM ((TModule [LDef], Symbols, [(ImpType, IdentModule)], Time, Time), TCState)
