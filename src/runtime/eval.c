@@ -1599,7 +1599,7 @@ cleanup(struct mthread *mt, enum th_state ts)
   for (struct handler *h = cur_handler; h; ) {
     struct handler *n = h;
     h = h->hdl_old;
-    free(n);
+    FREE(n);
   }
   cur_handler = 0;
 }
@@ -3169,7 +3169,7 @@ sweep_weaks(void)
       /* not marked, so unlink and free */
       *wpp = wp->next;
       COUNT(num_gc_weak);
-      free(wp);
+      FREE(wp);
     } else {
       /* point to the next weak_ptr */
       wpp = &wp->next;
@@ -3732,7 +3732,7 @@ gc(void)
     if ((mt->mt_state == ts_died || mt->mt_state == ts_finished) && !mt->mt_mark) {
       COUNT(num_thread_reap);
       *mtp = mt->mt_next;
-      free(mt);
+      FREE(mt);
     } else {
       mt->mt_mark = false;
       mtp = &mt->mt_next;
@@ -3745,7 +3745,7 @@ gc(void)
     if (!mv->mv_mark) {
       COUNT(num_mvar_free);
       *mvp = mv->mv_next;
-      free(mv);
+      FREE(mv);
     } else {
       mv->mv_mark = false;
       mvp = &mv->mv_next;
@@ -4412,7 +4412,7 @@ parse(struct parse_ctx *pc, BFILE *f)
         struct forptr *fp = new_mpz();          /* a new mpz */
         mpz_ptr op = fp->payload.bs_array;      /* get actual pointer */
         mpz_set_str(op, bs.bs_array, 10);       /* convert to an mpz */
-        free(bs.bs_array);
+        FREE(bs.bs_array);
         r = alloc_node(D_FORPTR);
         FORPTR(r) = fp;
         PUSH(r);
@@ -5023,7 +5023,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putsb("%", f);
       putsb(s, f);
       putsb("\"", f);                         /* so we can use parse_string */
-      free(s);
+      FREE(s);
     } else
 #endif  /* WANT_GMP || WANT_IMATH */
     if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
@@ -8827,9 +8827,9 @@ from_t mhs_add_bwt_compressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_compres
 from_t mhs_add_bwt_decompressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_BWT */
 
-from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
-from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
-from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, CALLOC(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, REALLOC(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_free(int s) { FREE(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
