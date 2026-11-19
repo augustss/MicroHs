@@ -360,6 +360,32 @@ when it has hot functions with strict parts. Two of the rules above
 experiment. With the primitives in the runtime but not used, the compiler
 runs 1.7% more instructions, with no measurable difference in wall clock.
 
+**Second result (2026-11-19): `(==)` on `Ident`.** The profile of a
+self-compile (`mhs --profile`) charges 5.3% of the reductions to the
+`Eq Ident` instance, although `Ident _ i == Ident _ j = i == j` only
+compares the names, which are `Text`s, i.e., `ByteString`s. The primitive
+`identEq` does it directly: it evaluates both `Ident`s and their names, and
+compares the bytestrings (same pointer, then length, then `memcmp`). The
+method uses it when `useIdentEqPrimitive` in `MicroHs.Ident` is `True` (it
+is `False` by default). Compiling the compiler (16.19M calls):
+
+| | instructions | wall clock | GC | reductions | cells |
+| --- | --- | --- | --- | --- | --- |
+| Haskell | 513.7G | 21.81 s | 2.00 s | 3.663G | 4.030G |
+| primitive | 502.2G (-2.2%) | 21.18 s (-2.9%) | 1.92 s (-4.0%) | 3.565G (-2.7%) | 3.933G (-2.4%) |
+
+Each call saves about 6.1 reductions, 6.0 cells, and 710 instructions
+(about 39 ns). The Haskell code is two `case`s on an `Ident`, the
+unwrapping of the `Text` newtype (`cmp (==)`), and `bs==`, which evaluates
+its arguments with markers: plumbing around one `memcmp`, with no real work.
+Unlike balancing, the gain per call is small, and the total comes from the
+number of calls. So for code like this, the cost of getting into compiled
+code matters as much as the speed of the code. The profile charges about 11
+reductions per call to `Eq Ident`, so about 5 per call are not removed by
+the primitive; where they go is not known yet. The baseline differs from
+the first result because the compiler, and the program it compiles, have
+changed since.
+
 ### Phase 2: groundwork in the compiler and the combinator format
 
 * **Arm arities for dense `case`: done** (2026-11-18, format v9.2). The
