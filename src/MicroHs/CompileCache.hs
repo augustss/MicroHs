@@ -14,7 +14,7 @@ import MicroHs.Expr(IdentModule, getSLoc)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Package
-import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables, mergeGlobTables)
+import MicroHs.TypeCheck(TModule(..), GlobTables, emptyGlobTables, mergeGlobTables, deleteModuleGlobTables, isInstId)
 import System.IO
 import System.IO.Serialize
 import System.IO.MD5(MD5CheckSum)
@@ -68,8 +68,15 @@ emptyCache :: Cache
 emptyCache =
   Cache { working = [], boots = [], cache = M.empty, others = [], pkgs = [], tables = emptyGlobTables }
 
+-- Remove a module from the cache, and what it added to the global tables,
+-- so that, e.g., its instances are not used by the modules compiled after it.
 deleteFromCache :: IdentModule -> Cache -> Cache
-deleteFromCache mn c = c{ cache = M.delete mn (cache c) }
+deleteFromCache mn c =
+  case M.lookup mn (cache c) of
+    Nothing -> c
+    Just e ->
+      let insts = [ i | (i, _) <- tBindingsOf (tModuleOf e), isInstId i ]
+      in  c{ cache = M.delete mn (cache c), tables = deleteModuleGlobTables mn insts (tables c) }
 
 addBoot :: IdentModule -> Cache -> Cache
 addBoot mn c = c{ boots = mn : boots c }

@@ -4,7 +4,7 @@
 module MicroHs.TypeCheck(
   typeCheck,
   TModule(..), showTModule,
-  GlobTables, emptyGlobTables, mergeGlobTables,
+  GlobTables, emptyGlobTables, mergeGlobTables, deleteModuleGlobTables,
   impossible, impossibleShow,
   mkClassConstructor,
   mkSuperSel,
@@ -82,6 +82,28 @@ mergeGlobTables g1 g2 =
                gDataTable = M.merge (gDataTable g1) (gDataTable g2),
                gClassTable = M.merge (gClassTable g1) (gClassTable g2),
                gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2) }
+
+-- Remove what a module has added to the global tables, e.g., when it is
+-- removed from the compilation cache.  The type synonyms, data types, and
+-- classes are the ones qualified by the module name.  The instances are the
+-- ones whose dictionaries are among the given instance identifiers, i.e.,
+-- the instance bindings of the module.
+deleteModuleGlobTables :: IdentModule -> [Ident] -> GlobTables -> GlobTables
+deleteModuleGlobTables mn insts g =
+  GlobTables { gSynTable = delOwn (gSynTable g),
+               gDataTable = delOwn (gDataTable g),
+               gClassTable = delOwn (gClassTable g),
+               gInstInfo = M.fromList (mapMaybe delInsts (M.toList (gInstInfo g))) }
+  where
+    delOwn :: forall a . M.Map a -> M.Map a
+    delOwn m = foldr M.delete m [ i | i <- M.keys m, qualOf i == mn ]
+    instSet = M.fromList [ (i, ()) | i <- insts ]
+    isOwn (EVar i) = isJust (M.lookup i instSet)
+    isOwn _ = False
+    delInsts (c, InstInfo m l fds) =
+      let m' = M.fromList [ ie | ie@(_, e) <- M.toList m, not (isOwn e) ]
+          l' = [ d | d@(InstDict e _) <- l, not (isOwn e) ]
+      in  if M.null m' && null l' then Nothing else Just (c, InstInfo m' l' fds)
 
 type Symbols = (SymTab, SymTab)
 
