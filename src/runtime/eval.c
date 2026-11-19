@@ -8646,8 +8646,14 @@ MHS_FROM(mhs_from_CInt, SETINT, int);
 MHS_FROM(mhs_from_CUInt, SETINT, unsigned int);
 MHS_FROM(mhs_from_CLong, SETINT, long);
 MHS_FROM(mhs_from_CULong, SETINT, unsigned long);
+#if WANT_INT64
+/* CLLong and CULLong are newtypes of Int64 and Word64 */
+MHS_FROM(mhs_from_CLLong, SETINT64, long long);
+MHS_FROM(mhs_from_CULLong, SETINT64, unsigned long long);
+#else
 MHS_FROM(mhs_from_CLLong, SETINT, long long);
 MHS_FROM(mhs_from_CULLong, SETINT, unsigned long long);
+#endif
 MHS_FROM(mhs_from_CSize, SETINT, size_t);
 #if WANT_TIME
 MHS_FROM(mhs_from_CTime, SETINT, time_t);
@@ -8695,8 +8701,14 @@ MHS_TO(mhs_to_CInt, evalint, int);
 MHS_TO(mhs_to_CUInt, evalint, unsigned int);
 MHS_TO(mhs_to_CLong, evalint, long);
 MHS_TO(mhs_to_CULong, evalint, unsigned long);
+#if WANT_INT64
+/* CLLong and CULLong are newtypes of Int64 and Word64 */
+MHS_TO(mhs_to_CLLong, evalint64, long long);
+MHS_TO(mhs_to_CULLong, evalint64, unsigned long long);
+#else
 MHS_TO(mhs_to_CLLong, evalint, long long);
 MHS_TO(mhs_to_CULLong, evalint, unsigned long long);
+#endif
 MHS_TO(mhs_to_CSize, evalint, size_t);
 #if WANT_TIME
 MHS_TO(mhs_to_CTime, evalint, time_t);
