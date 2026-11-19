@@ -249,6 +249,22 @@ native code:
   local is not a root. Either allocate everything that is needed up front
   after one `GCCHECK` (as the primitives do), or push live pointers on the
   MicroHs stack across allocations.
+* **Pointers into the graph.** A pointer in a C local is not safe across
+  anything that can GC, which includes calls to `evali`, even when the cell
+  is reachable from the graph. Marking short-circuits every reference to an
+  indirection and frees the indirection, and the first GCs after loading
+  also rewrite the graph. So keep only unboxed values and slots (the fields
+  of reachable applications, which do not move) across such calls, and read
+  the pointers from the slots after the last `GCCHECK`. The balance
+  experiment (phase 1) crashed with a small heap until it did this.
+* **The cost to the interpreter.** The code in `evali` that calls compiled
+  code must not make the rest of `evali` slower. In the balance experiment,
+  a `case` that passed `&x` and `&y` (locals of `evali`) to a helper cost 4%
+  more instructions in a program that never used it, since `x` and `y`
+  were then kept in memory in all of `evali`. Even a plain call costs 1.7%
+  instructions, though no measurable wall clock. Return results in
+  registers or through the redex, and measure the interpreter with the hook
+  present but unused.
 * **Sharing.** The result overwrites the redex (or makes it an
   indirection), exactly as a combinator reduction does. Shared nodes inside
   the compiled function stay shared.
@@ -307,6 +323,40 @@ installation on runtime nodes without a sampler.
 Run them on the M6 and on a less capable CPU (e.g., the Lima VM).
 Continue only if the strict cases show a large gain (several times
 faster) after following the rules.
+
+**First result (2026-11-19): balancing in `MicroHs.IdentMap`.** Not one of
+the stand-ins above, but the same idea. `balanceL` and `balanceR` are written
+by hand as the primitives `balanceL` and `balanceR` in `eval.c`, and the
+compiler uses them when `useBalancePrimitives` in `IdentMap` is `True`
+(it is `False` by default). They are definition roots (kind 1) without
+dictionaries, so the source refers to the primitives instead of installing
+them on a node. The C code evaluates both subtrees (as the Haskell code
+does), computes the sizes strictly, rotates, and builds the new nodes
+directly. Compiling the compiler (3.84M calls, 14% of them rotate):
+
+| | instructions | wall clock | GC | reductions | cells |
+| --- | --- | --- | --- | --- | --- |
+| Haskell | 483.9G | 21.24 s | 1.95 s | 3.491G | 3.927G |
+| primitives | 439.6G (-9.2%) | 19.11 s (-10.0%) | 1.72 s (-11.8%) | 3.137G (-10.1%) | 3.398G (-13.5%) |
+
+Each call saves about 92 reductions, 138 cells, and 11,500 instructions.
+Most of that is combinator plumbing: after bracket abstraction `balanceL`
+(four arguments, two `let`s, five branches) is about 60 combinators. The
+rest is the size field, `sl + sr + 1`, which is a thunk in the Haskell
+code. Computing it eagerly needs no strictness analysis, since `sl` and `sr`
+have already been evaluated for the comparisons; it is cheap eagerness,
+i.e., doing a cheap primitive on evaluated values. It must not raise an
+exception that the lazy code would not, so with `WANT_OVERFLOW` the code has
+to build the thunk instead when the addition overflows. The only other
+thing the C code does that the Haskell code does not is to evaluate the sizes of
+the two grandchildren in a double rotation (3.6% of the calls), so code
+that keeps the laziness exactly should get almost all of the gain.
+
+So code that is lazy and allocates a lot, like the compiler, can gain too,
+when it has hot functions with strict parts. Two of the rules above
+(pointers into the graph, and the cost to the interpreter) come from this
+experiment. With the primitives in the runtime but not used, the compiler
+runs 1.7% more instructions, with no measurable difference in wall clock.
 
 ### Phase 2: groundwork in the compiler and the combinator format
 
