@@ -4,6 +4,40 @@ Run `make build` to build the benchmarks. Run `make bench` to run them and colle
 
 Each benchmark's executable is run 5 times by default (`make bench RUNS=10` to override). The report keeps every sample plus the min and median for the wall-clock fields (`total_time_secs`, `gc_time_secs`). The actuall wall-clock times can be a bit noise, but other things like reductions and allocations numbers appear to be deterministic.
 
+## Comparing versions
+
+`compare.sh` compares the benchmarks between versions of MicroHs, e.g., a
+release and the working tree:
+
+    benchmarks/compare.sh v0.16.9.0 .
+    make compare REVS="v0.16.9.0 ." RUNS=10      # the same, from benchmarks/
+
+Each argument is a git revision (a tag, a branch, or a commit), or `.` for
+the working tree. For each one the script exports the revision to
+`build/src-HASH`, builds its `bin/mhs` with `make bin/mhs`, and compiles the
+benchmarks of the working tree with it, with the libraries and the runtime
+of that version. With `-s` it builds the compiler from the sources first,
+to include compiler changes that are not in `generated/mhs.c` yet.
+
+It checks that every version prints the same output, and then runs each
+benchmark `RUNS` times (`-n`, default 5) for every version, interleaving
+the versions, so that a change in the load of the machine affects them
+alike. It collects:
+- the wall clock time, the maximum RSS, and (on macOS) the instructions
+  retired, from `/usr/bin/time`;
+- the GC time, reductions, cells allocated, GCs, and max cells used, from
+  the `+RTS -v` output.
+
+All the samples are written to `results/compare-TIME.csv`. A table with the
+median of each value for every benchmark and version, the change from the
+first version, and the geometric mean of the changes, is written to
+`results/compare-TIME.md` and printed. Instructions and reductions are
+deterministic, so they show small changes that the wall clock time does
+not.
+
+## Files
+
+- `compare.sh` - compares versions, see above
 - `Util/` - contains drivers and helpers
   - `BenchmarkHarness.hs` -
   - `Json.hs` - Defines a datatype for JSON, and a renderer.

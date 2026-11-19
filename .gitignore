@@ -28,3 +28,6 @@ timing
 mdist/*
 dist-mcabal/
 generated/mhs-stage*.c
+benchmarks/*.exe
+benchmarks/build/
+benchmarks/results/
