@@ -57,6 +57,17 @@ EOF
     fi
     grep -F "$inst/input files/CppBareLine.hs:7:5" "$work/error" > /dev/null
 
+    # CPP is found after a comma in a LANGUAGE pragma.
+    cat > "$inst/input files/CppComma.hs" <<'EOF'
+{-# LANGUAGE ScopedTypeVariables,CPP #-}
+module CppComma where
+#define COMMA_VALUE 17
+main = print COMMA_VALUE
+EOF
+    "$inst/bin/mhs" "$@" "$inst/input files/CppComma.hs" "-o$work/result.comb"
+    "$root/bin/mhseval" +RTS "-r$work/result.comb" -RTS > "$work/result"
+    echo 17 | diff - "$work/result"
+
     # Check the custom preprocessor's positional arguments, including an empty one.
     cat > "$inst/bin/preprocessor" <<'EOF'
 #!/bin/sh

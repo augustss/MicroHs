@@ -406,7 +406,7 @@ hasLangCPP fn = do
       scanFor s (_:cs) = scanFor s cs
       scanFor' _ [] = False
       scanFor' s ('#':'-':'}':cs) = scanFor s cs
-      scanFor' s (' ':cs) | s `isPrefixOf` cs = True
+      scanFor' s (c:cs) | (c == ' ' || c == ',') && s `isPrefixOf` cs = True
       scanFor' s (_:cs) = scanFor' s cs
   scanFor "cpp" . map toLower <$> readFile fn
 
