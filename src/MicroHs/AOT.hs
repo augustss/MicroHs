@@ -413,7 +413,9 @@ genEntry name fvs xs body = do
   vxs <- mapM (const (fresh "a")) xs
   vr <- fresh "r"
   let arity = 1 + length fvs + length xs
-      env = M.fromList $ (kId, VNode vk) : (rId, VNode vr) : zip fvs (map VNode vfs) ++ zip xs (map VNode vxs)
+      -- A later binding of a name shadows an earlier one (M.fromList keeps the first).
+      env = foldl (\ m (x, v) -> M.insert x v m) M.empty $
+              (kId, VNode vk) : (rId, VNode vr) : zip fvs (map VNode vfs) ++ zip xs (map VNode vxs)
   saved <- gets gsUses
   modify $ \ s -> s{ gsUses = [] }
   code <- cTail' env body
