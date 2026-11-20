@@ -2421,10 +2421,13 @@ static INLINE int is_marked_used(NODEPTR n)
  * their map bits eagerly) and alloc_node just bumps a pointer through it.
  * Runs average a few dozen cells on the self-compile, so the refill is cold.
  *
- * Invariants: num_free still counts exactly the unallocated cells (the
- * claimed-but-unused tail of the run is included), so gc_check's budget is
- * unchanged.  The map overstates "used" by that tail, which is harmless
- * because the map is only read by the GC, and gc() rebuilds it from scratch.
+ * Invariants: num_free counts the cells not yet claimed, and num_alloc the
+ * cells claimed, so neither changes per allocation.  The claimed-but-unused
+ * tail of the run (at most a map word) is counted as allocated: gc_check may
+ * collect that much early, and NUM_ALLOC subtracts the tail, which a GC
+ * abandons (mark_all_free).  The map overstates "used" by that tail, which is
+ * harmless because the map is only read by the GC, and gc() rebuilds it from
+ * scratch.
  * bump_ptr/bump_end are globals, never cached in evali locals: longjmp
  * (T_CATCHR, resched) and nested GCs would otherwise see stale values.
  */
@@ -2434,6 +2437,9 @@ static INLINE int is_marked_used(NODEPTR n)
 
 #if BUMP_ALLOC
 static struct node *bump_ptr, *bump_end; /* current run: [bump_ptr, bump_end) */
+#define NUM_ALLOC (num_alloc - (counter_t)(bump_end - bump_ptr)) /* cells allocated */
+#else
+#define NUM_ALLOC num_alloc
 #endif
 
 static INLINE void mark_all_free(void)
@@ -2442,7 +2448,9 @@ static INLINE void mark_all_free(void)
   next_scan_index = heap_start;
 #if BUMP_ALLOC
   /* The map is about to be rebuilt by the marker (or is fresh at init), so a
-   * run claimed from the old map is stale: its cells may now be live. */
+   * run claimed from the old map is stale: its cells may now be live.
+   * The unused tail of the run was never allocated. */
+  num_alloc -= (counter_t)(bump_end - bump_ptr);
   bump_ptr = bump_end = 0;
 #endif
 }
@@ -2458,9 +2466,13 @@ bump_refill(void)
   bits_t word, inv, mask;
   int k, run;
 
+  /* This can happen if we run out of memory when parsing.
+   * It also guarantees that the map has a free cell. */
+  if (num_free == 0)
+    ERR("alloc_node");
   for(;;) {
-    /* Not just under SANITY: the caller only checked num_free > 0, and an
-     * inconsistent num_free must not turn into a read past the map. */
+    /* Not just under SANITY: an inconsistent num_free must not turn into a
+     * read past the map. */
     if (i >= free_map_nwords)
       ERR("bump_refill: free_map");
     word = free_map[i];
@@ -2481,6 +2493,8 @@ bump_refill(void)
     run = (int)(heap_size - pos);
   mask = (run == (int)BITS_PER_WORD ? ~(bits_t)0 : (((bits_t)1 << run) - 1)) << k;
   free_map[i] = word & ~mask;   /* claim the whole run now */
+  num_free -= run;
+  num_alloc += run;
   next_scan_index = pos + run;
   bump_ptr = HEAPREF(pos);
   bump_end = bump_ptr + run;
@@ -2493,16 +2507,15 @@ alloc_node_ptr(void)
 {
   struct node *n;
 
-  /* This can happen if we run out of memory when parsing.
-   * It also guarantees bump_refill() finds a free cell. */
-  if (num_free <= 0)
-    ERR("alloc_node");
-
 #if BUMP_ALLOC
   if (bump_ptr == bump_end)
     bump_refill();
   n = bump_ptr++;
 #else  /* BUMP_ALLOC */
+  /* This can happen if we run out of memory when parsing. */
+  if (num_free <= 0)
+    ERR("alloc_node");
+
   heapoffs_t i = next_scan_index / BITS_PER_WORD;
   int k;                        /* will contain bit pos + 1 */
   heapoffs_t pos;
@@ -2529,10 +2542,10 @@ alloc_node_ptr(void)
   // mark_used(n); // equivalent to:
   free_map[i] = word & (word-1);
   next_scan_index = pos;
-#endif  /* BUMP_ALLOC */
-
   COUNT(num_alloc);
   num_free--;
+#endif  /* BUMP_ALLOC */
+
   return n;
 }
 
@@ -7295,7 +7308,7 @@ evali(NODEPTR an)
     {
     GCCHECK(5);
     CHKARG1;
-    NODEPTR res = new_ap(new_ap(combPair, mkInt((uvalue_t)num_alloc)), mkInt((uvalue_t)(num_reductions - glob_slice)));
+    NODEPTR res = new_ap(new_ap(combPair, mkInt((uvalue_t)NUM_ALLOC)), mkInt((uvalue_t)(num_reductions - glob_slice)));
     GOPAIR(res);
     }
 
@@ -8449,7 +8462,7 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
     PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", NUM_ALLOC, NUM_ALLOC * NODE_SIZE / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
