@@ -32,6 +32,7 @@ import System.IO.Serialize
 import System.IO.TimeMilli
 import System.Process
 import MicroHs.Abstract
+import MicroHs.AOT(aotMark)
 import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
@@ -223,7 +224,7 @@ compileModule flags impt mn pathfn file = do
   ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)
 
   t4 <- liftIO getTimeMilli
-  cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
+  cmdl <- liftIO $ evaluate $ compileToCombinators flags dmdl
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1
@@ -273,9 +274,11 @@ compileModuleP flags impt mdl@(EModule _ _ defs) = do
 
   return ((dmdl, syms, imported, tThis, tImp), tcstate)
 
-compileToCombinators :: TModule [LDef] -> TModule [LDef]
-compileToCombinators dmdl =
-  let cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
+compileToCombinators :: Flags -> TModule [LDef] -> TModule [LDef]
+compileToCombinators flags dmdl =
+  let comp i e | showIdent i `elem` aotDefs flags = aotMark e   -- compiled to C when linking
+               | otherwise = compileOpt e
+      cmdl = setBindings dmdl [ (i, comp i e) | (i, e) <- tBindingsOf dmdl ]
   in seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
 
 -- Add implicit imports:

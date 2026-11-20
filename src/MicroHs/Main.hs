@@ -10,6 +10,7 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import System.Environment
+import MicroHs.AOT(aotCompile)
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Config
@@ -157,6 +158,7 @@ decodeArgs f mdls (arg:args) =
     '-':'C':'W':s@(_:_) -> decodeArgs f{writeCache = True, cacheName = s} mdls args
     '-':'C':s@(_:_)     -> decodeArgs f{readCache = True, writeCache = True, cacheName = s} mdls args
     "-T"        -> decodeArgs f{useTicks = True} mdls args
+    _ | Just r <- stripPrefix "--aot=" arg -> decodeArgs f{aotDefs = aotDefs f ++ splitWhen (== ',') r} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-b64"      -> decodeArgs f{base64 = True} mdls args
@@ -356,7 +358,10 @@ mainCompile flags mn = do
     return (cash', rds)
 
   t1 <- getTimeMilli
-  allDefs <- addEmbedPkgs flags allDefs'
+  allDefs'' <- addEmbedPkgs flags allDefs'
+  let (allDefs, aotC) = aotCompile allDefs''
+  when (not (null aotC) && (runIt flags || any (output flags `hasTheExtension`) [".comb", ".combffi", ".c"])) $
+    mhsError "--aot needs an executable as output"
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
@@ -422,8 +427,15 @@ mainCompile flags mn = do
        let ppkgs = getPathPkgs cash
        hPutStr h cCode
        hClose h
-       mainCompileC flags (embedPkg ++ ppkgs) fn
+       aotFile <- if null aotC then return Nothing else do
+         (afn, ah) <- openTmpFile "mhsaot.c"
+         hPutStr ah aotC
+         hClose ah
+         return (Just afn)
+       let flags' = maybe flags (\ afn -> flags{ cArgs = cArgs flags ++ ["'-DMHS_AOT_FILE=\"" ++ afn ++ "\"'"] }) aotFile
+       mainCompileC flags' (embedPkg ++ ppkgs) fn
        removeFile fn
+       maybe (return ()) removeFile aotFile
 
 mainCompileC :: Flags -> [(FilePath, Package)] -> FilePath -> IO ()
 mainCompileC flags pkgs infile = do

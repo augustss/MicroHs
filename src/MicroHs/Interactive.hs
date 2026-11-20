@@ -492,7 +492,7 @@ compile file = do
   cash <- gets isCache
 --  putStrLnI $ " tryCompile compile " ++ show mdl'
   ((dmdl, _, tcstate'), _) <- liftIO $ runStateIO (compileInteractive flgs mdl') cash
-  cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
+  cmdl <- liftIO $ evaluate $ compileToCombinators flgs{ aotDefs = [] } dmdl
 --  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
   return (tBindingsOf cmdl, tcstate')
 

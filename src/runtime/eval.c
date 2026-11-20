@@ -545,6 +545,7 @@ enum node_tag { D_NONE,
 
                 /* Tags with extra info */
                 V_CONSTR, V_ARM, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
+                V_AOT, V_AOTK,  /* compiled code, see aot_entries */
 
                 T_FIRST_REAL_TAG,
                 /* NODEPTR with a "virtual" pointer, and regular tags */
@@ -620,6 +621,7 @@ static const char* tag_names [T_LAST_TAG+1] =
     [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
     [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK",
     [V_CONSTR] = "C_", [V_ARM] = "A_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
+    [V_AOT] = "AOT", [V_AOTK] = "AOTK",
   };
 #define TAGNAME(t) tag_names[t]
 
@@ -914,6 +916,24 @@ static uint32_t num_case_arities;        /* number of entries in use */
 static uint32_t max_case_arities;        /* number of entries allocated */
 
 #define PTR_TAG_CASED_BITS (PTR_TAG_NCON_BITS + PTR_TAG_NARG_BITS)  /* bits for the table index */
+
+/* A V_AOT (an entry of compiled code) or V_AOTK (a continuation marker)
+ * holds an index into aot_entries or aot_conts. */
+#define PTR_TAG_AOT_BITS PTR_TAG_CASED_BITS
+static INLINE NODEPTR
+mk_AOT(enum node_tag t, uint32_t i)
+{
+  NODEPTR n;
+  n.node_bits = MK_CASE(t, i);
+  return n;
+}
+
+static INLINE uint32_t
+get_AOT_index(NODEPTR n)
+{
+  tag_t t = n.node_bits >> PTR_TAG_BITS;
+  return (t >> PTR_TAG_TAG_BITS) & (((uint32_t)1 << PTR_TAG_AOT_BITS) - 1);
+}
 #define MAX_CASE_ARITIES ((uint32_t)1 << PTR_TAG_CASED_BITS)
 
 /* The case arities of a virtual V_CASED */
@@ -4506,6 +4526,136 @@ parse_string(BFILE *f)
   return mk_ro_bytestring(i, buffer);
 }
 
+/*
+ * Compiled code (mhs --aot, experimental, see jit-plan.md).
+ * The compiler can translate some definitions to C.  The C code is
+ * included here, from the file MHS_AOT_FILE, and defines the tables
+ * aot_entries and aot_conts.  A compiled definition is the node
+ *   AOT_i arr
+ * where arr is an array of the constants the code uses (other definitions,
+ * literals, ...).  When AOT_i has aot_entries[i].arity arguments (arr is the
+ * first) evali calls aot_entries[i].fn, which pops the arguments, and returns
+ * the next node to evaluate, like a combinator reduction: either the redex,
+ * overwritten with the result, or a node it needs the value of.  In the latter
+ * case the code has pushed a frame: the values it needs afterwards and an
+ * AOTK_c marker.  When the node is evaluated, evali calls aot_conts[c].fn:
+ *  - for a constructor, with its number and number of fields; the fields are
+ *    on the stack (as for a case), above the marker;
+ *  - for any other value, with -1; the value is on top of the stack, where
+ *    the marker was.
+ * The continuation pops the value and the frame and goes on, and in the end
+ * it overwrites the redex.  The C code has no loops, and never calls evali,
+ * so the most cells a call allocates before returning is known; it is in the
+ * tables, and evali checks for it (which may GC) before the call.  So no GC
+ * happens in compiled code, and it can keep node pointers in C variables.
+ * If the frame is lost (a thread switch, an exception) the redex has not been
+ * overwritten yet, and is evaluated again later.
+ */
+struct aot_entry {
+  int arity;                    /* number of arguments, including the array */
+  int alloc;                    /* the most cells a call allocates */
+  NODEPTR (*fn)(void);
+  const char *name;
+};
+struct aot_cont {
+  int alloc;                    /* the most cells a call allocates */
+  NODEPTR (*fn)(int k, int nn);
+};
+
+#if defined(MHS_AOT_FILE)
+/* Helpers for the compiled code */
+#define AOTK(vk, i) (ARR(vk)->array[i])  /* constant i */
+
+static INLINE NODEPTR
+aot_ind(NODEPTR n)
+{
+  while (!is_VIRT(n) && get_DATA_TAG(FUN(n)) == D_IND)
+    n = ARG(n);
+  return n;
+}
+
+/* If n is an evaluated constructor application with at most maxf fields,
+ * return the constructor number and put the fields in fs, else -1. */
+#define AOT_MAXF 16
+static INLINE int
+aot_con(NODEPTR n, NODEPTR *fs, int maxf)
+{
+  NODEPTR a[AOT_MAXF];
+  int d = 0, k, nn, i;
+  n = aot_ind(n);
+  while (!is_VIRT(n)) {
+    NODEPTR f = FUN(n);
+    if (!is_AP(f) || d >= maxf)
+      return -1;
+    a[d++] = ARG(n);
+    n = aot_ind(f);
+  }
+  if (get_VIRT_TAG(n) != V_CONSTR)
+    return -1;
+  get_CON_info(n, &k, &nn);
+  if (nn != d)
+    return -1;
+  for (i = 0; i < d; i++)
+    fs[i] = a[d - 1 - i];
+  return k;
+}
+
+/* If n is an evaluated Int, put it in *v and return 1, else 0. */
+static INLINE int
+aot_int(NODEPTR n, value_t *v)
+{
+  n = aot_ind(n);
+  if (is_VIRT(n) || get_DATA_TAG(FUN(n)) != D_INT)
+    return 0;
+  *v = GETVALUE(n);
+  return 1;
+}
+
+/* The value of an Int that has been evaluated */
+static INLINE value_t
+aot_getint(NODEPTR n)
+{
+  return GETVALUE(aot_ind(n));
+}
+
+/* Overwrite the redex r with the result. */
+static INLINE NODEPTR
+aot_ret_ind(NODEPTR r, NODEPTR x)
+{
+  set_IND(r, x);
+  return x;
+}
+
+static INLINE NODEPTR
+aot_ret_ap(NODEPTR r, NODEPTR f, NODEPTR a)
+{
+  NPTR(r)->ufun = f;
+  NPTR(r)->uarg.uuarg = a;
+  return r;
+}
+
+static INLINE NODEPTR
+aot_ret_int(NODEPTR r, value_t v)
+{
+  set_DATA_TAG(r, D_INT);
+  SETVALUE(r, v);
+  return r;
+}
+
+#define AOT_BOOL(b) ((b) ? mk_CON(V_CONSTR, 1, 0) : mk_CON(V_CONSTR, 0, 0))
+#define AOT_ORD(c) ((c) < 0 ? mk_CON(V_CONSTR, 0, 0) : (c) > 0 ? mk_CON(V_CONSTR, 2, 0) : mk_CON(V_CONSTR, 1, 0))
+#define AOT_ADD(x, y) ((value_t)((uvalue_t)(x) + (uvalue_t)(y)))
+#define AOT_SUB(x, y) ((value_t)((uvalue_t)(x) - (uvalue_t)(y)))
+#define AOT_MUL(x, y) ((value_t)((uvalue_t)(x) * (uvalue_t)(y)))
+#define AOT_CMP(x, y) ((x) < (y) ? -1 : (x) > (y) ? 1 : 0)
+
+#include MHS_AOT_FILE
+#else  /* MHS_AOT_FILE */
+static const struct aot_entry aot_entries[1] = { { 0, 0, 0, 0 } };
+static const struct aot_cont aot_conts[1] = { { 0, 0 } };
+#define AOT_NENTRIES 0
+#endif  /* MHS_AOT_FILE */
+
 struct forptr *new_mpz(void);
 
 struct parse_ctx {
@@ -4803,6 +4953,14 @@ parse(struct parse_ctx *pc, BFILE *f)
         }
       }
 
+      /* Compiled code: aot:i */
+      if (buf[0] == 'a' && strncmp(buf, "aot:", 4) == 0) {
+        long i = atol(buf + 4);
+        if (i < 0 || i >= AOT_NENTRIES)
+          DESER_ERR("unknown aot entry");
+        PUSH(mk_AOT(V_AOT, (uint32_t)i));
+        break;
+      }
       /* Look up the primop (O(1) hash lookup) and make a virtual pointer for it. */
       {
         int t = lookup_primop(buf);
@@ -8107,7 +8265,17 @@ evali(NODEPTR an)
   case V_LOOKD:
   case V_LOOKS:
   case V_ARM:
+  case V_AOTK:
     RET;
+  case V_AOT:
+    {
+      /* Compiled code, see aot_entries. */
+      const struct aot_entry *ae = &aot_entries[get_AOT_index(n)];
+      CHECK(ae->arity);
+      GCCHECK(ae->alloc);
+      n = ae->fn();
+      goto top;
+    }
   case V_CONSTR:
     {
       int k, m, nn;
@@ -8169,6 +8337,12 @@ evali(NODEPTR an)
             hi = mid;
           }
         }
+      } else if (ltag == V_AOTK) {
+        /* A continuation of compiled code, see aot_entries. */
+        const struct aot_cont *ac = &aot_conts[get_AOT_index(p)];
+        GCCHECK(ac->alloc);
+        n = ac->fn(k, nn);
+        goto top;
       } else {
         ERR1("CONSTR: no LOOK, found %s", TAGNAME(ltag));
       }
@@ -8586,6 +8760,16 @@ evali(NODEPTR an)
       SETDBL(n, rd);
       goto ret;
 #endif  /* WANT_FLOAT64 */
+
+    case V_AOTK:
+      {
+        /* A continuation of compiled code, see aot_entries. */
+        const struct aot_cont *ac = &aot_conts[get_AOT_index(TOP(0))];
+        TOP(0) = n;               /* the value, where the GC finds it */
+        GCCHECK(ac->alloc);
+        n = ac->fn(-1, 0);
+        goto top;
+      }
 
     case T_BINBS2:
       n = ARG(TOP(1));

@@ -11,7 +11,7 @@ import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Error(mhsError)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
+import MicroHs.Expr(Lit(..), PrimOp(..), showLit, errorMessage, HasLoc(..), CType)
 import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
 import MicroHs.List(groupSort)
 import MicroHs.State
@@ -129,10 +129,18 @@ toStringP ae =
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
+    -- An array of constants for compiled code, see MicroHs.AOT
+    Lit (LPrim (POther "aot$arr")) -> ("[0] " ++)
+    App _ _ | Just cs <- getAotArr ae [] -> foldr ((.) . toStringP) id cs . (("[" ++ show (length cs) ++ "] ") ++)
     Lit l -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
     App f a -> toStringP f . toStringP a . ("@" ++)
+
+getAotArr :: Exp -> [Exp] -> Maybe [Exp]
+getAotArr (App f a) as = getAotArr f (a : as)
+getAotArr (Lit (LPrim (POther "aot$arr"))) as = Just as
+getAotArr _ _ = Nothing
 
 -- Strings are encoded in a slightly unusual way.
 -- It ensure that (most) printable ASCII only take
