@@ -8969,6 +8969,83 @@ prof_report_prims(FILE *f, counter_t tred)
   FREE(uses); FREE(part); FREE(order);
 }
 
+/* Calls per definition: the unwinding steps through the root cell of each
+ * definition, i.e., how many times it was applied (or evaluated).  A CAF is
+ * overwritten by its value, so it counts about once.  A definition whose code
+ * is a bare combinator, constructor, or primitive has no cell of its own, and
+ * one that is just another definition shares that one's cell; both are left
+ * out.  lab is the label + 1, as in prof_label. */
+#define PROF_CALL_DEFS 100
+static const char *prof_label_name(uint32_t lab, char *buf, size_t size);
+static void
+prof_report_calls(FILE *f, counter_t *red, counter_t *alc, heapoffs_t nl)
+{
+  static const counter_t lims[] = { 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
+  static const char *names[] = { ">= 100M", "10M-100M", "1M-10M", "100K-1M", "10K-100K", "1K-10K", "100-1K", "10-100", "1-10" };
+  enum { NB = sizeof lims / sizeof lims[0] };
+  heapoffs_t *order = mmalloc(nl * sizeof(heapoffs_t));
+  counter_t *calls = mmalloc(nl * sizeof(counter_t));
+  counter_t bcalls[NB];
+  heapoffs_t bdefs[NB];
+  heapoffs_t lab, n = 0, ncalled = 0, nnocell = 0, nalias = 0;
+  counter_t tcalls = 0, cum = 0;
+  char buf[64];
+
+  for (int b = 0; b < NB; b++) { bcalls[b] = 0; bdefs[b] = 0; }
+  for (lab = 0; lab < nl; lab++)
+    calls[lab] = 0;
+  for (lab = 1; lab <= prof_nlabels; lab++) {
+    struct node *r = prof_roots ? prof_roots[lab - 1] : 0;
+    if (!r) {
+      nnocell++;
+      continue;
+    }
+    if (r->prof_label != lab) {
+      nalias++;
+      continue;
+    }
+    calls[lab] = r->prof_ncalls;
+    order[n++] = lab;
+    if (!calls[lab])
+      continue;
+    tcalls += calls[lab];
+    ncalled++;
+    for (int b = 0; b < NB; b++)
+      if (calls[lab] >= lims[b]) {
+        bdefs[b]++;
+        bcalls[b] += calls[lab];
+        break;
+      }
+  }
+  if (!tcalls)
+    tcalls = 1;
+  prof_key = calls;
+  qsort(order, n, sizeof(heapoffs_t), prof_cmp);
+
+  fprintf(f, "\nCalls per definition, i.e., unwinding steps through the root cell of the definition.\n");
+  fprintf(f, "%"PRIcounter" calls of %"PRIheap" definitions with a cell of their own, %"PRIheap" of which were called.\n",
+          tcalls, n, ncalled);
+  fprintf(f, "Left out: %"PRIheap" definitions that are a bare combinator, constructor, or primitive, and %"PRIheap" that are another definition.\n",
+          nnocell, nalias);
+  fprintf(f, "      calls per definition   definitions            calls  %%calls\n");
+  for (int b = 0; b < NB; b++)
+    fprintf(f, "%26s %13"PRIheap" %16"PRIcounter" %6.2f\n", names[b], bdefs[b], bcalls[b], 100.0 * bcalls[b] / tcalls);
+  fprintf(f, "\nThe %d definitions with the most calls (reductions and cells are self costs, as above)\n", PROF_CALL_DEFS);
+  fprintf(f, "          calls  %%calls   cum%%       reductions  red/call  cells/call  definition\n");
+  for (heapoffs_t j = 0; j < n && j < PROF_CALL_DEFS; j++) {
+    lab = order[j];
+    if (!calls[lab])
+      break;
+    cum += calls[lab];
+    fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter" %9.1f %11.1f  %s\n",
+            calls[lab], 100.0 * calls[lab] / tcalls, 100.0 * cum / tcalls, red[lab],
+            (double)red[lab] / calls[lab], (double)alc[lab] / calls[lab],
+            prof_label_name((uint32_t)lab, buf, sizeof buf));
+  }
+  FREE(order);
+  FREE(calls);
+}
+
 static int
 prof_cmp_node(const void *a, const void *b)
 {
@@ -9537,6 +9614,7 @@ prof_report(void)
   }
 
   prof_report_prims(f, tred);
+  prof_report_calls(f, red, alc, nl);
   prof_report_callers(f, order, nl);
   prof_report_hot(f, tunw, tred);
 
