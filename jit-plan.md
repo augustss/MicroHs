@@ -302,6 +302,49 @@ machinery as possible.
 
 The sampler is also useful on its own, as a statistical profiler.
 
+**First result (2026-11-20): exact counts per node in the compiler.**
+Instead of sampling, `mhs --profile` (on the `profile` branch) counts, for
+every cell while it lives, the unwinding steps through it (calls), the
+reductions charged to it (as the innermost application on the spine), and
+how often a reduction rewrites it (the redex of a loop is rewritten by
+every iteration). A node that dies with many counts is described at the GC
+that finds it dead, with the names of the definitions it refers to.
+Compiling the compiler (10.0G unwinding steps, 3.39G reductions):
+
+* No node is hot. The hottest node made at run time gets 7.0M calls, 0.07%
+  of the unwinding steps; the hottest cell of loaded code (in `++`) gets
+  18M, 0.18%.
+* Kind 2 is small. The long-lived runtime function nodes with the most
+  calls are `or`, i.e., `foldr (||) False` (7.0M), its `C'B (||)` part made
+  by `foldr` (5.8M), `elem` applied to the `Eq HandleState` dictionary in
+  `withHandleM` (3.7M, once per character written), the `Monad (State s)`
+  and `Monad IO` dictionaries built by `Monad$C` (2.9M and 2.3M), and
+  ``(==) `on` fst`` in `typeCheck` (2.3M). Nothing like `insert dOrdInt`
+  shows up: the code the compiler spends its time in is already monomorphic
+  (`IdentMap`, `Eq Ident`, `Ord Ident`).
+* The time is in definitions (kind 1), and fairly concentrated: of the 2008
+  definitions with reductions, the top 8 get 25% of them, the top 25 get
+  50%, and the top 78 get 80%. The top ones are `Eq Ident` (5.3%),
+  `IdentMap.balanceR`, `balanceL`, `insertWith`, and `lookup`, `Ord Ident`,
+  the parser's `Alternative` instance, `++`, `Abstract.aS`, `withHandleM`,
+  and `Expr.subst`.
+* Kind 3 cannot be counted by address, since each node is used for one
+  call; it would need the structural keys above. The profile charges a
+  closure to the definition that built it, so its calls are inside the
+  counts per definition, but how much of them is not measured.
+
+So for the compiler the hot code is kind 1, which ahead-of-time compilation
+handles too; the expectation above that it is the less interesting kind
+does not hold here. The two stand-ins in phase 1 were both kind 1. The
+`Eq Ident` primitive removed 2.2% of the instructions, for a definition
+that gets 5.3% of the reductions. The balancing primitives removed 9.2%,
+for definitions that get 7.5% of the reductions in this profile. That was
+measured on an older compiler, and the profile counts self costs, while the
+primitives also do the work of what the Haskell code calls (`size`, the
+arithmetic). So compiling the top few dozen definitions well could give
+tens of percent on the compiler, but the two data points are far apart.
+The benchmark programs have not been profiled this way yet.
+
 ### Phase 1: hand-written stand-ins
 
 Before writing any code generator, write by hand, as primitives in a
