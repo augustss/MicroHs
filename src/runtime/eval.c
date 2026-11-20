@@ -630,6 +630,8 @@ static const char* tag_names [T_LAST_TAG+1] =
     [V_CONSTR] = "C_", [V_ARM] = "A_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
   };
 #define TAGNAME(t) tag_names[t]
+/* The arity of each tag, from primops[], see arity_virt. */
+static uint8_t tag_arity[T_LAST_TAG+1];
 
 /***************************************/
 
@@ -2949,281 +2951,282 @@ static const
 struct {
   const char *name;
   const enum node_tag tag;
+  const uint8_t arity;                /* the number of arguments it needs to reduce, see arity_virt */
   const enum node_tag flipped;        /* What should (C op) reduce to? defaults to T_FREE */
   //  NODEPTR node;
 } primops[] = {
   /* combinators */
-  { "B", T_B },
-  { "O", T_O },
-  { "K", T_K, T_A },
-  { "C'", T_CC },
-  { "C", T_C },
-  { "A", T_A, T_K },
-  { "S'", T_SS },
-  { "P", T_P },
-  { "R", T_R },
-  { "I", T_I },
-  { "S", T_S },
-  { "U", T_U },
-  { "Y", T_Y },
-  { "B'", T_BB },
-  { "Z", T_Z },
-  { "K2", T_K2 },
-  { "K3", T_K3 },
-  { "K4", T_K4 },
-  { "C'B", T_CCB },
+  { "B", T_B, 3 },
+  { "O", T_O, 4 },
+  { "K", T_K, 2, T_A },
+  { "C'", T_CC, 4 },
+  { "C", T_C, 3 },
+  { "A", T_A, 2, T_K },
+  { "S'", T_SS, 4 },
+  { "P", T_P, 3 },
+  { "R", T_R, 2 },
+  { "I", T_I, 1 },
+  { "S", T_S, 3 },
+  { "U", T_U, 2 },
+  { "Y", T_Y, 1 },
+  { "B'", T_BB, 2 },
+  { "Z", T_Z, 2 },
+  { "K2", T_K2, 2 },
+  { "K3", T_K3, 2 },
+  { "K4", T_K4, 2 },
+  { "C'B", T_CCB, 3 },
 /* primops */
-  { "+", T_ADD, T_ADD },
-  { "-", T_SUB, T_SUBR },
-  { "*", T_MUL, T_MUL },
-  { "quot", T_QUOT },
-  { "rem", T_REM },
-  { "u+", T_UADD, T_UADD },
-  { "u-", T_USUB, T_USUBR },
-  { "u*", T_UMUL, T_UMUL },
-  { "uquot", T_UQUOT },
-  { "urem", T_UREM },
-  { "subtract", T_SUBR, T_SUB },
-  { "usubtract", T_USUBR, T_USUB },
-  { "neg", T_NEG },
-  { "uneg", T_UNEG },
-  { "and", T_AND, T_AND },
-  { "or", T_OR, T_OR },
-  { "xor", T_XOR, T_XOR },
-  { "inv", T_INV },
-  { "shl", T_SHL },
-  { "shr", T_SHR },
-  { "ashr", T_ASHR },
-  { "popcount", T_POPCOUNT },
-  { "clz", T_CLZ },
-  { "ctz", T_CTZ },
+  { "+", T_ADD, 2, T_ADD },
+  { "-", T_SUB, 2, T_SUBR },
+  { "*", T_MUL, 2, T_MUL },
+  { "quot", T_QUOT, 2 },
+  { "rem", T_REM, 2 },
+  { "u+", T_UADD, 2, T_UADD },
+  { "u-", T_USUB, 2, T_USUBR },
+  { "u*", T_UMUL, 2, T_UMUL },
+  { "uquot", T_UQUOT, 2 },
+  { "urem", T_UREM, 2 },
+  { "subtract", T_SUBR, 2, T_SUB },
+  { "usubtract", T_USUBR, 2, T_USUB },
+  { "neg", T_NEG, 1 },
+  { "uneg", T_UNEG, 1 },
+  { "and", T_AND, 2, T_AND },
+  { "or", T_OR, 2, T_OR },
+  { "xor", T_XOR, 2, T_XOR },
+  { "inv", T_INV, 1 },
+  { "shl", T_SHL, 2 },
+  { "shr", T_SHR, 2 },
+  { "ashr", T_ASHR, 2 },
+  { "popcount", T_POPCOUNT, 1 },
+  { "clz", T_CLZ, 1 },
+  { "ctz", T_CTZ, 1 },
 #if WANT_FLOAT64
-  { "d+" , T_DADD, T_DADD},
-  { "d-" , T_DSUB },
-  { "d*" , T_DMUL, T_DMUL},
-  { "d/", T_DDIV},
-  { "dneg", T_DNEG},
-  { "itod", T_ITOD},
-  { "Itod", T_I64TOD},
-  { "utod", T_UTOD},
-  { "dtoi", T_DTOI},
-  { "d==", T_DEQ, T_DEQ},
-  { "d/=", T_DNE, T_DNE},
-  { "d<", T_DLT, T_DGT},
-  { "d<=", T_DLE, T_DGE},
-  { "d>", T_DGT, T_DLT},
-  { "d>=", T_DGE, T_DLE},
+  { "d+", T_DADD, 2, T_DADD },
+  { "d-", T_DSUB, 2 },
+  { "d*", T_DMUL, 2, T_DMUL },
+  { "d/", T_DDIV, 2 },
+  { "dneg", T_DNEG, 1 },
+  { "itod", T_ITOD, 1 },
+  { "Itod", T_I64TOD, 1 },
+  { "utod", T_UTOD, 1 },
+  { "dtoi", T_DTOI, 1 },
+  { "d==", T_DEQ, 2, T_DEQ },
+  { "d/=", T_DNE, 2, T_DNE },
+  { "d<", T_DLT, 2, T_DGT },
+  { "d<=", T_DLE, 2, T_DGE },
+  { "d>", T_DGT, 2, T_DLT },
+  { "d>=", T_DGE, 2, T_DLE },
 #endif  /* WANT_FLOAT64 */
 #if WANT_FLOAT64 && WANT_FLOAT32
-  { "dtof", T_DTOF },
-  { "ftod", T_FTOD },
+  { "dtof", T_DTOF, 1 },
+  { "ftod", T_FTOD, 1 },
 #endif  /* WANT_FLOAT64 && WANT_FLOAT32 */
 #if WANT_FLOAT32
-  { "f+" , T_FADD, T_FADD},
-  { "f-" , T_FSUB },
-  { "f*" , T_FMUL, T_FMUL},
-  { "f/", T_FDIV},
-  { "fneg", T_FNEG},
-  { "Itof", T_I64TOF},
-  { "itof", T_ITOF},
-  { "utof", T_UTOF},
-  { "ftoi", T_FTOI},
-  { "f==", T_FEQ, T_FEQ},
-  { "f/=", T_FNE, T_FNE},
-  { "f<", T_FLT, T_FGT},
-  { "f<=", T_FLE, T_FGE},
-  { "f>", T_FGT, T_FLT},
-  { "f>=", T_FGE, T_FLE},
+  { "f+", T_FADD, 2, T_FADD },
+  { "f-", T_FSUB, 2 },
+  { "f*", T_FMUL, 2, T_FMUL },
+  { "f/", T_FDIV, 2 },
+  { "fneg", T_FNEG, 1 },
+  { "Itof", T_I64TOF, 1 },
+  { "itof", T_ITOF, 1 },
+  { "utof", T_UTOF, 1 },
+  { "ftoi", T_FTOI, 1 },
+  { "f==", T_FEQ, 2, T_FEQ },
+  { "f/=", T_FNE, 2, T_FNE },
+  { "f<", T_FLT, 2, T_FGT },
+  { "f<=", T_FLE, 2, T_FGE },
+  { "f>", T_FGT, 2, T_FLT },
+  { "f>=", T_FGE, 2, T_FLE },
 #endif  /* WANT_FLOAT32 */
 
-  { "bs++", T_BSAPPEND },
-  { "bs++.", T_BSAPPENDDOT },
-  { "bs==", T_BSEQ, T_BSEQ },
-  { "bs/=", T_BSNE, T_BSNE },
-  { "bs<", T_BSLT, T_BSGT },
-  { "bs<=", T_BSLE, T_BSGE  },
-  { "bs>", T_BSGT, T_BSLT },
-  { "bs>=", T_BSGE, T_BSLE  },
-  { "bscmp", T_BSCMP },
-  { "bsunpack", T_BSUNPACK },
-  { "bsreplicate", T_BSREPLICATE },
-  { "bslength", T_BSLENGTH },
-  { "bssubstr", T_BSSUBSTR },
-  { "bsindex", T_BSINDEX },
-  { "bsnew", T_BSNEW },
-  { "bsread", T_BSREAD },
-  { "bswrite", T_BSWRITE },
-  { "bsfreeze", T_BSFREEZE },
-  { "bsappbyte", T_BSAPPBYTE },
-  { "bsappchar", T_BSAPPCHAR },
+  { "bs++", T_BSAPPEND, 2 },
+  { "bs++.", T_BSAPPENDDOT, 2 },
+  { "bs==", T_BSEQ, 2, T_BSEQ },
+  { "bs/=", T_BSNE, 2, T_BSNE },
+  { "bs<", T_BSLT, 2, T_BSGT },
+  { "bs<=", T_BSLE, 2, T_BSGE },
+  { "bs>", T_BSGT, 2, T_BSLT },
+  { "bs>=", T_BSGE, 2, T_BSLE },
+  { "bscmp", T_BSCMP, 2 },
+  { "bsunpack", T_BSUNPACK, 1 },
+  { "bsreplicate", T_BSREPLICATE, 2 },
+  { "bslength", T_BSLENGTH, 1 },
+  { "bssubstr", T_BSSUBSTR, 3 },
+  { "bsindex", T_BSINDEX, 2 },
+  { "bsnew", T_BSNEW, 3 },
+  { "bsread", T_BSREAD, 3 },
+  { "bswrite", T_BSWRITE, 4 },
+  { "bsfreeze", T_BSFREEZE, 2 },
+  { "bsappbyte", T_BSAPPBYTE, 3 },
+  { "bsappchar", T_BSAPPCHAR, 3 },
 
-  { "ord", T_I },
-  { "chr", T_I },
-  { "==", T_EQ, T_EQ },
-  { "/=", T_NE, T_NE },
-  { "<", T_LT, T_GT },
-  { "u<", T_ULT, T_UGT },
-  { "u<=", T_ULE, T_UGE },
-  { "u>", T_UGT, T_ULT },
-  { "u>=", T_UGE, T_ULE },
-  { "<=", T_LE, T_GE },
-  { ">", T_GT, T_LT },
-  { ">=", T_GE, T_LE },
-  { "fp+", T_FPADD },
-  { "fp2p", T_FP2P },
-  { "fpnew", T_FPNEW },
-  { "fpfin", T_FPFIN },
+  { "ord", T_I, 1 },
+  { "chr", T_I, 1 },
+  { "==", T_EQ, 2, T_EQ },
+  { "/=", T_NE, 2, T_NE },
+  { "<", T_LT, 2, T_GT },
+  { "u<", T_ULT, 2, T_UGT },
+  { "u<=", T_ULE, 2, T_UGE },
+  { "u>", T_UGT, 2, T_ULT },
+  { "u>=", T_UGE, 2, T_ULE },
+  { "<=", T_LE, 2, T_GE },
+  { ">", T_GT, 2, T_LT },
+  { ">=", T_GE, 2, T_LE },
+  { "fp+", T_FPADD, 2 },
+  { "fp2p", T_FP2P, 1 },
+  { "fpnew", T_FPNEW, 2 },
+  { "fpfin", T_FPFIN, 3 },
   //  { "fpstr", T_FPSTR },
-  { "fp2bs", T_FP2BS },
-  { "bs2fp", T_BS2FP },
-  { "seq", T_SEQ },
-  { "icmp", T_ICMP },
-  { "ucmp", T_UCMP },
-  { "rnf", T_RNF },
-  { "fromUTF8", T_BSFROMUTF8 },
-  { "headUTF8", T_BSHEADUTF8 },
-  { "tailUTF8", T_BSTAILUTF8 },
+  { "fp2bs", T_FP2BS, 2 },
+  { "bs2fp", T_BS2FP, 1 },
+  { "seq", T_SEQ, 2 },
+  { "icmp", T_ICMP, 2 },
+  { "ucmp", T_UCMP, 2 },
+  { "rnf", T_RNF, 2 },
+  { "fromUTF8", T_BSFROMUTF8, 1 },
+  { "headUTF8", T_BSHEADUTF8, 1 },
+  { "tailUTF8", T_BSTAILUTF8, 1 },
   /* Data.Text helpers: lengths and offsets are in code points and bytes */
-  { "utf8length", T_UTF8LENGTH },
-  { "utf8offset", T_UTF8OFFSET },
-  { "utf8offsetend", T_UTF8OFFSETEND },
-  { "utf8offsetfrom", T_UTF8OFFSETFROM },
-  { "utf8offsetendbefore", T_UTF8OFFSETENDBEFORE },
-  { "utf8decode", T_UTF8DECODE },
-  { "utf8decodeend", T_UTF8DECODEEND },
-  { "utf8reverse", T_UTF8REVERSE },
-  { "utf8skipspace", T_UTF8SKIPSPACE },
-  { "utf8skipnonspace", T_UTF8SKIPNONSPACE },
-  { "utf8trimspaceend", T_UTF8TRIMSPACEEND },
-  { "bsfind", T_BSFIND },
-  { "bsrfind", T_BSRFIND },
-  { "bsasciicase", T_BSASCIICASE },
-  { "bsisascii", T_BSISASCII },
-  { "bsconcat", T_BSCONCAT },
+  { "utf8length", T_UTF8LENGTH, 1 },
+  { "utf8offset", T_UTF8OFFSET, 2 },
+  { "utf8offsetend", T_UTF8OFFSETEND, 2 },
+  { "utf8offsetfrom", T_UTF8OFFSETFROM, 3 },
+  { "utf8offsetendbefore", T_UTF8OFFSETENDBEFORE, 3 },
+  { "utf8decode", T_UTF8DECODE, 2 },
+  { "utf8decodeend", T_UTF8DECODEEND, 2 },
+  { "utf8reverse", T_UTF8REVERSE, 1 },
+  { "utf8skipspace", T_UTF8SKIPSPACE, 2 },
+  { "utf8skipnonspace", T_UTF8SKIPNONSPACE, 2 },
+  { "utf8trimspaceend", T_UTF8TRIMSPACEEND, 1 },
+  { "bsfind", T_BSFIND, 3 },
+  { "bsrfind", T_BSRFIND, 2 },
+  { "bsasciicase", T_BSASCIICASE, 2 },
+  { "bsisascii", T_BSISASCII, 1 },
+  { "bsconcat", T_BSCONCAT, 1 },
   /* IO primops */
-  { "IO.>>=", T_IO_BIND },
-  { "IO.>>", T_IO_THEN },
-  { "IO.return", T_IO_RETURN },
-  { "IO.serialize", T_IO_SERIALIZE },
-  { "IO.print", T_IO_PRINT },
-  { "IO.deserialize", T_IO_DESERIALIZE },
-  { "IO.stdin", T_IO_STDIN },
-  { "IO.stdout", T_IO_STDOUT },
-  { "IO.stderr", T_IO_STDERR },
-  { "IO.getArgRef", T_IO_GETARGREF },
-  { "IO.performIO", T_IO_PERFORMIO },
-  { "IO.atomic", T_IO_ATOMIC },
-  { "IO.gc", T_IO_GC },
-  { "IO.stats", T_IO_STATS },
-  { "IO.pp", T_IO_PP },
-  { "IO.lazyBind", T_IO_LAZYBIND },
-  { "IO.lazyBindST", T_IO_LAZYBINDST },
-  { "IO.strict", T_IO_STRICT },
-  { "raise", T_RAISE },
-  { "catch", T_CATCH },
-  { "catchr", T_CATCHR },
-  { "A.alloc", T_ARR_ALLOC },
-  { "A.copy", T_ARR_COPY },
-  { "A.size", T_ARR_SIZE },
-  { "A.read", T_ARR_READ },
-  { "A.write", T_ARR_WRITE },
-  { "A.trunc", T_ARR_TRUNC },
-  { "A.==", T_ARR_EQ },
-  { "IO.fork", T_IO_FORK },
-  { "IO.thid", T_IO_THID },
-  { "thnum", T_THNUM },
-  { "IO.throwto", T_IO_THROWTO },
-  { "IO.yield", T_IO_YIELD },
-  { "IO.newmvar", T_IO_NEWMVAR },
-  { "IO.takemvar", T_IO_TAKEMVAR },
-  { "IO.putmvar", T_IO_PUTMVAR },
-  { "IO.readmvar", T_IO_READMVAR },
-  { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
-  { "IO.tryputmvar", T_IO_TRYPUTMVAR },
-  { "IO.tryreadmvar", T_IO_TRYREADMVAR },
-  { "IO.threaddelay", T_IO_THREADDELAY },
-  { "IO.threadstatus", T_IO_THREADSTATUS },
-  { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
-  { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
-  { "packCString", T_PACKCSTRING },
-  { "packCStringLen", T_PACKCSTRINGLEN },
-  { "bsgrab", T_BSGRAB },
-  { "bsgrablen", T_BSGRABLEN },
-  { "toPtr", T_TOPTR },
-  { "toInt", T_TOINT },
-  { "toDbl", T_TODBL },
-  { "toFlt", T_TOFLT },
-  { "fromDbl", T_FROMDBL },
-  { "fromFlt", T_FROMFLT },
-  { "toFunPtr", T_TOFUNPTR },
-  { "IO.ccall", D_IO_CCALL },
-  { "isint", T_ISINT },
-  { "SPnew", T_SPNEW },
-  { "SPderef", T_SPDEREF },
-  { "SPfree", T_SPFREE },
-  { "Wknew", T_WKNEW },
-  { "Wknewfin", T_WKNEWFIN },
-  { "Wkderef", T_WKDEREF },
-  { "Wkfinal", T_WKFINAL },
-  { "binint2", T_BININT2 },
-  { "binint1", T_BININT1 },
-  { "bindbl2", T_BINDBL2 },
-  { "bindbl1", T_BINDBL1 },
-  { "binbs2", T_BINBS2 },
-  { "binbs1", T_BINBS1 },
-  { "unint1", T_UNINT1 },
-  { "undbl1", T_UNDBL1 },
-  { "IO.waitrdfd", T_IO_WAITRDFD},
-  { "IO.waitwrfd", T_IO_WAITWRFD},
+  { "IO.>>=", T_IO_BIND, 3 },
+  { "IO.>>", T_IO_THEN, 2 },
+  { "IO.return", T_IO_RETURN, 3 },
+  { "IO.serialize", T_IO_SERIALIZE, 3 },
+  { "IO.print", T_IO_PRINT, 3 },
+  { "IO.deserialize", T_IO_DESERIALIZE, 2 },
+  { "IO.stdin", T_IO_STDIN, 0 },
+  { "IO.stdout", T_IO_STDOUT, 0 },
+  { "IO.stderr", T_IO_STDERR, 0 },
+  { "IO.getArgRef", T_IO_GETARGREF, 1 },
+  { "IO.performIO", T_IO_PERFORMIO, 1 },
+  { "IO.atomic", T_IO_ATOMIC, 2 },
+  { "IO.gc", T_IO_GC, 2 },
+  { "IO.stats", T_IO_STATS, 1 },
+  { "IO.pp", T_IO_PP, 2 },
+  { "IO.lazyBind", T_IO_LAZYBIND, 3 },
+  { "IO.lazyBindST", T_IO_LAZYBINDST, 3 },
+  { "IO.strict", T_IO_STRICT, 2 },
+  { "raise", T_RAISE, 1 },
+  { "catch", T_CATCH, 3 },
+  { "catchr", T_CATCHR, 3 },
+  { "A.alloc", T_ARR_ALLOC, 3 },
+  { "A.copy", T_ARR_COPY, 2 },
+  { "A.size", T_ARR_SIZE, 2 },
+  { "A.read", T_ARR_READ, 3 },
+  { "A.write", T_ARR_WRITE, 4 },
+  { "A.trunc", T_ARR_TRUNC, 3 },
+  { "A.==", T_ARR_EQ, 2 },
+  { "IO.fork", T_IO_FORK, 2 },
+  { "IO.thid", T_IO_THID, 1 },
+  { "thnum", T_THNUM, 1 },
+  { "IO.throwto", T_IO_THROWTO, 3 },
+  { "IO.yield", T_IO_YIELD, 1 },
+  { "IO.newmvar", T_IO_NEWMVAR, 1 },
+  { "IO.takemvar", T_IO_TAKEMVAR, 2 },
+  { "IO.putmvar", T_IO_PUTMVAR, 3 },
+  { "IO.readmvar", T_IO_READMVAR, 2 },
+  { "IO.trytakemvar", T_IO_TRYTAKEMVAR, 2 },
+  { "IO.tryputmvar", T_IO_TRYPUTMVAR, 3 },
+  { "IO.tryreadmvar", T_IO_TRYREADMVAR, 2 },
+  { "IO.threaddelay", T_IO_THREADDELAY, 2 },
+  { "IO.threadstatus", T_IO_THREADSTATUS, 2 },
+  { "IO.getmaskingstate", T_IO_GETMASKINGSTATE, 1 },
+  { "IO.setmaskingstate", T_IO_SETMASKINGSTATE, 2 },
+  { "packCString", T_PACKCSTRING, 2 },
+  { "packCStringLen", T_PACKCSTRINGLEN, 3 },
+  { "bsgrab", T_BSGRAB, 2 },
+  { "bsgrablen", T_BSGRABLEN, 3 },
+  { "toPtr", T_TOPTR, 1 },
+  { "toInt", T_TOINT, 1 },
+  { "toDbl", T_TODBL, 1 },
+  { "toFlt", T_TOFLT, 1 },
+  { "fromDbl", T_FROMDBL, 1 },
+  { "fromFlt", T_FROMFLT, 1 },
+  { "toFunPtr", T_TOFUNPTR, 1 },
+  { "IO.ccall", D_IO_CCALL, 0 },
+  { "isint", T_ISINT, 1 },
+  { "SPnew", T_SPNEW, 2 },
+  { "SPderef", T_SPDEREF, 2 },
+  { "SPfree", T_SPFREE, 2 },
+  { "Wknew", T_WKNEW, 3 },
+  { "Wknewfin", T_WKNEWFIN, 4 },
+  { "Wkderef", T_WKDEREF, 2 },
+  { "Wkfinal", T_WKFINAL, 2 },
+  { "binint2", T_BININT2, 0 },
+  { "binint1", T_BININT1, 0 },
+  { "bindbl2", T_BINDBL2, 0 },
+  { "bindbl1", T_BINDBL1, 0 },
+  { "binbs2", T_BINBS2, 0 },
+  { "binbs1", T_BINBS1, 0 },
+  { "unint1", T_UNINT1, 0 },
+  { "undbl1", T_UNDBL1, 0 },
+  { "IO.waitrdfd", T_IO_WAITRDFD, 2 },
+  { "IO.waitwrfd", T_IO_WAITWRFD, 2 },
 #if WANT_INT64
-  { "I+", T_ADD64, T_ADD64 },
-  { "I-", T_SUB64, T_SUBR64 },
-  { "I*", T_MUL64, T_MUL64 },
-  { "Iquot", T_QUOT64 },
-  { "Irem", T_REM64 },
-  { "Iu+", T_UADD64, T_UADD64 },
-  { "Iu-", T_USUB64, T_USUBR64 },
-  { "Iu*", T_UMUL64, T_UMUL64 },
-  { "Iuquot", T_UQUOT64 },
-  { "Iurem", T_UREM64 },
-  { "Isubtract", T_SUBR64, T_SUB64 },
-  { "Iusubtract", T_USUBR64, T_USUB64 },
-  { "Ineg", T_NEG64 },
-  { "Iuneg", T_UNEG64 },
-  { "Iand", T_AND64, T_AND64 },
-  { "Ior", T_OR64, T_OR64 },
-  { "Ixor", T_XOR64, T_XOR64 },
-  { "Iinv", T_INV64 },
-  { "Ishl", T_SHL64 },
-  { "Ishr", T_SHR64 },
-  { "Iashr", T_ASHR64 },
-  { "Ipopcount", T_POPCOUNT64 },
-  { "Iclz", T_CLZ64 },
-  { "Ictz", T_CTZ64 },
-  { "I==", T_EQ64, T_EQ64 },
-  { "I/=", T_NE64, T_NE64 },
-  { "I<", T_LT64, T_GT64 },
-  { "Iu<", T_ULT64, T_UGT64 },
-  { "Iu<=", T_ULE64, T_UGE64 },
-  { "Iu>", T_UGT64, T_ULT64 },
-  { "Iu>=", T_UGE64, T_ULE64 },
-  { "I<=", T_LE64, T_GE64 },
-  { "I>", T_GT64, T_LT64 },
-  { "I>=", T_GE64, T_LE64 },
-  { "Iicmp", T_ICMP64 },
-  { "Iucmp", T_UCMP64 },
-  { "itoI", T_ITOI64 },
-  { "Itoi", T_I64TOI },
-  { "utoU", T_UTOU64 },
-  { "Utou", T_U64TOU },
+  { "I+", T_ADD64, 2, T_ADD64 },
+  { "I-", T_SUB64, 2, T_SUBR64 },
+  { "I*", T_MUL64, 2, T_MUL64 },
+  { "Iquot", T_QUOT64, 2 },
+  { "Irem", T_REM64, 2 },
+  { "Iu+", T_UADD64, 2, T_UADD64 },
+  { "Iu-", T_USUB64, 2, T_USUBR64 },
+  { "Iu*", T_UMUL64, 2, T_UMUL64 },
+  { "Iuquot", T_UQUOT64, 2 },
+  { "Iurem", T_UREM64, 2 },
+  { "Isubtract", T_SUBR64, 2, T_SUB64 },
+  { "Iusubtract", T_USUBR64, 2, T_USUB64 },
+  { "Ineg", T_NEG64, 1 },
+  { "Iuneg", T_UNEG64, 1 },
+  { "Iand", T_AND64, 2, T_AND64 },
+  { "Ior", T_OR64, 2, T_OR64 },
+  { "Ixor", T_XOR64, 2, T_XOR64 },
+  { "Iinv", T_INV64, 1 },
+  { "Ishl", T_SHL64, 2 },
+  { "Ishr", T_SHR64, 2 },
+  { "Iashr", T_ASHR64, 2 },
+  { "Ipopcount", T_POPCOUNT64, 1 },
+  { "Iclz", T_CLZ64, 1 },
+  { "Ictz", T_CTZ64, 1 },
+  { "I==", T_EQ64, 2, T_EQ64 },
+  { "I/=", T_NE64, 2, T_NE64 },
+  { "I<", T_LT64, 2, T_GT64 },
+  { "Iu<", T_ULT64, 2, T_UGT64 },
+  { "Iu<=", T_ULE64, 2, T_UGE64 },
+  { "Iu>", T_UGT64, 2, T_ULT64 },
+  { "Iu>=", T_UGE64, 2, T_ULE64 },
+  { "I<=", T_LE64, 2, T_GE64 },
+  { "I>", T_GT64, 2, T_LT64 },
+  { "I>=", T_GE64, 2, T_LE64 },
+  { "Iicmp", T_ICMP64, 2 },
+  { "Iucmp", T_UCMP64, 2 },
+  { "itoI", T_ITOI64, 1 },
+  { "Itoi", T_I64TOI, 1 },
+  { "utoU", T_UTOU64, 1 },
+  { "Utou", T_U64TOU, 1 },
 #endif  /* WANT_INT64 */
-  { "tick", D_TICK },           /* fake op */
-  { "D_", V_CASED },
-  { "L_", V_LOOKD },
-  { "E_", V_CASES },
-  { "M_", V_LOOKS },
-  { "C_", V_CONSTR },
-  { "A_", V_ARM },
+  { "tick", D_TICK, 1 },           /* fake op */
+  { "D_", V_CASED, 0 },
+  { "L_", V_LOOKD, 0 },
+  { "E_", V_CASES, 0 },
+  { "M_", V_LOOKS, 0 },
+  { "C_", V_CONSTR, 0 },
+  { "A_", V_ARM, 0 },
 };
 
 #if GCRED
@@ -3326,6 +3329,7 @@ init_nodes(void)
    * Go backwards, so that the first name of a tag wins, e.g., I and not its aliases ord and chr. */
   for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
     tag_names[primops[j].tag] = primops[j].name;
+    tag_arity[primops[j].tag] = primops[j].arity;
 #if GCRED
     flip_ops[primops[j].tag] = primops[j].flipped;
 #endif
@@ -6524,6 +6528,86 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
 #define PROF_OVERWRITE(n) do { } while(0)
 #endif  /* WANT_PROFILE */
 
+#if !defined(EXTRASANITY)
+#define EXTRASANITY 0           /* sanity checks that cost time, unlike SANITY */
+#endif
+
+#if EXTRASANITY                 /* the only user so far; extracting code for a JIT will need them too */
+/* The number of arguments the virtual node h (the head of a spine: a
+ * combinator, primitive, case, or constructor) needs before it reduces, or -1
+ * if it never reduces (a constructor).  For the combinators that also reduce
+ * with fewer arguments (e.g., B' x y = B (x y)) it is the smaller number. */
+static INLINE int
+arity_virt(NODEPTR h)
+{
+  enum node_tag t = get_VIRT_TAG(h);
+  switch (t) {
+  case V_CONSTR:
+  case V_ARM:
+  case V_LOOKD:
+  case V_LOOKS:
+    return -1;
+  case V_CASED:
+    return get_CASED_arity(h)->m + 1;
+  case V_CASES:
+    return 2 * get_CASE_size(h) + 2;
+  default:
+    return tag_arity[t];
+  }
+}
+
+/* Is n in weak head normal form, i.e., would evaluating it do no reduction?
+ * It is if it is a value (an Int, a ByteString, ...), a constructor applied to
+ * at most its fields, or a partial application.  So count the arguments down
+ * the spine, and compare with the arity of the head. */
+static INLINE bool
+is_whnf(NODEPTR n)
+{
+  int d = 0;                    /* arguments so far */
+  for (;;) {
+    if (is_VIRT(n)) {
+      int a = arity_virt(n);
+      return a < 0 || d < a;
+    }
+    NODEPTR f = FUN(n);
+    if (is_AP(f)) {             /* an application */
+      d++;
+      n = f;
+      continue;
+    }
+    switch (get_DATA_TAG(f)) {
+    case D_IND:      n = ARG(n); continue;
+    case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity;
+    case D_TICK:     return d < 1;
+    case D_BADDYN:   return false; /* evaluating it is an error */
+    default:         return true;  /* a value */
+    }
+  }
+}
+
+/* A case checks for as many arguments as the arity in primops[]; the
+ * combinators that also reduce with fewer arguments check for more in their
+ * other branch.  The arity of the other tags is in the node, see arity_virt. */
+static void
+check_arity(enum node_tag tag, int k)
+{
+  if (tag <= T_FIRST_REAL_TAG || tag >= T_LAST_TAG || k == tag_arity[tag])
+    return;
+  switch (tag) {
+  case T_BB: case T_Z: case T_R: case T_K2: case T_K3: case T_K4: case T_CCB:
+    if (k > tag_arity[tag])
+      return;
+    break;
+  default:
+    break;
+  }
+#if WANT_STDIO
+  fprintf(stderr, "arity of %s: CHECK(%d), but primops[] says %d\n", TAGNAME(tag), k, (int)tag_arity[tag]);
+#endif
+  ERR("check_arity");
+}
+#endif  /* EXTRASANITY */
+
 /*
  * The interpreter is split in three functions:
  *  evali       the core: unwinding, combinators, case and constructors, the IO
@@ -6544,10 +6628,15 @@ struct prim_res { NODEPTR n; enum prim_next next; };
  * and the GOxxx macros are defined separately for evali and for the other two. */
 #define HASNARGS(k) (stack_ptr - stk >= (k))
 /* Check that there are at least k arguments, return if not. */
-#if WANT_PROFILE
-#define CHECK(k) do { if (!HASNARGS(k)) { PROF_PARTIAL(); RET; } } while(0)
+#if EXTRASANITY
+#define CHECK_ARITY(k) check_arity(tag, (k))
 #else
-#define CHECK(k) do { if (!HASNARGS(k)) RET; } while(0)
+#define CHECK_ARITY(k) do { } while(0)
+#endif
+#if WANT_PROFILE
+#define CHECK(k) do { CHECK_ARITY(k); if (!HASNARGS(k)) { PROF_PARTIAL(); RET; } } while(0)
+#else
+#define CHECK(k) do { CHECK_ARITY(k); if (!HASNARGS(k)) RET; } while(0)
 #endif
 #define SETIND(n, x) set_IND(n, x)
 #define GOBOOL(b) do { GOIND(b ? combTrue : combFalse); } while(0)
@@ -6684,6 +6773,7 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
 #if WANT_FLOAT64 && WANT_FLOAT32
   case T_DTOF:
     {
+    CHECK(1);
     float xf = (float)evaldbl(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
@@ -6692,6 +6782,7 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     }
   case T_FTOD:
     {
+    CHECK(1);
     double xd = (double)evalflt(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
@@ -8751,6 +8842,10 @@ evali(NODEPTR an)
   prof_ctx_cur = prof_ctx_saved;
 #endif
   //fprintf(stderr, "evali exit stack_ptr=%d\n", (int)stack_ptr);
+#if EXTRASANITY
+  if (!is_whnf(n))
+    ERR("evali: the result is not in WHNF");
+#endif
   EV_SAVE();
   return n;
 }
