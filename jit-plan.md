@@ -429,6 +429,82 @@ the primitive; where they go is not known yet. The baseline differs from
 the first result because the compiler, and the program it compiles, have
 changed since.
 
+**Third result (2026-11-20): compiling definitions to C ahead of time.**
+On the `aot` branch, `mhs --aot=NAME,...` translates the named definitions
+to C (`--aot=*` all functions, `--aot=M.*` those of module `M`). The input
+is the desugared code, before bracket abstraction, which is what recovery
+from the combinators would give for kind 1. The C code is included in
+`eval.c` (`MHS_AOT_FILE`, see `aot_entries` there, and `MicroHs.AOT`).
+
+* A compiled definition is `AOT_i arr`: entry `i` applied to an array of
+  its constants, the closed, lambda free subexpressions. They are shared
+  between calls, as with bracket abstraction. A lambda, or a lazy
+  expression with control (`case`, `let`), becomes an entry of its own,
+  applied to its free variables. Each entry has its own array, so a closure
+  only keeps the constants it uses alive (`tests/Weak` needs that).
+* The code never calls `evali`. To evaluate something it first checks if
+  it is already a value (a constructor, an `Int`), and if so goes on in
+  place. Otherwise it pushes the variables it needs afterwards and a
+  continuation marker, and returns the node to `evali`, as the
+  interpreter's `case` does with its markers. When the value is ready,
+  `V_CONSTR` or `ret:` calls the continuation. So compiled code has no safe
+  points: it has no loops, the cells it allocates before it returns are
+  bounded, the bound is in a table, and `evali` does the GC check before
+  calling it. If a thread switch or an exception loses the frame, the redex
+  has not been overwritten, and it is evaluated again later. The bounds are
+  small (median 3 cells, 99th percentile 33, maximum 248).
+* `Int` arithmetic and comparisons are done in C on evaluated `Int`s (the
+  methods of the `Int` instances are known to be primitives). Arithmetic on
+  evaluated `Int`s is done eagerly where the program builds a thunk (cheap
+  eagerness; it cannot fail, since `Int` wraps around).
+* Full laziness: lets of variables are inlined, and subexpressions that do
+  not depend on a lambda's variable are floated out of it, as bracket
+  abstraction effectively does (`tests/FullLaziness` needs that). An entry
+  takes the lambdas up to the first such let, and the rest is a closure.
+* Not done: calls go through `evali` (the code builds the application and
+  returns it), there is no inlining, no unboxing across calls, no
+  strictness analysis, and methods of other dictionaries are called through
+  the shared constants (which the graph specialises at run time).
+
+Compiling the compiler (the same sources each time, 3 interleaved runs,
+medians), with the definitions with the most reductions in the profile
+above compiled. The output is the same in every case.
+
+| compiled | instructions | wall clock | GC | reductions | cells |
+| --- | --- | --- | --- | --- | --- |
+| no hooks in `evali` | 491.3G | 21.16 s | 1.91 s | 3.477G | 3.959G |
+| nothing | 490.7G (-0.1%) | 21.14 s (-0.1%) | 1.91 s | 3.477G | 3.959G |
+| top 8 (25% of the reductions) | 425.6G (-13.4%) | 19.04 s (-10.0%) | 1.71 s (-10.5%) | 2.900G (-16.6%) | 3.297G (-16.7%) |
+| top 25 (50%) | 369.3G (-24.8%) | 17.47 s (-17.4%) | 1.57 s (-17.8%) | 2.355G (-32.3%) | 2.842G (-28.2%) |
+| top 78 (80%) | 314.8G (-35.9%) | 15.38 s (-27.3%) | 1.39 s (-27.2%) | 1.807G (-48.0%) | 2.448G (-38.2%) |
+| all functions | 289.7G (-41.0%) | 13.98 s (-33.9%) | 1.26 s (-34.0%) | 1.516G (-56.4%) | 2.289G (-42.2%) |
+
+* The hooks for compiled code in `evali` cost nothing measurable.
+* The gain follows the share of the reductions that is compiled, so
+  compiling the hottest few dozen definitions gets most of it. Wall clock
+  gains a little less than instructions.
+* Full laziness is expensive as done here. Without floating, the top 78
+  run 284.6G instructions (-42.1%) in 12.25 s with 1.77G cells: the
+  floated lets, and the closure for the rest of the function, are
+  allocated on every call, while bracket abstraction gets the sharing from
+  the partial application itself. The compiler does not need the sharing,
+  but other programs can (it can change the complexity), so it has to be
+  kept, more cheaply.
+* With all functions compiled the binary grows from 0.56 MB to 26 MB (0.62,
+  0.91, and 1.8 MB for the top 8, 25, and 78), takes 2 minutes to build,
+  and needs 6.1M live cells instead of 4.0M (the arrays of constants).
+* Testing: with all functions compiled the compiler compiles itself to the
+  same output. The test suite, with the module of each test compiled,
+  passes except for the tests that serialize or print code (`Serdes`,
+  `SerdesDescr`, `Reflect`, `PartRed`), which do not know compiled nodes.
+  Compiling everything found a bug with shadowed parameter names, and the
+  runtime had a GC bug: a reachable empty array was freed (on `master` too).
+
+So for the compiler, compiling definitions gives large gains without a
+JIT: since the hot code is kind 1, compiling the hottest ones ahead of time
+gets most of it. What is left to do is to keep full laziness more cheaply,
+and calls from compiled code to compiled code.
+
 ### Phase 2: groundwork in the compiler and the combinator format
 
 * **Arm arities for dense `case`: done** (2026-11-18, format v9.2). The
