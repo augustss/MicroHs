@@ -60,11 +60,13 @@ instance Num Int16 where
   abs x = x
   signum x = if x < 0 then -1 else if x > 0 then 1 else 0
   fromInteger i = i16 (_integerToInt i)
+  _fromInt = i16
 
 instance Integral Int16 where
   quot = bin16 primIntQuot
   rem  = bin16 primIntRem
   toInteger = _intToInteger . unI16
+  _fromIntegral = _fromInt . unI16
 
 instance Bounded Int16 where
   minBound = -maxBound - 1

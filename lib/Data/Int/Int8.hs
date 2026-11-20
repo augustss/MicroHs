@@ -60,11 +60,13 @@ instance Num Int8 where
   abs x = x
   signum x = if x < 0 then -1 else if x > 0 then 1 else 0
   fromInteger i = i8 (_integerToInt i)
+  _fromInt = i8
 
 instance Integral Int8 where
   quot = bin8 primIntQuot
   rem  = bin8 primIntRem
   toInteger = _intToInteger . unI8
+  _fromIntegral = _fromInt . unI8
 
 instance Bounded Int8 where
   minBound = -maxBound - 1
