@@ -6385,6 +6385,46 @@ counter_t num_arm, num_bad_arm;
 #endif
 
 #if WANT_PROFILE
+/* Reductions per primitive: every combinator, primop, case and constructor
+ * tag, and every foreign function (a D_IO_CCALL node, by its number in
+ * FFI_IX).  A reduction where the primitive has too few arguments is a
+ * partial application being evaluated; it is counted as partial too (see
+ * CHECK in evali), so the uses of a primitive are its reductions minus its
+ * partial ones.  See prof_report_prims. */
+static counter_t prof_prim_red[T_LAST_TAG+1];
+static counter_t prof_prim_partial[T_LAST_TAG+1];
+static counter_t *prof_ffi_red = 0, *prof_ffi_partial = 0;
+static size_t prof_nffi = 0;
+
+/* The number of foreign functions: the runtime's and the program's. */
+static void
+prof_ffi_init(void)
+{
+  size_t k = num_ffi;
+  if (xffi_table)
+    while (xffi_table[k - num_ffi].ffi_name)
+      k++;
+  prof_nffi = k;
+  prof_ffi_red = calloc(k, sizeof(counter_t));
+  prof_ffi_partial = calloc(k, sizeof(counter_t));
+  if (!prof_ffi_red || !prof_ffi_partial)
+    memerr();
+}
+
+static INLINE void
+prof_prim(counter_t *tags, counter_t **ffis, enum node_tag tag, NODEPTR n)
+{
+  tags[tag]++;
+  if (tag == D_IO_CCALL) {
+    size_t a = (size_t)GETVALUE(n);
+    if (!prof_ffi_red)
+      prof_ffi_init();
+    if (a < prof_nffi)
+      (*ffis)[a]++;
+  }
+}
+#define PROF_PARTIAL() prof_prim(prof_prim_partial, &prof_ffi_partial, tag, n)
+
 /* Charge the reduction about to happen at node n (with tag tag) to the code
  * that runs: the source of the innermost application on the spine of this
  * evali (stack entries above stk).  Virtual stack entries (case markers, the
@@ -6444,6 +6484,7 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
   }
   if (!found && caf)
     caller = prof_push(0, caf->prof_label);
+  prof_prim(prof_prim_red, &prof_ffi_red, tag, n);
   src->prof_red++;
   if (cell)
     prof_tick(cell, &cell->prof_nred);
@@ -6494,8 +6535,12 @@ evali(NODEPTR an)
 /* Reset stack pointer and return. */
 #define RET do { goto ret; } while(0)
 #define HASNARGS(n) (stack_ptr - stk >= (n))
-/* Check that there are at least n arguments, return if not. */
-#define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
+/* Check that there are at least k arguments, return if not. */
+#if WANT_PROFILE
+#define CHECK(k) do { if (!HASNARGS(k)) { PROF_PARTIAL(); RET; } } while(0)
+#else
+#define CHECK(k) do { if (!HASNARGS(k)) RET; } while(0)
+#endif
 
 #define SETIND(n, x) set_IND(n, x)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
@@ -8631,6 +8676,76 @@ prof_cmp(const void *a, const void *b)
   return x < y ? 1 : x > y ? -1 : 0;
 }
 
+/* The reductions per primitive, see prof_prim.  Entry t <= T_LAST_TAG is the
+ * tag t, entry T_LAST_TAG+1+i the foreign function i.  The counts add up to
+ * all reductions: a value (an Int, a pointer, ...) also has a reduction when
+ * it is returned. */
+static void
+prof_report_prims(FILE *f, counter_t tred)
+{
+  heapoffs_t np = T_LAST_TAG + 1 + prof_nffi, i;
+  counter_t *uses = mmalloc(np * sizeof(counter_t));
+  counter_t *part = mmalloc(np * sizeof(counter_t));
+  heapoffs_t *order = mmalloc(np * sizeof(heapoffs_t));
+  counter_t tuses = 0, tpart = 0, cum = 0;
+  char buf[64];
+
+  for (i = 0; i < np; i++) {
+    counter_t r, p;
+    if (i <= T_LAST_TAG) {
+      r = prof_prim_red[i];
+      p = prof_prim_partial[i];
+      if (i == D_IO_CCALL)
+        r = p = 0;              /* listed per foreign function */
+    } else {
+      r = prof_ffi_red[i - T_LAST_TAG - 1];
+      p = prof_ffi_partial[i - T_LAST_TAG - 1];
+    }
+    uses[i] = r - p;
+    part[i] = p;
+    tuses += r - p;
+    tpart += p;
+    order[i] = i;
+  }
+  prof_key = uses;
+  qsort(order, np, sizeof(heapoffs_t), prof_cmp);
+  fprintf(f, "\nReductions by primitive.  A use is a reduction with enough arguments; a partial\n");
+  fprintf(f, "one is the evaluation of a partial application.  Kinds: comb(inator), prim(op),\n");
+  fprintf(f, "ffi (foreign function), case (constructors and case), value (returning a value).\n");
+  fprintf(f, "           uses    %%red   cum%%          partial  kind   primitive\n");
+  for (heapoffs_t j = 0; j < np; j++) {
+    const char *kind, *name;
+    i = order[j];
+    if (!uses[i] && !part[i])
+      continue;
+    cum += uses[i];
+    if (i > T_LAST_TAG) {
+      kind = "ffi";
+      snprintf(buf, sizeof buf, "^%s", FFI_IX(i - T_LAST_TAG - 1).ffi_name);
+      name = buf;
+    } else {
+      if (i >= T_S && i <= T_CCB)
+        kind = "comb";
+      else if (i > T_FIRST_REAL_TAG)
+        kind = "prim";
+      else if (i >= V_CONSTR)
+        kind = "case";
+      else
+        kind = "value";
+      name = TAGNAME(i);
+      if (!name) {
+        snprintf(buf, sizeof buf, "tag%d", (int)i);
+        name = buf;
+      }
+    }
+    fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter"  %-5s  %s\n",
+            uses[i], 100.0 * uses[i] / tred, 100.0 * cum / tred, part[i], kind, name);
+  }
+  fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter"  total\n",
+          tuses, 100.0 * tuses / tred, 100.0 * cum / tred, tpart);
+  FREE(uses); FREE(part); FREE(order);
+}
+
 static int
 prof_cmp_node(const void *a, const void *b)
 {
@@ -9198,6 +9313,7 @@ prof_report(void)
             prof_label_name(i == nl - 1 ? PROF_MAIN : (uint32_t)i, buf, sizeof buf));
   }
 
+  prof_report_prims(f, tred);
   prof_report_callers(f, order, nl);
   prof_report_hot(f, tunw, tred);
 
