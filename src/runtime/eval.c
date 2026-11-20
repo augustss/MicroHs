@@ -6096,46 +6096,28 @@ rnf(value_t noerr, NODEPTR n)
 counter_t num_arm, num_bad_arm;
 #endif
 
-/* Evaluate a node, returns when the node is in WHNF. */
-NODEPTR
-evali(NODEPTR an)
-{
-  NODEPTR n = an;
-  stackptr_t stk = stack_ptr;
-  NODEPTR x, y, z, w;
-  value_t xi, yi, r;
-  struct forptr *xfp;
-#if 0
-  heapoffs_t l;
-#endif
-  enum node_tag tag;
-  struct ioarray *arr;
-  struct bytestring xbs, ybs, rbs;
-#if WANT_STDIO
-  void *bfile;
-  int hdr;
-#endif  /* WANT_STDIO */
+/*
+ * The interpreter is split in three functions:
+ *  evali       the core: unwinding, combinators, case and constructors, the IO
+ *              monad combinators, seq, and Int arithmetic.  It handles most
+ *              reductions.
+ *  evalprimop  every other primitive; evali calls it for a tag it does not handle.
+ *  evalprimret the continuations of the strict primitives that are not on Int,
+ *              i.e., what to do when an argument has been evaluated and there is
+ *              a BININT64_1 (etc) marker on the stack.
+ * evalprimop and evalprimret return the node to continue with, and whether
+ * evali should evaluate it (PRIM_TOP, i.e., goto top) or return it as a value
+ * (PRIM_RET, i.e., goto ret).
+ */
+enum prim_next { PRIM_TOP, PRIM_RET };
+struct prim_res { NODEPTR n; enum prim_next next; };
 
-  //fprintf(stderr, "evali enter stk=%d\n", (int)stk);
-
-#if MAXSTACKDEPTH
-  counter_t old_cur_c_stack = cur_c_stack;
-  if (++cur_c_stack > max_c_stack)
-    max_c_stack = cur_c_stack;
-#endif
-
-/* Reset stack pointer and return. */
-#define RET do { goto ret; } while(0)
-#define HASNARGS(n) (stack_ptr - stk >= (n))
-/* Check that there are at least n arguments, return if not. */
-#define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
-
+/* Macros shared by evali, evalprimop, and evalprimret.  RET, GOTOP, CHECK,
+ * and the GOxxx macros are defined separately for evali and for the other two. */
+#define HASNARGS(k) (stack_ptr - stk >= (k))
+/* Check that there are at least k arguments, return if not. */
+#define CHECK(k) do { if (!HASNARGS(k)) RET; } while(0)
 #define SETIND(n, x) set_IND(n, x)
-#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
-#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
-#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
-#define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); goto ap; } while(0)
-#define GOPAIRUNIT do { FUN(n) = combPUnit; goto ap; } while(0)
 #define GOBOOL(b) do { GOIND(b ? combTrue : combFalse); } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
@@ -6172,226 +6154,31 @@ evali(NODEPTR an)
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
- top:
-  /*pp(stdout, an);*/
-  if (--glob_slice <= 0)
-    yield();
-  for(;;) {
-    if (is_VIRT(n)) {
-      /* A virtual pointer, i.e., a combinator, primop, constructor, etc. */
-      tag = get_VIRT_TAG(n);
-      break;
-    }
-    NODEPTR f = FUN(n);
-    if (is_AP(f)) {
-      /* follow AP nodes down the spine */
-      PUSH(n);
-      n = f;
-      continue;
-    }
-    tag = (enum node_tag)get_DATA_TAG(f);
-    if (tag == D_IND) {
-      /* Follow and short-circuit the chain of indirections. */
-      NODEPTR on = n;
-      do {
-        n = ARG(n);
-      } while (!is_VIRT(n) && get_DATA_TAG(FUN(n)) == D_IND);
-      ARG(on) = n;              /* short-circuit; on is still an IND */
-      continue;                 /* n can be an AP node */
-    }
-    break;
-  }
-  /* Invariant: at this point n=current node, tag=get_XTAG(n), and tag is not X_AP or D_IND */
 
-  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
-  //if (stack_ptr < -1)
-  //  ERR("stack_ptr");
+/* Control macros for evalprimop and evalprimret */
+#define RET do { return (struct prim_res){ n, PRIM_RET }; } while(0)
+#define GOTOP(x) do { return (struct prim_res){ (x), PRIM_TOP }; } while(0)
+#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); GOTOP(_x); } while(0)
+#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); GOTOP(n); } while(0)
+#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); GOTOP(n); } while(0)
+#define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); GOTOP(n); } while(0)
+#define GOPAIRUNIT do { FUN(n) = combPUnit; GOTOP(n); } while(0)
+
+/* Reduce the primitive tag, which is at the head of the spine (n).
+ * stk is the stack base of the calling evali. */
+static NOINLINE struct prim_res
+evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
+{
+  NODEPTR x, y, z, w;
+  value_t xi, yi;
+  struct forptr *xfp;
+  struct ioarray *arr;
+#if WANT_STDIO
+  void *bfile;
+  int hdr;
+#endif  /* WANT_STDIO */
+
   switch (tag) {
-  ap2:         PUSH(n); n = FUN(n);
-  ap:
-  case X_AP:   PUSH(n);
-    n = FUN(n); goto top;
-
-  case D_INT:    RET;
-  case D_DBL:    RET;
-  case D_INT64:  RET;
-  case D_FLT32:  RET;
-  case D_PTR:    RET;
-  case D_FUNPTR: RET;
-  case D_FORPTR: RET;
-  case D_ARR:    RET;
-  case D_THID:   RET;
-  case D_MVAR:   RET;
-  case D_WEAK:   RET;
-  case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-
-  /*
-   * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
-   * that increase in arity that some "optimizations" in Abstract.hs
-   * stop reductions from happening.  This can be important for "full laziness".
-   * In practice, these reductions almost never happen, but there they are anyway. :)
-   */
-  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
-  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
-  case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
-  case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
-  case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
-  case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
-  case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
-  case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-  case T_BB:   if (!HASNARGS(4)) {
-               GCCHECK(1); CHKARG2; COUNT(red_bb); GOAP(combB, new_ap(x, y)); } else {    /* B' x y = B (x y) */
-               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                          /* B' x y z w = x y (z w) */
-  case T_Z:    if (!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
-                           CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  t_c:
-  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
-  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
-  t_p:
-  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
-  case T_R:    if(!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
-               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                                     /* R x y z = y z x */
-  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                       /* O x y z w = w x y */
-  case T_K2:   if (!HASNARGS(3)) {
-                           CHKARG2; COUNT(red_k2); GOAP(combK, x); } else {               /* K2 x y = K x */
-                           CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
-  case T_K3:   if (!HASNARGS(4)) {
-                           CHKARG2; COUNT(red_k3); GOAP(combK2, x); } else {              /* K3 x y = K2 x */
-                           CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
-  case T_K4:   if (!HASNARGS(5)) {
-                           CHKARG2; COUNT(red_k4); GOAP(combK3, x); } else {              /* K4 x y = K3 x */
-                           CHKARG5; GOIND(x); }                                           /* K4 x y z w v = *x */
-  case T_CCB:  if (!HASNARGS(4)) {
-               GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
-               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
-
-    /*
-     * Strict primitives require evaluating the arguments before we can proceed.
-     * The easiest way to do this is to just recursively call evali() for each argument.
-     * The drawback of this is that it uses a lot of C stack.  (E.g., recompiling MicroHs
-     * uses a stack depth of 1800).
-     * Instead we use the following scheme:
-     *  When we find a strict binary (int) primitive we push T_BININT2,
-     *  set n=second argument.
-     *  Continue evaluation of n.
-     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT2.
-     *  If so, change the stack top to T_BININT1,
-     *  set n=first argument.
-     *  Continue evaluation of n.
-     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT1.
-     *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
-     * If we switch threads at any time during this the BININT1/2 on top of the stack will be lost,
-     * but this doesn't matter; the operation is there and we will find it and redo BININT2 again.
-     *
-     * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
-     *
-     * Pictorially for BININT
-     *  Before the code below:
-     *  ----
-     *  | --------> @
-     *  ----       / \
-     *  | ------> @   y
-     *  ----     / \
-     *  n ----> ADD x
-     *
-     * After
-     *  ----
-     *  | --------> @
-     *  ----       / \
-     *  | ------> @   y
-     *  ----     / \
-     *  | ->BI2 ADD x
-     *  ----        ^
-     *  n ----------|
-     *
-     *  x becomes an INT, stack is not empty, BININT2 found on top
-     *  ----
-     *  | --------> @
-     *  ----       / \
-     *  | ------> @   y
-     *  ----     / \
-     *  | ->BI2 ADD INT
-     *  ----        ^
-     *  n ----------|
-     *
-     *  After
-     *  ----
-     *  | --------> @
-     *  ----       / \
-     *  | ------> @   y
-     *  ----     / \    \
-     *  | ->BI1 ADD INT  |
-     *  ----             |
-     *  n ---------------|
-     *
-     *  y becomes an INT, stack is not empty, BININT1 found on top
-     *  do arithmetic
-     *  ----
-     *  | --------> @
-     *  ----       / \
-     *  | ------> @   INT
-     *  ----     / \    \
-     *  | ->BI1 ADD INT  |
-     *  ----             |
-     *  n ---------------|
-     *
-     *  ----
-     *  n -------> INT(x+y)
-     */
-  case T_ADD:
-  case T_SUB:
-  case T_MUL:
-  case T_QUOT:
-  case T_REM:
-  case T_SUBR:
-  case T_UADD:
-  case T_USUB:
-  case T_UMUL:
-  case T_UQUOT:
-  case T_UREM:
-  case T_USUBR:
-  case T_AND:
-  case T_OR:
-  case T_XOR:
-  case T_SHL:
-  case T_SHR:
-  case T_ASHR:
-  case T_EQ:
-  case T_NE:
-  case T_LT:
-  case T_LE:
-  case T_GT:
-  case T_GE:
-  case T_ICMP:
-  case T_ULT:
-  case T_ULE:
-  case T_UGT:
-  case T_UGE:
-  case T_UCMP:
-    CHECK(2);
-    n = ARG(TOP(1));
-    if (get_XTAG(n) == D_INT) {
-      n = ARG(TOP(0));
-      PUSH(combBININT1);
-      if (get_XTAG(n) == D_INT)
-        goto binint1;
-    } else {
-      PUSH(combBININT2);
-    }
-    goto top;
-
-  case T_NEG:
-  case T_UNEG:
-  case T_INV:
-  case T_POPCOUNT:
-  case T_CLZ:
-  case T_CTZ:
-    CHECK(1);
-    n = ARG(TOP(0));
-    PUSH(combUNINT1);
-    goto top;
 
 #if WANT_FLOAT32
   case T_FADD:
@@ -6407,12 +6194,12 @@ evali(NODEPTR an)
     CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINFLT2);
-    goto top;
+    GOTOP(n);
   case T_FNEG:
     CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNFLT1);
-    goto top;
+    GOTOP(n);
 
   case T_I64TOF:
     {
@@ -6493,12 +6280,12 @@ evali(NODEPTR an)
     CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINDBL2);
-    goto top;
+    GOTOP(n);
   case T_DNEG:
     CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNDBL1);
-    goto top;
+    GOTOP(n);
 
 #if WANT_INT64
   case T_I64TOD:
@@ -6564,7 +6351,7 @@ evali(NODEPTR an)
     CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINBS2);
-    goto top;
+    GOTOP(n);
 
 #if WANT_INT64
   case T_ADD64:
@@ -6612,14 +6399,15 @@ evali(NODEPTR an)
       n = ARG(TOP(0));
       PUSH(combBININT64_1);
       if (get_XTAG(n) == D_INT64) {
-        //fprintf(stderr, "goto binint64_1\n"); fflush(stderr);
-        goto binint64_1;
+        /* Both arguments are evaluated: the BININT64_1 continuation in
+         * evalprimret does the operation. */
+        RET;
       }
     } else {
       //fprintf(stderr, "push combBININT64_2\n"); fflush(stderr);
       PUSH(combBININT64_2);
     }
-    goto top;
+    GOTOP(n);
   case T_NEG64:
   case T_UNEG64:
   case T_INV64:
@@ -6629,7 +6417,7 @@ evali(NODEPTR an)
     CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNINT64_1);
-    goto top;
+    GOTOP(n);
 #endif  /* WANT_INT64 */
 
 
@@ -6989,7 +6777,6 @@ evali(NODEPTR an)
     POP(2);
     GOPAIRUNIT;
 
-  case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
   case T_RNF:
     if (doing_rnf) RET;
@@ -7036,15 +6823,6 @@ evali(NODEPTR an)
       GOPAIR(p3);
     }
     break;
-
-  case T_IO_BIND:
-    goto t_c;
-  case T_IO_RETURN:
-    goto t_p;
-  case T_IO_THEN:
-    GCCHECK(2);
-    CHKARG2;
-    GOAP2(combIOBIND, x, new_ap(combK, y));
   case T_IO_LAZYBINDST:
     /* Lazy bind, used for the lazy ST monad.
      * DO NOT USE FOR IO, because effects are not guaranteed to happen.
@@ -7557,6 +7335,601 @@ evali(NODEPTR an)
     GOIND(x);
 #endif
 
+  default:
+    ERR1("eval tag %s", TAGNAME(get_XTAG(n)));
+  }
+  RET;
+}
+
+/* n has been evaluated, and the marker tag is on top of the stack. */
+static NOINLINE struct prim_res
+evalprimret(NODEPTR n, enum node_tag tag)
+{
+  uvalue_t yu, ru;
+#if WANT_INT64
+  uint64_t x64u, y64u, r64u;
+#endif  /* WANT_INT64 */
+#if WANT_FLOAT32
+  flt32_t xf, yf, rf;
+#endif  /* WANT_FLOAT32 */
+#if WANT_FLOAT64
+  flt64_t xd, yd, rd;
+#endif  /* WANT_FLOAT64 */
+  struct bytestring xbs, ybs, rbs;
+  value_t r;
+  NODEPTR p, y;
+
+  switch (tag) {
+
+#if WANT_INT64
+    case T_BININT64_2:
+      n = ARG(TOP(1));
+      TOP(0) = combBININT64_1;
+      GOTOP(n);
+
+    case T_BININT64_1:
+      /* First argument */
+#if SANITY
+      if (get_XTAG(n) != D_INT64) {
+        //fprintf(stderr, "tag=%s\n", TAGNAME(get_XTAG(n))); fflush(stderr);
+        ERR("BININT64 0");
+      }
+#endif  /* SANITY */
+      x64u = (uint64_t)GETINT64VALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
+      /* The second argument to the shift ops is an int, so use a hack for that */
+      if (get_XTAG(y) == D_INT64)
+        y64u = (uint64_t)GETINT64VALUE(y);
+      else if (get_XTAG(y) == D_INT)
+        yu = (uvalue_t)GETVALUE(y);
+      else
+        ERR("BININT64 1");
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binint64:
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto binint64;
+      case T_ADD64: ADD_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUB64: SUB_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_MUL64: MUL_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUBR64:SUB_OVERFLOW(int64_t, r64u, y64u, x64u); break;
+      case T_QUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else if ((int64_t)x64u == INT64_MIN && (int64_t)y64u == -1)
+                      raise_rts(exn_overflow);
+                    else
+                      r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
+                    break;
+      case T_REM64: if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else if ((int64_t)y64u == -1) /* MIN % -1 traps on x86 */
+                      r64u = 0;
+                    else
+                      r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
+                    break;
+      case T_UADD64:r64u = x64u + y64u; break;
+      case T_USUB64:r64u = x64u - y64u; break;
+      case T_UMUL64:r64u = x64u * y64u; break;
+      case T_USUBR64:r64u = y64u - x64u; break;
+      case T_UQUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u / y64u;
+                    break;
+      case T_UREM64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u % y64u;
+                    break;
+      case T_AND64: r64u = x64u & y64u; break;
+      case T_OR64:  r64u = x64u | y64u; break;
+      case T_XOR64: r64u = x64u ^ y64u; break;
+      case T_SHL64: r64u = x64u << yu; break;
+      case T_SHR64: r64u = x64u >> yu; break;
+      case T_ASHR64:r64u = (uint64_t)((int64_t)x64u >> yu); break;
+
+      case T_EQ64:  GOBOOL(x64u == y64u);
+      case T_NE64:  GOBOOL(x64u != y64u);
+      case T_ULT64: GOBOOL(x64u <  y64u);
+      case T_ULE64: GOBOOL(x64u <= y64u);
+      case T_UGT64: GOBOOL(x64u >  y64u);
+      case T_UGE64: GOBOOL(x64u >= y64u);
+      case T_UCMP64:GOIND(x64u <  y64u ? combLT   : x64u > y64u ? combGT : combEQ);
+      case T_LT64:  GOBOOL((int64_t)x64u <  (int64_t)y64u);
+      case T_LE64:  GOBOOL((int64_t)x64u <= (int64_t)y64u);
+      case T_GT64:  GOBOOL((int64_t)x64u >  (int64_t)y64u);
+      case T_GE64:  GOBOOL((int64_t)x64u >= (int64_t)y64u);
+      case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("BININT64");
+      }
+      SETINT64(n, (int64_t)r64u);
+      RET;
+
+    case T_UNINT64_1:
+      /* The argument */
+#if SANITY
+      if (get_XTAG(n) != D_INT64)
+        ERR("UNINT64 0");
+#endif
+      x64u = (uint64_t)GETINT64VALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unint64:
+      switch (get_XTAG(p)) {
+      case D_IND:        p = get_IND(p); goto unint64;
+      case T_NEG64:      if ((int64_t)x64u == INT64_MIN) raise_rts(exn_overflow); r64u = -x64u; break;
+      case T_UNEG64:     r64u = -x64u; break;
+      case T_INV64:      r64u = ~x64u; break;
+      case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); RET;
+      case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); RET;
+      case T_CTZ64:      ru = CTZ64(x64u); SETINT(n, (value_t)ru); RET;
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("UNINT64");
+      }
+      SETINT64(n, (int64_t)r64u);
+      RET;
+#endif  /* WANT_INT64 */
+
+#if WANT_FLOAT32
+    case T_BINFLT2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINFLT1;
+      GOTOP(n);
+
+    case T_BINFLT1:
+      /* First argument */
+#if SANITY
+      if (get_XTAG(n) != D_FLT32)
+        ERR("BINDBL 0");
+#endif  /* SANITY */
+      xf = GETFLTVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
+#if SANITY
+      if (get_XTAG(y) != D_FLT32)
+        ERR("BINDBL 1");
+#endif  /* SANITY */
+      yf = GETFLTVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binflt:
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto binflt;
+      case T_FADD:  rf = xf + yf; break;
+      case T_FSUB:  rf = xf - yf; break;
+      case T_FMUL:  rf = xf * yf; break;
+      case T_FDIV:  rf = xf / yf; break;
+
+      case T_FEQ:   GOBOOL(xf == yf);
+      case T_FNE:   GOBOOL(xf != yf);
+      case T_FLT:   GOBOOL(xf <  yf);
+      case T_FLE:   GOBOOL(xf <= yf);
+      case T_FGT:   GOBOOL(xf >  yf);
+      case T_FGE:   GOBOOL(xf >= yf);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("BINFLT");
+      }
+      SETFLT(n, rf);
+      RET;
+
+    case T_UNFLT1:
+      /* The argument */
+#if SANITY
+      if (get_XTAG(n) != D_FLT32)
+        ERR("UNFLT 0");
+#endif
+      xf = GETFLTVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unflt:
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto unflt;
+      case T_FNEG:  rf = -xf; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("UNFLT");
+      }
+      SETFLT(n, rf);
+      RET;
+#endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64
+    case T_BINDBL2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINDBL1;
+      GOTOP(n);
+
+    case T_BINDBL1:
+      /* First argument */
+#if SANITY
+      if (get_XTAG(n) != D_DBL)
+        ERR("BINDBL 0");
+#endif  /* SANITY */
+      xd = GETDBLVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
+#if SANITY
+      if (get_XTAG(y) != D_DBL)
+        ERR("BINDBL 1");
+#endif  /* SANITY */
+      yd = GETDBLVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    bindbl:
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto bindbl;
+      case T_DADD:  rd = xd + yd; break;
+      case T_DSUB:  rd = xd - yd; break;
+      case T_DMUL:  rd = xd * yd; break;
+      case T_DDIV:  rd = xd / yd; break;
+
+      case T_DEQ:   GOBOOL(xd == yd);
+      case T_DNE:   GOBOOL(xd != yd);
+      case T_DLT:   GOBOOL(xd <  yd);
+      case T_DLE:   GOBOOL(xd <= yd);
+      case T_DGT:   GOBOOL(xd >  yd);
+      case T_DGE:   GOBOOL(xd >= yd);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("BINDBL");
+      }
+      SETDBL(n, rd);
+      RET;
+
+    case T_UNDBL1:
+      /* The argument */
+#if SANITY
+      if (get_XTAG(n) != D_DBL)
+        ERR("UNDBL 0");
+#endif
+      xd = GETDBLVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    undbl:
+      switch (get_XTAG(p)) {
+      case D_IND:   p = get_IND(p); goto undbl;
+      case T_DNEG:  rd = -xd; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("UNDBL");
+      }
+      SETDBL(n, rd);
+      RET;
+#endif  /* WANT_FLOAT64 */
+
+    case T_BINBS2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINBS1;
+      GOTOP(n);
+
+    case T_BINBS1:
+      /* First argument */
+#if SANITY
+      if (get_XTAG(n) != D_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
+        ERR("BINBS 0");
+#endif  /* SANITY */
+      xbs = BSTR(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (get_XTAG(y) == D_IND)
+        y = get_IND(y);
+#if SANITY
+      if (get_XTAG(y) != D_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
+        ERR("BINBS 1");
+#endif  /* SANITY */
+      ybs = BSTR(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binbs:
+      switch (get_XTAG(p)) {
+      case D_IND:    p = get_IND(p); goto binbs;
+
+      case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
+      case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
+      case T_BSEQ:   GOBOOL(bscompare(xbs, ybs) == 0);
+      case T_BSNE:   GOBOOL(bscompare(xbs, ybs) != 0);
+      case T_BSLT:   GOBOOL(bscompare(xbs, ybs) <  0);
+      case T_BSLE:   GOBOOL(bscompare(xbs, ybs) <= 0);
+      case T_BSGT:   GOBOOL(bscompare(xbs, ybs) >  0);
+      case T_BSGE:   GOBOOL(bscompare(xbs, ybs) >= 0);
+      case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
+        ERR("BINBS");
+      }
+      SETBSTR(n, mkForPtrFree(rbs));
+      RET;
+
+  default:
+    ERR1("evalprimret %s", TAGNAME(tag));
+  }
+}
+
+#undef RET
+#undef GOTOP
+#undef GOIND
+#undef GOAP
+#undef GOAP2
+#undef GOPAIR
+#undef GOPAIRUNIT
+
+/* Evaluate a node, returns when the node is in WHNF. */
+NODEPTR
+evali(NODEPTR an)
+{
+  NODEPTR n = an;
+  stackptr_t stk = stack_ptr;
+  NODEPTR x, y, z, w;
+  enum node_tag tag;
+
+  //fprintf(stderr, "evali enter stk=%d\n", (int)stk);
+
+#if MAXSTACKDEPTH
+  counter_t old_cur_c_stack = cur_c_stack;
+  if (++cur_c_stack > max_c_stack)
+    max_c_stack = cur_c_stack;
+#endif
+
+/* Control macros for evali */
+#define RET do { goto ret; } while(0)
+#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
+#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
+#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
+
+ top:
+  /*pp(stdout, an);*/
+  if (--glob_slice <= 0)
+    yield();
+  for(;;) {
+    if (is_VIRT(n)) {
+      /* A virtual pointer, i.e., a combinator, primop, constructor, etc. */
+      tag = get_VIRT_TAG(n);
+      break;
+    }
+    NODEPTR f = FUN(n);
+    if (is_AP(f)) {
+      /* follow AP nodes down the spine */
+      PUSH(n);
+      n = f;
+      continue;
+    }
+    tag = (enum node_tag)get_DATA_TAG(f);
+    if (tag == D_IND) {
+      /* Follow and short-circuit the chain of indirections. */
+      NODEPTR on = n;
+      do {
+        n = ARG(n);
+      } while (!is_VIRT(n) && get_DATA_TAG(FUN(n)) == D_IND);
+      ARG(on) = n;              /* short-circuit; on is still an IND */
+      continue;                 /* n can be an AP node */
+    }
+    break;
+  }
+  /* Invariant: at this point n=current node, tag=get_XTAG(n), and tag is not X_AP or D_IND */
+
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //if (stack_ptr < -1)
+  //  ERR("stack_ptr");
+  switch (tag) {
+  ap2:         PUSH(n); n = FUN(n);
+  ap:
+  case X_AP:   PUSH(n);
+    n = FUN(n); goto top;
+
+  case D_INT:    RET;
+  case D_DBL:    RET;
+  case D_INT64:  RET;
+  case D_FLT32:  RET;
+  case D_PTR:    RET;
+  case D_FUNPTR: RET;
+  case D_FORPTR: RET;
+  case D_ARR:    RET;
+  case D_THID:   RET;
+  case D_MVAR:   RET;
+  case D_WEAK:   RET;
+  case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
+
+  /*
+   * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
+   * that increase in arity that some "optimizations" in Abstract.hs
+   * stop reductions from happening.  This can be important for "full laziness".
+   * In practice, these reductions almost never happen, but there they are anyway. :)
+   */
+  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
+  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
+  case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
+  case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
+  case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
+  case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
+  case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
+  case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+  case T_BB:   if (!HASNARGS(4)) {
+               GCCHECK(1); CHKARG2; COUNT(red_bb); GOAP(combB, new_ap(x, y)); } else {    /* B' x y = B (x y) */
+               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                          /* B' x y z w = x y (z w) */
+  case T_Z:    if (!HASNARGS(3)) {
+               GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
+                           CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
+  t_c:
+  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
+  t_p:
+  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
+  case T_R:    if(!HASNARGS(3)) {
+               GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
+               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                                     /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                       /* O x y z w = w x y */
+  case T_K2:   if (!HASNARGS(3)) {
+                           CHKARG2; COUNT(red_k2); GOAP(combK, x); } else {               /* K2 x y = K x */
+                           CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
+  case T_K3:   if (!HASNARGS(4)) {
+                           CHKARG2; COUNT(red_k3); GOAP(combK2, x); } else {              /* K3 x y = K2 x */
+                           CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
+  case T_K4:   if (!HASNARGS(5)) {
+                           CHKARG2; COUNT(red_k4); GOAP(combK3, x); } else {              /* K4 x y = K3 x */
+                           CHKARG5; GOIND(x); }                                           /* K4 x y z w v = *x */
+  case T_CCB:  if (!HASNARGS(4)) {
+               GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
+
+    /*
+     * Strict primitives require evaluating the arguments before we can proceed.
+     * The easiest way to do this is to just recursively call evali() for each argument.
+     * The drawback of this is that it uses a lot of C stack.  (E.g., recompiling MicroHs
+     * uses a stack depth of 1800).
+     * Instead we use the following scheme:
+     *  When we find a strict binary (int) primitive we push T_BININT2,
+     *  set n=second argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT2.
+     *  If so, change the stack top to T_BININT1,
+     *  set n=first argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT1.
+     *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
+     * If we switch threads at any time during this the BININT1/2 on top of the stack will be lost,
+     * but this doesn't matter; the operation is there and we will find it and redo BININT2 again.
+     *
+     * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
+     *
+     * Pictorially for BININT
+     *  Before the code below:
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  n ----> ADD x
+     *
+     * After
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  | ->BI2 ADD x
+     *  ----        ^
+     *  n ----------|
+     *
+     *  x becomes an INT, stack is not empty, BININT2 found on top
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  | ->BI2 ADD INT
+     *  ----        ^
+     *  n ----------|
+     *
+     *  After
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \    \
+     *  | ->BI1 ADD INT  |
+     *  ----             |
+     *  n ---------------|
+     *
+     *  y becomes an INT, stack is not empty, BININT1 found on top
+     *  do arithmetic
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   INT
+     *  ----     / \    \
+     *  | ->BI1 ADD INT  |
+     *  ----             |
+     *  n ---------------|
+     *
+     *  ----
+     *  n -------> INT(x+y)
+     */
+  case T_ADD:
+  case T_SUB:
+  case T_MUL:
+  case T_QUOT:
+  case T_REM:
+  case T_SUBR:
+  case T_UADD:
+  case T_USUB:
+  case T_UMUL:
+  case T_UQUOT:
+  case T_UREM:
+  case T_USUBR:
+  case T_AND:
+  case T_OR:
+  case T_XOR:
+  case T_SHL:
+  case T_SHR:
+  case T_ASHR:
+  case T_EQ:
+  case T_NE:
+  case T_LT:
+  case T_LE:
+  case T_GT:
+  case T_GE:
+  case T_ICMP:
+  case T_ULT:
+  case T_ULE:
+  case T_UGT:
+  case T_UGE:
+  case T_UCMP:
+    CHECK(2);
+    n = ARG(TOP(1));
+    if (get_XTAG(n) == D_INT) {
+      n = ARG(TOP(0));
+      PUSH(combBININT1);
+      if (get_XTAG(n) == D_INT)
+        goto binint1;
+    } else {
+      PUSH(combBININT2);
+    }
+    goto top;
+
+  case T_NEG:
+  case T_UNEG:
+  case T_INV:
+  case T_POPCOUNT:
+  case T_CLZ:
+  case T_CTZ:
+    CHECK(1);
+    n = ARG(TOP(0));
+    PUSH(combUNINT1);
+    goto top;
+
+  case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+
+  case T_IO_BIND:
+    goto t_c;
+  case T_IO_RETURN:
+    goto t_p;
+  case T_IO_THEN:
+    GCCHECK(2);
+    CHKARG2;
+    GOAP2(combIOBIND, x, new_ap(combK, y));
+
   /* The scrutinee is the last argument:
    *   CASED_m f0 ... f{m-1} e
    *   CASES_m d A_k1_n1 f1 ... A_km_nm fm e
@@ -7667,7 +8040,14 @@ evali(NODEPTR an)
     }
 
   default:
-    ERR1("eval tag %s", TAGNAME(get_XTAG(n)));
+    {
+      /* Every other primitive */
+      struct prim_res pr = evalprimop(n, tag, stk);
+      n = pr.n;
+      if (pr.next == PRIM_TOP)
+        goto top;
+      goto ret;
+    }
   }
 
 
@@ -7676,15 +8056,6 @@ evali(NODEPTR an)
     // In this case, n was an AP that got pushed and potentially
     // updated.
     uvalue_t xu, yu, ru;
-#if WANT_INT64
-    uint64_t x64u, y64u, r64u;
-#endif  /* WANT_INT64 */
-#if WANT_FLOAT32
-    flt32_t xf, yf, rf;
-#endif  /* WANT_FLOAT32 */
-#if WANT_FLOAT64
-    flt64_t xd, yd, rd;
-#endif  /* WANT_FLOAT64 */
     NODEPTR p;
 
     tag = get_XTAG(TOP(0));
@@ -7808,305 +8179,28 @@ evali(NODEPTR an)
 
 #if WANT_INT64
     case T_BININT64_2:
-      n = ARG(TOP(1));
-      TOP(0) = combBININT64_1;
-      goto top;
-
     case T_BININT64_1:
-      /* First argument */
-#if SANITY
-      if (get_XTAG(n) != D_INT64) {
-        //fprintf(stderr, "tag=%s\n", TAGNAME(get_XTAG(n))); fflush(stderr);
-        ERR("BININT64 0");
-      }
-#endif  /* SANITY */
-    binint64_1:
-      x64u = (uint64_t)GETINT64VALUE(n);
-      /* Second argument */
-      y = ARG(TOP(2));
-      while (get_XTAG(y) == D_IND)
-        y = get_IND(y);
-      /* The second argument to the shift ops is an int, so use a hack for that */
-      if (get_XTAG(y) == D_INT64)
-        y64u = (uint64_t)GETINT64VALUE(y);
-      else if (get_XTAG(y) == D_INT)
-        yu = (uvalue_t)GETVALUE(y);
-      else
-        ERR("BININT64 1");
-      p = FUN(TOP(1));
-      POP(3);
-      n = TOP(-1);
-    binint64:
-      switch (get_XTAG(p)) {
-      case D_IND:   p = get_IND(p); goto binint64;
-      case T_ADD64: ADD_OVERFLOW(int64_t, r64u, x64u, y64u); break;
-      case T_SUB64: SUB_OVERFLOW(int64_t, r64u, x64u, y64u); break;
-      case T_MUL64: MUL_OVERFLOW(int64_t, r64u, x64u, y64u); break;
-      case T_SUBR64:SUB_OVERFLOW(int64_t, r64u, y64u, x64u); break;
-      case T_QUOT64:if (y64u == 0)
-                      raise_rts(exn_dividebyzero);
-                    else if ((int64_t)x64u == INT64_MIN && (int64_t)y64u == -1)
-                      raise_rts(exn_overflow);
-                    else
-                      r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
-                    break;
-      case T_REM64: if (y64u == 0)
-                      raise_rts(exn_dividebyzero);
-                    else if ((int64_t)y64u == -1) /* MIN % -1 traps on x86 */
-                      r64u = 0;
-                    else
-                      r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
-                    break;
-      case T_UADD64:r64u = x64u + y64u; break;
-      case T_USUB64:r64u = x64u - y64u; break;
-      case T_UMUL64:r64u = x64u * y64u; break;
-      case T_USUBR64:r64u = y64u - x64u; break;
-      case T_UQUOT64:if (y64u == 0)
-                      raise_rts(exn_dividebyzero);
-                    else
-                      r64u = x64u / y64u;
-                    break;
-      case T_UREM64:if (y64u == 0)
-                      raise_rts(exn_dividebyzero);
-                    else
-                      r64u = x64u % y64u;
-                    break;
-      case T_AND64: r64u = x64u & y64u; break;
-      case T_OR64:  r64u = x64u | y64u; break;
-      case T_XOR64: r64u = x64u ^ y64u; break;
-      case T_SHL64: r64u = x64u << yu; break;
-      case T_SHR64: r64u = x64u >> yu; break;
-      case T_ASHR64:r64u = (uint64_t)((int64_t)x64u >> yu); break;
-
-      case T_EQ64:  GOBOOL(x64u == y64u);
-      case T_NE64:  GOBOOL(x64u != y64u);
-      case T_ULT64: GOBOOL(x64u <  y64u);
-      case T_ULE64: GOBOOL(x64u <= y64u);
-      case T_UGT64: GOBOOL(x64u >  y64u);
-      case T_UGE64: GOBOOL(x64u >= y64u);
-      case T_UCMP64:GOIND(x64u <  y64u ? combLT   : x64u > y64u ? combGT : combEQ);
-      case T_LT64:  GOBOOL((int64_t)x64u <  (int64_t)y64u);
-      case T_LE64:  GOBOOL((int64_t)x64u <= (int64_t)y64u);
-      case T_GT64:  GOBOOL((int64_t)x64u >  (int64_t)y64u);
-      case T_GE64:  GOBOOL((int64_t)x64u >= (int64_t)y64u);
-      case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
-
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("BININT64");
-      }
-      SETINT64(n, (int64_t)r64u);
-      goto ret;
-
     case T_UNINT64_1:
-      /* The argument */
-#if SANITY
-      if (get_XTAG(n) != D_INT64)
-        ERR("UNINT64 0");
-#endif
-      x64u = (uint64_t)GETINT64VALUE(n);
-      p = FUN(TOP(1));
-      POP(2);
-      n = TOP(-1);
-    unint64:
-      switch (get_XTAG(p)) {
-      case D_IND:        p = get_IND(p); goto unint64;
-      case T_NEG64:      if ((int64_t)x64u == INT64_MIN) raise_rts(exn_overflow); r64u = -x64u; break;
-      case T_UNEG64:     r64u = -x64u; break;
-      case T_INV64:      r64u = ~x64u; break;
-      case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
-      case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
-      case T_CTZ64:      ru = CTZ64(x64u); SETINT(n, (value_t)ru); goto ret;
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("UNINT64");
-      }
-      SETINT64(n, (int64_t)r64u);
-      goto ret;
 #endif  /* WANT_INT64 */
-
 #if WANT_FLOAT32
     case T_BINFLT2:
-      n = ARG(TOP(1));
-      TOP(0) = combBINFLT1;
-      goto top;
-
     case T_BINFLT1:
-      /* First argument */
-#if SANITY
-      if (get_XTAG(n) != D_FLT32)
-        ERR("BINDBL 0");
-#endif  /* SANITY */
-      xf = GETFLTVALUE(n);
-      /* Second argument */
-      y = ARG(TOP(2));
-      while (get_XTAG(y) == D_IND)
-        y = get_IND(y);
-#if SANITY
-      if (get_XTAG(y) != D_FLT32)
-        ERR("BINDBL 1");
-#endif  /* SANITY */
-      yf = GETFLTVALUE(y);
-      p = FUN(TOP(1));
-      POP(3);
-      n = TOP(-1);
-    binflt:
-      switch (get_XTAG(p)) {
-      case D_IND:   p = get_IND(p); goto binflt;
-      case T_FADD:  rf = xf + yf; break;
-      case T_FSUB:  rf = xf - yf; break;
-      case T_FMUL:  rf = xf * yf; break;
-      case T_FDIV:  rf = xf / yf; break;
-
-      case T_FEQ:   GOBOOL(xf == yf);
-      case T_FNE:   GOBOOL(xf != yf);
-      case T_FLT:   GOBOOL(xf <  yf);
-      case T_FLE:   GOBOOL(xf <= yf);
-      case T_FGT:   GOBOOL(xf >  yf);
-      case T_FGE:   GOBOOL(xf >= yf);
-
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("BINFLT");
-      }
-      SETFLT(n, rf);
-      goto ret;
-
     case T_UNFLT1:
-      /* The argument */
-#if SANITY
-      if (get_XTAG(n) != D_FLT32)
-        ERR("UNFLT 0");
-#endif
-      xf = GETFLTVALUE(n);
-      p = FUN(TOP(1));
-      POP(2);
-      n = TOP(-1);
-    unflt:
-      switch (get_XTAG(p)) {
-      case D_IND:   p = get_IND(p); goto unflt;
-      case T_FNEG:  rf = -xf; break;
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("UNFLT");
-      }
-      SETFLT(n, rf);
-      goto ret;
 #endif  /* WANT_FLOAT32 */
-
 #if WANT_FLOAT64
     case T_BINDBL2:
-      n = ARG(TOP(1));
-      TOP(0) = combBINDBL1;
-      goto top;
-
     case T_BINDBL1:
-      /* First argument */
-#if SANITY
-      if (get_XTAG(n) != D_DBL)
-        ERR("BINDBL 0");
-#endif  /* SANITY */
-      xd = GETDBLVALUE(n);
-      /* Second argument */
-      y = ARG(TOP(2));
-      while (get_XTAG(y) == D_IND)
-        y = get_IND(y);
-#if SANITY
-      if (get_XTAG(y) != D_DBL)
-        ERR("BINDBL 1");
-#endif  /* SANITY */
-      yd = GETDBLVALUE(y);
-      p = FUN(TOP(1));
-      POP(3);
-      n = TOP(-1);
-    bindbl:
-      switch (get_XTAG(p)) {
-      case D_IND:   p = get_IND(p); goto bindbl;
-      case T_DADD:  rd = xd + yd; break;
-      case T_DSUB:  rd = xd - yd; break;
-      case T_DMUL:  rd = xd * yd; break;
-      case T_DDIV:  rd = xd / yd; break;
-
-      case T_DEQ:   GOBOOL(xd == yd);
-      case T_DNE:   GOBOOL(xd != yd);
-      case T_DLT:   GOBOOL(xd <  yd);
-      case T_DLE:   GOBOOL(xd <= yd);
-      case T_DGT:   GOBOOL(xd >  yd);
-      case T_DGE:   GOBOOL(xd >= yd);
-
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("BINDBL");
-      }
-      SETDBL(n, rd);
-      goto ret;
-
     case T_UNDBL1:
-      /* The argument */
-#if SANITY
-      if (get_XTAG(n) != D_DBL)
-        ERR("UNDBL 0");
-#endif
-      xd = GETDBLVALUE(n);
-      p = FUN(TOP(1));
-      POP(2);
-      n = TOP(-1);
-    undbl:
-      switch (get_XTAG(p)) {
-      case D_IND:   p = get_IND(p); goto undbl;
-      case T_DNEG:  rd = -xd; break;
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("UNDBL");
-      }
-      SETDBL(n, rd);
-      goto ret;
 #endif  /* WANT_FLOAT64 */
-
     case T_BINBS2:
-      n = ARG(TOP(1));
-      TOP(0) = combBINBS1;
-      goto top;
-
     case T_BINBS1:
-      /* First argument */
-#if SANITY
-      if (get_XTAG(n) != D_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
-        ERR("BINBS 0");
-#endif  /* SANITY */
-      xbs = BSTR(n);
-      /* Second argument */
-      y = ARG(TOP(2));
-      while (get_XTAG(y) == D_IND)
-        y = get_IND(y);
-#if SANITY
-      if (get_XTAG(y) != D_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
-        ERR("BINBS 1");
-#endif  /* SANITY */
-      ybs = BSTR(y);
-      p = FUN(TOP(1));
-      POP(3);
-      n = TOP(-1);
-    binbs:
-      switch (get_XTAG(p)) {
-      case D_IND:    p = get_IND(p); goto binbs;
-
-      case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
-      case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
-      case T_BSEQ:   GOBOOL(bscompare(xbs, ybs) == 0);
-      case T_BSNE:   GOBOOL(bscompare(xbs, ybs) != 0);
-      case T_BSLT:   GOBOOL(bscompare(xbs, ybs) <  0);
-      case T_BSLE:   GOBOOL(bscompare(xbs, ybs) <= 0);
-      case T_BSGT:   GOBOOL(bscompare(xbs, ybs) >  0);
-      case T_BSGE:   GOBOOL(bscompare(xbs, ybs) >= 0);
-      case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
-
-      default:
-        //fprintf(stderr, "tag=%d\n", get_XTAG(FUN(TOP(0))));
-        ERR("BINBS");
+      {
+        struct prim_res pr = evalprimret(n, tag);
+        n = pr.n;
+        if (pr.next == PRIM_TOP)
+          goto top;
+        goto ret;
       }
-      SETBSTR(n, mkForPtrFree(rbs));
-      goto ret;
 
     default:
       stack_ptr = stk;
