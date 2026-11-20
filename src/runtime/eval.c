@@ -3535,6 +3535,9 @@ mark(NODEPTR *np)
 
       // arr->marked records marking progress through arr.
       if (arr->marked >= arr->size) {
+        // An empty array has nothing to scan, but the sweep must keep it.
+        if (arr->size == 0)
+          arr->marked = 1;
         goto fin;
       }
       // We unmark the array as a whole and push it as long
