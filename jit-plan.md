@@ -115,6 +115,15 @@ encoding" in `doc/MicroHs.md`):
   uses them.
 * Strict primitives (`+` on `Int`, etc.) avoid C recursion with markers on
   the stack (`BININT2`, `BININT1`, ...).
+* (On master since 2026-11-20.) `evali` is only the core: unwinding, the
+  combinators, `case` and constructors, the IO combinators, `seq`, and
+  `Int` arithmetic. It calls `evalprimop` for the other primitives, and
+  `evalprimret` for the markers of the strict primitives that are not on
+  `Int`. The core keeps `stack_ptr`, `glob_slice`, `bump_ptr`, `bump_end`,
+  and `num_free` in locals, writes them back before every call out
+  (`EV_SAVE`), and reads them again after (`EV_LOAD`). Compiled code called
+  from the core has to fit this: the core writes them back first, or they
+  are passed in and out.
 * IO is a function from a world token to a `P` pair. `return` is `P`, and
   `>>=` is `C`.
 * Thread switches and exceptions use `longjmp`. On a switch the thread's
@@ -402,6 +411,35 @@ when it has hot functions with strict parts. Two of the rules above
 (pointers into the graph, and the cost to the interpreter) come from this
 experiment. With the primitives in the runtime but not used, the compiler
 runs 1.7% more instructions, with no measurable difference in wall clock.
+
+**The first result again, on a faster interpreter (2026-11-20).** Since the
+first result the interpreter on master has become faster: the bump
+allocator updates its counters once per run, `evali` is split into a core
+and `evalprimop`/`evalprimret`, and the core keeps the hot globals in locals
+(see "The interpreter today"). The same experiment, with the same compiler
+sources compiling the same program, on the runtime before (`7e1f4f1f`) and
+after (`7f5fceb4`) those changes. On the new runtime the primitives are in
+`evalprimop`.
+
+| runtime | balancing | instructions | wall clock | GC | reductions | cells |
+| --- | --- | --- | --- | --- | --- | --- |
+| old | Haskell | 478.2G | 20.56 s | 1.87 s | 3.384G | 3.861G |
+| old | primitives | 425.1G (-11.1%) | 18.41 s (-10.5%) | 1.60 s (-14.4%) | 3.027G | 3.328G |
+| new | Haskell | 292.2G | 18.28 s | 1.86 s | 3.384G | 3.861G |
+| new | primitives | 262.0G (-10.3%) | 16.37 s (-10.5%) | 1.60 s (-14.0%) | 3.027G | 3.328G |
+
+The two gains are independent: the primitives save 10.5% of the wall clock
+on both runtimes, the new runtime saves 11.1% with either balancing, and
+together they save 20.4%. So a faster interpreter does not make compiled
+code for a function like this less worthwhile. Per call (about 3.87M calls,
+judging by the reductions saved) the instructions saved fell from about
+13,700 to 7,800, but the time saved only fell from about 555 ns to 495 ns,
+in proportion to the interpreter's speedup. The interpreter now does the
+same work in fewer instructions, but its time is set by dependency chains
+(the stack pointer, the bump pointer, loads from the graph) more than by
+the number of instructions. The interpreter work showed the same thing:
+removing instructions that are off the critical path (counter updates,
+saving the cached globals, calls) hardly changed the wall clock.
 
 **Second result (2026-11-19): `(==)` on `Ident`.** The profile of a
 self-compile (`mhs --profile`) charges 5.3% of the reductions to the
