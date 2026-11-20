@@ -32,11 +32,15 @@ instance Num Word where
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger = _integerToWord
+  _fromInt = primIntToWord
 
 instance Integral Word where
   quot = primWordQuot
   rem  = primWordRem
   toInteger = _wordToInteger
+  -- Only use _fromInt when the Word fits in an Int
+  _fromIntegral w = if i `primIntGE` 0 then _fromInt i else fromInteger (_wordToInteger w)
+    where i = primWordToInt w
 
 instance Bounded Word where
   minBound = 0::Word
