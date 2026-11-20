@@ -1,6 +1,7 @@
 module Text where
 import Data.Text as T
 import Data.Text.Encoding
+import qualified Data.ByteString as B
 
 bs1 :: Text
 bs1 = pack "abc"
@@ -47,3 +48,14 @@ main = do
   print $ decodeUtf16BE (encodeUtf16BE text) == text
   print $ decodeUtf32LE (encodeUtf32LE text) == text
   print $ decodeUtf32BE (encodeUtf32BE text) == text
+
+  -- chunksOf, and a non-positive size gives no chunks (as in the text package)
+  print $ T.chunksOf 2 (pack "abcde")
+  print $ T.chunksOf 0 (pack "abc")
+
+  -- NUL: encodeUtf8 gives UTF-8 (a 0 byte, not the C0 80 that Text keeps), and back
+  let nul = pack "a\0b"
+  print $ B.unpack (encodeUtf8 nul)
+  print $ decodeUtf8 (encodeUtf8 nul) == nul
+  print $ decodeUtf8 (B.pack [97, 0, 98]) == nul
+  print $ T.length (decodeUtf8 (B.pack [97, 0, 98]))

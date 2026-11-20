@@ -17,6 +17,7 @@ module Control.Exception.Internal(
   BlockedIndefinitelyOnMVar(..),
   BlockedIndefinitelyOnSTM(..),
   ErrorCall(ErrorCallWithLocation, ErrorCall),
+  JSException(..),
 
   uninterruptibleMask,
   uninterruptibleMask_,
@@ -50,9 +51,10 @@ catch   :: forall e a .
         -> (e -> IO a)
         -> IO a
 catch io handler = primCatch io handler'
-    where handler' e = case fromException (rtsExn e) of
+    where handler' e = let se = rtsExn e in
+                       case fromException se of
                        Just e' -> handler e'
-                       Nothing -> primRaise e
+                       Nothing -> primRaise se
 
 -- The runtime system sometimes needs to generate exceptions.
 -- It is quite difficult to create SomeException value since
@@ -64,6 +66,7 @@ catch io handler = primCatch io handler'
 -- The translation here has to be kept in sync with the enum rts_exn
 -- in eval.c.
 -- The magic primIsInt primitive returns the Int if it is one, otherwise -1.
+-- A JavaScript exception is raised as the JSVal itself, and primIsInt gives 10 for it.
 rtsExn :: SomeException -> SomeException
 rtsExn e =
   let n = primIsInt e
@@ -77,7 +80,54 @@ rtsExn e =
       else if primIntEQ n (7::Int) then SomeException Overflow
       else if primIntEQ n (8::Int) then SomeException Serialize
       else if primIntEQ n (9::Int) then SomeException Deserialize
+      else if primIntEQ n (10::Int) then SomeException (JSException (primUnsafeCoerce e))
       else e
+
+-- A JavaScript exception, only with the emscripten target.
+-- See GHC.Wasm.Prim.
+newtype JSException = JSException JSVal
+  deriving (Typeable)
+
+instance Show JSException where
+  showsPrec _ (JSException v) r = showString "JSException: " (showString (jsExceptionMessage v) r)
+
+instance Exception JSException
+
+-- The description of a JavaScript exception.  The runtime returns it as a malloc()ed
+-- UTF-8 C string (js_exn_string in eval.c), decoded here since this module cannot
+-- use Foreign.C.String.  A JSVal is a foreign pointer whose payload is the handle of
+-- the JavaScript value, which is what js_exn_string takes.  With plain C types the
+-- FFI stubs are generated as for any other import.
+jsExceptionMessage :: JSVal -> String
+jsExceptionMessage v = primPerformIO (
+  c_js_exn_string (primForeignPtrToPtr (primUnsafeCoerce v)) `primBind` \ p ->
+  peekUTF8 p `primBind` \ s ->
+  c_free p `primThen`
+  primReturn s)
+
+-- A NUL terminated UTF-8 string.  An invalid sequence decodes to some character, not an error.
+peekUTF8 :: Ptr () -> IO String
+peekUTF8 p =
+  c_peek_uint8 p `primBind` \ b ->
+  if primIntEQ b 0 then primReturn [] else
+  let (n, c) | primIntLT b 0x80 = (0::Int, b)
+             | primIntLT b 0xE0 = (1::Int, primIntAnd b 0x1F)
+             | primIntLT b 0xF0 = (2::Int, primIntAnd b 0x0F)
+             | otherwise        = (3::Int, primIntAnd b 0x07)
+  in  continuation n c (next p) `primBind` \ (c', p') ->
+      peekUTF8 p' `primBind` \ s ->
+      primReturn (Char (primIntToWord c') : s)
+  where
+    next q = primIntToPtr (primIntAdd (primPtrToInt q) 1)
+    -- n continuation bytes, each adding 6 bits
+    continuation n c q =
+      if primIntEQ n 0 then primReturn (c, q) else
+      c_peek_uint8 q `primBind` \ b ->
+      continuation (primIntSub n 1) (primIntOr (primIntShl c 6) (primIntAnd b 0x3F)) (next q)
+
+foreign import ccall "js_exn_string" c_js_exn_string :: Ptr () -> IO (Ptr ())
+foreign import ccall "peek_uint8"    c_peek_uint8    :: Ptr () -> IO Int
+foreign import ccall "free"          c_free          :: Ptr () -> IO ()
 
 -- Throw an exception when executed, not when evaluated
 throwIO :: forall a e . Exception e => e -> IO a
