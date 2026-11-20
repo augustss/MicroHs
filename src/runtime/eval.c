@@ -226,6 +226,14 @@ void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 #endif
 #endif  /* !defined(NOINLINE) */
 
+#if !defined(ALWAYS_INLINE)
+#if defined(__GNUC__) || defined(__clang__)
+#define ALWAYS_INLINE inline __attribute__((always_inline))
+#else
+#define ALWAYS_INLINE inline
+#endif
+#endif  /* !defined(ALWAYS_INLINE) */
+
 #if !defined(NORETURN)
 /*#define NORETURN [[noreturn]]*/
 #define NORETURN _Noreturn
@@ -7675,10 +7683,79 @@ evalprimret(NODEPTR n, enum node_tag tag)
 #undef GOPAIR
 #undef GOPAIRUNIT
 
+/*
+ * evali keeps the hot globals in locals of the same name, so the C compiler
+ * can keep them in registers: stack_ptr, glob_slice, bump_ptr, and bump_end,
+ * and the ones it only reads: stack, stack_size, and (with BUMP_ALLOC, where
+ * only refills and GC change it) num_free.  Inside evali the names refer to
+ * the locals, so PUSH, TOP, CHKARGn, GCCHECK, etc. use them; the functions
+ * below reach the globals.  EV_SAVE writes the locals back, and EV_LOAD reads them again.
+ * The globals must be current whenever other code runs, so evali does EV_SAVE
+ * before every call that can look at them, allocate, GC, or longjmp (an
+ * exception or a thread switch), and EV_LOAD after the calls that return.
+ * Allocation (new_ap) and GCCHECK have their own versions in evali.
+ */
+static INLINE stackptr_t ev_get_stack_ptr(void) { return stack_ptr; }
+static INLINE void ev_set_stack_ptr(stackptr_t s) { stack_ptr = s; }
+static INLINE NODEPTR *ev_get_stack(void) { return stack; }
+static INLINE stackptr_t ev_get_stack_size(void) { return stack_size; }
+static INLINE int ev_get_glob_slice(void) { return glob_slice; }
+static INLINE void ev_set_glob_slice(int s) { glob_slice = s; }
+#if BUMP_ALLOC
+static INLINE counter_t ev_get_num_free(void) { return num_free; }
+static INLINE struct node *ev_get_bump_ptr(void) { return bump_ptr; }
+static INLINE struct node *ev_get_bump_end(void) { return bump_end; }
+static INLINE void ev_set_bump(struct node *p, struct node *e) { bump_ptr = p; bump_end = e; }
+#define EV_SAVE_BUMP() ev_set_bump(bump_ptr, bump_end)
+#define EV_LOAD_BUMP() do { bump_ptr = ev_get_bump_ptr(); bump_end = ev_get_bump_end(); num_free = ev_get_num_free(); } while(0)
+
+/* new_ap allocating from evali's bump_ptr and bump_end, passed by reference,
+ * and updating its num_free after a refill.  Always inlined, so they stay in
+ * registers. */
+static ALWAYS_INLINE NODEPTR
+ev_new_ap(NODEPTR f, NODEPTR a, struct node **bpp, struct node **bep, counter_t *nfp)
+{
+  NODEPTR n;
+  if (*bpp == *bep) {
+    bump_refill();              /* sets the globals; the old run is used up */
+    *bpp = bump_ptr;
+    *bep = bump_end;
+    *nfp = num_free;
+  }
+  n.node_ptr = (*bpp)++;
+  FUN(n) = f;
+  ARG(n) = a;
+  return n;
+}
+#else  /* BUMP_ALLOC */
+#define EV_SAVE_BUMP() do { } while(0)
+#define EV_LOAD_BUMP() do { } while(0)
+#endif  /* BUMP_ALLOC */
+#define EV_SAVE() do { ev_set_stack_ptr(stack_ptr); ev_set_glob_slice(glob_slice); EV_SAVE_BUMP(); } while(0)
+#define EV_LOAD() do { stack_ptr = ev_get_stack_ptr(); glob_slice = ev_get_glob_slice(); EV_LOAD_BUMP(); } while(0)
+
+/* evali's own allocation and GC check, see above */
+#if BUMP_ALLOC
+#define new_ap(f, a) ev_new_ap((f), (a), &bump_ptr, &bump_end, &num_free)
+#endif  /* BUMP_ALLOC */
+#undef GCCHECK
+#define GCCHECK(k) do { if (!((k) < num_free)) { EV_SAVE(); gc(); EV_LOAD(); } } while(0)
+#define EV_RAISE(e) do { EV_SAVE(); raise_rts(e); } while(0)
+
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
 evali(NODEPTR an)
 {
+  /* The cached globals, see above. */
+  stackptr_t stack_ptr = ev_get_stack_ptr();
+  int glob_slice = ev_get_glob_slice();
+  NODEPTR * const stack = ev_get_stack();
+  const stackptr_t stack_size = ev_get_stack_size();
+#if BUMP_ALLOC
+  struct node *bump_ptr = ev_get_bump_ptr();
+  struct node *bump_end = ev_get_bump_end();
+  counter_t num_free = ev_get_num_free();
+#endif  /* BUMP_ALLOC */
   NODEPTR n = an;
   stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
@@ -7700,8 +7777,11 @@ evali(NODEPTR an)
 
  top:
   /*pp(stdout, an);*/
-  if (--glob_slice <= 0)
+  if (--glob_slice <= 0) {
+    EV_SAVE();
     yield();
+    EV_LOAD();
+  }
   for(;;) {
     if (is_VIRT(n)) {
       /* A virtual pointer, i.e., a combinator, primop, constructor, etc. */
@@ -7919,7 +7999,7 @@ evali(NODEPTR an)
     PUSH(combUNINT1);
     goto top;
 
-  case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+  case T_SEQ:  CHECK(2); EV_SAVE(); evali(ARG(TOP(0))); EV_LOAD(); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
   case T_IO_BIND:
     goto t_c;
@@ -8003,7 +8083,9 @@ evali(NODEPTR an)
 #if 0
             num_bad_arm++;
 #endif
+            EV_SAVE();
             a = evali(a);
+            EV_LOAD();
             if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM)
               ERR("LOOKS, bad table");
           }
@@ -8042,7 +8124,9 @@ evali(NODEPTR an)
   default:
     {
       /* Every other primitive */
+      EV_SAVE();
       struct prim_res pr = evalprimop(n, tag, stk);
+      EV_LOAD();
       n = pr.n;
       if (pr.next == PRIM_TOP)
         goto top;
@@ -8093,14 +8177,14 @@ evali(NODEPTR an)
       case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
       case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
       case T_QUOT:  if (yu == 0)
-                      raise_rts(exn_dividebyzero);
+                      EV_RAISE(exn_dividebyzero);
                     else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
-                      raise_rts(exn_overflow);
+                      EV_RAISE(exn_overflow);
                     else
                       ru = (uvalue_t)((value_t)xu / (value_t)yu);
                     break;
       case T_REM:   if (yu == 0)
-                      raise_rts(exn_dividebyzero);
+                      EV_RAISE(exn_dividebyzero);
                     else if ((value_t)yu == -1) /* MIN % -1 traps on x86 */
                       ru = 0;
                     else
@@ -8111,12 +8195,12 @@ evali(NODEPTR an)
       case T_UMUL:  ru = xu * yu; break;
       case T_USUBR: ru = yu - xu; break;
       case T_UQUOT: if (yu == 0)
-                      raise_rts(exn_dividebyzero);
+                      EV_RAISE(exn_dividebyzero);
                     else
                       ru = xu / yu;
                     break;
       case T_UREM:  if (yu == 0)
-                      raise_rts(exn_dividebyzero);
+                      EV_RAISE(exn_dividebyzero);
                     else
                       ru = xu % yu;
                     break;
@@ -8162,7 +8246,7 @@ evali(NODEPTR an)
       case D_IND:      p = get_IND(p); goto unint;
       case T_NEG:
 #if WANT_OVERFLOW
-                       if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow);
+                       if ((value_t)xu == VALUE_MIN) EV_RAISE(exn_overflow);
 #endif
                        ru = -xu; break;
       case T_UNEG:     ru = -xu; break;
@@ -8195,7 +8279,9 @@ evali(NODEPTR an)
     case T_BINBS2:
     case T_BINBS1:
       {
+        EV_SAVE();
         struct prim_res pr = evalprimret(n, tag);
+        EV_LOAD();
         n = pr.n;
         if (pr.next == PRIM_TOP)
           goto top;
@@ -8211,8 +8297,16 @@ evali(NODEPTR an)
   cur_c_stack = old_cur_c_stack; /* reset rather than counting down, in case of longjump */
 #endif
   //fprintf(stderr, "evali exit stack_ptr=%d\n", (int)stack_ptr);
+  EV_SAVE();
   return n;
 }
+
+/* Back to the global versions */
+#if BUMP_ALLOC
+#undef new_ap
+#endif  /* BUMP_ALLOC */
+#undef GCCHECK
+#define GCCHECK(n) gc_check((n))
 
 static char *progname = "?";
 
