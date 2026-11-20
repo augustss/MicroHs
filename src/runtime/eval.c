@@ -1174,10 +1174,17 @@ memerr(void)
   ERR("Out of memory");
 }
 
+#if WANT_PROFILE
+void prof_stack_dump(void);
+#endif
+
 NORETURN
 void
 stackerr(void)
 {
+#if WANT_PROFILE
+  prof_stack_dump();
+#endif
   ERR("stack overflow");
 }
 
@@ -8845,6 +8852,67 @@ prof_describe_node(struct prof_dead *d, struct node *p)
  * a CAF.  Otherwise it is code, and the counts per definition and the table
  * of loaded nodes cover it. */
 #define PROF_INTERESTING(d) (!(d)->loaded || (d)->calls_def || (d)->nupd > 0)
+
+/* At a stack overflow, show what the stack holds.  An application is
+ * counted by the definition that built it, a virtual entry by its tag. */
+static uint32_t
+prof_stack_label(NODEPTR n)
+{
+  return NPTR(n)->prof_src ? NPTR(n)->prof_src->prof_label : 0;
+}
+
+void
+prof_stack_dump(void)
+{
+  uint32_t nl = prof_nlabels + 2;
+  counter_t *cnt = calloc(nl, sizeof(counter_t));
+  counter_t vt[T_LAST_TAG+1];
+  char buf[100];
+  stackptr_t i;
+  memset(vt, 0, sizeof vt);
+  for (i = 0; i <= stack_ptr; i++) {
+    NODEPTR n = stack[i];
+    if (is_VIRT(n)) {
+      vt[get_VIRT_TAG(n)]++;
+    } else {
+      uint32_t lab = prof_stack_label(n);
+      uint32_t k = lab == PROF_MAIN ? nl - 1 : lab;
+      if (k < nl) cnt[k]++;
+    }
+  }
+  fprintf(stderr, "stack overflow with %ld entries.  Applications by the definition that built them:\n", (long)stack_ptr + 1);
+  for (int r = 0; r < 20; r++) {
+    uint32_t best = 0;
+    for (uint32_t k = 1; k < nl; k++)
+      if (cnt[k] > cnt[best]) best = k;
+    if (cnt[best] == 0) break;
+    fprintf(stderr, "  %10llu  %s\n", (unsigned long long)cnt[best],
+            prof_label_name(best == nl - 1 ? PROF_MAIN : best, buf, sizeof buf));
+    cnt[best] = 0;
+  }
+  fprintf(stderr, "Virtual entries:\n");
+  for (int t = 0; t <= T_LAST_TAG; t++)
+    if (vt[t])
+      fprintf(stderr, "  %10llu  %s (%d)\n", (unsigned long long)vt[t], TAGNAME(t) ? TAGNAME(t) : "?", t);
+  fprintf(stderr, "The top of the stack, repeats collapsed:\n");
+  for (i = stack_ptr; i >= 0 && i > stack_ptr - 400; ) {
+    NODEPTR n = stack[i];
+    stackptr_t j = i;
+    const char *nm;
+    if (is_VIRT(n)) {
+      int t = get_VIRT_TAG(n);
+      while (j >= 0 && is_VIRT(stack[j]) && get_VIRT_TAG(stack[j]) == t) j--;
+      nm = TAGNAME(t) ? TAGNAME(t) : "?";
+    } else {
+      uint32_t lab = prof_stack_label(n);
+      while (j >= 0 && !is_VIRT(stack[j]) && prof_stack_label(stack[j]) == lab) j--;
+      nm = prof_label_name(lab, buf, sizeof buf);
+    }
+    fprintf(stderr, "  %6ld x  %s\n", (long)(i - j), nm);
+    i = j;
+  }
+  free(cnt);
+}
 
 #define PROF_HOT_NODES 200
 #define PROF_CALLER_DEFS 20     /* the definitions whose callers are shown */
