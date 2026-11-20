@@ -4,14 +4,17 @@
 #   make bench          -- build, then run the harness (writes benchmarks/results/run-<ts>.json)
 #   make bench RUNS=10  -- same, but run each benchmark's executable 10 times instead of the default 5
 #   make clean          -- remove compiled executables (keeps .hs/.out/results)
+#   make compare REVS="v0.16.9.0 ."
+#                       -- compare versions with compare.sh, see README.md
 #
 MHS      = bin/mhs
 MHSFLAGS = -ilib -ibenchmarks -CR
 RUNS     = 5
+REVS     = .
 
 BENCHMARKS = NFib TightIntLoop NumericIntegration FibInteger FibInt FibTail PrimesSieve MergeSort ExprEval ForkJoin ListFusion
 
-.PHONY: build bench clean cachelib
+.PHONY: build bench clean cachelib compare
 
 # Each benchmark below is a separate mhs invocation, and every one of them
 # pulls in the base library. Priming ../.mhscache once up front
@@ -30,6 +33,9 @@ BenchHarness.exe: Util/BenchHarness.hs Util/RunStats.hs Util/Json.hs
 
 bench: build
 	cd .. && benchmarks/BenchHarness.exe $(RUNS)
+
+compare:
+	./compare.sh -n $(RUNS) $(REVS)
 
 clean:
 	rm -f *.exe

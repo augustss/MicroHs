@@ -60,11 +60,13 @@ instance Num Int32 where
   abs x = x
   signum x = if x < 0 then -1 else if x > 0 then 1 else 0
   fromInteger i = i32 (_integerToInt i)
+  _fromInt = i32
 
 instance Integral Int32 where
   quot = bin32 primIntQuot
   rem  = bin32 primIntRem
   toInteger = _intToInteger . unI32
+  _fromIntegral = _fromInt . unI32
 
 instance Bounded Int32 where
   minBound = -maxBound - 1

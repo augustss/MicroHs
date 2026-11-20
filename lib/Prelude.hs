@@ -63,7 +63,8 @@ import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int.Int(Int)
 import Data.Integer(Integer)
-import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
+import Data.Integral(Integral(quot, rem, div, mod, quotRem, divMod, toInteger),
+                     fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
                  reverse, foldl, foldl1, foldr, foldr1, and, or, any, all,
                  sum, product, concat, concatMap, maximum, minimum,
@@ -73,7 +74,7 @@ import Data.List([](..), map, (++), filter, head, last, tail, init, null, length
                  lines, words, unlines, unwords)
 import Data.Maybe(Maybe(..), maybe)
 import Data.Monoid.Internal(Monoid(..), Semigroup((<>)))
-import Data.Num(Num(..), subtract)
+import Data.Num(Num((+), (-), (*), negate, abs, signum, fromInteger), subtract)
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)
 import Data.Real(Real(..))

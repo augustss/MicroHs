@@ -51,11 +51,13 @@ instance Num Word32 where
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger i = w32 (_integerToWord i)
+  _fromInt = w32 . primIntToWord
 
 instance Integral Word32 where
   quot = bin32 primWordQuot
   rem  = bin32 primWordRem
   toInteger = _wordToInteger . unW32
+  _fromIntegral = _fromIntegral . unW32  -- a Word32 might not fit in an Int
 
 instance Bounded Word32 where
   minBound = w32 0

@@ -1,6 +1,7 @@
 module Error107(main) where
+import Error107A
 
-instance Show Int where show _ = "xxx"
+instance Show T where show _ = "xxx"
 
 main :: IO ()
-main = print (1::Int)
+main = print T

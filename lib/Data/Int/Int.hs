@@ -28,11 +28,13 @@ instance Num Int where
       EQ ->  (0::Int)
       GT ->  (1::Int)
   fromInteger = _integerToInt
+  _fromInt i = i
 
 instance Integral Int where
   quot = primIntQuot
   rem  = primIntRem
   toInteger = _intToInteger
+  _fromIntegral = _fromInt
 
 instance Bounded Int where
   minBound = primWordToInt ((primWordInv (0::Word) `primWordQuot` (2::Word)) `primWordAdd` (1::Word))
