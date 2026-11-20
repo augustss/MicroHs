@@ -435,7 +435,11 @@ mainCompile flags mn = do
        let flags' = maybe flags (\ afn -> flags{ cArgs = cArgs flags ++ ["'-DMHS_AOT_FILE=\"" ++ afn ++ "\"'"] }) aotFile
        mainCompileC flags' (embedPkg ++ ppkgs) fn
        removeFile fn
-       maybe (return ()) removeFile aotFile
+       -- With -v the C code for --aot is kept.
+       if verbosityGT flags 0 then
+         maybe (return ()) (\ afn -> putStrLn $ "aot code: " ++ afn) aotFile
+        else
+         maybe (return ()) removeFile aotFile
 
 mainCompileC :: Flags -> [(FilePath, Package)] -> FilePath -> IO ()
 mainCompileC flags pkgs infile = do

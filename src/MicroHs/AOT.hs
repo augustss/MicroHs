@@ -22,7 +22,7 @@
 -- cells it allocates before it returns is bounded, and the runtime checks for
 -- them before it calls the code.  Lambdas, and lazy expressions with control
 -- (case, let), become entries of their own, applied to their free variables.
-module MicroHs.AOT(aotMark, aotCompile) where
+module MicroHs.AOT(aotMark, aotSelect, aotCompile) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char(isAlphaNum)
 import Data.List
@@ -37,6 +37,17 @@ import MicroHs.State
 -- Mark a definition for translation.
 aotMark :: Exp -> Exp
 aotMark = App (litPrim "aot$def")
+
+-- Should a definition be compiled?  The names are the arguments of --aot,
+-- where * means all functions, and M.* the functions of module M.
+aotSelect :: [String] -> Ident -> Exp -> Bool
+aotSelect [] _ _ = False
+aotSelect ns i e = s `elem` ns || (hasLam e && isNothing (getForExp e) && any match ns)
+  where s = showIdent i
+        match "*" = True
+        match n | Just m <- stripSuffix ".*" n = (m ++ ".") `isPrefixOf` s && notElem '.' (drop (length m + 1) s)
+        match _ = False
+        stripSuffix suf str = fmap reverse (stripPrefix (reverse suf) (reverse str))
 
 getMarked :: Exp -> Maybe Exp
 getMarked (App (Lit (LPrim (POther "aot$def"))) e) = Just e
@@ -294,8 +305,97 @@ genIndependent name xs body = do
 
 cDef :: Ident -> Exp -> G Exp
 cDef i e =
-  let (xs, body) = getLams (resolveMethods e)
+  let (xs, body) = getLams (fullLazy (inlineAtoms (resolveMethods e)))
   in  genIndependent (showIdent i) xs body
+
+-- Inline the lets that bind a variable or a literal, e.g., a dictionary.
+inlineAtoms :: Exp -> Exp
+inlineAtoms ae =
+  case ae of
+    App (Lam x b) e | atomic e -> inlineAtoms (substExp x e b)
+    App f a -> App (inlineAtoms f) (inlineAtoms a)
+    Lam x b -> Lam x (inlineAtoms b)
+    _ -> ae
+  where atomic (Var _) = True
+        atomic (Lit (LInt _)) = True
+        atomic _ = False
+
+-- Full laziness, as bracket abstraction has it: a subexpression of the
+-- body of a lambda that does not depend on the lambda's variable is
+-- evaluated at most once per evaluation of the lambda.  So the non-trivial
+-- subexpressions that depend on local variables, but not on the variable,
+-- are bound by a let outside the lambda.  (Those that only depend on globals
+-- are constants.)  Case arms and let bindings are applied once, so nothing
+-- is floated out of them.  An entry gets the lambdas up to the first let,
+-- so the code for the rest is a closure, as with bracket abstraction.
+fullLazy :: Exp -> Exp
+fullLazy ae = evalState (flE [] ae) (0 :: Int)
+
+flE :: [Ident] -> Exp -> State Int Exp
+flE sc ae =
+  case ae of
+    App (Lam x b) e -> do
+      b' <- flE (x : sc) b
+      e' <- flE sc e
+      return $ App (Lam x b') e'
+    _ | Just (alts, scrut) <- getCase ae -> do
+      let arm n f = flArm n sc f
+      scrut' <- flE sc scrut
+      case alts of
+        Dense as fs -> do
+          fs' <- sequence (zipWith arm as fs)
+          return $ apps (Lit (LPrim (PCaseD as))) (fs' ++ [scrut'])
+        Sparse d afs -> do
+          d' <- flE sc d
+          afs' <- mapM (\ (k, n, f) -> do { f' <- arm n f; return [Lit (LPrim (PArm k n)), f'] }) afs
+          return $ apps (Lit (LPrim (PCaseS (length afs)))) ([d'] ++ concat afs' ++ [scrut'])
+    Lam x b -> do
+      b' <- flE (x : sc) b
+      (b'', binds) <- extract sc [x] b' []
+      return $ foldl (\ acc (m, e) -> App (Lam m acc) e) (Lam x b'') binds
+    App f a -> do
+      f' <- flE sc f
+      a' <- flE sc a
+      return $ App f' a'
+    _ -> return ae
+
+-- An arm with n fields: the first n lambdas bind the fields.
+flArm :: Int -> [Ident] -> Exp -> State Int Exp
+flArm n sc (Lam x b) | n > 0 = do { b' <- flArm (n - 1) (x : sc) b; return (Lam x b') }
+flArm _ sc e = flE sc e
+
+-- Replace the maximal subexpressions to float by variables.  bound are the
+-- variables bound inside the lambda, including its own.  Returns the new
+-- expression and the bindings, innermost first.
+extract :: [Ident] -> [Ident] -> Exp -> [(Ident, Exp)] -> State Int (Exp, [(Ident, Exp)])
+extract sc bound ae binds
+  | nonTrivial ae, not (any (`elem` bound) fvs), any (`elem` sc) fvs = do
+    n <- get
+    put (n + 1)
+    let m = mkIdent ("aot$m" ++ show n)
+    return (Var m, binds ++ [(m, ae)])
+  | otherwise =
+    case ae of
+      App f a -> do
+        (f', binds1) <- extract sc bound f binds
+        (a', binds2) <- extract sc bound a binds1
+        return (App f' a', binds2)
+      Lam y b -> do
+        (b', binds1) <- extract sc (y : bound) b binds
+        return (Lam y b', binds1)
+      _ -> return (ae, binds)
+  where fvs = freeVars ae
+
+-- Is evaluating an expression work?  Not for a constructor application.
+nonTrivial :: Exp -> Bool
+nonTrivial ae =
+  case ae of
+    App f _ -> not (isCon (spineHead f))
+    _ -> False
+  where spineHead (App f _) = spineHead f
+        spineHead e = e
+        isCon (Lit (LPrim (PCon _ _))) = True
+        isCon _ = False
 
 getLams :: Exp -> ([Ident], Exp)
 getLams (Lam x e) = let (xs, b) = getLams e in (x : xs, b)
@@ -314,7 +414,7 @@ genEntry name fvs xs body = do
       env = M.fromList $ (kId, VNode vk) : (rId, VNode vr) : zip fvs (map VNode vfs) ++ zip xs (map VNode vxs)
   saved <- gets gsUses
   modify $ \ s -> s{ gsUses = [] }
-  code <- cTail env body
+  code <- cTail' env body
   modify $ \ s -> s{ gsUses = saved }
   bound <- allocBound code
   let fn = "aot_e_" ++ show j
@@ -381,11 +481,18 @@ mkCont piece params pre extraArgs = do
 -- and return the next node to evaluate.
 cTail :: Env -> Exp -> G Code
 cTail env ae
-  | Just (alts, scrut) <- getCase ae = cCase env alts scrut
   | noFree env ae = do
+      -- A constant, shared between calls.
       (c, n) <- cBuild env ae
       r <- redex env
       return $ CSeq [c, CRet $ "aot_ret_ind(" ++ r ++ ", " ++ n ++ ")"]
+  | otherwise = cTail' env ae
+
+-- As cTail, but compile e even if it has no local variables.  For the body
+-- of an entry made for a constant, see closedify.
+cTail' :: Env -> Exp -> G Code
+cTail' env ae
+  | Just (alts, scrut) <- getCase ae = cCase env ae alts scrut
   | Just (op, a, b) <- getBinOp ae =
       cIntOp env op a b $ \ env' res -> do
         r <- redex env'
@@ -409,15 +516,19 @@ cTail env ae
           Just (VBoth n _) -> do { use n; return $ CRet $ "aot_ret_ind(" ++ r ++ ", " ++ n ++ ")" }
           Just (VInt i) -> return $ CRet $ "aot_ret_int(" ++ r ++ ", " ++ i ++ ")"
           Nothing -> error "aot cTail"
-      App f a -> do
-        (cf, nf) <- cBuild env f
-        (ca, na) <- cBuild env a
-        r <- redex env
-        return $ CSeq [cf, ca, CRet $ "aot_ret_ap(" ++ r ++ ", " ++ nf ++ ", " ++ na ++ ")"]
-      _ -> do
-        (c, n) <- cBuild env ae
-        r <- redex env
-        return $ CSeq [c, CRet $ "aot_ret_ind(" ++ r ++ ", " ++ n ++ ")"]
+      _ -> cTailApp env ae
+
+-- Build e, in tail position.  An application is built in the redex.
+cTailApp :: Env -> Exp -> G Code
+cTailApp env (App f a) = do
+  (cf, nf) <- cBuild env f
+  (ca, na) <- cBuild env a
+  r <- redex env
+  return $ CSeq [cf, ca, CRet $ "aot_ret_ap(" ++ r ++ ", " ++ nf ++ ", " ++ na ++ ")"]
+cTailApp env e = do
+  (c, n) <- cBuild env e
+  r <- redex env
+  return $ CSeq [c, CRet $ "aot_ret_ind(" ++ r ++ ", " ++ n ++ ")"]
 
 -- Build the graph for e, lazily.  Returns the code and the C variable.
 cBuild :: Env -> Exp -> G (Code, CVar)
@@ -484,8 +595,15 @@ cBuildApp env ae =
 cLift :: Env -> [Ident] -> Exp -> G (Code, CVar)
 cLift env xs b = do
   let fvs = nub [ x | x <- freeVars (lams xs b), isLocal env x ]
+  -- The entry has an array of its own, which is a constant of this one.
+  -- So a closure keeps only the constants it uses alive, as with bracket
+  -- abstraction, where the code of a lambda is part of the code around it.
+  saved <- gets gsConsts
+  modify $ \ s -> s{ gsConsts = [] }
   j <- genEntry ("lifted") fvs xs b
-  k <- getNode env kId
+  cs <- gets (reverse . gsConsts)
+  modify $ \ s -> s{ gsConsts = saved }
+  k <- constant env (apps (litPrim "aot$arr") cs)
   t0 <- fresh "n"
   let start = CS 1 ("NODEPTR " ++ t0 ++ " = new_ap(mk_AOT(V_AOT, " ++ show j ++ "), " ++ k ++ ");")
       app (cs, t) x = do
@@ -557,8 +675,8 @@ cIntOp env op a b k =
         return $ CSeq [CS 0 ("NODEPTR " ++ t ++ " = AOT_ORD(AOT_CMP(" ++ x ++ ", " ++ y ++ "));"), code]
 
 -- A case in tail position.
-cCase :: Env -> Alts -> Exp -> G Code
-cCase env alts scrut
+cCase :: Env -> Exp -> Alts -> Exp -> G Code
+cCase env ae alts scrut
   -- if on an Int comparison
   | Dense [0, 0] [f, t] <- alts, Just (op, a, b) <- getBinOp scrut, Just cop <- lookup op cmpOps =
     cIntE env a $ \ env1 x ->
@@ -598,25 +716,25 @@ cCase env alts scrut
           code <- cArm env f (map fst vs)
           return (k, CSeq ([ CS 0 ("NODEPTR " ++ v ++ " = " ++ cf ++ "[" ++ show i ++ "];") | (v, i) <- vs ] ++ [code]))
         maxf = maximum (1 : [ a | (_, a, _) <- arms ])
-    if maxf > 16 then error "aot: too many fields" else return ()
-    (piece, params) <- mkPiece env [(ck, "int"), (cf, "NODEPTR *")] $ do
-      codes <- mapM arm arms
-      d <- dflt
-      mapM_ use [ck, cf]
-      return $ CSwitch ck codes d
-    c <- mkCont piece params
-           [ "NODEPTR " ++ cf ++ "[AOT_MAXF];"
-           , "for (int i = 0; i < nn && i < AOT_MAXF; i++) " ++ cf ++ "[i] = ARG(TOP(i));"
-           , "POP(nn + 1);" ]
-           ["k", cf]
-    use n
-    let slow = saveAndEval params c n
-    return $ CSeq $ [cs] ++
-      if maybeEvald then
-        [ CS 0 ("NODEPTR " ++ cf ++ "[AOT_MAXF];\nint " ++ ck ++ " = aot_con(" ++ n ++ ", " ++ cf ++ ", AOT_MAXF);")
-        , CIf (ck ++ " >= 0") (CCall piece (map fst params ++ [ck, cf])) slow ]
-      else
-        [slow]
+    if maxf > 16 then cTailApp env ae else do
+      (piece, params) <- mkPiece env [(ck, "int"), (cf, "NODEPTR *")] $ do
+        codes <- mapM arm arms
+        d <- dflt
+        mapM_ use [ck, cf]
+        return $ CSwitch ck codes d
+      c <- mkCont piece params
+             [ "NODEPTR " ++ cf ++ "[AOT_MAXF];"
+             , "for (int i = 0; i < nn && i < AOT_MAXF; i++) " ++ cf ++ "[i] = ARG(TOP(i));"
+             , "POP(nn + 1);" ]
+             ["k", cf]
+      use n
+      let slow = saveAndEval params c n
+      return $ CSeq $ [cs] ++
+        if maybeEvald then
+          [ CS 0 ("NODEPTR " ++ cf ++ "[AOT_MAXF];\nint " ++ ck ++ " = aot_con(" ++ n ++ ", " ++ cf ++ ", AOT_MAXF);")
+          , CIf (ck ++ " >= 0") (CCall piece (map fst params ++ [ck, cf])) slow ]
+        else
+          [slow]
 
 -- An arm: bind the fields, and go on in tail position.
 cArm :: Env -> Exp -> [CVar] -> G Code

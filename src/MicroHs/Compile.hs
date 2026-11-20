@@ -32,7 +32,7 @@ import System.IO.Serialize
 import System.IO.TimeMilli
 import System.Process
 import MicroHs.Abstract
-import MicroHs.AOT(aotMark)
+import MicroHs.AOT(aotMark, aotSelect)
 import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
@@ -276,7 +276,7 @@ compileModuleP flags impt mdl@(EModule _ _ defs) = do
 
 compileToCombinators :: Flags -> TModule [LDef] -> TModule [LDef]
 compileToCombinators flags dmdl =
-  let comp i e | showIdent i `elem` aotDefs flags = aotMark e   -- compiled to C when linking
+  let comp i e | aotSelect (aotDefs flags) i e = aotMark e   -- compiled to C when linking
                | otherwise = compileOpt e
       cmdl = setBindings dmdl [ (i, comp i e) | (i, e) <- tBindingsOf dmdl ]
   in seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
