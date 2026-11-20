@@ -4554,6 +4554,15 @@ parse_string(BFILE *f)
  * If the frame is lost (a thread switch, an exception) the redex has not been
  * overwritten yet, and is evaluated again later.
  */
+/* Debugging: the last compiled code that ran. */
+#if AOT_TRACE
+uint32_t aot_trace[64];
+uint32_t aot_trace_n;
+#define AOT_TRACE_ADD(x) (aot_trace[aot_trace_n++ % 64] = (x))
+#else
+#define AOT_TRACE_ADD(x) do { } while(0)
+#endif
+
 struct aot_entry {
   int arity;                    /* number of arguments, including the array */
   int alloc;                    /* the most cells a call allocates */
@@ -8275,6 +8284,7 @@ evali(NODEPTR an)
       /* Compiled code, see aot_entries. */
       const struct aot_entry *ae = &aot_entries[get_AOT_index(n)];
       CHECK(ae->arity);
+      AOT_TRACE_ADD(get_AOT_index(n));
       GCCHECK(ae->alloc);
       n = ae->fn();
       goto top;
@@ -8343,6 +8353,7 @@ evali(NODEPTR an)
       } else if (ltag == V_AOTK) {
         /* A continuation of compiled code, see aot_entries. */
         const struct aot_cont *ac = &aot_conts[get_AOT_index(p)];
+        AOT_TRACE_ADD(0x1000000 | get_AOT_index(p));
         GCCHECK(ac->alloc);
         n = ac->fn(k, nn);
         goto top;
@@ -8768,6 +8779,7 @@ evali(NODEPTR an)
       {
         /* A continuation of compiled code, see aot_entries. */
         const struct aot_cont *ac = &aot_conts[get_AOT_index(TOP(0))];
+        AOT_TRACE_ADD(0x2000000 | get_AOT_index(TOP(0)));
         TOP(0) = n;               /* the value, where the GC finds it */
         GCCHECK(ac->alloc);
         n = ac->fn(-1, 0);

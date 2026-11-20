@@ -104,10 +104,11 @@ data GS = GS
   , gsNCont   :: Int
   , gsConsts  :: [Exp]                     -- constants of the current definition, reversed
   , gsUses    :: [CVar]                    -- C variables used by the current piece
+  , gsDef     :: String                    -- the definition being compiled
   }
 
 gs0 :: GS
-gs0 = GS 0 [] [] [] [] 0 [] 0 [] []
+gs0 = GS 0 [] [] [] [] 0 [] 0 [] [] ""
 
 type G a = State GS a
 
@@ -285,8 +286,8 @@ closedify ae
   | not (hasLam ae) = return ae
   | otherwise =
     case ae of
-      Lam _ _ -> let (xs, b) = getLams ae in genIndependent "closed" xs b
-      _ | isLet ae || isJust (getCase ae) -> genIndependent "closed" [] ae
+      Lam _ _ -> do { d <- gets gsDef; let { (xs, b) = getLams ae }; genIndependent (d ++ "/closed") xs b }
+      _ | isLet ae || isJust (getCase ae) -> do { d <- gets gsDef; genIndependent (d ++ "/closed") [] ae }
       App f a -> do { f' <- closedify f; a' <- closedify a; return (App f' a') }
       _ -> return ae
 
@@ -304,9 +305,10 @@ genIndependent name xs body = do
 ------------------------------------------------------------------------------
 
 cDef :: Ident -> Exp -> G Exp
-cDef i e =
+cDef i e = do
+  modify $ \ s -> s{ gsDef = showIdent i }
   let (xs, body) = getLams (fullLazy (inlineAtoms (resolveMethods e)))
-  in  genIndependent (showIdent i) xs body
+  genIndependent (showIdent i) xs body
 
 -- Inline the lets that bind a variable or a literal, e.g., a dictionary.
 inlineAtoms :: Exp -> Exp
@@ -600,7 +602,8 @@ cLift env xs b = do
   -- abstraction, where the code of a lambda is part of the code around it.
   saved <- gets gsConsts
   modify $ \ s -> s{ gsConsts = [] }
-  j <- genEntry ("lifted") fvs xs b
+  d <- gets gsDef
+  j <- genEntry (d ++ "/lifted") fvs xs b
   cs <- gets (reverse . gsConsts)
   modify $ \ s -> s{ gsConsts = saved }
   k <- constant env (apps (litPrim "aot$arr") cs)
@@ -642,7 +645,7 @@ evalInt env mx n k = do
   -- The value is in the environment, so that later pieces get it.
   let env' = case mx of
                Just x  -> M.insert x (VBoth n t) env
-               Nothing -> M.insert (mkIdent t) (VInt t) env
+               Nothing -> M.insert (mkIdent ("aot$" ++ t)) (VInt t) env
   (piece, params) <- mkPiece env [(t, "value_t")] (k env' t)
   c <- mkCont piece params ["value_t " ++ t ++ " = aot_getint(TOP(0));", "POP(1);"] [t]
   use n
@@ -661,8 +664,8 @@ cIntOp env op a b k =
     useExpr y
     t <- fresh "v"
     -- The result is in the environment, so that later pieces get it.
-    let envi = M.insert (mkIdent t) (VInt t) env2
-        envn = M.insert (mkIdent t) (VNode t) env2
+    let envi = M.insert (mkIdent ("aot$" ++ t)) (VInt t) env2
+        envn = M.insert (mkIdent ("aot$" ++ t)) (VNode t) env2
     case (lookup op arithOps, lookup op cmpOps) of
       (Just f, _) -> do
         code <- k envi (Left t)
