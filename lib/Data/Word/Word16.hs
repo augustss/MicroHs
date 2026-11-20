@@ -51,11 +51,13 @@ instance Num Word16 where
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger i = w16 (_integerToWord i)
+  _fromInt = w16 . primIntToWord
 
 instance Integral Word16 where
   quot = bin16 primWordQuot
   rem  = bin16 primWordRem
   toInteger = _wordToInteger . unW16
+  _fromIntegral = _fromInt . primWordToInt . unW16
 
 instance Bounded Word16 where
   minBound = w16 0

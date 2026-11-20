@@ -26,6 +26,9 @@ class (Real a, Enum a) => Integral a where
   quotRem   :: a -> a -> (a, a)
   divMod    :: a -> a -> (a, a)
   toInteger :: a -> Integer
+  -- Used by fromIntegral to avoid going through Integer.
+  -- Must be the same as fromInteger . toInteger.
+  _fromIntegral :: forall b . Num b => a -> b
 
   n `quot` d       =  q  where (q,r) = quotRem n d
   n `rem` d        =  r  where (q,r) = quotRem n d
@@ -34,6 +37,7 @@ class (Real a, Enum a) => Integral a where
   divMod n d       =  if signum r == negate (signum d) then (q - 1, r + d) else qr
                         where qr@(q,r) = quotRem n d
   quotRem n d      = (quot n d, rem n d)
+  _fromIntegral x  = fromInteger (toInteger x)
 
 gcd :: forall a . (Integral a) => a -> a -> a
 gcd x y = gcd' (abs x) (abs y)
@@ -62,4 +66,4 @@ x0 ^ y0 | y0 < 0    = error "Data.Integral.^: negative exponent"
                 | otherwise = x * pow (x * x) (y `quot` 2)
 
 fromIntegral :: forall a b . (Integral a, Num b) => a -> b
-fromIntegral x = fromInteger (toInteger x)
+fromIntegral = _fromIntegral

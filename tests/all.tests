@@ -30,6 +30,7 @@ RecordBind
 LitMatch
 Word
 Integer
+FromIntegral
 Enum
 MutRec
 LocalPoly

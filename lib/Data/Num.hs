@@ -17,8 +17,12 @@ class Num a where
   abs :: a -> a
   signum :: a -> a
   fromInteger :: Integer -> a
+  -- Used by fromIntegral to avoid going through Integer.
+  -- Must be the same as fromInteger . _intToInteger.
+  _fromInt :: Int -> a
   negate x = 0 - x
   x - y = x + negate y
+  _fromInt i = fromInteger (_intToInteger i)
 
 subtract :: forall a . Num a => a -> a -> a
 subtract x y = y - x

@@ -51,11 +51,13 @@ instance Num Word8 where
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger i = w8 (_integerToWord i)
+  _fromInt = w8 . primIntToWord
 
 instance Integral Word8 where
   quot = bin8 primWordQuot
   rem  = bin8 primWordRem
   toInteger = _wordToInteger . unW8
+  _fromIntegral = _fromInt . primWordToInt . unW8
 
 instance Bounded Word8 where
   minBound = w8 0
