@@ -6461,9 +6461,35 @@ prof_prim(counter_t *tags, counter_t **ffis, enum node_tag tag, NODEPTR n)
  * Every pass through the top of evali is charged somewhere, so the counts add
  * up to num_reductions.  The source is also what new nodes get.
  * The reduction is also charged to a call context, see prof_push. */
+/* Unwinding steps by the kind of head they lead to (see prof_head_kind), and
+ * by the node unwound: a cell of the loaded program (code) or one built at
+ * run time.  The steps since the last dispatch are credited to the head that
+ * the next dispatch finds. */
+enum prof_head { PH_COMB, PH_PRIM, PH_CASE, PH_CONSTR, PH_VALUE, PH_FFI, PH_N };
+static const char *prof_head_names[PH_N] = { "combinator", "primop", "case", "constructor", "value", "foreign call" };
+static counter_t prof_unw_since[2];             /* [loaded] since the last dispatch */
+static counter_t prof_unw_head[PH_N][2];
+
+static INLINE enum prof_head
+prof_head_kind(enum node_tag tag)
+{
+  if (tag >= T_S && tag <= T_CCB) return PH_COMB;
+  if (tag > T_FIRST_REAL_TAG)     return PH_PRIM;
+  if (tag == V_CONSTR)            return PH_CONSTR;
+  if (tag >= V_CONSTR)            return PH_CASE;
+  if (tag == D_IO_CCALL)          return PH_FFI;
+  return PH_VALUE;
+}
+
 static INLINE void
 prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
 {
+  {
+    enum prof_head h = prof_head_kind(tag);
+    prof_unw_head[h][0] += prof_unw_since[0];
+    prof_unw_head[h][1] += prof_unw_since[1];
+    prof_unw_since[0] = prof_unw_since[1] = 0;
+  }
   struct node *src = 0, *p, *caf = 0, *cell = 0;
   uint32_t caller = 0, ctx;
   int found = 0;
@@ -6521,7 +6547,8 @@ prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
   prof_ctxs[ctx].red++;
   prof_ctx_cur = ctx;
 }
-#define PROF_UNWIND(n) do { struct node *_p = NPTR(n); _p->prof_src->prof_unwind++; prof_tick(_p, &_p->prof_ncalls); } while(0)
+#define PROF_UNWIND(n) do { struct node *_p = NPTR(n); _p->prof_src->prof_unwind++; prof_tick(_p, &_p->prof_ncalls); \
+                             prof_unw_since[PROF_LOADED(_p)]++; } while(0)
 #define PROF_OVERWRITE(n) do { NPTR(n)->prof_ctx = prof_ctx_cur; NPTR(n)->prof_nupd++; } while(0)
 #else
 #define PROF_UNWIND(n) do { } while(0)
@@ -8999,6 +9026,34 @@ prof_cmp(const void *a, const void *b)
  * all reductions: a value (an Int, a pointer, ...) also has a reduction when
  * it is returned. */
 static void
+prof_report_unwind(FILE *f, counter_t tunw)
+{
+  counter_t t[2] = { 0, 0 }, all = 0;
+  for (int h = 0; h < PH_N; h++) {
+    t[0] += prof_unw_head[h][0];
+    t[1] += prof_unw_head[h][1];
+  }
+  all = t[0] + t[1];
+  if (!all)
+    all = 1;
+  fprintf(f, "\nUnwinding steps by the head they lead to, and by the node unwound: built at\n");
+  fprintf(f, "run time, or a cell of the loaded program (code).  %% of all unwinding steps.\n");
+  fprintf(f, "  head                 built at run time       %%    loaded program       %%           total       %%\n");
+  for (int h = 0; h < PH_N; h++) {
+    counter_t r = prof_unw_head[h][0], l = prof_unw_head[h][1];
+    if (!r && !l)
+      continue;
+    fprintf(f, "  %-14s %18"PRIcounter" %6.2f %17"PRIcounter" %6.2f %15"PRIcounter" %6.2f\n",
+            prof_head_names[h], r, 100.0 * r / all, l, 100.0 * l / all, r + l, 100.0 * (r + l) / all);
+  }
+  fprintf(f, "  %-14s %18"PRIcounter" %6.2f %17"PRIcounter" %6.2f %15"PRIcounter" %6.2f\n",
+          "total", t[0], 100.0 * t[0] / all, t[1], 100.0 * t[1] / all, t[0] + t[1], 100.0);
+  if (prof_unw_since[0] || prof_unw_since[1] || t[0] + t[1] != tunw)
+    fprintf(f, "  (%"PRIcounter" + %"PRIcounter" steps not followed by a dispatch; %"PRIcounter" unwinding steps in all)\n",
+            prof_unw_since[0], prof_unw_since[1], tunw);
+}
+
+static void
 prof_report_prims(FILE *f, counter_t tred)
 {
   heapoffs_t np = T_LAST_TAG + 1 + prof_nffi, i;
@@ -9708,6 +9763,7 @@ prof_report(void)
             prof_label_name(i == nl - 1 ? PROF_MAIN : (uint32_t)i, buf, sizeof buf));
   }
 
+  prof_report_unwind(f, tunw);
   prof_report_prims(f, tred);
   prof_report_calls(f, red, alc, nl);
   prof_report_callers(f, order, nl);
