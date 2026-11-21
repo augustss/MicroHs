@@ -7,7 +7,7 @@ TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
 .PHONY: testpreprocessorpaths testcacheinstance
 
-alltest: info cache test errtest testforimp testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
+alltest: info cache test errtest testforimp testfordynamic testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
 # interactivetest
 
 cache:
@@ -35,6 +35,10 @@ testcacheinstance:
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+
+# `foreign import ccall "dynamic"`: calls through C function pointers of several types.
+testfordynamic:
+	$(TMHS) -optc -I. Dynamic dynamic.c -oDynamic.exe && ./Dynamic.exe > Dynamic.out && diff Dynamic.ref Dynamic.out
 
 testforimpforall:
 	$(TMHS) ForImpForall -of.exe && ./f.exe > ForImpForall.out && diff ForImpForall.ref ForImpForall.out

@@ -344,7 +344,13 @@ foreign import ccall "value ($0 + $1) * 2" addTwice :: CInt -> CInt -> IO CInt
 ```
 The expression is pasted verbatim into the generated C code, so it must be a valid C expression for the argument and result types. A type without `IO` gives a pure value.
 
-Some of the FFI is still missing compared to GHC. In particular, `foreign import ccall "wrapper"` and `foreign import ccall "dynamic"` are not implemented.
+As in GHC, `foreign import ccall "dynamic"` turns a pointer to a C function into a Haskell function; its type must be `FunPtr ft -> ft`. For example:
+```haskell
+foreign import ccall "dynamic" callIntFun :: FunPtr (CInt -> IO CInt) -> CInt -> IO CInt
+```
+Like other imports of C functions, it needs a `.c` file or an executable. A call through a pointer has no C prototype to convert the arguments and the result, so the types must match the C function exactly. The types from `Foreign.C.Types`, `Int8` to `Int64`, `Word8` to `Word64`, `Float`, `Double`, `Ptr`, and `FunPtr` (and newtypes of them) are passed as the corresponding C types; `Int` and `Word` are `intptr_t` and `uintptr_t`.
+
+Some of the FFI is still missing compared to GHC. In particular, `foreign import ccall "wrapper"` is not implemented.
 
 ### Calling Haskell from C
 
