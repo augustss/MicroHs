@@ -6996,45 +6996,453 @@ jx_inline_data(int i)
   return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig));
 }
 
-static void jx_print_copy(FILE *f, int i, bool paren);
+/*
+ * Decompiling an extracted subgraph to a lambda expression, by reducing the
+ * combinators symbolically.  The rules are those of Mhs.Reflect: a
+ * combinator with too few arguments is eta expanded, Y becomes a recursive
+ * let, and the case combinators become case expressions.  The terms are
+ * never updated, and each term is decompiled once, so sharing is kept; a
+ * term that is used more than once is printed as s1@(...) the first time,
+ * and as s1 after that.
+ */
+enum dc_kind { DC_APP, DC_LAM, DC_VAR, DC_LEAF, DC_REF, DC_CASE, DC_LET };
 
-static void
-jx_print_opnd(FILE *f, struct jx_opnd o, bool paren)
+struct dc_node {
+  enum dc_kind kind;
+  int a, b, c, d;               /* APP: fun, arg.  LAM: var, body.  VAR: var.  REF: jx index.
+                                 * LET: var, rhs, body.  CASE: scrutinee, first arm, arms, default or -1 */
+  NODEPTR leaf;                 /* LEAF */
+  int dec;                      /* the decompiled term, or -1 */
+  int uses;                     /* uses in the decompiled term */
+  int label;                    /* label when printed, if shared */
+};
+struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
+
+#define DC_MAX_NODES (1 << 18)
+#define DC_MAX_ARMS  (1 << 14)
+#define DC_MAX_ARGS  64
+#define DC_FUEL      100000     /* combinator reductions */
+#define DC_MAX_PRINT 20000      /* nodes printed */
+
+static struct dc_node *dc;
+static int dc_n;
+static struct dc_arm *dc_arms;
+static int dc_narms;
+static int dc_nvars;
+static long dc_fuel;
+static long dc_printed;
+static jmp_buf dc_fail;
+
+static int
+dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
-  static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
-  if (o.index < 0) {
-    jx_print_leaf(f, o.leaf);
-  } else if (jx[o.index].kind == JX_COPY && o.index != 0 && jx[o.index].uses == 1) {
-    jx_print_copy(f, o.index, paren);
-  } else if (jx_inline_data(o.index)) {
-    jx_print_leaf(f, jx[o.index].orig);
-  } else {
-    fprintf(f, "%s%d", names[jx[o.index].kind], o.index);
+  if (dc_n >= DC_MAX_NODES)
+    longjmp(dc_fail, 1);
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, 0, 0 };
+  return dc_n++;
+}
+static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
+static int dc_var(int v)        { return dc_new(DC_VAR, v, 0, 0, 0, NIL_NODEPTR); }
+
+/* The term for an operand of the extracted graph. */
+static int
+dc_from_opnd(struct jx_opnd o, int *memo)
+{
+  if (o.index < 0)
+    return dc_new(DC_LEAF, 0, 0, 0, 0, o.leaf);
+  int i = o.index;
+  if (memo[i] < 0) {
+    if (i == 0)
+      memo[i] = dc_new(DC_REF, 0, 0, 0, 0, NIL_NODEPTR); /* a recursive call */
+    else if (jx[i].kind == JX_COPY)
+      memo[i] = dc_app(dc_from_opnd(jx[i].fun, memo), dc_from_opnd(jx[i].arg, memo));
+    else if (jx_inline_data(i))
+      memo[i] = dc_new(DC_LEAF, 0, 0, 0, 0, jx[i].orig);
+    else
+      memo[i] = dc_new(DC_REF, i, 0, 0, 0, NIL_NODEPTR);
+  }
+  return memo[i];
+}
+
+/* The number of arguments of a combinator, 0 if it is not one. */
+static int
+dc_comb_arity(enum node_tag t)
+{
+  switch (t) {
+  case T_I:                                             return 1;
+  case T_K: case T_A: case T_U:                         return 2;
+  case T_S: case T_B: case T_C: case T_Z: case T_K2:
+  case T_P: case T_R:                                   return 3;
+  case T_SS: case T_BB: case T_CC: case T_CCB: case T_K3:
+  case T_O:                                             return 4;
+  case T_K4:                                            return 5;
+  default:                                              return 0;
   }
 }
 
-/* Print the copied application i, with the copied applications that are
- * only used by it. */
-static void
-jx_print_copy(FILE *f, int i, bool paren)
+static int
+dc_rule(enum node_tag t, int *x)
 {
-  struct jx_opnd args[64];
-  int na = 0;
-  struct jx_opnd h = { i, NIL_NODEPTR };
-  while (h.index >= 0 && jx[h.index].kind == JX_COPY && na < 64 &&
-         (h.index == i || (h.index != 0 && jx[h.index].uses == 1))) {
-    args[na++] = jx[h.index].arg;
-    h = jx[h.index].fun;
+#define AP dc_app
+  switch (t) {
+  case T_S:   return AP(AP(x[0], x[2]), AP(x[1], x[2]));    /* S x y z = x z (y z) */
+  case T_K:   return x[0];                                  /* K x y = x */
+  case T_I:   return x[0];                                  /* I x = x */
+  case T_B:   return AP(x[0], AP(x[1], x[2]));              /* B x y z = x (y z) */
+  case T_C:   return AP(AP(x[0], x[2]), x[1]);              /* C x y z = x z y */
+  case T_SS:  return AP(AP(x[0], AP(x[1], x[3])), AP(x[2], x[3])); /* S' x y z w = x (y w) (z w) */
+  case T_BB:  return AP(AP(x[0], x[1]), AP(x[2], x[3]));    /* B' x y z w = x y (z w) */
+  case T_CC:  return AP(AP(x[0], AP(x[1], x[3])), x[2]);    /* C' x y z w = x (y w) z */
+  case T_CCB: return AP(AP(x[0], x[2]), AP(x[1], x[3]));    /* C'B x y z w = x z (y w) */
+  case T_A:   return x[1];                                  /* A x y = y */
+  case T_U:   return AP(x[1], x[0]);                        /* U x y = y x */
+  case T_Z:   return AP(x[0], x[1]);                        /* Z x y z = x y */
+  case T_K2:                                                /* K2 x y z = x */
+  case T_K3:                                                /* K3 x y z w = x */
+  case T_K4:  return x[0];                                  /* K4 x y z w v = x */
+  case T_P:   return AP(AP(x[2], x[0]), x[1]);              /* P x y z = z x y */
+  case T_R:   return AP(AP(x[1], x[2]), x[0]);              /* R x y z = y z x */
+  case T_O:   return AP(AP(x[3], x[0]), x[1]);              /* O x y z w = w x y */
+  default:    ERR("dc_rule");
   }
-  if (paren)
-    fputc('(', f);
-  jx_print_opnd(f, h, true);
-  for (int j = na - 1; j >= 0; j--) {
+#undef AP
+}
+
+/* The head of the spine of e, with the arguments, first one first. */
+static int
+dc_spine(int e, int *args, int *na)
+{
+  int tmp[DC_MAX_ARGS];
+  int n = 0;
+  while (dc[e].kind == DC_APP) {
+    if (n >= DC_MAX_ARGS)
+      longjmp(dc_fail, 2);
+    tmp[n++] = dc[e].b;
+    e = dc[e].a;
+  }
+  for (int i = 0; i < n; i++)
+    args[i] = tmp[n - 1 - i];
+  *na = n;
+  return e;
+}
+
+static int
+dc_apps(int f, int *args, int n)
+{
+  for (int i = 0; i < n; i++)
+    f = dc_app(f, args[i]);
+  return f;
+}
+
+static int dc_go(int e);
+
+/* Apply f to the decompiled arguments. */
+static int
+dc_args(int f, int *args, int n)
+{
+  for (int i = 0; i < n; i++)
+    f = dc_app(f, dc_go(args[i]));
+  return f;
+}
+
+/* Too few arguments, so eta expand with k new variables. */
+static int
+dc_eta(int e, int k)
+{
+  int v0 = dc_nvars;
+  dc_nvars += k;
+  for (int i = 0; i < k; i++)
+    e = dc_app(e, dc_var(v0 + i));
+  int b = dc_go(e);
+  for (int i = k - 1; i >= 0; i--)
+    b = dc_new(DC_LAM, v0 + i, b, 0, 0, NIL_NODEPTR);
+  return b;
+}
+
+/* An arm for constructor k with n fields. */
+static void
+dc_arm(int ai, int k, int n, int f)
+{
+  int v0 = dc_nvars;
+  dc_nvars += n;
+  for (int j = 0; j < n; j++)
+    f = dc_app(f, dc_var(v0 + j));
+  int b = dc_go(f);
+  dc_arms[ai] = (struct dc_arm){ k, n, v0, b };
+}
+
+static int
+dc_new_arms(int m)
+{
+  if (dc_narms + m > DC_MAX_ARMS)
+    longjmp(dc_fail, 3);
+  int a0 = dc_narms;
+  dc_narms += m;
+  return a0;
+}
+
+/* D_a0_..._a{m-1} f0 ... f{m-1} e */
+static int
+dc_dense(NODEPTR lf, int *args)
+{
+  struct case_arity *ca = get_CASED_arity(lf);
+  int m = (int)ca->m;
+  int a0 = dc_new_arms(m);
+  for (int k = 0; k < m; k++)
+    dc_arm(a0 + k, k, (int)ca->arities[k], args[k]);
+  return dc_new(DC_CASE, dc_go(args[m]), a0, m, -1, NIL_NODEPTR);
+}
+
+/* E_m d A_k1_n1 f1 ... A_km_nm fm e */
+static int
+dc_sparse(NODEPTR lf, int *args, int n)
+{
+  int m = (int)get_CASE_size(lf);
+  int a0 = dc_new_arms(m);
+  for (int j = 0; j < m; j++) {
+    int t = args[1 + 2 * j];
+    int k, nf;
+    if (dc[t].kind != DC_LEAF || !is_VIRT(dc[t].leaf) || get_VIRT_TAG(dc[t].leaf) != V_ARM)
+      longjmp(dc_fail, 4);
+    get_CON_info(dc[t].leaf, &k, &nf);
+    dc_arm(a0 + j, k, nf, args[2 + 2 * j]);
+  }
+  int d = dc_go(args[0]);
+  return dc_new(DC_CASE, dc_go(args[n - 1]), a0, m, d, NIL_NODEPTR);
+}
+
+static int dc_go1(int e);
+
+/* Decompile e, once. */
+static int
+dc_go(int e)
+{
+  if (dc[e].dec < 0)
+    dc[e].dec = dc_go1(e);
+  return dc[e].dec;
+}
+
+static int
+dc_go1(int e)
+{
+  for (;;) {
+    int args[DC_MAX_ARGS], na;
+    int h = dc_spine(e, args, &na);
+    if (dc[h].kind == DC_LEAF && is_VIRT(dc[h].leaf)) {
+      NODEPTR lf = dc[h].leaf;
+      enum node_tag t = get_VIRT_TAG(lf);
+      int n = dc_comb_arity(t);
+      if (n > 0) {
+        if (--dc_fuel <= 0)
+          longjmp(dc_fail, 5);
+        if (na < n)
+          return dc_eta(e, n - na);
+        e = dc_apps(dc_rule(t, args), args + n, na - n);
+        continue;
+      }
+      if (t == T_Y && na >= 1) {
+        /* Y f = let r = f r in r */
+        int v = dc_nvars++;
+        int b = dc_go(dc_app(args[0], dc_var(v)));
+        return dc_args(dc_new(DC_LET, v, b, dc_var(v), 0, NIL_NODEPTR), args + 1, na - 1);
+      }
+      if (t == V_CASED || t == V_CASES) {
+        n = t == V_CASED ? (int)get_CASED_arity(lf)->m + 1 : 2 * (int)get_CASE_size(lf) + 2;
+        if (na < n)
+          return dc_eta(e, n - na);
+        int c = t == V_CASED ? dc_dense(lf, args) : dc_sparse(lf, args, n);
+        return dc_args(c, args + n, na - n);
+      }
+    } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
+      e = dc_apps(args[0], args + 1, na - 1);
+      continue;
+    }
+    return dc_args(h, args, na);
+  }
+}
+
+static bool
+dc_occurs(int v, int e)
+{
+  switch (dc[e].kind) {
+  case DC_VAR: return dc[e].a == v;
+  case DC_APP: return dc_occurs(v, dc[e].a) || dc_occurs(v, dc[e].b);
+  case DC_LAM: return dc_occurs(v, dc[e].b);
+  case DC_LET: return dc_occurs(v, dc[e].b) || dc_occurs(v, dc[e].c);
+  case DC_CASE:
+    if (dc_occurs(v, dc[e].a) || (dc[e].d >= 0 && dc_occurs(v, dc[e].d)))
+      return true;
+    for (int j = 0; j < dc[e].c; j++)
+      if (dc_occurs(v, dc_arms[dc[e].b + j].body))
+        return true;
+    return false;
+  default: return false;
+  }
+}
+
+/* Print a leaf; an operator in parentheses, a negative number in parentheses
+ * if it is an argument. */
+static void
+dc_print_leaf(FILE *f, NODEPTR n, int p)
+{
+  if (is_VIRT(n)) {
+    enum node_tag t = get_VIRT_TAG(n);
+    if (t <= T_LAST_TAG && TAGNAME(t) && t != V_CONSTR && t != V_ARM && t != V_TAG &&
+        t != V_CASED && t != V_CASES && t != V_LOOKD && t != V_LOOKS) {
+      const char *s = TAGNAME(t);
+      bool op = false;
+      for (const char *q = s; *q; q++)
+        if (!(isalnum((unsigned char)*q) || *q == '_' || *q == '\'' || *q == '.'))
+          op = true;
+      fprintf(f, op ? "(%s)" : "%s", s);
+      return;
+    }
+  } else if (get_DATA_TAG(FUN(n)) == D_INT) {
+    value_t i = GETVALUE(n);
+    fprintf(f, i < 0 && p > 1 ? "(%"PRIvalue")" : "%"PRIvalue, i);
+    return;
+  }
+  jx_print_leaf(f, n);
+}
+
+/* Count the uses of the terms in a decompiled term. */
+static void
+dc_count(int e)
+{
+  if (dc[e].uses++)
+    return;                     /* the subterms are counted already */
+  switch (dc[e].kind) {
+  case DC_APP: dc_count(dc[e].a); dc_count(dc[e].b); break;
+  case DC_LAM: dc_count(dc[e].b); break;
+  case DC_LET: dc_count(dc[e].b); dc_count(dc[e].c); break;
+  case DC_CASE:
+    dc_count(dc[e].a);
+    if (dc[e].d >= 0)
+      dc_count(dc[e].d);
+    for (int j = 0; j < dc[e].c; j++)
+      dc_count(dc_arms[dc[e].b + j].body);
+    break;
+  default: break;
+  }
+}
+
+static int dc_nlabels;
+
+/* Print a term.  p is 0 anywhere, 1 for the function of an application,
+ * and 2 for an argument. */
+static void
+dc_print(FILE *f, int e, int p)
+{
+  static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
+  if (++dc_printed > DC_MAX_PRINT) {
+    if (dc_printed == DC_MAX_PRINT + 1)
+      fputs("...", f);
+    return;
+  }
+  if (dc[e].uses > 1 && dc[e].kind != DC_VAR && dc[e].kind != DC_LEAF && dc[e].kind != DC_REF) {
+    if (dc[e].label) {
+      fprintf(f, "s%d", dc[e].label);
+      return;
+    }
+    dc[e].label = ++dc_nlabels;
+    fprintf(f, "s%d@", dc[e].label);
+    p = 2;                      /* so it is in parentheses */
+  }
+  switch (dc[e].kind) {
+  case DC_VAR:
+    fprintf(f, "x%d", dc[e].a);
+    break;
+  case DC_LEAF:
+    dc_print_leaf(f, dc[e].leaf, p);
+    break;
+  case DC_REF:
+    if (dc[e].a == 0)
+      fputs("self", f);
+    else
+      fprintf(f, "%s%d", names[jx[dc[e].a].kind], dc[e].a);
+    break;
+  case DC_LAM: {
+    if (p > 0) fputc('(', f);
+    fputc('\\', f);
+    int b = e;
+    for (bool first = true; dc[b].kind == DC_LAM; first = false, b = dc[b].b)
+      fprintf(f, first ? "x%d" : " x%d", dc[b].a);
+    fputs(" -> ", f);
+    dc_print(f, b, 0);
+    if (p > 0) fputc(')', f);
+    break;
+  }
+  case DC_APP:
+    if (p > 1) fputc('(', f);
+    dc_print(f, dc[e].a, 1);
     fputc(' ', f);
-    jx_print_opnd(f, args[j], true);
+    dc_print(f, dc[e].b, 2);
+    if (p > 1) fputc(')', f);
+    break;
+  case DC_LET:
+    if (p > 0) fputc('(', f);
+    fprintf(f, "let { x%d = ", dc[e].a);
+    dc_print(f, dc[e].b, 0);
+    fputs(" } in ", f);
+    dc_print(f, dc[e].c, 0);
+    if (p > 0) fputc(')', f);
+    break;
+  case DC_CASE:
+    if (p > 0) fputc('(', f);
+    fputs("case ", f);
+    dc_print(f, dc[e].a, 0);
+    fputs(" of { ", f);
+    for (int j = 0; j < dc[e].c; j++) {
+      struct dc_arm *a = &dc_arms[dc[e].b + j];
+      fprintf(f, "%sC_%d_%d", j ? "; " : "", a->k, a->n);
+      for (int v = a->var; v < a->var + a->n; v++)
+        fprintf(f, dc_occurs(v, a->body) ? " x%d" : " _", v);
+      fputs(" -> ", f);
+      dc_print(f, a->body, 0);
+    }
+    if (dc[e].d >= 0) {
+      fputs(dc[e].c ? "; _ -> " : "_ -> ", f);
+      dc_print(f, dc[e].d, 0);
+    }
+    fputs(" }", f);
+    if (p > 0) fputc(')', f);
+    break;
   }
-  if (paren)
-    fputc(')', f);
+}
+
+/* Decompile the extracted subgraph and print it. */
+static void
+dc_decompile(FILE *f)
+{
+  static int *memo;
+  if (!dc) {
+    dc = mmalloc(DC_MAX_NODES * sizeof(struct dc_node));
+    dc_arms = mmalloc(DC_MAX_ARMS * sizeof(struct dc_arm));
+  }
+  FREE(memo);
+  memo = mmalloc(jx_n * sizeof(int));
+  for (int i = 0; i < jx_n; i++)
+    memo[i] = -1;
+  dc_n = 0;
+  dc_narms = 0;
+  dc_nvars = 1;
+  dc_fuel = DC_FUEL;
+  dc_printed = 0;
+  dc_nlabels = 0;
+  int r = setjmp(dc_fail);
+  if (r) {
+    static const char *why[] = { "", "too many nodes", "too many arguments", "too many arms",
+                                 "bad sparse case", "too many reductions" };
+    fprintf(f, "cannot decompile: %s\n", why[r]);
+    return;
+  }
+  int root = dc_app(dc_from_opnd(jx[0].fun, memo), dc_from_opnd(jx[0].arg, memo));
+  int e = dc_go(root);
+  dc_count(e);
+  dc[e].uses = 1;               /* the root is not labelled */
+  fputs("self = ", f);
+  dc_print(f, e, 0);
+  fputc('\n', f);
 }
 
 /* The nodes copied by the earlier extractions, to skip them as roots. */
@@ -7086,13 +7494,7 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   fprintf(f, "%d nodes copied, %d references back to the root, references to %d data, %d redexes, %d cycles, %d cut\n",
           count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
   jx[0].uses++;                 /* so it is never printed inline */
-  for (int i = 0; i < jx_n; i++) {
-    if (jx[i].kind == JX_COPY && (i == 0 || jx[i].uses > 1)) {
-      fprintf(f, "@%d = ", i);
-      jx_print_copy(f, i, false);
-      fputc('\n', f);
-    }
-  }
+  dc_decompile(f);
   for (int i = 0; i < jx_n; i++) {
     if (jx[i].kind != JX_COPY && !jx_inline_data(i)) {
       static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
