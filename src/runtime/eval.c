@@ -7110,16 +7110,36 @@ jx_inline_data(int i)
  * combinator with too few arguments is eta expanded, Y becomes a recursive
  * let, and the case combinators become case expressions.  The terms are
  * never updated, and each term is decompiled once, so sharing is kept; a
- * term that is used more than once is printed as s1@(...) the first time,
- * and as s1 after that.
+ * term that is used more than once is bound by a let.
+ *
+ * Only the lambdas of the root, its parameters, are made.  Any other lambda,
+ * i.e., a function value made inside the code, is left as the graph it comes
+ * from (DC_GRAPH): the code builds that graph, and the interpreter runs it.
+ * That is the simplest thing that works.  On a self-compile, 18% of the
+ * decompiled functions had such lambdas.  Ways to do better, the most
+ * common first:
+ *  - A local function from Y that is only called is a local function, and a
+ *    loop if it is only called strictly.  But most are also called lazily,
+ *    as in map's C_1 (f x) (go xs), and the thunk needs go as a value.
+ *  - Arms that return lambdas: eta expand the root, i.e., have one entry
+ *    point per number of arguments.
+ *  - The continuation of IO.>>=: compile the bind.
+ *  - (case s of { p -> \x -> e }) a: push the argument into the arms.
+ *  - Mutually recursive functions from Y on a tuple: split them.
+ *  - A lambda without free variables is a constant.
+ *  - The rest are passed to unknown functions or stored: lambda lift them to
+ *    functions of their own, compiled like the root, which the interpreter
+ *    can apply like a combinator.  The value is then the partial application
+ *    to the free variables.
  */
-enum dc_kind { DC_APP, DC_LAM, DC_VAR, DC_LEAF, DC_REF, DC_CASE, DC_LET, DC_COLD };
+enum dc_kind { DC_APP, DC_LAM, DC_VAR, DC_LEAF, DC_REF, DC_CASE, DC_LET, DC_COLD, DC_GRAPH };
 
 struct dc_node {
   enum dc_kind kind;
   int a, b, c, d;               /* APP: fun, arg.  LAM: var, body.  VAR: var.  REF: jx index.
                                  * LET: var, rhs, body.  CASE: scrutinee, first arm, arms, default or -1
-                                 * COLD: the scrutinee of the case (to print), the term it comes from */
+                                 * COLD: the scrutinee of the case (to print), the term it comes from
+                                 * GRAPH: the term it comes from, with the copied nodes as REFs */
   NODEPTR leaf;                 /* LEAF */
   int raw;                      /* CASE: the term it comes from, D_... or E_..., or -1 */
   int dec;                      /* the decompiled term, or -1 */
@@ -7130,6 +7150,7 @@ struct dc_node {
   int label;                    /* the name of a shared term, sN */
   int jx;                       /* the entry of the extracted graph it is, or -1 */
   int from;                     /* the term it is derived from, or -1; see dc_graph_node */
+  int gr;                       /* its graph form, or -1; see dc_graph_term */
 };
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
@@ -7156,7 +7177,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1 };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7352,6 +7373,49 @@ dc_sparse(NODEPTR lf, int *args, int from)
 
 static int dc_go1(int e);
 
+/* The graph form of a term that is not decompiled: the term itself, with the
+ * copied nodes in it as references to them, since they are in the heap. */
+static int
+dc_graph_term(int e)
+{
+  if (dc[e].gr < 0) {
+    int r = e;
+    if (dc[e].kind == DC_APP && dc[e].jx >= 0) {
+      dc_cur_from = e;
+      r = dc_new(DC_REF, dc[e].jx, 0, 0, 0, NIL_NODEPTR);
+      dc[r].jx = dc[e].jx;
+    } else if (dc[e].kind == DC_APP) {
+      int a = dc_graph_term(dc[e].a), b = dc_graph_term(dc[e].b);
+      dc_cur_from = e;
+      if (a != dc[e].a || b != dc[e].b)
+        r = dc_app(a, b);
+    }
+    dc[e].gr = r;
+  }
+  return dc[e].gr;
+}
+
+/* Is the term being decompiled the body of the root, so that a missing
+ * argument is a parameter of the root? */
+static bool dc_top;
+
+/* e needs k more arguments, i.e., it is a function value.  In the body of the
+ * root it is eta expanded, the parameters of the root; anywhere else it is
+ * left as the graph it is. */
+static int
+dc_function(int e, int k, bool top)
+{
+  if (top) {
+    dc_top = true;              /* for the body */
+    int r = dc_eta(e, k);
+    dc_top = false;
+    return r;
+  }
+  int g = dc_graph_term(e);
+  dc_cur_from = e;
+  return dc_new(DC_GRAPH, g, 0, 0, 0, NIL_NODEPTR);
+}
+
 /* Decompile e, once. */
 static int
 dc_go(int e)
@@ -7364,6 +7428,8 @@ dc_go(int e)
 static int
 dc_go1(int e)
 {
+  bool top = dc_top;
+  dc_top = false;
   for (;;) {
     int args[DC_MAX_ARGS], apps[DC_MAX_ARGS], na;
     int h = dc_spine(e, args, apps, &na);
@@ -7375,7 +7441,7 @@ dc_go1(int e)
         if (--dc_fuel <= 0)
           longjmp(dc_fail, 5);
         if (na < n)
-          return dc_eta(e, n - na);
+          return dc_function(e, n - na, top);
         /* The result is derived from the redex, i.e., the application of the n:th argument. */
         dc_cur_from = apps[n - 1];
         int r = dc_rule(t, args);
@@ -7396,7 +7462,7 @@ dc_go1(int e)
       if (t == V_CASED || t == V_CASES) {
         n = arity_virt(lf);
         if (na < n)
-          return dc_eta(e, n - na);
+          return dc_function(e, n - na, top);
         int c = t == V_CASED ? dc_dense(lf, args, apps[n - 1]) : dc_sparse(lf, args, apps[n - 1]);
         dc[c].raw = dc_reapply(h, args, apps, n);  /* the case as it is in the graph */
         return dc_args(c, args + n, apps + n, na - n);
@@ -7419,6 +7485,7 @@ dc_go1(int e)
  *    case had ever run.  So it is left to the interpreter: it becomes the
  *    term it comes from, which is built from nodes of the graph and the
  *    variables.
+ * A graph term (DC_GRAPH) is not code, so it is left as it is.
  * Still to come is cheap strictness, i.e., strictness that can be found
  * locally, so that arithmetic can be done strictly.
  */
@@ -7496,6 +7563,13 @@ dc_subst(int e)
     dc_cur_from = e;
     if (a != dc[e].a || b != dc[e].b)
       r = dc_new(DC_COLD, a, b, 0, 0, NIL_NODEPTR);
+    break;
+  }
+  case DC_GRAPH: {
+    int a = dc_subst(dc[e].a);
+    dc_cur_from = e;
+    if (a != dc[e].a)
+      r = dc_new(DC_GRAPH, a, 0, 0, 0, NIL_NODEPTR);
     break;
   }
   default:
@@ -7638,15 +7712,15 @@ dc_mark_from(int d)
   }
 }
 
-/* Mark what the final term uses, except in cold cases, which are left to
- * the interpreter. */
+/* Mark what the final term uses, except in cold cases and graph terms, which
+ * are left to the interpreter. */
 static void
 dc_mark_used(int e, char *seen)
 {
   if (seen[e])
     return;
   seen[e] = 1;
-  if (dc[e].kind == DC_COLD)
+  if (dc[e].kind == DC_COLD || dc[e].kind == DC_GRAPH)
     return;
   dc_mark_from(e);
   switch (dc[e].kind) {
@@ -7664,7 +7738,8 @@ dc_mark_used(int e, char *seen)
   }
 }
 
-/* The number of copied nodes the term uses, outside the cold cases. */
+/* The number of copied nodes the term uses, outside the cold cases and graph
+ * terms. */
 static int
 dc_count_used(int e)
 {
@@ -7688,6 +7763,7 @@ dc_occurs(int v, int e)
   switch (dc[e].kind) {
   case DC_VAR: return dc[e].a == v;
   case DC_COLD: return dc_occurs(v, dc[e].a) || dc_occurs(v, dc[e].b);
+  case DC_GRAPH: return dc_occurs(v, dc[e].a);
   case DC_APP: return dc_occurs(v, dc[e].a) || dc_occurs(v, dc[e].b);
   case DC_LAM: return dc_occurs(v, dc[e].b);
   case DC_LET: return dc_occurs(v, dc[e].b) || dc_occurs(v, dc[e].c);
@@ -7734,6 +7810,8 @@ dc_print_leaf(FILE *f, NODEPTR n, int p)
 }
 
 /* Count the uses of the terms in a decompiled term. */
+static int dc_ngraph;           /* the number of graph terms */
+
 static void
 dc_count(int e)
 {
@@ -7742,6 +7820,7 @@ dc_count(int e)
   switch (dc[e].kind) {
   case DC_APP: dc_count(dc[e].a); dc_count(dc[e].b); break;
   case DC_COLD: dc_count(dc[e].a); break;
+  case DC_GRAPH: dc_ngraph++; dc_count(dc[e].a); break;
   case DC_LAM: dc_count(dc[e].b); break;
   case DC_LET: dc_count(dc[e].b); dc_count(dc[e].c); break;
   case DC_CASE:
@@ -7794,7 +7873,7 @@ dc_order_parts(int e)
 {
   switch (dc[e].kind) {
   case DC_APP: dc_order_term(dc[e].a); dc_order_term(dc[e].b); break;
-  case DC_COLD: dc_order_term(dc[e].a); break;
+  case DC_COLD: case DC_GRAPH: dc_order_term(dc[e].a); break;
   case DC_LAM: dc_order_term(dc[e].b); break;
   case DC_LET: dc_order_term(dc[e].b); dc_order_term(dc[e].c); break;
   case DC_CASE:
@@ -7852,6 +7931,7 @@ dc_scope_parts(int e, int scope)
     dc_scope_term(dc[e].b, scope);
     break;
   case DC_COLD:
+  case DC_GRAPH:
     dc_scope_term(dc[e].a, scope);
     break;
   case DC_LAM:
@@ -7971,6 +8051,7 @@ dc_inline(int e)
     r = false;
     break;
   case DC_COLD:
+  case DC_GRAPH:
     r = dc_inline_use(dc[e].a);
     break;
   case DC_CASE:
@@ -8044,6 +8125,7 @@ dc_width(int e, int lim)
   case DC_LAM:  W(6 + 4); W(dc_width_use(dc[e].b, lim - w)); break;
   case DC_LET:  W(lim); break;
   case DC_COLD: W(20 + dc_width_use(dc[e].a, lim - w)); break;
+  case DC_GRAPH: W(7 + dc_width_use(dc[e].a, lim - w)); break;
   case DC_CASE:
     W(15 + dc_width_use(dc[e].a, lim - w));
     for (int j = 0; j < dc[e].c && w < lim; j++) {
@@ -8246,6 +8328,13 @@ dc_print1(FILE *f, int e, int p)
     fputs(" of ...)", f);
     break;
   }
+  case DC_GRAPH:
+    /* A function value, left as graph to build; the copied nodes in it are
+     * shown as copy@address. */
+    fputs("graph(", f);
+    dc_print(f, dc[e].a, 0);
+    fputc(')', f);
+    break;
   case DC_LET: {
     /* The recursive let from Y, with the shared terms bound in its scope. */
     if (p > 0) fputc('(', f);
@@ -8342,6 +8431,7 @@ dc_decompile(FILE *f)
   dc_printed = 0;
   dc_nlabels = 0;
   dc_ncold = 0;
+  dc_ngraph = 0;
   dc_cur_from = -1;
   /* Decompiling can blow up; a function whose normal form is that big is
    * better left to the interpreter. */
@@ -8355,6 +8445,7 @@ dc_decompile(FILE *f)
   }
   int root = dc_app(dc_from_opnd(jx[0].fun, memo), dc_from_opnd(jx[0].arg, memo));
   dc[root].jx = 0;
+  dc_top = true;                /* the root is eta expanded */
   int e = dc_simplify(dc_go(root));
   dc_count(e);
   dc[e].uses = 1;               /* the root is not shared */
@@ -8370,12 +8461,15 @@ dc_decompile(FILE *f)
   fputs(" =", f);
   dc_print_body(f, b, 0, sc);
   fputc('\n', f);
-  if (dc_ncold) {
+  if (dc_ncold || dc_ngraph) {
     int ncopy = 0;
     for (int i = 0; i < jx_n; i++)
       ncopy += jx[i].kind == JX_COPY;
-    fprintf(f, "%d cold case%s left to the interpreter; the rest uses %d of the %d copied nodes\n",
-            dc_ncold, dc_ncold == 1 ? "" : "s", dc_count_used(e), ncopy);
+    if (dc_ncold)
+      fprintf(f, "%d cold case%s%s", dc_ncold, dc_ncold == 1 ? "" : "s", dc_ngraph ? " and " : "");
+    if (dc_ngraph)
+      fprintf(f, "%d lambda%s", dc_ngraph, dc_ngraph == 1 ? "" : "s");
+    fprintf(f, " left to the interpreter; the rest uses %d of the %d copied nodes\n", dc_count_used(e), ncopy);
   }
 }
 
