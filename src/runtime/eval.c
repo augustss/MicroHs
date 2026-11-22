@@ -5406,6 +5406,18 @@ sample_dump(const char *name, NODEPTR n)
   closeb(bf);
 }
 
+extern int jx_limit;
+static bool jx_extract(FILE *f, int rank, struct sample_entry *e);
+#define SAMPLE_EXTRACT    30    /* number of subgraphs to extract */
+
+static int
+sample_cmp_outer(const void *a, const void *b)
+{
+  counter_t x = ((const struct sample_entry *)a)->outer;
+  counter_t y = ((const struct sample_entry *)b)->outer;
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
 /* Report the hottest nodes, and write the hottest ones to files. */
 void
 sample_report(void)
@@ -5462,6 +5474,22 @@ sample_report(void)
     fprintf(stderr, "  %4d %10"PRIcounter" %6.2f%% %10"PRIcounter"  %-18p  %s with %d args  %s\n",
             (int)k + 1, es[k].hits, 100.0 * es[k].hits / num_samples, es[k].outer,
             (void *)get_node_ptr(es[k].node), head, nargs, name);
+  }
+  if (jx_limit) {
+    /* Extract from the nodes that are most often the outermost recurring
+     * node of a sample, i.e., presumably the function that is called.  Skip
+     * the nodes that were copied for an earlier one. */
+    qsort(es, ne, sizeof(struct sample_entry), sample_cmp_outer);
+    FILE *f = fopen("mhs-extract.txt", "w");
+    if (f) {
+      int nx = 0;
+      for (size_t k = 0; k < ne && nx < SAMPLE_EXTRACT && es[k].outer > 0; k++)
+        if (jx_extract(f, nx + 1, &es[k]))
+          nx++;
+      fclose(f);
+      fprintf(stderr, "  the subgraphs of %d hot nodes, at most %d nodes copied, are in mhs-extract.txt\n",
+              nx, jx_limit);
+    }
   }
   FREE(es);
 }
@@ -6648,7 +6676,7 @@ counter_t num_arm, num_bad_arm;
 #define EXTRASANITY 0           /* sanity checks that cost time, unlike SANITY */
 #endif
 
-#if EXTRASANITY                 /* the only user so far; extracting code for a JIT will need them too */
+#if EXTRASANITY || WANT_SAMPLE  /* for the sanity checks, and the extractor */
 /* The number of arguments the virtual node h (the head of a spine: a
  * combinator, primitive, case, or constructor) needs before it reduces, or -1
  * if it never reduces (a constructor).  For the combinators that also reduce
@@ -6671,7 +6699,9 @@ arity_virt(NODEPTR h)
     return tag_arity[t];
   }
 }
+#endif  /* EXTRASANITY || WANT_SAMPLE */
 
+#if EXTRASANITY
 /* Is n in weak head normal form, i.e., would evaluating it do no reduction?
  * It is if it is a value (an Int, a ByteString, ...), a constructor applied to
  * at most its fields, or a partial application.  So count the arguments down
@@ -6723,6 +6753,358 @@ check_arity(enum node_tag tag, int k)
   ERR("check_arity");
 }
 #endif  /* EXTRASANITY */
+
+#if WANT_SAMPLE
+/*
+ * Extracting the subgraph of a hot function node, as the input of a JIT
+ * (see jit-plan.md).  For now the subgraphs of the hottest nodes are only
+ * written to a file (+RTS -S -J[N] -RTS).
+ *
+ * The graph is traversed depth first from the root, and the application
+ * nodes that are code, i.e., partial applications, are copied into an array.
+ * The traversal stops at
+ *  - data: a value, or a constructor with its fields;
+ *  - a redex, i.e., an application with as many arguments as its head needs;
+ *    it can be shared, so the copy refers to it instead;
+ *  - a node that starts a cycle, other than the root.  It can be compiled
+ *    on its own.  That a node starts a cycle is only known when the traversal
+ *    comes back to it, so it is copied first; when the traversal is done with
+ *    it, its copy and everything after it in the array is dropped, and it
+ *    becomes a reference;
+ *  - a node that would make the copy larger than the size limit.
+ * The array is also the table of visited nodes, so sharing is kept.  A cycle
+ * back to the root is a reference to the root's copy, entry 0.
+ */
+enum jx_kind { JX_COPY, JX_DATA, JX_REDEX, JX_CYCLE, JX_CUT };
+
+/* An operand of a copied application: an index in the array, or a leaf. */
+struct jx_opnd {
+  int     index;                /* -1 for a leaf */
+  NODEPTR leaf;                 /* a combinator, primitive, constructor, FFI function, ... */
+};
+
+struct jx_entry {
+  NODEPTR        orig;          /* the node it is a copy of, or refers to */
+  enum jx_kind   kind;
+  bool           active;        /* being copied, i.e., on the traversal stack */
+  bool           starts_cycle;  /* the traversal came back to it while it was active */
+  struct jx_opnd fun, arg;      /* for JX_COPY */
+  int            uses;          /* references from other entries, for printing */
+};
+
+int jx_limit = 0;                       /* the size limit (+RTS -J); 0 means no extraction */
+static struct jx_entry *jx;             /* the extracted subgraph; jx[0] is the root */
+static int jx_n;                        /* the number of entries */
+static int jx_copies;                   /* the number of JX_COPY entries */
+
+/* What the application node p is: code to copy, data, or a redex. */
+static enum jx_kind
+jx_classify(NODEPTR p)
+{
+  int d = 0;                    /* arguments so far */
+  NODEPTR n = p;
+  for (;;) {
+    if (is_VIRT(n)) {
+      int a = arity_virt(n);
+      return a < 0 ? JX_DATA : d < a ? JX_COPY : JX_REDEX;
+    }
+    NODEPTR f = FUN(n);
+    if (is_AP(f)) {
+      d++;
+      n = f;
+      continue;
+    }
+    switch (get_DATA_TAG(f)) {
+    case D_IND:      n = ARG(n); continue;
+    case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity ? JX_COPY : JX_REDEX;
+    case D_TICK:     return d < 1 ? JX_COPY : JX_REDEX;
+    default:         return d == 0 ? JX_DATA : JX_REDEX; /* a value, or an error */
+    }
+  }
+}
+
+static struct jx_opnd
+jx_visit(NODEPTR p)
+{
+  struct jx_opnd o = { -1, NIL_NODEPTR };
+  p = sample_skip_ind(p);
+  if (is_VIRT(p)) {
+    o.leaf = p;
+    return o;
+  }
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].orig.node_bits == p.node_bits) {
+      if (jx[i].active && i != 0)
+        jx[i].starts_cycle = true;
+      o.index = i;
+      return o;
+    }
+  }
+  enum jx_kind k;
+  NODEPTR f = FUN(p);
+  if (is_AP(f)) {
+    k = jx_classify(p);
+  } else {
+    switch (get_DATA_TAG(f)) {
+    case D_IO_CCALL:
+    case D_TICK:
+      o.leaf = p;               /* a function, which never changes */
+      return o;
+    case D_BADDYN:
+      k = JX_REDEX;             /* evaluating it is an error */
+      break;
+    default:
+      k = JX_DATA;
+      break;
+    }
+  }
+  if (k == JX_COPY && jx_copies >= jx_limit)
+    k = JX_CUT;
+  int i = jx_n++;
+  jx[i] = (struct jx_entry){ .orig = p, .kind = k };
+  o.index = i;
+  if (k != JX_COPY)
+    return o;
+  jx_copies++;
+  jx[i].active = true;
+  struct jx_opnd fo = jx_visit(FUN(p));
+  struct jx_opnd ao = jx_visit(ARG(p));
+  jx[i].fun = fo;
+  jx[i].arg = ao;
+  jx[i].active = false;
+  if (jx[i].starts_cycle) {
+    for (int j = i; j < jx_n; j++)
+      if (jx[j].kind == JX_COPY)
+        jx_copies--;
+    jx_n = i + 1;
+    jx[i] = (struct jx_entry){ .orig = p, .kind = JX_CYCLE };
+  }
+  return o;
+}
+
+/* Print a node that is not an application. */
+static void
+jx_print_leaf(FILE *f, NODEPTR n)
+{
+  if (is_VIRT(n)) {
+    enum node_tag t = get_VIRT_TAG(n);
+    int k, nn;
+    switch (t) {
+    case V_CASED: {
+      struct case_arity *c = get_CASED_arity(n);
+      fputc('D', f);
+      for (uint32_t j = 0; j < c->m; j++)
+        fprintf(f, "_%d", (int)c->arities[j]);
+      return;
+    }
+    case V_CASES: fprintf(f, "E_%d", (int)get_CASE_size(n)); return;
+    case V_LOOKD: fprintf(f, "L_%d", (int)get_CASE_size(n)); return;
+    case V_LOOKS: fprintf(f, "M_%d", (int)get_CASE_size(n)); return;
+    case V_CONSTR:
+    case V_ARM:
+      get_CON_info(n, &k, &nn);
+      fprintf(f, "%s_%d_%d", t == V_CONSTR ? "C" : "A", k, nn);
+      return;
+    default:
+      fprintf(f, "%s", t <= T_LAST_TAG && TAGNAME(t) ? TAGNAME(t) : "?");
+      return;
+    }
+  }
+  switch (get_DATA_TAG(FUN(n))) {
+  case D_INT:      fprintf(f, "#%"PRIvalue, GETVALUE(n)); return;
+#if WANT_INT64
+  case D_INT64:    fprintf(f, "##%lld", (long long)GETINT64VALUE(n)); return;
+#endif
+#if WANT_FLOAT64
+  case D_DBL:      fprintf(f, "&%g", (double)GETDBLVALUE(n)); return;
+#endif
+#if WANT_FLOAT32
+  case D_FLT32:    fprintf(f, "&&%g", (double)GETFLTVALUE(n)); return;
+#endif
+  case D_IO_CCALL: fprintf(f, "^%s", FFI_IX(GETVALUE(n)).ffi_name); return;
+  case D_BADDYN:   fprintf(f, "^%s", CSTR(n)); return;
+  case D_TICK:     fprintf(f, "!tick%"PRIvalue, GETVALUE(n)); return;
+  case D_FORPTR:
+#if WANT_GMP || WANT_IMATH
+    if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
+      mpz_ptr op = FORPTR(n)->payload.bs_array;
+      char *str = mmalloc(mpz_sizeinbase(op, 10) + 2);
+      (void)mpz_get_str(str, 10, op);
+      fprintf(f, "%%%s", str);
+      FREE(str);
+      return;
+    }
+#endif  /* WANT_GMP || WANT_IMATH */
+    if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
+      struct bytestring bs = FORPTR(n)->payload;
+      int len = bs.bs_size > 40 ? 40 : (int)bs.bs_size;
+      fputc('"', f);
+      for (int j = 0; j < len; j++) {
+        int c = ((unsigned char *)bs.bs_array)[j];
+        if (c == '"' || c == '\\')
+          fprintf(f, "\\%c", c);
+        else if (c < ' ' || c > '~')
+          fprintf(f, "\\%d", c);
+        else
+          fputc(c, f);
+      }
+      fputs(bs.bs_size > 40 ? "\"..." : "\"", f);
+      return;
+    }
+    fprintf(f, "<FORPTR %p>", (void *)get_node_ptr(n));
+    return;
+  default:
+    fprintf(f, "<D%d %p>", (int)get_DATA_TAG(FUN(n)), (void *)get_node_ptr(n));
+    return;
+  }
+}
+
+/* Print a node of the original graph, to the given depth. */
+static void
+jx_print_orig(FILE *f, NODEPTR n, int depth, bool paren)
+{
+  n = sample_skip_ind(n);
+  if (is_VIRT(n) || !is_AP(FUN(n))) {
+    jx_print_leaf(f, n);
+    return;
+  }
+  if (depth == 0) {
+    fputs("...", f);
+    return;
+  }
+  NODEPTR args[16];
+  int na = 0;
+  while (!is_VIRT(n) && is_AP(FUN(n)) && na < 16) {
+    args[na++] = ARG(n);
+    n = sample_skip_ind(FUN(n));
+  }
+  if (paren)
+    fputc('(', f);
+  jx_print_orig(f, n, depth - 1, true);
+  for (int j = na - 1; j >= 0; j--) {
+    fputc(' ', f);
+    jx_print_orig(f, args[j], depth - 1, true);
+  }
+  if (paren)
+    fputc(')', f);
+}
+
+/* Is entry i a value that is printed where it is used, e.g., #42? */
+static bool
+jx_inline_data(int i)
+{
+  return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig));
+}
+
+static void jx_print_copy(FILE *f, int i, bool paren);
+
+static void
+jx_print_opnd(FILE *f, struct jx_opnd o, bool paren)
+{
+  static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
+  if (o.index < 0) {
+    jx_print_leaf(f, o.leaf);
+  } else if (jx[o.index].kind == JX_COPY && o.index != 0 && jx[o.index].uses == 1) {
+    jx_print_copy(f, o.index, paren);
+  } else if (jx_inline_data(o.index)) {
+    jx_print_leaf(f, jx[o.index].orig);
+  } else {
+    fprintf(f, "%s%d", names[jx[o.index].kind], o.index);
+  }
+}
+
+/* Print the copied application i, with the copied applications that are
+ * only used by it. */
+static void
+jx_print_copy(FILE *f, int i, bool paren)
+{
+  struct jx_opnd args[64];
+  int na = 0;
+  struct jx_opnd h = { i, NIL_NODEPTR };
+  while (h.index >= 0 && jx[h.index].kind == JX_COPY && na < 64 &&
+         (h.index == i || (h.index != 0 && jx[h.index].uses == 1))) {
+    args[na++] = jx[h.index].arg;
+    h = jx[h.index].fun;
+  }
+  if (paren)
+    fputc('(', f);
+  jx_print_opnd(f, h, true);
+  for (int j = na - 1; j >= 0; j--) {
+    fputc(' ', f);
+    jx_print_opnd(f, args[j], true);
+  }
+  if (paren)
+    fputc(')', f);
+}
+
+/* The nodes copied by the earlier extractions, to skip them as roots. */
+static NODEPTR *jx_done;
+static size_t jx_ndone, jx_done_size;
+
+/* Extract the subgraph of a hot node, and print it.  Return false if the node
+ * was skipped. */
+static bool
+jx_extract(FILE *f, int rank, struct sample_entry *e)
+{
+  NODEPTR r = sample_skip_ind(e->node);
+  for (size_t j = 0; j < jx_ndone; j++)
+    if (jx_done[j].node_bits == r.node_bits)
+      return false;
+  fprintf(f, "== %d: node %p, %.2f%% of the samples, the outermost in %.2f%%\n", rank,
+          (void *)get_node_ptr(r), 100.0 * e->hits / num_samples, 100.0 * e->outer / num_samples);
+  if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
+    fprintf(f, "not a partial application: ");
+    jx_print_orig(f, r, 3, false);
+    fprintf(f, "\n\n");
+    return true;
+  }
+  if (!jx)
+    jx = mmalloc((3 * (size_t)jx_limit + 2) * sizeof(struct jx_entry));
+  jx_n = 0;
+  jx_copies = 0;
+  (void)jx_visit(r);
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].kind != JX_COPY)
+      continue;
+    if (jx_ndone == jx_done_size) {
+      jx_done_size = jx_done_size ? 2 * jx_done_size : 1024;
+      jx_done = realloc(jx_done, jx_done_size * sizeof(NODEPTR));
+      if (!jx_done)
+        memerr();
+    }
+    jx_done[jx_ndone++] = jx[i].orig;
+  }
+
+  int count[JX_CUT + 1] = { 0 };
+  for (int i = 0; i < jx_n; i++) {
+    count[jx[i].kind]++;
+    if (jx[i].kind == JX_COPY) {
+      if (jx[i].fun.index >= 0) jx[jx[i].fun.index].uses++;
+      if (jx[i].arg.index >= 0) jx[jx[i].arg.index].uses++;
+    }
+  }
+  fprintf(f, "%d nodes copied, %d references back to the root, references to %d data, %d redexes, %d cycles, %d cut\n",
+          count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
+  jx[0].uses++;                 /* so it is never printed inline */
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].kind == JX_COPY && (i == 0 || jx[i].uses > 1)) {
+      fprintf(f, "@%d = ", i);
+      jx_print_copy(f, i, false);
+      fputc('\n', f);
+    }
+  }
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].kind != JX_COPY && !jx_inline_data(i)) {
+      static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
+      fprintf(f, "  %s%d = ", names[jx[i].kind], i);
+      jx_print_orig(f, jx[i].orig, 3, false);
+      fputc('\n', f);
+    }
+  }
+  fputc('\n', f);
+  return true;
+}
+#endif  /* WANT_SAMPLE */
 
 /*
  * The interpreter is split in three functions:
@@ -9124,6 +9506,8 @@ MHS_INIT_ARGS(
           sample_left = sample_interval;
           sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
         }
+        else if (strncmp(p, "-J", 2) == 0)
+          jx_limit = p[2] ? (int)memsize(&p[2]) : 200;
 #endif
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
