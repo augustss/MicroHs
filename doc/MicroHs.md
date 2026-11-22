@@ -763,13 +763,17 @@ Data types are not encoded as functions; the runtime handles constructors and `c
 ### Constructors
 Constructor number `k` with `n` fields is the combinator `C_k_n`, where the constructors are numbered from 0 in the order they appear in the `data` declaration. A value is the constructor applied to its fields. For example, with `data Maybe a = Nothing | Just a`, `Nothing` is `C_0_0` and `Just 42` is `C_1_1 42`. A constructor applied to at most `n` arguments is in weak head normal form. A constructor with strict fields is a function that evaluates those fields before building the value, e.g., `\ x y -> seq x (C_0_2 x y)` when the first field is strict. A `newtype` constructor is just `I`.
 
-The runtime knows the encoding of booleans, lists, and tuples:
+The runtime knows the encoding of a few types, since some primitives take or return them:
 
 | Type | Constructors |
 | ---- | ------------ |
 | `Bool` | `False` = `C_0_0`, `True` = `C_1_0` |
+| `Ordering` | `LT` = `C_0_0`, `EQ` = `C_1_0`, `GT` = `C_2_0` (returned by the comparison primitives, e.g., `icmp` and `bscmp`) |
+| `Maybe a` | `Nothing` = `C_0_0`, `Just` = `C_1_1` (returned by, e.g., `tryTakeMVar` and `deRefWeak`) |
 | `[a]` | `[]` = `C_0_0`, `(:)` = `C_1_2` |
 | tuples | `()` = `C_0_0`, `(,)` = `C_0_2`, `(,,)` = `C_0_3`, ... |
+
+The runtime also knows the `Exception` class, so that it can show an exception that has no handler. It does that with `D_2 (U (K2 A))`, i.e., a `case` on the `SomeException`, whose fields are the `Exception` dictionary and the exception itself, that selects `displayException` from the dictionary and applies it to the exception. This code is built by the runtime (`combShowExn` in `src/runtime/eval.c`), so a change to `SomeException` or to the `Exception` class in `Control.Exception.Internal` must be reflected there.
 
 ### Case
 A `case` on a type with `m` constructors normally becomes
@@ -824,7 +828,7 @@ The runtime also contains:
 * Buffered file I/O with UTF-8 encoding.
 
 ### Types
-Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell, and the compiler encodes them with constructor and `case` combinators. The runtime knows how lists, booleans, and tuples are encoded (see [Data type encoding](#data-type-encoding)).
+Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell, and the compiler encodes them with constructor and `case` combinators. The runtime knows how booleans, orderings, `Maybe`, lists, and tuples are encoded (see [Data type encoding](#data-type-encoding)).
 
 ### Memory layout
 Memory is allocated in cells.  Each cell has room for two pointers (two words, typically 16 bytes), so it can represent an application node.  A few bits indicate if the cell is an application or something else. If it is something else, one word is a tag, e.g., an integer or an indirection, and the other word stores the payload, e.g., the integer value.
