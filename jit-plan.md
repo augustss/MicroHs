@@ -462,6 +462,19 @@ native code:
   of reachable applications, which do not move) across such calls, and read
   the pointers from the slots after the last `GCCHECK`. The balance
   experiment (phase 1) crashed with a small heap until it did this.
+* **References to the graph from the code.** Every node the code refers
+  to goes in a table that the `T_JIT` node points to, and the GC marks the
+  table, as it marks the elements of an array. That is the references
+  (`whnf@`, `redex@`, `cycle@`, `depth@`), `self`, the nodes in the graphs
+  the code builds (`copy@`, and the graph a lazy or cold `case` comes from),
+  and the original graph, for falling back. The code must load these
+  pointers from the table every time, never have them as immediates in the
+  instructions: marking short-circuits a reference to an indirection and
+  frees the indirection, and the first GCs after loading rewrite the graph,
+  and both update the slot in the table but cannot update the code. A
+  `redex@` that has been evaluated is such an indirection. When the GC finds
+  a `T_JIT` node dead, its code and table can be freed, as foreign pointers
+  with finalizers are.
 * **The cost to the interpreter.** The code in `evali` that calls compiled
   code must not make the rest of `evali` slower. In the balance experiment,
   a `case` that passed `&x` and `&y` (locals of `evali`) to a helper cost 4%
