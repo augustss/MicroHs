@@ -30,3 +30,11 @@ deriving instance (RealFrac a) => RealFrac (Down a)
 deriving instance (RealFloat a) => RealFloat (Down a)
 deriving instance (Show a) => Show (Down a)
 deriving instance (Storable a) => Storable (Down a)
+
+instance Num (f a) => Num (Alt f a) where
+    Alt x + Alt y = Alt (x + y)
+    Alt x * Alt y = Alt (x * y)
+    fromInteger = Alt . fromInteger
+    abs (Alt x) = Alt (abs x)
+    negate (Alt x) = Alt (negate x)
+    signum (Alt x) = Alt (signum x)
