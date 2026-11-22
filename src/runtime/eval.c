@@ -8530,9 +8530,73 @@ dc_decompile(FILE *f)
   }
 }
 
-/* The nodes copied by the earlier extractions, to skip them as roots. */
+/* The nodes copied by the earlier extractions, to skip them as roots: a hash
+ * set on the address, with open addressing, at most half full.  It is
+ * rebuilt after every GC, without the nodes that died, since addresses are
+ * reused. */
 static NODEPTR *jx_done;
-static size_t jx_ndone, jx_done_size;
+static size_t jx_ndone;
+static uint32_t jx_done_bits;
+
+static INLINE size_t
+jx_done_hash(NODEPTR p)
+{
+  return (size_t)(((uint64_t)p.node_bits >> 4) * 0x9E3779B97F4A7C15ULL >> (64 - jx_done_bits));
+}
+
+static bool
+jx_is_done(NODEPTR p)
+{
+  if (!jx_done)
+    return false;
+  size_t mask = ((size_t)1 << jx_done_bits) - 1;
+  for (size_t h = jx_done_hash(p); !is_NIL(jx_done[h]); h = (h + 1) & mask)
+    if (jx_done[h].node_bits == p.node_bits)
+      return true;
+  return false;
+}
+
+static void
+jx_done_insert(NODEPTR p)
+{
+  size_t mask = ((size_t)1 << jx_done_bits) - 1;
+  size_t h = jx_done_hash(p);
+  while (!is_NIL(jx_done[h])) {
+    if (jx_done[h].node_bits == p.node_bits)
+      return;
+    h = (h + 1) & mask;
+  }
+  jx_done[h] = p;
+  jx_ndone++;
+}
+
+/* Make a new table for at least n nodes, with the ones of the old table that
+ * keep(). */
+static void
+jx_done_rebuild(size_t n, bool (*keep)(NODEPTR))
+{
+  NODEPTR *old = jx_done;
+  size_t oldsize = old ? (size_t)1 << jx_done_bits : 0;
+  for (jx_done_bits = 10; ((size_t)1 << jx_done_bits) < 2 * n; jx_done_bits++)
+    ;
+  jx_done = mcalloc((size_t)1 << jx_done_bits, sizeof(NODEPTR));
+  jx_ndone = 0;
+  for (size_t i = 0; i < oldsize; i++)
+    if (!is_NIL(old[i]) && keep(old[i]))
+      jx_done_insert(old[i]);
+  FREE(old);
+}
+
+static bool jx_keep_all(NODEPTR p) { (void)p; return true; }
+static bool jx_keep_live(NODEPTR p) { return is_marked_used(p); }
+
+static void
+jx_add_done(NODEPTR p)
+{
+  if (!jx_done || 2 * (jx_ndone + 1) > ((size_t)1 << jx_done_bits))
+    jx_done_rebuild(2 * (jx_ndone + 1), jx_keep_all);
+  jx_done_insert(p);
+}
 
 /* Extract the subgraph of a hot node, and print it.  Return false if the node
  * was skipped. */
@@ -8540,9 +8604,8 @@ static bool
 jx_extract(FILE *f, int rank, struct sample_entry *e)
 {
   NODEPTR r = sample_skip_ind(e->node);
-  for (size_t j = 0; j < jx_ndone; j++)
-    if (jx_done[j].node_bits == r.node_bits)
-      return false;
+  if (jx_is_done(r))
+    return false;
   fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
           rank, (void *)get_node_ptr(r), num_samples, e->outer);
   if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
@@ -8570,13 +8633,7 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   for (int i = 0; i < jx_n; i++) {
     if (jx[i].kind != JX_COPY)
       continue;
-    if (jx_ndone == jx_done_size) {
-      jx_done_size = jx_done_size ? 2 * jx_done_size : 1024;
-      jx_done = realloc(jx_done, jx_done_size * sizeof(NODEPTR));
-      if (!jx_done)
-        memerr();
-    }
-    jx_done[jx_ndone++] = jx[i].orig;
+    jx_add_done(jx[i].orig);
   }
 
   int count[JX_CUT + 1] = { 0 };
@@ -8617,11 +8674,8 @@ jx_hot(struct sample_entry *e)
 static void
 jx_gc(void)
 {
-  size_t k = 0;
-  for (size_t j = 0; j < jx_ndone; j++)
-    if (is_marked_used(jx_done[j]))
-      jx_done[k++] = jx_done[j];
-  jx_ndone = k;
+  if (jx_done)
+    jx_done_rebuild(jx_ndone, jx_keep_live);
 }
 
 static void
