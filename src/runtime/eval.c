@@ -48,6 +48,16 @@
 #define WANT_PROFILE 0
 #endif /* defined(WANT_PROFILE) */
 
+/* Print where the code of the extracted hot nodes comes from (see
+ * jx_print_provenance).  It needs WANT_PROFILE and WANT_SAMPLE, and is on
+ * with them unless turned off. */
+#if !defined(JX_PROVENANCE)
+#define JX_PROVENANCE (WANT_PROFILE && WANT_SAMPLE)
+#endif /* defined(JX_PROVENANCE) */
+#if JX_PROVENANCE && !(WANT_PROFILE && WANT_SAMPLE)
+#error "JX_PROVENANCE needs WANT_PROFILE and WANT_SAMPLE"
+#endif
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -8585,6 +8595,111 @@ dc_decompile(FILE *f)
 static NODEPTR *jx_done;
 static size_t jx_ndone, jx_done_size;
 
+#if JX_PROVENANCE
+/* Provenance, from the profiling runtime: every node knows the loaded node
+ * of the code it comes from (prof_src), and the call chain it was created
+ * in (prof_ctx). */
+static const char *prof_label_name(uint32_t lab, char *buf, size_t size);
+
+/* The definition a node comes from, and the position of its loaded node in it. */
+static void
+jx_print_src(FILE *f, struct node *p)
+{
+  char buf[64];
+  struct node *src = p->prof_src;
+  if (!src || src == &prof_runtime) {
+    fputs("<runtime>", f);
+    return;
+  }
+  uint32_t lab = src->prof_label;
+  fputs(prof_label_name(lab, buf, sizeof buf), f);
+  heapoffs_t i = lab == PROF_MAIN ? prof_nlabels : lab - 1;
+  if (lab != 0 && prof_first && i <= prof_nlabels && prof_first[i])
+    fprintf(f, "+%ld", (long)(src - prof_first[i]));
+}
+
+/* The call chain of the context, the most recent first, at most n of it. */
+static void
+jx_print_ctx(FILE *f, uint32_t ctx, int n)
+{
+  char buf[64];
+  if (ctx == 0) {
+    fputs("the top level", f);
+    return;
+  }
+  for (int k = 0; ctx != 0 && k < n; k++, ctx = prof_ctxs[ctx].parent)
+    fprintf(f, "%s%s", k ? " <- " : "", prof_label_name(prof_ctxs[ctx].label, buf, sizeof buf));
+  if (ctx != 0)
+    fputs(" <- ...", f);
+}
+
+/* Where the root comes from, and the definitions of the copied code. */
+static void
+jx_print_provenance(FILE *f, NODEPTR r)
+{
+  struct node *p = NPTR(r);
+  fputs("from ", f);
+  jx_print_src(f, p);
+  if (p->prof_src == p) {
+    fputs(", a node of the program\n", f);
+  } else {
+    fputs(", created in ", f);
+    jx_print_ctx(f, p->prof_ctx, 6);
+    fputc('\n', f);
+  }
+}
+
+/* The definitions the copied nodes come from, the most common first. */
+static void
+jx_print_code_from(FILE *f)
+{
+  uint32_t labs[jx_n > 0 ? jx_n : 1];
+  int counts[jx_n > 0 ? jx_n : 1];
+  int nl = 0;
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].kind != JX_COPY)
+      continue;
+    struct node *src = NPTR(jx[i].orig)->prof_src;
+    uint32_t lab = src && src != &prof_runtime ? src->prof_label : 0;
+    int j;
+    for (j = 0; j < nl && labs[j] != lab; j++)
+      ;
+    if (j == nl) {
+      labs[nl] = lab;
+      counts[nl++] = 0;
+    }
+    counts[j]++;
+  }
+  fputs("code from:", f);
+  for (int k = 0; k < nl && k < 8; k++) {
+    int best = k;
+    for (int j = k + 1; j < nl; j++)
+      if (counts[j] > counts[best])
+        best = j;
+    uint32_t tl = labs[k]; labs[k] = labs[best]; labs[best] = tl;
+    int tc = counts[k]; counts[k] = counts[best]; counts[best] = tc;
+    char buf[64];
+    fprintf(f, "%s %s %d", k ? "," : "", prof_label_name(labs[k], buf, sizeof buf), counts[k]);
+  }
+  if (nl > 8)
+    fprintf(f, ", and %d more", nl - 8);
+  fputc('\n', f);
+}
+
+/* The references, with where their nodes come from. */
+static void
+jx_print_refs(FILE *f)
+{
+  for (int i = 0; i < jx_n; i++) {
+    if (jx[i].kind == JX_COPY || jx_inline_data(i))
+      continue;
+    fprintf(f, "  %s@%p  ", jx_why[jx[i].kind], (void *)get_node_ptr(jx[i].orig));
+    jx_print_src(f, NPTR(jx[i].orig));
+    fputc('\n', f);
+  }
+}
+#endif  /* JX_PROVENANCE */
+
 /* Extract the subgraph of a hot node, and print it.  Return false if the node
  * was skipped. */
 static bool
@@ -8596,6 +8711,10 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
       return false;
   fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
           rank, (void *)get_node_ptr(r), num_samples, e->outer);
+#if JX_PROVENANCE
+  if (!is_VIRT(r))
+    jx_print_provenance(f, r);
+#endif
   if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
     fprintf(f, "not a partial application: ");
     jx_print_orig(f, r, 3, false);
@@ -8631,7 +8750,13 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
           count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
   jx[0].uses++;                 /* so it is never printed inline */
+#if JX_PROVENANCE
+  jx_print_code_from(f);
+#endif
   dc_decompile(f);
+#if JX_PROVENANCE
+  jx_print_refs(f);
+#endif
   fputc('\n', f);
   return true;
 }
