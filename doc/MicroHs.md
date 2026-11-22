@@ -791,13 +791,17 @@ Data types are not encoded as functions; the runtime handles constructors and `c
 ### Constructors
 Constructor number `k` with `n` fields is the combinator `C_k_n`, where the constructors are numbered from 0 in the order they appear in the `data` declaration. A value is the constructor applied to its fields. For example, with `data Maybe a = Nothing | Just a`, `Nothing` is `C_0_0` and `Just 42` is `C_1_1 42`. A constructor applied to at most `n` arguments is in weak head normal form. A constructor with strict fields is a function that evaluates those fields before building the value, e.g., `\ x y -> seq x (C_0_2 x y)` when the first field is strict. A `newtype` constructor is just `I`.
 
-The runtime knows the encoding of booleans, lists, and tuples:
+The runtime knows the encoding of a few types, since some primitives take or return them:
 
 | Type | Constructors |
 | ---- | ------------ |
 | `Bool` | `False` = `C_0_0`, `True` = `C_1_0` |
+| `Ordering` | `LT` = `C_0_0`, `EQ` = `C_1_0`, `GT` = `C_2_0` (returned by the comparison primitives, e.g., `icmp` and `bscmp`) |
+| `Maybe a` | `Nothing` = `C_0_0`, `Just` = `C_1_1` (returned by, e.g., `tryTakeMVar` and `deRefWeak`) |
 | `[a]` | `[]` = `C_0_0`, `(:)` = `C_1_2` |
 | tuples | `()` = `C_0_0`, `(,)` = `C_0_2`, `(,,)` = `C_0_3`, ... |
+
+The runtime also knows the `Exception` class, so that it can show an exception that has no handler. It does that with `D_2 (U (K2 A))`, i.e., a `case` on the `SomeException`, whose fields are the `Exception` dictionary and the exception itself, that selects `displayException` from the dictionary and applies it to the exception. This code is built by the runtime (`combShowExn` in `src/runtime/eval.c`), so a change to `SomeException` or to the `Exception` class in `Control.Exception.Internal` must be reflected there.
 
 ### Case
 A `case` on a type with `m` constructors normally becomes
@@ -815,16 +819,16 @@ The runtime does not need the arities `ak`, since a constructor knows its number
 
 If the type has more than 4 constructors and fewer than 3/4 of them have an arm, a sparse `case` is used instead:
 ```
-E_m d A_k1_n1 f1 ... A_km_nm fm e
+E_k1_n1_..._km_nm d f1 ... fm e
 ```
-Here `m` is the number of arms, `d` is the default, and each arm `fi` is preceded by `A_ki_ni`, which gives its constructor number and number of fields. The arms are sorted by constructor number.
+Here `m` is the number of arms, `d` is the default, and the arm `fj` is for constructor `kj`, which has `nj` fields. The arms are sorted by constructor number. Since the constructor numbers are part of the combinator, bracket abstraction cannot separate them from the `case`. Below, `E_m` stands for a sparse `case` with `m` arms.
 
 The scrutinee comes last so that `\ x -> case x of ...` becomes just `D_m f0 ... f{m-1}` after bracket abstraction, without any extra combinators.
 
 ### Evaluation
-The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields. A `D_m` uses those 19 bits for an index into a table of case arities, where each entry holds `m` and the arities. Equal entries are shared, and the table is never freed.
+The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields. A `D_m` or `E_m` uses those 19 bits for an index into a table of case arities, where each entry holds `m`, the arities, and for an `E_m` the constructor numbers. Equal entries are shared, and the table is never freed.
 
-To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
+To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers in the table, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
 
 ### Class dictionaries
 
@@ -852,7 +856,7 @@ The runtime also contains:
 * Buffered file I/O with UTF-8 encoding.
 
 ### Types
-Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell, and the compiler encodes them with constructor and `case` combinators. The runtime knows how lists, booleans, and tuples are encoded (see [Data type encoding](#data-type-encoding)).
+Some types are primitive and known by the runtime, e.g., `Int`, `Word`, `Double`, `Float`, `Ptr`, `IO`, and arrays. The function type, `->`, is (of course) also built in. All other types are defined in Haskell, and the compiler encodes them with constructor and `case` combinators. The runtime knows how booleans, orderings, `Maybe`, lists, and tuples are encoded (see [Data type encoding](#data-type-encoding)).
 
 ### Memory layout
 Memory is allocated in cells.  Each cell has room for two pointers (two words, typically 16 bytes), so it can represent an application node.  A few bits indicate if the cell is an application or something else. If it is something else, one word is a tag, e.g., an integer or an indirection, and the other word stores the payload, e.g., the integer value.

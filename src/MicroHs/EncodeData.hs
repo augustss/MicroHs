@@ -25,9 +25,12 @@ import MicroHs.Ident
 --
 -- The scrutinee is the last argument, so that \x -> case x of ... eta reduces.
 --   Dense:   D_a0_..._a{m-1} f0 ... f{m-1} e      (ak is the number of fields of constructor k)
---   Sparse:  E_m d A_k1_n1 f1 ... A_km_nm fm e    (arms sorted by constructor number)
--- The runtime does not need the arities ak, but they make it possible to
--- turn the combinator code back into lambda expressions.
+--   Sparse:  E_k1_n1_..._km_nm d f1 ... fm e      (arm fi is for constructor ki with ni fields,
+--                                                  sorted by constructor number)
+-- The runtime does not need the arities, but they make it possible to
+-- turn the combinator code back into lambda expressions.  The constructor
+-- numbers of a sparse case are part of the combinator, so they cannot be
+-- separated from it by bracket abstraction.
 
 -- The runtime keeps a constructor number, and the number of arms of a case,
 -- in 11 bits, and the number of fields in 8 bits (see src/runtime/eval.c).
@@ -71,8 +74,8 @@ encCaseSparse :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseSparse var pes dflt =
   --trace ("sparse " ++ show (m, a)) encCaseDense
   let pes' = sortBy (comparing fst) [(conNo c, (xs, e)) | (SPat c xs, e) <- pes]
-      arm (k, (xs, e)) = [cArm k (length xs), lams xs e]
-  in  apps (cCaseS (length pes)) (dflt : concatMap arm pes' ++ [var])
+  in  apps (cCaseS [ (k, length xs) | (k, (xs, _)) <- pes' ])
+           (dflt : [ lams xs e | (_, (xs, e)) <- pes' ] ++ [var])
 
 
 -- constructor k out of m
@@ -124,14 +127,12 @@ encTupleSel m n tup =
 cCaseD :: [Int] -> Exp
 cCaseD as = checkCons (length as) $ foldr checkFields (Lit $ LPrim $ PCaseD as) as
 
-cCaseS :: Int -> Exp
-cCaseS m = checkCons m $ Lit $ LPrim $ PCaseS m
+-- A sparse case, given the constructor number and number of fields of each arm.
+cCaseS :: [(Int, Int)] -> Exp
+cCaseS kns = checkCons (length kns) $ foldr (\ (k, n) -> checkCons (k + 1) . checkFields n) (Lit $ LPrim $ PCaseS kns) kns
 
 cCon :: Int -> Int -> Exp
 cCon k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ PCon k n
-
-cArm :: Int -> Int -> Exp
-cArm k n = checkCons (k + 1) $ checkFields n $ Lit $ LPrim $ PArm k n
 
 conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks

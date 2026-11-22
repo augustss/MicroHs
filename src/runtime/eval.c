@@ -178,7 +178,7 @@ int num_ffi;
 #endif
 
 
-#define VERSION "v9.2\n"
+#define VERSION "v9.3\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -579,7 +579,7 @@ enum node_tag { D_NONE,
                 D_BADDYN, D_TICK,
 
                 /* Tags with extra info */
-                V_CONSTR, V_ARM, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
+                V_CONSTR, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
 
                 T_FIRST_REAL_TAG,
                 /* NODEPTR with a "virtual" pointer, and regular tags */
@@ -654,7 +654,7 @@ static const char* tag_names [T_LAST_TAG+1] =
     [D_INT] = "INT", [D_INT64] = "INT64", [D_DBL] = "DBL", [D_FLT32] = "FLT32", [D_PTR] = "PTR",
     [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
     [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK",
-    [V_CONSTR] = "C_", [V_ARM] = "A_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
+    [V_CONSTR] = "C_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
   };
 #define TAGNAME(t) tag_names[t]
 /* The arity of each tag, from primops[], see arity_virt. */
@@ -688,11 +688,10 @@ static uint8_t tag_arity[T_LAST_TAG+1];
  * nnnkkkttt10        ttt 11 bits is a node_tag, kkk 11 bits, nnn 8 bits
  *   when ttt=
  *     V_CONSTR       kkk = constructor number, nnn = number of constructor arguments
- *     V_ARM          as above
  *     V_CASED        nnnkkk = index in the table of case arities, see below
- *     V_CASES        kkk = number of constructors, nnn unused
- *     V_LOOKD        as above
- *     V_LOOKS        as above
+ *     V_CASES        as above
+ *     V_LOOKD        kkk = number of arms, nnn unused
+ *     V_LOOKS        as V_CASES
  *     otherwise      kkk, nnn unused
  * 
  */
@@ -794,7 +793,7 @@ mk_CASE(enum node_tag t, int num_constr)
   return n;
 }
 
-/* t is V_CONSTR or V_ARM, k is the constructor number, n the number of arguments */
+/* t is V_CONSTR, k is the constructor number, n the number of arguments */
 static INLINE NODEPTR
 mk_CON(enum node_tag t, int constr_no, int num_arg)
 {
@@ -937,7 +936,7 @@ get_XTAG(NODEPTR n)
   return (enum node_tag)get_DATA_TAG(f);
 }
 
-/* Number of arms of a virtual V_CASES/V_LOOKD/V_LOOKS */
+/* Number of arms of a virtual V_LOOKD */
 static INLINE int
 get_CASE_size(NODEPTR n)
 {
@@ -949,15 +948,18 @@ get_CASE_size(NODEPTR n)
 /*
  * Case arities.
  * A dense case, D_a0_..._a{m-1}, has m arms, and the arm for constructor k
- * takes ak arguments, the fields of the constructor.  The interpreter only
- * uses m, but the arities are needed to turn the graph back into code,
- * since they cannot be read back from the arms.
- * The arities are kept in a table, and a V_CASED holds an index into it.
+ * takes ak arguments, the fields of the constructor.  A sparse case,
+ * E_k1_n1_..._km_nm, has m arms, and arm j is for constructor kj, which has
+ * nj fields; the kj are increasing.  The interpreter uses m, and the
+ * constructor numbers of a sparse case, but the arities are only needed to
+ * turn the graph back into code, since they cannot be read back from the arms.
+ * They are kept in a table, and a V_CASED or V_CASES holds an index into it.
  * Equal entries are shared, and the entries are never freed.
  */
 struct case_arity {
   uint16_t m;                   /* number of arms */
-  uint8_t *arities;             /* arities[k] is the number of fields of constructor k */
+  uint8_t *arities;             /* arities[j] is the number of fields of the constructor of arm j */
+  uint16_t *tags;               /* sparse: tags[j] is the constructor number of arm j; dense: NULL */
 };
 static struct case_arity *case_arities;  /* the table */
 static uint32_t num_case_arities;        /* number of entries in use */
@@ -966,24 +968,33 @@ static uint32_t max_case_arities;        /* number of entries allocated */
 #define PTR_TAG_CASED_BITS (PTR_TAG_NCON_BITS + PTR_TAG_NARG_BITS)  /* bits for the table index */
 #define MAX_CASE_ARITIES ((uint32_t)1 << PTR_TAG_CASED_BITS)
 
-/* The case arities of a virtual V_CASED */
-static INLINE struct case_arity *
-get_CASED_arity(NODEPTR n)
+/* The index in the table of a virtual V_CASED, V_CASES, or V_LOOKS */
+static INLINE uint32_t
+get_case_index(NODEPTR n)
 {
   XASSERT(is_VIRT(n));
   tag_t t = n.node_bits >> PTR_TAG_BITS;
-  return &case_arities[(t >> PTR_TAG_TAG_BITS) & (MAX_CASE_ARITIES - 1)];
+  return (t >> PTR_TAG_TAG_BITS) & (MAX_CASE_ARITIES - 1);
 }
 
-/* Find the arities in the table, or add them, and return the index.
+/* The case arities of a virtual V_CASED, V_CASES, or V_LOOKS */
+static INLINE struct case_arity *
+get_case_arity(NODEPTR n)
+{
+  return &case_arities[get_case_index(n)];
+}
+
+/* Find the entry in the table, or add it, and return the index.
+ * tags is NULL for a dense case.
  * Combinator code is rarely loaded, and the table is small,
  * so a linear search will do. */
 static uint32_t
-find_case_arity(uint32_t m, const uint8_t *arities)
+find_case_arity(uint32_t m, const uint16_t *tags, const uint8_t *arities)
 {
   for (uint32_t i = 0; i < num_case_arities; i++) {
     struct case_arity *c = &case_arities[i];
-    if (c->m == m && memcmp(c->arities, arities, m) == 0)
+    if (c->m == m && memcmp(c->arities, arities, m) == 0 &&
+        (tags ? c->tags && memcmp(c->tags, tags, m * sizeof(uint16_t)) == 0 : !c->tags))
       return i;
   }
   if (num_case_arities >= max_case_arities) {
@@ -996,10 +1007,15 @@ find_case_arity(uint32_t m, const uint8_t *arities)
   c->m = m;
   c->arities = mmalloc(m);
   memcpy(c->arities, arities, m);
+  c->tags = 0;
+  if (tags) {
+    c->tags = mmalloc(m * sizeof(uint16_t));
+    memcpy(c->tags, tags, m * sizeof(uint16_t));
+  }
   return num_case_arities++;
 }
 
-/* Constructor number and number of arguments of a virtual V_CONSTR/V_ARM */
+/* Constructor number and number of arguments of a virtual V_CONSTR */
 static INLINE void
 get_CON_info(NODEPTR n, int *kp, int *np)
 {
@@ -3422,7 +3438,6 @@ struct {
   { "E_", V_CASES, 0 },
   { "M_", V_LOOKS, 0 },
   { "C_", V_CONSTR, 0 },
-  { "A_", V_ARM, 0 },
 };
 
 #if GCRED
@@ -3553,7 +3568,7 @@ init_nodes(void)
   x = new_ap(combU, x);                      /* (U (K2 A)) */
   {
     uint8_t arities[1] = { 2 };              /* SomeException has a dictionary and a value */
-    combShowExn = new_ap(mk_CASE(V_CASED, find_case_arity(1, arities)), x); /* (D_2 (U (K2 A))) */
+    combShowExn = new_ap(mk_CASE(V_CASED, find_case_arity(1, 0, arities)), x); /* (D_2 (U (K2 A))) */
   }
 
   /* The IO monad uses pairs implemented with Scott encoding, i.e., with P */
@@ -5089,20 +5104,6 @@ parse(struct parse_ctx *pc, BFILE *f)
       } else {
         goto def;
       }
-    case 'A':
-      if (gobble(f, '_')) {
-        int k = parse_int(f);
-        if (!gobble(f, '_'))
-          ERR("parse A");
-        int n = parse_int(f);
-        if (k < 0 || k > PTR_TAG_NCON_MASK || n < 0 || n > PTR_TAG_NARG_MASK)
-          ERR("parse A");
-        r = mk_CON(V_ARM, k, n);
-        PUSH(r);
-        break;
-      } else {
-        goto def;
-      }
     case 'D':
       if (gobble(f, '_')) {
         /* D_a0_..._a{m-1}, m is at most 2047 since the LOOKD marker holds m in 11 bits */
@@ -5114,7 +5115,7 @@ parse(struct parse_ctx *pc, BFILE *f)
             ERR("parse D");
           arities[m++] = (uint8_t)a;
         } while (gobble(f, '_'));
-        r = mk_CASE(V_CASED, find_case_arity(m, arities));
+        r = mk_CASE(V_CASED, find_case_arity(m, 0, arities));
         PUSH(r);
         break;
       } else {
@@ -5130,25 +5131,29 @@ parse(struct parse_ctx *pc, BFILE *f)
         goto def;
       }      
     case 'E':
-      if (gobble(f, '_')) {
-        int m = parse_int(f);
-        if (m < 0 || m > PTR_TAG_NCON_MASK)
-          ERR("parse E");
-        r = mk_CASE(V_CASES, m);
-        PUSH(r);
-        break;
-      } else {
-        goto def;
-      }      
     case 'M':
       if (gobble(f, '_')) {
-        int m = parse_int(f);
-        r = mk_CASE(V_LOOKS, m);
+        /* E_k1_n1_..._km_nm, the constructor numbers increasing (M_ is the same, for the marker) */
+        uint16_t tags[PTR_TAG_NCON_MASK];
+        uint8_t arities[PTR_TAG_NCON_MASK];
+        uint32_t m = 0;
+        do {
+          value_t k = parse_int(f);
+          if (!gobble(f, '_'))
+            ERR("parse E");
+          value_t a = parse_int(f);
+          if (m >= PTR_TAG_NCON_MASK || k < 0 || k > PTR_TAG_NCON_MASK || (m > 0 && k <= tags[m-1]) ||
+              a < 0 || a > PTR_TAG_NARG_MASK)
+            ERR("parse E");
+          tags[m] = (uint16_t)k;
+          arities[m++] = (uint8_t)a;
+        } while (gobble(f, '_'));
+        r = mk_CASE(c == 'E' ? V_CASES : V_LOOKS, find_case_arity(m, tags, arities));
         PUSH(r);
         break;
       } else {
         goto def;
-      }      
+      }
     def:
     default:
       buf[0] = c;
@@ -5587,7 +5592,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 #endif
   case V_CASED:
     {
-      struct case_arity *c = get_CASED_arity(n);
+      struct case_arity *c = get_case_arity(n);
       putb('D', f);
       for (uint32_t k = 0; k < c->m; k++) {
         putb('_', f);
@@ -5595,34 +5600,27 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       }
       break;
     }
-  case V_LOOKD:
   case V_CASES:
   case V_LOOKS:
     {
-      switch(tag) {
-      case V_LOOKD: putb('L', f); break;
-      case V_CASES: putb('E', f); break;
-      case V_LOOKS: putb('M', f); break;
-      default: ERR("V_");
+      struct case_arity *c = get_case_arity(n);
+      putb(tag == V_CASES ? 'E' : 'M', f);
+      for (uint32_t j = 0; j < c->m; j++) {
+        putb('_', f);
+        putdecb((value_t)c->tags[j], f);
+        putb('_', f);
+        putdecb((value_t)c->arities[j], f);
       }
-      putb('_', f);
-      putdecb((value_t)get_CASE_size(n), f);
       break;
     }
+  case V_LOOKD:
+    putb('L', f);
+    putb('_', f);
+    putdecb((value_t)get_CASE_size(n), f);
+    break;
   case V_CONSTR:
     {
       putb('C', f);
-      putb('_', f);
-      int k, nn;
-      get_CON_info(n, &k, &nn);
-      putdecb((value_t)k, f);
-      putb('_', f);
-      putdecb((value_t)nn, f);
-      break;
-    }
-  case V_ARM:
-    {
-      putb('A', f);
       putb('_', f);
       int k, nn;
       get_CON_info(n, &k, &nn);
@@ -6965,10 +6963,6 @@ rnf(value_t noerr, NODEPTR n)
   FREE(done);
 }
 
-#if 0
-counter_t num_arm, num_bad_arm;
-#endif
-
 #if WANT_PROFILE
 /* Reductions per primitive: every combinator, primop, case and constructor
  * tag, and every foreign function (a D_IO_CCALL node, by its number in
@@ -7127,14 +7121,13 @@ arity_virt(NODEPTR h)
   enum node_tag t = get_VIRT_TAG(h);
   switch (t) {
   case V_CONSTR:
-  case V_ARM:
   case V_LOOKD:
   case V_LOOKS:
     return -1;
   case V_CASED:
-    return get_CASED_arity(h)->m + 1;
+    return get_case_arity(h)->m + 1;
   case V_CASES:
-    return 2 * get_CASE_size(h) + 2;
+    return get_case_arity(h)->m + 2;
   default:
     return tag_arity[t];
   }
@@ -7402,19 +7395,24 @@ jx_print_leaf(FILE *f, NODEPTR n)
     int k, nn;
     switch (t) {
     case V_CASED: {
-      struct case_arity *c = get_CASED_arity(n);
+      struct case_arity *c = get_case_arity(n);
       fputc('D', f);
       for (uint32_t j = 0; j < c->m; j++)
         fprintf(f, "_%d", (int)c->arities[j]);
       return;
     }
-    case V_CASES: fprintf(f, "E_%d", (int)get_CASE_size(n)); return;
+    case V_CASES:
+    case V_LOOKS: {
+      struct case_arity *c = get_case_arity(n);
+      fputc(t == V_CASES ? 'E' : 'M', f);
+      for (uint32_t j = 0; j < c->m; j++)
+        fprintf(f, "_%d_%d", (int)c->tags[j], (int)c->arities[j]);
+      return;
+    }
     case V_LOOKD: fprintf(f, "L_%d", (int)get_CASE_size(n)); return;
-    case V_LOOKS: fprintf(f, "M_%d", (int)get_CASE_size(n)); return;
     case V_CONSTR:
-    case V_ARM:
       get_CON_info(n, &k, &nn);
-      fprintf(f, "%s_%d_%d", t == V_CONSTR ? "C" : "A", k, nn);
+      fprintf(f, "C_%d_%d", k, nn);
       return;
     default:
       fprintf(f, "%s", t <= T_LAST_TAG && TAGNAME(t) ? TAGNAME(t) : "?");
@@ -7699,7 +7697,7 @@ dc_new_arms(int m)
 static int
 dc_dense(NODEPTR lf, int *args)
 {
-  struct case_arity *ca = get_CASED_arity(lf);
+  struct case_arity *ca = get_case_arity(lf);
   int m = (int)ca->m;
   int a0 = dc_new_arms(m);
   for (int k = 0; k < m; k++)
@@ -7707,27 +7705,17 @@ dc_dense(NODEPTR lf, int *args)
   return dc_new(DC_CASE, dc_go(args[m]), a0, m, -1, NIL_NODEPTR);
 }
 
-/* E_m d A_k1_n1 f1 ... A_km_nm fm e
- * The tags can be expressions, as in LOOKS.  If a tag is not known, e.g., when
- * it comes from an argument after eta expansion, return -1. */
+/* E_k1_n1_..._km_nm d f1 ... fm e */
 static int
-dc_sparse(NODEPTR lf, int *args, int n)
+dc_sparse(NODEPTR lf, int *args)
 {
-  int m = (int)get_CASE_size(lf);
-  int tags[m];
-  for (int j = 0; j < m; j++) {
-    int t = tags[j] = dc_go(args[1 + 2 * j]);
-    if (dc[t].kind != DC_LEAF || !is_VIRT(dc[t].leaf) || get_VIRT_TAG(dc[t].leaf) != V_ARM)
-      return -1;
-  }
+  struct case_arity *ca = get_case_arity(lf);
+  int m = (int)ca->m;
   int a0 = dc_new_arms(m);
-  for (int j = 0; j < m; j++) {
-    int k, nf;
-    get_CON_info(dc[tags[j]].leaf, &k, &nf);
-    dc_arm(a0 + j, k, nf, args[2 + 2 * j]);
-  }
+  for (int j = 0; j < m; j++)
+    dc_arm(a0 + j, (int)ca->tags[j], (int)ca->arities[j], args[1 + j]);
   int d = dc_go(args[0]);
-  return dc_new(DC_CASE, dc_go(args[n - 1]), a0, m, d, NIL_NODEPTR);
+  return dc_new(DC_CASE, dc_go(args[m + 1]), a0, m, d, NIL_NODEPTR);
 }
 
 static int dc_go1(int e);
@@ -7766,12 +7754,10 @@ dc_go1(int e)
         return dc_args(dc_new(DC_LET, v, b, dc_var(v), 0, NIL_NODEPTR), args + 1, na - 1);
       }
       if (t == V_CASED || t == V_CASES) {
-        n = t == V_CASED ? (int)get_CASED_arity(lf)->m + 1 : 2 * (int)get_CASE_size(lf) + 2;
+        n = arity_virt(lf);
         if (na < n)
           return dc_eta(e, n - na);
-        int c = t == V_CASED ? dc_dense(lf, args) : dc_sparse(lf, args, n);
-        if (c < 0)
-          return dc_args(h, args, na);      /* unknown tags, so an application of E_m */
+        int c = t == V_CASED ? dc_dense(lf, args) : dc_sparse(lf, args);
         return dc_args(c, args + n, na - n);
       }
     } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
@@ -7955,7 +7941,7 @@ dc_print_leaf(FILE *f, NODEPTR n, int p)
 {
   if (is_VIRT(n)) {
     enum node_tag t = get_VIRT_TAG(n);
-    if (t <= T_LAST_TAG && TAGNAME(t) && t != V_CONSTR && t != V_ARM && t != V_TAG &&
+    if (t <= T_LAST_TAG && TAGNAME(t) && t != V_CONSTR && t != V_TAG &&
         t != V_CASED && t != V_CASES && t != V_LOOKD && t != V_LOOKS) {
       const char *s = TAGNAME(t);
       bool op = false;
@@ -10765,15 +10751,16 @@ evali(NODEPTR an)
     GOAP2(combIOBIND, x, new_ap(combK, y));
 
   /* The scrutinee is the last argument:
-   *   CASED_m f0 ... f{m-1} e
-   *   CASES_m d A_k1_n1 f1 ... A_km_nm fm e
-   * Push the virtual LOOKx_m as a continuation marker and evaluate e.
+   *   CASED_a0_..._a{m-1} f0 ... f{m-1} e
+   *   CASES_k1_n1_..._km_nm d f1 ... fm e
+   * Push a virtual LOOKx as a continuation marker and evaluate e:
+   * LOOKD_m, or LOOKS with the same table entry as the CASES.
    * The arms stay where they are on the stack.
    * Nothing is allocated, and no heap node is written.
    */
   case V_CASED:
     {
-      int m = get_CASED_arity(n)->m;
+      int m = get_case_arity(n)->m;
       CHECK(m + 1);
       n = ARG(TOP(m));
       PUSH(mk_CASE(V_LOOKD, m));
@@ -10781,19 +10768,19 @@ evali(NODEPTR an)
     }
   case V_CASES:
     {
-      int m = get_CASE_size(n);
-      CHECK(2*m + 2);
-      n = ARG(TOP(2*m + 1));
-      PUSH(mk_CASE(V_LOOKS, m));
+      uint32_t i = get_case_index(n);
+      int m = case_arities[i].m;
+      CHECK(m + 2);
+      n = ARG(TOP(m + 1));
+      PUSH(mk_CASE(V_LOOKS, i));
       goto top;
     }
   case V_LOOKD:
   case V_LOOKS:
-  case V_ARM:
     RET;
   case V_CONSTR:
     {
-      int k, m, nn;
+      int k, nn;
       get_CON_info(n, &k, &nn);
       /* Stack layout when there is a case waiting:
        *   TOP(0) .. TOP(nn-1)   constructor spine, ARG(TOP(i)) is field i
@@ -10804,22 +10791,22 @@ evali(NODEPTR an)
       NODEPTR p = TOP(nn);
       if (!is_VIRT(p))
         ERR("CONSTR: no LOOK");
-      m = get_CASE_size(p);
       enum node_tag ltag = get_VIRT_TAG(p);
       NODEPTR fk;
       int fidx;                 /* stack index of the selected arm */
       int npop;                 /* number of stack entries to pop, the last one is the case redex */
       if (ltag == V_LOOKD) {
-        /* CONSTR_k_n e1 ... en LOOKD_m (CASED_m f0 ... f{m-1} _)  -->  fk e1 ... en */
+        /* CONSTR_k_n e1 ... en LOOKD_m (CASED_a0_..._a{m-1} f0 ... f{m-1} _)  -->  fk e1 ... en */
         fidx = nn + 1 + k;
-        npop = nn + 2 + m;
+        npop = nn + 2 + get_CASE_size(p);
       } else if (ltag == V_LOOKS) {
-        /* CONSTR_k_n e1 ... en LOOKS_m (CASES_m d A_k1_n1 f1 ... A_km_nm fm _)  -->  fk e1 ... en
-         *                                                                       -->  d, when no matching k
-         * The arms are sorted by constructor number, so use binary search.
+        /* CONSTR_k_n e1 ... en LOOKS (CASES_k1_n1_..._km_nm d f1 ... fm _)  -->  fj e1 ... en, when kj is k
+         *                                                                  -->  d, when no kj is k
+         * The constructor numbers are increasing, so use binary search.
          */
-        int lo = 0, hi = m;     /* search arms [lo, hi) */
-        npop = nn + 3 + 2*m;
+        struct case_arity *c = get_case_arity(p);
+        int lo = 0, hi = c->m;  /* search arms [lo, hi) */
+        npop = nn + 3 + c->m;
         for (;;) {
           if (lo >= hi) {
             /* Not found, use the default, which takes no arguments. */
@@ -10829,24 +10816,9 @@ evali(NODEPTR an)
             GOIND(fk);
           }
           int mid = (lo + hi) / 2;
-          NODEPTR a = ARG(TOP(nn + 2 + 2*mid));
-#if 0
-          num_arm++;
-#endif
-          if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM) {
-#if 0
-            num_bad_arm++;
-#endif
-            EV_SAVE();
-            a = evali(a);
-            EV_LOAD();
-            if (!is_VIRT(a) || get_VIRT_TAG(a) != V_ARM)
-              ERR("LOOKS, bad table");
-          }
-          int ki, ni;
-          get_CON_info(a, &ki, &ni);
+          int ki = c->tags[mid];
           if (ki == k) {
-            fidx = nn + 3 + 2*mid;
+            fidx = nn + 2 + mid;
             break;
           } else if (ki < k) {
             lo = mid + 1;
@@ -11470,13 +11442,12 @@ prof_name_leaf(struct prof_text *t, NODEPTR n)
     tag = get_VIRT_TAG(n);
     switch (tag) {
     case V_CONSTR:
-    case V_ARM:
       get_CON_info(n, &k, &nn);
-      snprintf(buf, sizeof buf, "%c_%d_%d", tag == V_CONSTR ? 'C' : 'A', k, nn);
+      snprintf(buf, sizeof buf, "C_%d_%d", k, nn);
       break;
     case V_CASED:
       {
-        struct case_arity *c = get_CASED_arity(n);
+        struct case_arity *c = get_case_arity(n);
         prof_puts(t, "D");
         for (k = 0; k < c->m; k++) {
           snprintf(buf, sizeof buf, "_%d", (int)c->arities[k]);
@@ -11484,10 +11455,19 @@ prof_name_leaf(struct prof_text *t, NODEPTR n)
         }
         return;
       }
-    case V_LOOKD:
     case V_CASES:
     case V_LOOKS:
-      snprintf(buf, sizeof buf, "%c_%d", tag == V_LOOKD ? 'L' : tag == V_CASES ? 'E' : 'M', get_CASE_size(n));
+      {
+        struct case_arity *c = get_case_arity(n);
+        prof_puts(t, tag == V_CASES ? "E" : "M");
+        for (k = 0; k < c->m; k++) {
+          snprintf(buf, sizeof buf, "_%d_%d", (int)c->tags[k], (int)c->arities[k]);
+          prof_puts(t, buf);
+        }
+        return;
+      }
+    case V_LOOKD:
+      snprintf(buf, sizeof buf, "L_%d", get_CASE_size(n));
       break;
     default:
       snprintf(buf, sizeof buf, "%s", tag <= T_LAST_TAG && TAGNAME(tag) ? TAGNAME(tag) : "?");
@@ -12362,15 +12342,12 @@ mhs_main(int argc, char **argv)
       /* XXX temporary */
       size_t bytes = max_case_arities * sizeof(struct case_arity);
       for (uint32_t i = 0; i < num_case_arities; i++)
-        bytes += case_arities[i].m;
+        bytes += case_arities[i].m * (case_arities[i].tags ? 1 + sizeof(uint16_t) : 1);
       PRINT("%"PCOMMA"15d case arity entries (%"PCOMMA"d bytes)\n", (int)num_case_arities, (int)bytes);
     }
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
-#endif
-#if 0
-    PRINT("arms=%"PRIcounter" bad=%"PRIcounter"\n", num_arm, num_bad_arm);
 #endif
     // PRINT("%"PCOMMA"15d avg gc stack depth\n", (int)(gc_tot / num_gc));
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);

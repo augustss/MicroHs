@@ -5,9 +5,9 @@
 -- The value is serialized to the combinator file format (see doc/COMB.md),
 -- the combinator code is parsed, and then decompiled to lambda expressions
 -- by reducing the combinators symbolically.  Constructors (C_k_n) and the
--- case combinators (D_a0_..._a{m-1} and E_m) become constructors and case
--- expressions.  The number of fields of each arm comes from the arities ak
--- of a dense case, and from the A_k_n tags of a sparse case.
+-- case combinators (D_a0_..._a{m-1} and E_k1_n1_..._km_nm) become constructors
+-- and case expressions.  The number of fields of each arm comes from the
+-- arities in the case combinator.
 module Mhs.Reflect(
   Ident, Exp(..), Literal(..), Pat(..), Prog(..),
   reflect, reflectCombinators,
@@ -32,7 +32,6 @@ data Exp
   | App Exp Exp
   | Lit Literal
   | Con Int Int                   -- constructor number k with n fields, C_k_n
-  | Arm Int Int                   -- the tag of an arm of a sparse case, A_k_n
   | Case Exp [(Pat, Exp)] (Maybe Exp)  -- scrutinee, arms, default
   | Let [(Ident, Exp)] Exp        -- recursive bindings
   | Array [Exp]
@@ -72,7 +71,7 @@ reflectCombinators a = parseCombinators . unpack <$> writeSerializedBS a
 
 -- This must agree with the version in src/runtime/eval.c.
 combVersion :: String
-combVersion = "v9.2"
+combVersion = "v9.3"
 
 -- | Parse a serialized value, including the header.
 parseCombinators :: String -> Prog
@@ -146,7 +145,6 @@ atom :: String -> Exp
 atom s =
   case s of
     'C':'_':r | Just (k, n) <- twoNums r -> Con k n
-    'A':'_':r | Just (k, n) <- twoNums r -> Arm k n
     _ -> Lit (LPrim s)
   where
     twoNums r =
@@ -225,12 +223,16 @@ spine = go []
   where go as (App f a) = go (a:as) f
         go as e = (e, as)
 
--- The case combinators: D_a0_..._a{m-1}, with the arities of the arms, and E_m.
-data CaseComb = CaseD [Int] | CaseS Int
+-- The case combinators: D_a0_..._a{m-1}, with the arities of the arms, and
+-- E_k1_n1_..._km_nm, with the constructor numbers and arities of the arms.
+data CaseComb = CaseD [Int] | CaseS [(Int, Int)]
 
 caseComb :: String -> Maybe CaseComb
 caseComb ('D':'_':r) | Just as <- nums r = Just (CaseD as)
-caseComb ('E':'_':r) | Just [m] <- nums r = Just (CaseS m)
+caseComb ('E':'_':r) | Just kns <- nums r >>= pairs = Just (CaseS kns)
+  where pairs (k : n : ns) = ((k, n) :) <$> pairs ns
+        pairs [] = Just []
+        pairs _ = Nothing
 caseComb _ = Nothing
 
 -- Numbers separated by _
@@ -244,7 +246,7 @@ nums r =
 -- The number of arguments of a case combinator, including the scrutinee.
 caseArgs :: CaseComb -> Int
 caseArgs (CaseD as) = length as + 1
-caseArgs (CaseS m) = 2 * m + 2
+caseArgs (CaseS kns) = length kns + 2
 
 -- | Decompile combinator code to lambda expressions.
 decompile :: Prog -> Prog
@@ -287,7 +289,7 @@ dec = go
               let (cas, rest) = splitAt n as
               c' <- case cc of
                       CaseD ars -> dense ars cas
-                      CaseS _   -> sparse cas
+                      CaseS kns -> sparse kns cas
               apps c' <$> mapM go rest
         (f, as) -> apps f <$> mapM go as
 
@@ -298,19 +300,14 @@ dec = go
       s <- go scrut
       return (Case s arms' Nothing)
 
-    -- E_m d A_k1_n1 f1 ... A_km_nm fm e
-    sparse (d : cas) = do
-      let pairs (Arm k n : f : r) = (\ ps -> (k, n, f) : ps) <$> pairs r
-          pairs [_] = Just []
-          pairs _ = Nothing
-      case pairs cas of
-        Just kns -> do
-          arms' <- mapM (\ (k, n, f) -> arm k n f) kns
-          d' <- go d
-          s <- go (last cas)
-          return (Case s arms' (Just d'))
-        Nothing -> error "Mhs.Reflect: bad sparse case"
-    sparse [] = error "Mhs.Reflect: bad sparse case"
+    -- E_k1_n1_..._km_nm d f1 ... fm e
+    sparse kns (d : cas) = do
+      let (arms, scrut) = splitAt (length kns) cas
+      arms' <- sequence (zipWith (\ (k, n) f -> arm k n f) kns arms)
+      d' <- go d
+      s <- go (head scrut)
+      return (Case s arms' (Just d'))
+    sparse _ [] = error "Mhs.Reflect: bad sparse case"
 
     -- An arm for constructor k with n fields.
     arm k n f = do
@@ -334,7 +331,6 @@ pp :: Int -> Exp -> ShowS
 pp _ (Var i) = showString i
 pp p (Lit l) = ppLit p l
 pp _ (Con k n) = showString ("C_" ++ show k ++ "_" ++ show n)
-pp _ (Arm k n) = showString ("A_" ++ show k ++ "_" ++ show n)
 pp _ (Array es) = showString "[|" . commas (map (pp 0) es) . showString "|]"
 pp p e@(Lam _ _) = paren (p > 0) $
   let (vs, b) = lams e

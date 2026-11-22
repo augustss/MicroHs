@@ -370,8 +370,7 @@ data PrimOp
   = PS | PK | PI | PB | PC | PS' | PB' | PC' | PA | PU | PY | PZ | PP | PR | PO | PK2 | PK3 | PK4 | PC'B
   | PCon Int Int            -- C_k_n,      constructor k with n fields
   | PCaseD [Int]            -- D_a0_..._a{m-1}, dense case, ak is the number of fields of constructor k
-  | PCaseS Int              -- E_m,        sparse case with m arms
-  | PArm Int Int            -- A_k_n,      arm of a sparse case
+  | PCaseS [(Int, Int)]     -- E_k1_n1_..._km_nm, sparse case, with arms for constructors ki with ni fields
   | POther String
   deriving (Eq, Show)
 
@@ -379,7 +378,6 @@ instance NFData PrimOp where
   rnf (PCon a b) = rnf a `seq` rnf b
   rnf (PCaseD a) = rnf a
   rnf (PCaseS a) = rnf a
-  rnf (PArm a b) = rnf a `seq` rnf b
   rnf (POther a) = rnf a
   rnf p = p `seq` ()
 
@@ -422,8 +420,7 @@ primOpName p =
     PC'B -> "C'B"
     PCon k n  -> "C_" ++ show k ++ "_" ++ show n
     PCaseD as -> 'D' : concatMap (('_' :) . show) as
-    PCaseS m  -> "E_" ++ show m
-    PArm k n  -> "A_" ++ show k ++ "_" ++ show n
+    PCaseS kns -> 'E' : concat [ '_' : show k ++ '_' : show n | (k, n) <- kns ]
     POther s  -> s
 
 instance NFData Lit where
