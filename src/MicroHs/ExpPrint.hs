@@ -23,7 +23,7 @@ type ForExpTable = [(Ident, Ident, CType, IsJavascript)]
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v9.2\n"
+combVersion = "v9.3\n"
 
 -- Remove unused definitions.  Only used for dumping definitions.
 removeUnused :: CMdl -> [LDef]

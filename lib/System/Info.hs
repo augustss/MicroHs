@@ -43,4 +43,4 @@ uname flag = unsafePerformIO $ do
   return $ map toLower $ filter (not . isSpace) res
 
 fullCompilerVersion :: Version
-fullCompilerVersion = makeVersion [0,17,2,0]
+fullCompilerVersion = makeVersion [0,17,3,0]
