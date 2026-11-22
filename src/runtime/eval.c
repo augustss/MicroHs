@@ -42,6 +42,12 @@
 #define WANT_SAMPLE 0           /* sampling profiler for hot function nodes */
 #endif /* defined(WANT_SAMPLE) */
 
+/* Dynamic profiling: count reductions per definition, see prof_charge().
+ * Compile the program with mhs --profile to get it. */
+#if !defined(WANT_PROFILE)
+#define WANT_PROFILE 0
+#endif /* defined(WANT_PROFILE) */
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -842,6 +848,19 @@ typedef struct PACKED node {
     struct mvar     *uumvar;
     struct weak_ptr *uuweak;
   } uarg;
+#if WANT_PROFILE
+  /* See prof_charge().  The counts and the label are only used in loaded nodes. */
+  struct node       *prof_src;    /* the loaded node this node comes from, itself for a loaded node */
+  counter_t          prof_red;    /* reductions charged to this node */
+  counter_t          prof_unwind; /* unwinding steps charged to this node */
+  counter_t          prof_alloc;  /* cells allocated by reductions charged to this node */
+  uint32_t           prof_label;  /* the label of the definition + 1, 0 for none, PROF_MAIN for the main expression */
+  uint32_t           prof_ctx;    /* the call context the node was created in, see prof_push */
+  /* Counts for this node itself, while it lives, see prof_tick(). */
+  counter_t          prof_ncalls; /* unwinding steps through this node */
+  counter_t          prof_nred;   /* reductions charged to this node */
+  counter_t          prof_nupd;   /* times a reduction rewrote this node to an application */
+#endif  /* WANT_PROFILE */
 } node;
 
 #if 0
@@ -1182,10 +1201,17 @@ memerr(void)
   ERR("Out of memory");
 }
 
+#if WANT_PROFILE
+void prof_stack_dump(void);
+#endif
+
 NORETURN
 void
 stackerr(void)
 {
+#if WANT_PROFILE
+  prof_stack_dump();
+#endif
   ERR("stack overflow");
 }
 
@@ -2694,6 +2720,243 @@ bump_refill(void)
 }
 #endif  /* BUMP_ALLOC */
 
+#if WANT_PROFILE
+/*
+ * Dynamic profiling (WANT_PROFILE).
+ * Every node knows the loaded node it comes from, prof_src.  A node of the
+ * program, as read from the combinator file, is its own source; a node created
+ * by a reduction gets the source the reduction was charged to (prof_cur).
+ * A reduction is charged to the source of the innermost application on the
+ * spine, i.e., to the code that runs (see prof_charge), and an unwinding step
+ * to the source of the application node, i.e., the code that built it.
+ * So a closure is charged to the code that created it, wherever it runs.
+ * A loaded node also knows its definition (prof_label), and at the end the
+ * counts are summed per definition (prof_report).  The cells of the loaded
+ * program are never reused (prof_pin), so prof_src stays valid.
+ */
+static struct node prof_runtime;               /* pseudo source for what the runtime does on its own */
+static struct node *prof_cur = &prof_runtime;  /* the source of new nodes */
+static int prof_loading = 0;                   /* reading the program */
+static struct node *prof_lo = 0, *prof_hi = 0; /* the cells of the loaded program */
+static struct node *prof_def_start = 0;        /* the first cell of the definition being read */
+static heapoffs_t prof_nlabels = 0;            /* number of labels in the program */
+static char **prof_names = 0;                  /* the name of each label, see prof_end_load */
+#define PROF_MAIN 0xffffffff                   /* prof_label of the main expression */
+#define PROF_LOADED(p) ((p) >= prof_lo && (p) < prof_hi)
+
+/*
+ * Call contexts, to find the callers of a definition.  A context is a chain of
+ * definitions, like a call stack, in which a definition occurs at most once.
+ * The context of a reduction is the caller's context, i.e., that of the
+ * innermost application on the spine that was built at run time, extended
+ * with the definition the reduction is charged to (prof_push).  If that
+ * definition is already in the chain, the chain is cut back to it, so
+ * recursion does not make chains grow.  A new node gets the context of the
+ * reduction that creates it, and so does the node a reduction overwrites (see
+ * ap and ap2 in evali), so a tail call is made from the context of the code
+ * that makes it.  Context 0 is the top level; a CAF is called from there, by
+ * the definition it is in (see prof_charge).
+ */
+struct prof_context {
+  uint32_t  parent;             /* the caller's context */
+  uint32_t  label;              /* the definition, as prof_label */
+  counter_t red;                /* reductions in this context */
+  counter_t alloc;              /* cells allocated in this context */
+};
+#define PROF_TOP_LABEL 0xfffffffe                       /* label of context 0 */
+static struct prof_context prof_ctx0 = { 0, PROF_TOP_LABEL, 0, 0 };
+static struct prof_context *prof_ctxs = &prof_ctx0;    /* all contexts */
+static uint32_t prof_nctxs = 1, prof_maxctxs = 1;
+static uint32_t prof_ctx_cur = 0;                       /* the context of new nodes */
+/* A hash table of the results of prof_push, the key is context<<32 | label */
+#define PROF_NO_KEY UINT64_MAX
+static uint64_t *prof_memo_keys = 0;
+static uint32_t *prof_memo_vals = 0;
+static uint64_t prof_memo_size = 0, prof_memo_used = 0;
+
+static INLINE uint64_t
+prof_hash(uint64_t key, uint64_t size)
+{
+  return (key * 0x9E3779B97F4A7C15ULL) >> 20 & (size - 1);
+}
+
+static void
+prof_memo_insert(uint64_t key, uint32_t val)
+{
+  uint64_t h = prof_hash(key, prof_memo_size);
+  while (prof_memo_keys[h] != PROF_NO_KEY)
+    h = (h + 1) & (prof_memo_size - 1);
+  prof_memo_keys[h] = key;
+  prof_memo_vals[h] = val;
+  prof_memo_used++;
+}
+
+static void
+prof_memo_grow(void)
+{
+  uint64_t *okeys = prof_memo_keys, osize = prof_memo_size;
+  uint32_t *ovals = prof_memo_vals;
+  prof_memo_size = osize ? 2 * osize : 1 << 16;
+  prof_memo_keys = mmalloc(prof_memo_size * sizeof(uint64_t));
+  prof_memo_vals = mmalloc(prof_memo_size * sizeof(uint32_t));
+  for (uint64_t h = 0; h < prof_memo_size; h++)
+    prof_memo_keys[h] = PROF_NO_KEY;
+  prof_memo_used = 0;
+  for (uint64_t h = 0; h < osize; h++)
+    if (okeys[h] != PROF_NO_KEY)
+      prof_memo_insert(okeys[h], ovals[h]);
+  if (okeys) {
+    FREE(okeys);
+    FREE(ovals);
+  }
+}
+
+/* The context for code of definition lab called from context ctx. */
+static uint32_t
+prof_push(uint32_t ctx, uint32_t lab)
+{
+  uint64_t key = (uint64_t)ctx << 32 | lab;
+  uint64_t h;
+  uint32_t c;
+
+  if (2 * (prof_memo_used + 1) > prof_memo_size)
+    prof_memo_grow();
+  for (h = prof_hash(key, prof_memo_size); prof_memo_keys[h] != PROF_NO_KEY; h = (h + 1) & (prof_memo_size - 1))
+    if (prof_memo_keys[h] == key)
+      return prof_memo_vals[h];
+  /* Not seen before: cut back to lab if it is in the chain, or else extend the chain. */
+  for (c = ctx; c != 0 && prof_ctxs[c].label != lab; c = prof_ctxs[c].parent)
+    ;
+  if (c == 0) {
+    if (prof_nctxs == prof_maxctxs) {
+      struct prof_context *o = prof_ctxs;
+      if (prof_nctxs >= 0xfffffff0)
+        ERR("profiling: too many call contexts");
+      prof_maxctxs = prof_maxctxs < 0x10000 ? 0x10000 : prof_maxctxs < 0x7ffffff8 ? 2 * prof_maxctxs : 0xfffffff0;
+      prof_ctxs = mmalloc(prof_maxctxs * sizeof(struct prof_context));
+      memcpy(prof_ctxs, o, prof_nctxs * sizeof(struct prof_context));
+      if (o != &prof_ctx0)
+        FREE(o);
+    }
+    c = prof_nctxs++;
+    prof_ctxs[c].parent = ctx;
+    prof_ctxs[c].label = lab;
+    prof_ctxs[c].red = 0;
+    prof_ctxs[c].alloc = 0;
+  }
+  prof_memo_insert(key, c);
+  return c;
+}
+
+/*
+ * Hot nodes: counts per node, by address, like the sampler on the jit-sampler
+ * branch, but exact.  Every node counts the unwinding steps through it
+ * (prof_ncalls) and the reductions charged to it (prof_nred, the innermost
+ * application on the spine, see prof_charge), and how often a reduction
+ * rewrites it (prof_nupd).  A shared function value, e.g., a partial
+ * application like insert dOrdInt, is unwound once per call.  The redex of a
+ * loop is unwound once per iteration too, but it is also rewritten by every
+ * iteration.
+ * The counts are cleared when a cell is allocated, which has the same effect
+ * as clearing the counts of the unused cells after a GC.  A node that reaches
+ * PROF_HOT_MIN counts goes on the hot list.  At every GC the dead nodes on
+ * the hot list, and the loaded ones that are unreachable, are taken off it
+ * (prof_hot_gc); the PROF_DEAD_KEEP ones with the most counts are kept, with
+ * a description of the node, since the cell will be reused.  Nothing that a
+ * dead node points to has been reused before the GC that finds it dead, so
+ * it can still be described then.  The live ones are described at the end.
+ * Most loaded nodes are code, which the counts per definition cover, so only
+ * the loaded nodes that apply another definition or have been rewritten are
+ * reported (PROF_INTERESTING).
+ */
+#if !defined(PROF_HOT_MIN)
+#define PROF_HOT_MIN 10000
+#endif
+#define PROF_DEAD_KEEP 1000
+static struct node **prof_hot = 0;      /* the live (as of the last GC) nodes with at least PROF_HOT_MIN counts */
+static size_t prof_nhot = 0, prof_maxhot = 0;
+struct prof_dead {
+  counter_t ncalls, nred, nupd;
+  counter_t gc;                 /* the GC that found it dead, 0 if it is live */
+  struct node *src;             /* its prof_src, a loaded node (or itself) or &prof_runtime */
+  int loaded;                   /* a node of the loaded program, dead when it became unreachable */
+  int calls_def;                /* its head is another definition, see prof_describe */
+  char *desc;                   /* the description of the node */
+};
+/* The dead nodes with the most counts, made at run time or loaded.  The
+ * loaded ones are only kept if they are interesting, see prof_retire. */
+struct prof_keep {
+  struct prof_dead *es;
+  size_t n, min;                /* min is the entry with the fewest counts when full */
+};
+static struct prof_keep prof_dead_rt, prof_dead_ld;
+static struct node **prof_roots = 0;    /* the root node of each definition, if it is a cell */
+static struct node **prof_first = 0;    /* the first cell of each definition, index prof_nlabels for main */
+
+static void
+prof_hot_add(struct node *p)
+{
+  if (prof_nhot == prof_maxhot) {
+    prof_maxhot = prof_maxhot ? 2 * prof_maxhot : 1024;
+    prof_hot = mrealloc(prof_hot, prof_maxhot * sizeof(struct node *));
+  }
+  prof_hot[prof_nhot++] = p;
+}
+
+/* Count one event in the counter c of node p.  The total grows by one at a
+ * time, so a node gets on the hot list once. */
+static INLINE void
+prof_tick(struct node *p, counter_t *c)
+{
+  (*c)++;
+  if (p->prof_ncalls + p->prof_nred == PROF_HOT_MIN)
+    prof_hot_add(p);
+}
+
+static INLINE void
+prof_new(struct node *p)
+{
+  p->prof_ncalls = 0;
+  p->prof_nred = 0;
+  p->prof_nupd = 0;
+  if (prof_loading) {
+    /* Allocation is consecutive in the fresh heap, and prof_set_label relies on it. */
+    if (!prof_lo)
+      prof_lo = prof_def_start = p;
+    else if (p != prof_hi)
+      ERR("profiling: the program is not loaded into consecutive cells");
+    prof_hi = p + 1;
+    p->prof_src = p;
+    p->prof_red = 0;
+    p->prof_unwind = 0;
+    p->prof_alloc = 0;
+    p->prof_label = 0;
+    p->prof_ctx = 0;
+  } else {
+    p->prof_src = prof_cur;
+    prof_cur->prof_alloc++;
+    p->prof_ctx = prof_ctx_cur;
+    prof_ctxs[prof_ctx_cur].alloc++;
+  }
+}
+
+/* The cells read since the last label belong to the definition with label lab. */
+static void
+prof_set_label(uint32_t lab)
+{
+  if (!prof_lo)
+    return;
+  for (struct node *p = prof_def_start; p < prof_hi; p++)
+    p->prof_label = lab;
+  if (prof_first) {
+    heapoffs_t i = lab == PROF_MAIN ? prof_nlabels : lab - 1;
+    if (i <= prof_nlabels)
+      prof_first[i] = prof_def_start;
+  }
+  prof_def_start = prof_hi;
+}
+#endif  /* WANT_PROFILE */
+
 /* Allocate a new node */
 static INLINE struct node*
 alloc_node_ptr(void)
@@ -2739,6 +3002,9 @@ alloc_node_ptr(void)
   num_free--;
 #endif  /* BUMP_ALLOC */
 
+#if WANT_PROFILE
+  prof_new(n);
+#endif
   return n;
 }
 
@@ -3814,6 +4080,25 @@ mark(NODEPTR *np)
   }
 }
 
+#if WANT_PROFILE
+/* Keep the cells of the loaded program, so that prof_src stays valid.
+ * This runs after marking: an unreachable loaded cell is kept, but what
+ * it points to is not, so only its profiling fields may be used. */
+static void
+prof_pin(void)
+{
+  for (struct node *p = prof_lo; p < prof_hi; p++) {
+    NODEPTR n;
+    n.node_ptr = p;
+    if (!is_marked_used(n)) {
+      mark_used(n);
+      num_marked++;
+    }
+  }
+}
+static void prof_hot_gc(void);
+#endif  /* WANT_PROFILE */
+
 /* Perform a garbage collection:
    - Mark nodes from the stack
    - Mark permanent arrays
@@ -3877,6 +4162,10 @@ gc(void)
 
   /* check for unmarked weak pointers */
   sweep_weaks();
+#if WANT_PROFILE
+  prof_hot_gc();                /* before prof_pin, to see which loaded nodes are unreachable */
+  prof_pin();
+#endif
 
 #if WANT_SAMPLE
   sample_gc();
@@ -4705,10 +4994,18 @@ parse(struct parse_ctx *pc, BFILE *f)
     case ':':
       /* Define a shared expression: :label e */
       l = parse_int(f);  /* The label */
+#if WANT_PROFILE
+      if (prof_loading)
+        prof_set_label((uint32_t)l + 1); /* the cells read since the last label are the definition */
+#endif
       if (!gobble(f, ' '))
         DESER_ERR("parse ' '");
       nodep = find_label(pc, l);
       x = TOP(0);
+#if WANT_PROFILE
+      if (prof_loading && prof_roots && l < prof_nlabels && !is_VIRT(x))
+        prof_roots[l] = NPTR(x);
+#endif
       if (is_NIL(*nodep)) {
         /* not referenced yet, so add a direct reference */
         *nodep = x;
@@ -4906,6 +5203,13 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
     numLabels = parse_int(f);
     if (!gobble(f, '\n'))
       DESER_ERR("size parse");
+#if WANT_PROFILE
+    if (prof_loading) {
+      prof_nlabels = numLabels;
+      prof_roots = mcalloc(numLabels + 1, sizeof(struct node *));
+      prof_first = mcalloc(numLabels + 1, sizeof(struct node *));
+    }
+#endif
     gobble(f, '\r');                 /* allow extra CR */
     pc->shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
     pc->shared_table = mmalloc(pc->shared_table_size * sizeof(struct shared_entry));
@@ -6655,6 +6959,149 @@ rnf(value_t noerr, NODEPTR n)
 counter_t num_arm, num_bad_arm;
 #endif
 
+#if WANT_PROFILE
+/* Reductions per primitive: every combinator, primop, case and constructor
+ * tag, and every foreign function (a D_IO_CCALL node, by its number in
+ * FFI_IX).  A reduction where the primitive has too few arguments is a
+ * partial application being evaluated; it is counted as partial too (see
+ * CHECK in evali), so the uses of a primitive are its reductions minus its
+ * partial ones.  See prof_report_prims. */
+static counter_t prof_prim_red[T_LAST_TAG+1];
+static counter_t prof_prim_partial[T_LAST_TAG+1];
+static counter_t *prof_ffi_red = 0, *prof_ffi_partial = 0;
+static size_t prof_nffi = 0;
+
+/* The number of foreign functions: the runtime's and the program's. */
+static void
+prof_ffi_init(void)
+{
+  size_t k = num_ffi;
+  if (xffi_table)
+    while (xffi_table[k - num_ffi].ffi_name)
+      k++;
+  prof_nffi = k;
+  prof_ffi_red = calloc(k, sizeof(counter_t));
+  prof_ffi_partial = calloc(k, sizeof(counter_t));
+  if (!prof_ffi_red || !prof_ffi_partial)
+    memerr();
+}
+
+static INLINE void
+prof_prim(counter_t *tags, counter_t **ffis, enum node_tag tag, NODEPTR n)
+{
+  tags[tag]++;
+  if (tag == D_IO_CCALL) {
+    size_t a = (size_t)GETVALUE(n);
+    if (!prof_ffi_red)
+      prof_ffi_init();
+    if (a < prof_nffi)
+      (*ffis)[a]++;
+  }
+}
+#define PROF_PARTIAL() prof_prim(prof_prim_partial, &prof_ffi_partial, tag, n)
+
+/* Charge the reduction about to happen at node n (with tag tag) to the code
+ * that runs: the source of the innermost application on the spine of this
+ * evali (stack entries above stk).  Virtual stack entries (case markers, the
+ * BININT markers) are skipped.  A constructor selecting a case arm is charged
+ * to the case, which is below the constructor's fields and the marker.
+ * Every pass through the top of evali is charged somewhere, so the counts add
+ * up to num_reductions.  The source is also what new nodes get.
+ * The reduction is also charged to a call context, see prof_push. */
+/* Unwinding steps by the kind of head they lead to (see prof_head_kind), and
+ * by the node unwound: a cell of the loaded program (code) or one built at
+ * run time.  The steps since the last dispatch are credited to the head that
+ * the next dispatch finds. */
+enum prof_head { PH_COMB, PH_PRIM, PH_CASE, PH_CONSTR, PH_VALUE, PH_FFI, PH_N };
+static const char *prof_head_names[PH_N] = { "combinator", "primop", "case", "constructor", "value", "foreign call" };
+static counter_t prof_unw_since[2];             /* [loaded] since the last dispatch */
+static counter_t prof_unw_head[PH_N][2];
+
+static INLINE enum prof_head
+prof_head_kind(enum node_tag tag)
+{
+  if (tag >= T_S && tag <= T_CCB) return PH_COMB;
+  if (tag > T_FIRST_REAL_TAG)     return PH_PRIM;
+  if (tag == V_CONSTR)            return PH_CONSTR;
+  if (tag >= V_CONSTR)            return PH_CASE;
+  if (tag == D_IO_CCALL)          return PH_FFI;
+  return PH_VALUE;
+}
+
+static INLINE void
+prof_charge(NODEPTR n, enum node_tag tag, stackptr_t stk)
+{
+  {
+    enum prof_head h = prof_head_kind(tag);
+    prof_unw_head[h][0] += prof_unw_since[0];
+    prof_unw_head[h][1] += prof_unw_since[1];
+    prof_unw_since[0] = prof_unw_since[1] = 0;
+  }
+  struct node *src = 0, *p, *caf = 0, *cell = 0;
+  uint32_t caller = 0, ctx;
+  int found = 0;
+  stackptr_t i = stack_ptr;
+  if (tag == V_CONSTR) {
+    int k, nn;
+    get_CON_info(n, &k, &nn);
+    if (stack_ptr - stk > nn + 1 && is_VIRT(TOP(nn)))
+      i = stack_ptr - nn - 1;   /* TOP(nn+1), the case */
+  }
+  for (; i > stk; i--) {
+    if (!is_VIRT(stack[i])) {
+      cell = NPTR(stack[i]);
+      src = cell->prof_src;
+      break;
+    }
+  }
+  /* The caller: the innermost application built at run time, in the
+   * expression being evaluated, which ends at a marker (a strict argument or a
+   * case scrutinee) or the bottom of this evali.  If there is none, the
+   * expression is part of the loaded program, i.e., a CAF, and its caller is
+   * the definition it is in, called from the top level. */
+  for (; i > stk && !is_VIRT(stack[i]); i--) {
+    p = NPTR(stack[i]);
+    if (!PROF_LOADED(p)) {
+      caller = p->prof_ctx;
+      found = 1;
+      break;
+    }
+    caf = p;
+  }
+  if (!src) {
+    if (is_VIRT(n)) {
+      src = &prof_runtime;
+    } else {
+      p = NPTR(n);
+      cell = p;
+      src = p->prof_src;
+      if (!PROF_LOADED(p)) {
+        caller = p->prof_ctx;
+        found = 1;
+      } else {
+        caf = p;
+      }
+    }
+  }
+  if (!found && caf)
+    caller = prof_push(0, caf->prof_label);
+  prof_prim(prof_prim_red, &prof_ffi_red, tag, n);
+  src->prof_red++;
+  if (cell)
+    prof_tick(cell, &cell->prof_nred);
+  prof_cur = src;
+  ctx = prof_ctxs[caller].label == src->prof_label ? caller : prof_push(caller, src->prof_label);
+  prof_ctxs[ctx].red++;
+  prof_ctx_cur = ctx;
+}
+#define PROF_UNWIND(n) do { struct node *_p = NPTR(n); _p->prof_src->prof_unwind++; prof_tick(_p, &_p->prof_ncalls); \
+                             prof_unw_since[PROF_LOADED(_p)]++; } while(0)
+#define PROF_OVERWRITE(n) do { NPTR(n)->prof_ctx = prof_ctx_cur; NPTR(n)->prof_nupd++; } while(0)
+#else
+#define PROF_UNWIND(n) do { } while(0)
+#define PROF_OVERWRITE(n) do { } while(0)
+#endif  /* WANT_PROFILE */
+
 #if !defined(EXTRASANITY)
 #define EXTRASANITY 0           /* sanity checks that cost time, unlike SANITY */
 #endif
@@ -8252,9 +8699,14 @@ struct prim_res { NODEPTR n; enum prim_next next; };
 #define HASNARGS(k) (stack_ptr - stk >= (k))
 /* Check that there are at least k arguments, return if not. */
 #if EXTRASANITY
-#define CHECK(k) do { check_arity(tag, (k)); if (!HASNARGS(k)) RET; } while(0)
+#define CHECK_ARITY(k) check_arity(tag, (k))
 #else
-#define CHECK(k) do { if (!HASNARGS(k)) RET; } while(0)
+#define CHECK_ARITY(k) do { } while(0)
+#endif
+#if WANT_PROFILE
+#define CHECK(k) do { CHECK_ARITY(k); if (!HASNARGS(k)) { PROF_PARTIAL(); RET; } } while(0)
+#else
+#define CHECK(k) do { CHECK_ARITY(k); if (!HASNARGS(k)) RET; } while(0)
 #endif
 #define SETIND(n, x) set_IND(n, x)
 #define GOBOOL(b) do { GOIND(b ? combTrue : combFalse); } while(0)
@@ -8298,10 +8750,12 @@ struct prim_res { NODEPTR n; enum prim_next next; };
 #define RET do { return (struct prim_res){ n, PRIM_RET }; } while(0)
 #define GOTOP(x) do { return (struct prim_res){ (x), PRIM_TOP }; } while(0)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); GOTOP(_x); } while(0)
-#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); GOTOP(n); } while(0)
-#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); GOTOP(n); } while(0)
-#define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); GOTOP(n); } while(0)
-#define GOPAIRUNIT do { FUN(n) = combPUnit; GOTOP(n); } while(0)
+/* These continue at evali's top rather than at its ap and ap2, so they do the
+ * profiler's PROF_OVERWRITE themselves (see prof_push). */
+#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); PROF_OVERWRITE(n); GOTOP(n); } while(0)
+#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); PROF_OVERWRITE(n); PROF_OVERWRITE(FUN(n)); GOTOP(n); } while(0)
+#define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); PROF_OVERWRITE(n); GOTOP(n); } while(0)
+#define GOPAIRUNIT do { FUN(n) = combPUnit; PROF_OVERWRITE(n); GOTOP(n); } while(0)
 
 /* Reduce the primitive tag, which is at the head of the spine (n).
  * stk is the stack base of the calling evali. */
@@ -9840,6 +10294,14 @@ evalprimret(NODEPTR n, enum node_tag tag)
  * exception or a thread switch), and EV_LOAD after the calls that return.
  * Allocation (new_ap) and GCCHECK have their own versions in evali.
  */
+#if !defined(EV_CACHE)
+/* The profiler looks at the globals from inside evali (prof_charge reads the
+ * stack, new nodes get their source in alloc_node_ptr), so it goes without the
+ * cache; it is slow anyway. */
+#define EV_CACHE (!WANT_PROFILE)
+#endif
+
+#if EV_CACHE
 static INLINE stackptr_t ev_get_stack_ptr(void) { return stack_ptr; }
 static INLINE void ev_set_stack_ptr(stackptr_t s) { stack_ptr = s; }
 static INLINE NODEPTR *ev_get_stack(void) { return stack; }
@@ -9886,11 +10348,17 @@ ev_new_ap(NODEPTR f, NODEPTR a, struct node **bpp, struct node **bep, counter_t 
 #undef GCCHECK
 #define GCCHECK(k) do { if (!((k) < num_free)) { EV_SAVE(); gc(); EV_LOAD(); } } while(0)
 #define EV_RAISE(e) do { EV_SAVE(); raise_rts(e); } while(0)
+#else  /* EV_CACHE */
+#define EV_SAVE() do { } while(0)
+#define EV_LOAD() do { } while(0)
+#define EV_RAISE(e) raise_rts(e)
+#endif  /* EV_CACHE */
 
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
 evali(NODEPTR an)
 {
+#if EV_CACHE
   /* The cached globals, see above. */
   stackptr_t stack_ptr = ev_get_stack_ptr();
   int glob_slice = ev_get_glob_slice();
@@ -9901,8 +10369,13 @@ evali(NODEPTR an)
   struct node *bump_end = ev_get_bump_end();
   counter_t num_free = ev_get_num_free();
 #endif  /* BUMP_ALLOC */
+#endif  /* EV_CACHE */
   NODEPTR n = an;
   stackptr_t stk = stack_ptr;
+#if WANT_PROFILE
+  struct node *prof_saved = prof_cur; /* a strict primitive allocates after evaluating its arguments */
+  uint32_t prof_ctx_saved = prof_ctx_cur;
+#endif
   NODEPTR x, y, z, w;
   enum node_tag tag;
 
@@ -9942,6 +10415,7 @@ evali(NODEPTR an)
     NODEPTR f = FUN(n);
     if (is_AP(f)) {
       /* follow AP nodes down the spine */
+      PROF_UNWIND(n);
       PUSH(n);
       n = f;
       continue;
@@ -9959,14 +10433,18 @@ evali(NODEPTR an)
     break;
   }
   /* Invariant: at this point n=current node, tag=get_XTAG(n), and tag is not X_AP or D_IND */
+#if WANT_PROFILE
+  prof_charge(n, tag, stk);
+#endif
 
   //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
-  ap2:         PUSH(n); n = FUN(n);
+    /* n has been overwritten by GOAP and friends, see prof_push */
+  ap2:         PROF_OVERWRITE(n); PROF_UNWIND(n); PUSH(n); n = FUN(n);
   ap:
-  case X_AP:   PUSH(n);
+  case X_AP:   PROF_OVERWRITE(n); PROF_UNWIND(n); PUSH(n);
     n = FUN(n); goto top;
 
   case D_INT:    RET;
@@ -10447,6 +10925,10 @@ evali(NODEPTR an)
 #if MAXSTACKDEPTH
   cur_c_stack = old_cur_c_stack; /* reset rather than counting down, in case of longjump */
 #endif
+#if WANT_PROFILE
+  prof_cur = prof_saved;
+  prof_ctx_cur = prof_ctx_saved;
+#endif
   //fprintf(stderr, "evali exit stack_ptr=%d\n", (int)stack_ptr);
 #if EXTRASANITY
   if (!is_whnf(n))
@@ -10457,11 +10939,13 @@ evali(NODEPTR an)
 }
 
 /* Back to the global versions */
+#if EV_CACHE
 #if BUMP_ALLOC
 #undef new_ap
 #endif  /* BUMP_ALLOC */
 #undef GCCHECK
 #define GCCHECK(n) gc_check((n))
+#endif  /* EV_CACHE */
 
 static char *progname = "?";
 
@@ -10538,6 +11022,905 @@ memsize(const char *p)
   return n;
 }
 #endif
+
+#if WANT_PROFILE
+/* The program has been read: the cells after the last label are the main
+ * expression.  Then read the names of the labels, which mhs --profile puts
+ * after the program:
+ *   #names
+ *   label name
+ *   ...
+ * Other runtimes stop reading at the end of the program. */
+static void
+prof_end_load(BFILE *bf)
+{
+  int c;
+  heapoffs_t l;
+  size_t len, cap = 256;
+  char *buf;
+
+  prof_set_label(PROF_MAIN);
+  prof_loading = 0;
+  while ((c = getb(bf)) == '\n' || c == '\r' || c == ' ')
+    ;
+  if (c != '#' || prof_nlabels == 0)
+    return;
+  while ((c = getb(bf)) >= 0 && c != '\n')   /* the rest of the #names line */
+    ;
+  prof_names = mmalloc(prof_nlabels * sizeof(char *));
+  for (l = 0; l < prof_nlabels; l++)
+    prof_names[l] = 0;
+  buf = mmalloc(cap);
+  while (c >= 0) {
+    c = getb(bf);
+    if (c < '0' || c > '9')
+      break;
+    for (l = 0; c >= '0' && c <= '9'; c = getb(bf))
+      l = l * 10 + (c - '0');
+    if (c != ' ')
+      break;
+    len = 0;
+    while ((c = getb(bf)) >= 0 && c != '\n') {
+      if (len + 1 >= cap)
+        buf = mrealloc(buf, cap *= 2);
+      buf[len++] = (char)c;
+    }
+    buf[len] = 0;
+    if (l < prof_nlabels && !prof_names[l])
+      prof_names[l] = strdup(buf);
+  }
+  FREE(buf);
+}
+
+#if WANT_STDIO
+static counter_t *prof_key;     /* for prof_cmp */
+
+static int
+prof_cmp(const void *a, const void *b)
+{
+  counter_t x = prof_key[*(const heapoffs_t *)a], y = prof_key[*(const heapoffs_t *)b];
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
+/* The reductions per primitive, see prof_prim.  Entry t <= T_LAST_TAG is the
+ * tag t, entry T_LAST_TAG+1+i the foreign function i.  The counts add up to
+ * all reductions: a value (an Int, a pointer, ...) also has a reduction when
+ * it is returned. */
+static void
+prof_report_unwind(FILE *f, counter_t tunw)
+{
+  counter_t t[2] = { 0, 0 }, all = 0;
+  for (int h = 0; h < PH_N; h++) {
+    t[0] += prof_unw_head[h][0];
+    t[1] += prof_unw_head[h][1];
+  }
+  all = t[0] + t[1];
+  if (!all)
+    all = 1;
+  fprintf(f, "\nUnwinding steps by the head they lead to, and by the node unwound: built at\n");
+  fprintf(f, "run time, or a cell of the loaded program (code).  %% of all unwinding steps.\n");
+  fprintf(f, "  head                 built at run time       %%    loaded program       %%           total       %%\n");
+  for (int h = 0; h < PH_N; h++) {
+    counter_t r = prof_unw_head[h][0], l = prof_unw_head[h][1];
+    if (!r && !l)
+      continue;
+    fprintf(f, "  %-14s %18"PRIcounter" %6.2f %17"PRIcounter" %6.2f %15"PRIcounter" %6.2f\n",
+            prof_head_names[h], r, 100.0 * r / all, l, 100.0 * l / all, r + l, 100.0 * (r + l) / all);
+  }
+  fprintf(f, "  %-14s %18"PRIcounter" %6.2f %17"PRIcounter" %6.2f %15"PRIcounter" %6.2f\n",
+          "total", t[0], 100.0 * t[0] / all, t[1], 100.0 * t[1] / all, t[0] + t[1], 100.0);
+  if (prof_unw_since[0] || prof_unw_since[1] || t[0] + t[1] != tunw)
+    fprintf(f, "  (%"PRIcounter" + %"PRIcounter" steps not followed by a dispatch; %"PRIcounter" unwinding steps in all)\n",
+            prof_unw_since[0], prof_unw_since[1], tunw);
+}
+
+static void
+prof_report_prims(FILE *f, counter_t tred)
+{
+  heapoffs_t np = T_LAST_TAG + 1 + prof_nffi, i;
+  counter_t *uses = mmalloc(np * sizeof(counter_t));
+  counter_t *part = mmalloc(np * sizeof(counter_t));
+  heapoffs_t *order = mmalloc(np * sizeof(heapoffs_t));
+  counter_t tuses = 0, tpart = 0, cum = 0;
+  char buf[64];
+
+  for (i = 0; i < np; i++) {
+    counter_t r, p;
+    if (i <= T_LAST_TAG) {
+      r = prof_prim_red[i];
+      p = prof_prim_partial[i];
+      if (i == D_IO_CCALL)
+        r = p = 0;              /* listed per foreign function */
+    } else {
+      r = prof_ffi_red[i - T_LAST_TAG - 1];
+      p = prof_ffi_partial[i - T_LAST_TAG - 1];
+    }
+    uses[i] = r - p;
+    part[i] = p;
+    tuses += r - p;
+    tpart += p;
+    order[i] = i;
+  }
+  prof_key = uses;
+  qsort(order, np, sizeof(heapoffs_t), prof_cmp);
+  fprintf(f, "\nReductions by primitive.  A use is a reduction with enough arguments; a partial\n");
+  fprintf(f, "one is the evaluation of a partial application.  Kinds: comb(inator), prim(op),\n");
+  fprintf(f, "ffi (foreign function), case (constructors and case), value (returning a value).\n");
+  fprintf(f, "           uses    %%red   cum%%          partial  kind   primitive\n");
+  for (heapoffs_t j = 0; j < np; j++) {
+    const char *kind, *name;
+    i = order[j];
+    if (!uses[i] && !part[i])
+      continue;
+    cum += uses[i];
+    if (i > T_LAST_TAG) {
+      kind = "ffi";
+      snprintf(buf, sizeof buf, "^%s", FFI_IX(i - T_LAST_TAG - 1).ffi_name);
+      name = buf;
+    } else {
+      if (i >= T_S && i <= T_CCB)
+        kind = "comb";
+      else if (i > T_FIRST_REAL_TAG)
+        kind = "prim";
+      else if (i >= V_CONSTR)
+        kind = "case";
+      else
+        kind = "value";
+      name = TAGNAME(i);
+      if (!name) {
+        snprintf(buf, sizeof buf, "tag%d", (int)i);
+        name = buf;
+      }
+    }
+    fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter"  %-5s  %s\n",
+            uses[i], 100.0 * uses[i] / tred, 100.0 * cum / tred, part[i], kind, name);
+  }
+  fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter"  total\n",
+          tuses, 100.0 * tuses / tred, 100.0 * cum / tred, tpart);
+  FREE(uses); FREE(part); FREE(order);
+}
+
+/* Calls per definition: the unwinding steps through the root cell of each
+ * definition, i.e., how many times it was applied (or evaluated).  A CAF is
+ * overwritten by its value, so it counts about once.  A definition whose code
+ * is a bare combinator, constructor, or primitive has no cell of its own, and
+ * one that is just another definition shares that one's cell; both are left
+ * out.  lab is the label + 1, as in prof_label. */
+#define PROF_CALL_DEFS 100
+static const char *prof_label_name(uint32_t lab, char *buf, size_t size);
+static void
+prof_report_calls(FILE *f, counter_t *red, counter_t *alc, heapoffs_t nl)
+{
+  static const counter_t lims[] = { 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
+  static const char *names[] = { ">= 100M", "10M-100M", "1M-10M", "100K-1M", "10K-100K", "1K-10K", "100-1K", "10-100", "1-10" };
+  enum { NB = sizeof lims / sizeof lims[0] };
+  heapoffs_t *order = mmalloc(nl * sizeof(heapoffs_t));
+  counter_t *calls = mmalloc(nl * sizeof(counter_t));
+  counter_t bcalls[NB];
+  heapoffs_t bdefs[NB];
+  heapoffs_t lab, n = 0, ncalled = 0, nnocell = 0, nalias = 0;
+  counter_t tcalls = 0, cum = 0;
+  char buf[64];
+
+  for (int b = 0; b < NB; b++) { bcalls[b] = 0; bdefs[b] = 0; }
+  for (lab = 0; lab < nl; lab++)
+    calls[lab] = 0;
+  for (lab = 1; lab <= prof_nlabels; lab++) {
+    struct node *r = prof_roots ? prof_roots[lab - 1] : 0;
+    if (!r) {
+      nnocell++;
+      continue;
+    }
+    if (r->prof_label != lab) {
+      nalias++;
+      continue;
+    }
+    calls[lab] = r->prof_ncalls;
+    order[n++] = lab;
+    if (!calls[lab])
+      continue;
+    tcalls += calls[lab];
+    ncalled++;
+    for (int b = 0; b < NB; b++)
+      if (calls[lab] >= lims[b]) {
+        bdefs[b]++;
+        bcalls[b] += calls[lab];
+        break;
+      }
+  }
+  if (!tcalls)
+    tcalls = 1;
+  prof_key = calls;
+  qsort(order, n, sizeof(heapoffs_t), prof_cmp);
+
+  fprintf(f, "\nCalls per definition, i.e., unwinding steps through the root cell of the definition.\n");
+  fprintf(f, "%"PRIcounter" calls of %"PRIheap" definitions with a cell of their own, %"PRIheap" of which were called.\n",
+          tcalls, n, ncalled);
+  fprintf(f, "Left out: %"PRIheap" definitions that are a bare combinator, constructor, or primitive, and %"PRIheap" that are another definition.\n",
+          nnocell, nalias);
+  fprintf(f, "      calls per definition   definitions            calls  %%calls\n");
+  for (int b = 0; b < NB; b++)
+    fprintf(f, "%26s %13"PRIheap" %16"PRIcounter" %6.2f\n", names[b], bdefs[b], bcalls[b], 100.0 * bcalls[b] / tcalls);
+  fprintf(f, "\nThe %d definitions with the most calls (reductions and cells are self costs, as above)\n", PROF_CALL_DEFS);
+  fprintf(f, "          calls  %%calls   cum%%       reductions  red/call  cells/call  definition\n");
+  for (heapoffs_t j = 0; j < n && j < PROF_CALL_DEFS; j++) {
+    lab = order[j];
+    if (!calls[lab])
+      break;
+    cum += calls[lab];
+    fprintf(f, "%15"PRIcounter" %6.2f %6.2f %16"PRIcounter" %9.1f %11.1f  %s\n",
+            calls[lab], 100.0 * calls[lab] / tcalls, 100.0 * cum / tcalls, red[lab],
+            (double)red[lab] / calls[lab], (double)alc[lab] / calls[lab],
+            prof_label_name((uint32_t)lab, buf, sizeof buf));
+  }
+  FREE(order);
+  FREE(calls);
+}
+
+static int
+prof_cmp_node(const void *a, const void *b)
+{
+  counter_t x = (*(struct node * const *)a)->prof_red, y = (*(struct node * const *)b)->prof_red;
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
+static const char *
+prof_label_name(uint32_t lab, char *buf, size_t size)
+{
+  if (lab == 0)
+    return "<no label>";
+  if (lab == PROF_MAIN)
+    return "<main expression>";
+  if (prof_names && lab - 1 < prof_nlabels && prof_names[lab - 1])
+    return prof_names[lab - 1];
+  snprintf(buf, size, "_%lu", (unsigned long)(lab - 1));
+  return buf;
+}
+
+/* The description of a hot node, see prof_describe. */
+#define PROF_DESC_SIZE 400
+#define PROF_DESC_ARGS 24       /* arguments shown in an application */
+#define PROF_DESC_DEPTH 3       /* nesting of the applications shown */
+struct prof_text {
+  char *s;
+  size_t len, size;
+};
+
+static void
+prof_puts(struct prof_text *t, const char *s)
+{
+  while (*s && t->len + 1 < t->size)
+    t->s[t->len++] = *s++;
+  t->s[t->len] = 0;
+}
+
+static NODEPTR
+prof_skip_ind(NODEPTR n)
+{
+  while (!is_VIRT(n) && get_DATA_TAG(FUN(n)) == D_IND && !is_NIL(ARG(n)))
+    n = ARG(n);
+  return n;
+}
+
+static int
+prof_is_root(struct node *p)
+{
+  uint32_t lab = p->prof_label;
+  return prof_roots && lab != 0 && lab != PROF_MAIN && lab <= prof_nlabels && prof_roots[lab - 1] == p;
+}
+
+/* A loaded cell: the name of the definition for its root, otherwise
+ * {definition+cell}, as in the table of loaded nodes. */
+static void
+prof_name_cell(struct prof_text *t, struct node *p)
+{
+  char buf[64];
+  uint32_t lab = p->prof_label;
+  heapoffs_t i = lab == PROF_MAIN ? prof_nlabels : (heapoffs_t)lab - 1;
+  if (p == &prof_runtime) {
+    prof_puts(t, "<runtime>");
+    return;
+  }
+  if (prof_is_root(p)) {
+    prof_puts(t, prof_label_name(lab, buf, sizeof buf));
+    return;
+  }
+  prof_puts(t, "{");
+  prof_puts(t, prof_label_name(lab, buf, sizeof buf));
+  if (lab != 0 && prof_first && i <= prof_nlabels && prof_first[i]) {
+    snprintf(buf, sizeof buf, "+%ld", (long)(p - prof_first[i]));
+    prof_puts(t, buf);
+  }
+  prof_puts(t, "}");
+}
+
+/* A virtual node, or a data node. */
+static void
+prof_name_leaf(struct prof_text *t, NODEPTR n)
+{
+  char buf[64];
+  enum node_tag tag;
+  int k, nn;
+  if (is_VIRT(n)) {
+    tag = get_VIRT_TAG(n);
+    switch (tag) {
+    case V_CONSTR:
+    case V_ARM:
+      get_CON_info(n, &k, &nn);
+      snprintf(buf, sizeof buf, "%c_%d_%d", tag == V_CONSTR ? 'C' : 'A', k, nn);
+      break;
+    case V_CASED:
+      {
+        struct case_arity *c = get_CASED_arity(n);
+        prof_puts(t, "D");
+        for (k = 0; k < c->m; k++) {
+          snprintf(buf, sizeof buf, "_%d", (int)c->arities[k]);
+          prof_puts(t, buf);
+        }
+        return;
+      }
+    case V_LOOKD:
+    case V_CASES:
+    case V_LOOKS:
+      snprintf(buf, sizeof buf, "%c_%d", tag == V_LOOKD ? 'L' : tag == V_CASES ? 'E' : 'M', get_CASE_size(n));
+      break;
+    default:
+      snprintf(buf, sizeof buf, "%s", tag <= T_LAST_TAG && TAGNAME(tag) ? TAGNAME(tag) : "?");
+      break;
+    }
+  } else {
+    tag = (enum node_tag)get_DATA_TAG(FUN(n));
+    if (tag == D_INT) {
+      snprintf(buf, sizeof buf, "#%lld", (long long)GETVALUE(n));
+    } else if (tag == D_FORPTR && FORPTR(n)->finalizer->fptype == FP_BSTR) {
+      struct bytestring bs = FORPTR(n)->payload;
+      size_t j, m = 0;
+      buf[m++] = '"';
+      for (j = 0; j < bs.bs_size && m < 24; j++) {
+        char c = ((const char *)bs.bs_array)[j];
+        buf[m++] = c >= ' ' && c < 127 && c != '"' ? c : '?';
+      }
+      if (j < bs.bs_size)
+        buf[m++] = '.', buf[m++] = '.';
+      buf[m++] = '"';
+      buf[m] = 0;
+    } else {
+      snprintf(buf, sizeof buf, "<%s>", tag <= T_LAST_TAG && TAGNAME(tag) ? TAGNAME(tag) : "?");
+    }
+  }
+  prof_puts(t, buf);
+}
+
+/* Describe node n as an application, its head and arguments, with nested
+ * applications to depth levels.  The head is a virtual node, a data node, or
+ * a loaded cell of a definition, by name.  So for a node made at run time
+ * the spine is followed until it reaches the loaded program, and for a
+ * loaded node until it leaves its definition.  Only the node itself is
+ * followed into the loaded program; a loaded argument is shown by name.
+ * Returns 1 if the head is a loaded cell of another definition. */
+static int
+prof_describe(struct prof_text *t, NODEPTR n, int depth, int top)
+{
+  NODEPTR args[PROF_DESC_ARGS], q;
+  struct node *p, *qp;
+  uint32_t home;
+  int na = 0, calls_def = 0;
+
+  n = prof_skip_ind(n);
+  if (is_VIRT(n) || !is_AP(FUN(n))) {
+    prof_name_leaf(t, n);
+    return 0;
+  }
+  p = NPTR(n);
+  if (!top && PROF_LOADED(p)) {
+    prof_name_cell(t, p);
+    return 0;
+  }
+  if (depth <= 0) {
+    prof_puts(t, "..");
+    return 0;
+  }
+  home = PROF_LOADED(p) ? p->prof_label : 0;
+  for (q = n; ; q = FUN(q)) {
+    q = prof_skip_ind(q);
+    if (is_VIRT(q) || !is_AP(FUN(q)))
+      break;
+    qp = NPTR(q);
+    if (qp != p && PROF_LOADED(qp) && (home == 0 || qp->prof_label != home || prof_is_root(qp)))
+      break;
+    if (na == PROF_DESC_ARGS)
+      break;
+    args[na++] = ARG(q);
+  }
+  if (!top)
+    prof_puts(t, "(");
+  if (is_VIRT(q) || !is_AP(FUN(q))) {
+    prof_name_leaf(t, q);
+  } else if (na == PROF_DESC_ARGS) {
+    prof_puts(t, "...");
+  } else {
+    prof_name_cell(t, NPTR(q));
+    calls_def = 1;
+  }
+  while (na > 0) {
+    prof_puts(t, " ");
+    prof_describe(t, args[--na], depth - 1, 0);
+  }
+  if (!top)
+    prof_puts(t, ")");
+  return calls_def;
+}
+
+/* Fill in the entry for node p. */
+static void
+prof_describe_node(struct prof_dead *d, struct node *p)
+{
+  char buf[PROF_DESC_SIZE];
+  struct prof_text t;
+  NODEPTR n;
+  t.s = buf;
+  t.len = 0;
+  t.size = sizeof buf;
+  buf[0] = 0;
+  n.node_ptr = p;
+  d->ncalls = p->prof_ncalls;
+  d->nred = p->prof_nred;
+  d->nupd = p->prof_nupd;
+  d->gc = 0;
+  d->src = p->prof_src;
+  d->loaded = PROF_LOADED(p);
+  d->calls_def = prof_describe(&t, n, PROF_DESC_DEPTH, 1);
+  d->desc = strdup(buf);
+}
+
+/* A loaded node is only interesting if it calls another definition, like
+ * insert dOrdInt in the code of some definition, or has been rewritten, like
+ * a CAF.  Otherwise it is code, and the counts per definition and the table
+ * of loaded nodes cover it. */
+#define PROF_INTERESTING(d) (!(d)->loaded || (d)->calls_def || (d)->nupd > 0)
+
+/* At a stack overflow, show what the stack holds.  An application is
+ * counted by the definition that built it, a virtual entry by its tag. */
+static uint32_t
+prof_stack_label(NODEPTR n)
+{
+  return NPTR(n)->prof_src ? NPTR(n)->prof_src->prof_label : 0;
+}
+
+void
+prof_stack_dump(void)
+{
+  uint32_t nl = prof_nlabels + 2;
+  counter_t *cnt = calloc(nl, sizeof(counter_t));
+  counter_t vt[T_LAST_TAG+1];
+  char buf[100];
+  stackptr_t i;
+  memset(vt, 0, sizeof vt);
+  for (i = 0; i <= stack_ptr; i++) {
+    NODEPTR n = stack[i];
+    if (is_VIRT(n)) {
+      vt[get_VIRT_TAG(n)]++;
+    } else {
+      uint32_t lab = prof_stack_label(n);
+      uint32_t k = lab == PROF_MAIN ? nl - 1 : lab;
+      if (k < nl) cnt[k]++;
+    }
+  }
+  fprintf(stderr, "stack overflow with %ld entries.  Applications by the definition that built them:\n", (long)stack_ptr + 1);
+  for (int r = 0; r < 20; r++) {
+    uint32_t best = 0;
+    for (uint32_t k = 1; k < nl; k++)
+      if (cnt[k] > cnt[best]) best = k;
+    if (cnt[best] == 0) break;
+    fprintf(stderr, "  %10llu  %s\n", (unsigned long long)cnt[best],
+            prof_label_name(best == nl - 1 ? PROF_MAIN : best, buf, sizeof buf));
+    cnt[best] = 0;
+  }
+  fprintf(stderr, "Virtual entries:\n");
+  for (int t = 0; t <= T_LAST_TAG; t++)
+    if (vt[t])
+      fprintf(stderr, "  %10llu  %s (%d)\n", (unsigned long long)vt[t], TAGNAME(t) ? TAGNAME(t) : "?", t);
+  fprintf(stderr, "The top of the stack, repeats collapsed:\n");
+  for (i = stack_ptr; i >= 0 && i > stack_ptr - 400; ) {
+    NODEPTR n = stack[i];
+    stackptr_t j = i;
+    const char *nm;
+    if (is_VIRT(n)) {
+      int t = get_VIRT_TAG(n);
+      while (j >= 0 && is_VIRT(stack[j]) && get_VIRT_TAG(stack[j]) == t) j--;
+      nm = TAGNAME(t) ? TAGNAME(t) : "?";
+    } else {
+      uint32_t lab = prof_stack_label(n);
+      while (j >= 0 && !is_VIRT(stack[j]) && prof_stack_label(stack[j]) == lab) j--;
+      nm = prof_label_name(lab, buf, sizeof buf);
+    }
+    fprintf(stderr, "  %6ld x  %s\n", (long)(i - j), nm);
+    i = j;
+  }
+  free(cnt);
+}
+
+#define PROF_HOT_NODES 200
+#define PROF_CALLER_DEFS 20     /* the definitions whose callers are shown */
+#define PROF_CALLERS 10         /* the callers and the call chains shown for each */
+#define PROF_CHAIN 6            /* the callers shown in a call chain */
+#define PROF_MORE 0xfffffffd    /* the chain continues */
+
+/* Some callers of a context, the most recent first.  Unused entries are
+ * PROF_TOP_LABEL, and PROF_MORE ends a chain that was cut off. */
+struct prof_chain {
+  uint32_t  lab[PROF_CHAIN + 1];
+  counter_t red, alloc;
+};
+
+static int
+prof_cmp_chain_lab(const void *a, const void *b)
+{
+  const uint32_t *x = ((const struct prof_chain *)a)->lab, *y = ((const struct prof_chain *)b)->lab;
+  for (int k = 0; k <= PROF_CHAIN; k++)
+    if (x[k] != y[k])
+      return x[k] < y[k] ? -1 : 1;
+  return 0;
+}
+
+static int
+prof_cmp_chain_red(const void *a, const void *b)
+{
+  counter_t x = ((const struct prof_chain *)a)->red, y = ((const struct prof_chain *)b)->red;
+  return x < y ? 1 : x > y ? -1 : 0;
+}
+
+/* Fill chs with the chains of depth callers for the contexts of label lab,
+ * summed over equal chains and sorted by reductions.  Returns their number. */
+static uint32_t
+prof_chains(struct prof_chain *chs, uint32_t lab, int depth)
+{
+  uint32_t m = 0, c, a;
+  int k;
+  for (c = 1; c < prof_nctxs; c++) {
+    if (prof_ctxs[c].label != lab)
+      continue;
+    struct prof_chain *ch = &chs[m++];
+    for (k = 0; k <= PROF_CHAIN; k++)
+      ch->lab[k] = PROF_TOP_LABEL;
+    for (a = prof_ctxs[c].parent, k = 0; k < depth && a != 0; k++, a = prof_ctxs[a].parent)
+      ch->lab[k] = prof_ctxs[a].label;
+    if (a != 0 && depth > 1)
+      ch->lab[k] = PROF_MORE;
+    ch->red = prof_ctxs[c].red;
+    ch->alloc = prof_ctxs[c].alloc;
+  }
+  qsort(chs, m, sizeof *chs, prof_cmp_chain_lab);
+  uint32_t n = 0;
+  for (uint32_t j = 0; j < m; j++) {
+    if (n > 0 && prof_cmp_chain_lab(&chs[n-1], &chs[j]) == 0) {
+      chs[n-1].red += chs[j].red;
+      chs[n-1].alloc += chs[j].alloc;
+    } else {
+      chs[n++] = chs[j];
+    }
+  }
+  qsort(chs, n, sizeof *chs, prof_cmp_chain_red);
+  return n;
+}
+
+/* The callers of the definitions with the most reductions, see prof_push. */
+static void
+prof_report_callers(FILE *f, heapoffs_t *order, heapoffs_t nl)
+{
+  struct prof_chain *chs;
+  uint32_t c, cnt, maxcnt = 0, n, j;
+  char buf[64];
+  int shown = 0, k;
+
+  /* Count the contexts per label, to size chs. */
+  counter_t *nctx = mmalloc(nl * sizeof(counter_t));
+  for (heapoffs_t i = 0; i < nl; i++)
+    nctx[i] = 0;
+  for (c = 1; c < prof_nctxs; c++) {
+    uint32_t lab = prof_ctxs[c].label;
+    heapoffs_t i = lab == PROF_MAIN ? nl - 1 : lab;
+    if (i < nl && ++nctx[i] > maxcnt)
+      maxcnt = (uint32_t)nctx[i];
+  }
+  chs = mmalloc((maxcnt + 1) * sizeof(struct prof_chain));
+
+  fprintf(f, "\n%u call contexts.\n", (unsigned)prof_nctxs);
+  fprintf(f, "Callers of the definitions with the most reductions.  The caller is the\n");
+  fprintf(f, "definition that built the application; in a call chain the most recent\n");
+  fprintf(f, "caller comes first.  Recursion is cut back to the first call.\n");
+  for (heapoffs_t jj = 0; jj < nl && shown < PROF_CALLER_DEFS; jj++) {
+    heapoffs_t i = order[jj];
+    uint32_t lab = i == nl - 1 ? PROF_MAIN : (uint32_t)i;
+    counter_t self = 0;
+    cnt = 0;
+    for (c = 1; c < prof_nctxs; c++)
+      if (prof_ctxs[c].label == lab) {
+        self += prof_ctxs[c].red;
+        cnt++;
+      }
+    if (!self)
+      continue;
+    shown++;
+    fprintf(f, "\n%s: %"PRIcounter" reductions in %u contexts\n", prof_label_name(lab, buf, sizeof buf), self, (unsigned)cnt);
+    for (int depth = 1; depth <= PROF_CHAIN; depth += PROF_CHAIN - 1) {
+      n = prof_chains(chs, lab, depth);
+      fprintf(f, "     reductions   %%self   cells allocated  %s\n", depth == 1 ? "caller" : "call chain");
+      for (j = 0; j < n && j < PROF_CALLERS; j++) {
+        fprintf(f, "%15"PRIcounter" %7.2f %17"PRIcounter"  ", chs[j].red, 100.0 * chs[j].red / self, chs[j].alloc);
+        for (k = 0; k <= PROF_CHAIN; k++) {
+          uint32_t l = chs[j].lab[k];
+          if (l == PROF_TOP_LABEL) {
+            if (k == 0)
+              fprintf(f, "<top level>");
+            break;
+          }
+          if (k > 0)
+            fprintf(f, " <- ");
+          fprintf(f, "%s", l == PROF_MORE ? "..." : prof_label_name(l, buf, sizeof buf));
+        }
+        fprintf(f, "\n");
+      }
+      if (n > PROF_CALLERS) {
+        counter_t rest = 0;
+        for (; j < n; j++)
+          rest += chs[j].red;
+        fprintf(f, "%15"PRIcounter" %7.2f %17s  (%u more)\n", rest, 100.0 * rest / self, "", (unsigned)(n - PROF_CALLERS));
+      }
+    }
+  }
+  FREE(chs);
+  FREE(nctx);
+}
+
+#define PROF_HOT_REPORT 100     /* the hot nodes shown in each table */
+
+static int
+prof_cmp_dead(const void *a, const void *b)
+{
+  const struct prof_dead *x = a, *y = b;
+  counter_t u = x->ncalls + x->nred, v = y->ncalls + y->nred;
+  return u < v ? 1 : u > v ? -1 : 0;
+}
+
+/* One table of hot nodes: the kept dead ones in k, and the live ones, with
+ * loaded nodes or not. */
+static void
+prof_report_hot_table(FILE *f, struct prof_keep *k, struct prof_dead *live, size_t nlive, int loaded,
+                      counter_t tunw, counter_t tred)
+{
+  struct prof_dead *es = mmalloc((k->n + nlive + 1) * sizeof(struct prof_dead));
+  char made[PROF_DESC_SIZE], status[32];
+  struct prof_text t;
+  size_t n = 0, j;
+
+  for (j = 0; j < k->n; j++)
+    es[n++] = k->es[j];
+  for (j = 0; j < nlive; j++)
+    if (live[j].loaded == loaded && PROF_INTERESTING(&live[j]))
+      es[n++] = live[j];
+  qsort(es, n, sizeof(struct prof_dead), prof_cmp_dead);
+  fprintf(f, "          calls  %%unwind     reductions    %%red     rewrites  status   node    (%s)\n",
+          loaded ? "in" : "made by");
+  for (j = 0; j < n && j < PROF_HOT_REPORT; j++) {
+    struct prof_dead *e = &es[j];
+    t.s = made;
+    t.len = 0;
+    t.size = sizeof made;
+    made[0] = 0;
+    prof_name_cell(&t, e->src);
+    if (e->gc)
+      snprintf(status, sizeof status, "gc %"PRIcounter, e->gc);
+    else
+      snprintf(status, sizeof status, "live");
+    fprintf(f, "%15"PRIcounter" %6.2f %15"PRIcounter" %6.2f %12"PRIcounter"  %-8s %s    (%s)\n",
+            e->ncalls, tunw ? 100.0 * e->ncalls / tunw : 0.0,
+            e->nred, tred ? 100.0 * e->nred / tred : 0.0,
+            e->nupd, status, e->desc ? e->desc : "?", made);
+  }
+  FREE(es);
+}
+
+/* The nodes with the most counts, see prof_hot_add. */
+static void
+prof_report_hot(FILE *f, counter_t tunw, counter_t tred)
+{
+  struct prof_dead *live = mmalloc((prof_nhot + 1) * sizeof(struct prof_dead));
+  size_t j;
+
+  for (j = 0; j < prof_nhot; j++)
+    prof_describe_node(&live[j], prof_hot[j]);
+  fprintf(f, "\nHot nodes: the nodes with the most calls (unwinding steps through the node)\n");
+  fprintf(f, "plus reductions (charged to the node as the innermost application on the\n");
+  fprintf(f, "spine), counted per node while it lives.  Rewrites are reductions that\n");
+  fprintf(f, "overwrite the node with an application, e.g., every iteration of a loop.  A\n");
+  fprintf(f, "node that is not live was found dead (or, for a loaded node, unreachable) by\n");
+  fprintf(f, "GC number N, and is shown as it was then.  In a node, {def+k} is cell k of the\n");
+  fprintf(f, "code of definition def, as in the table of loaded nodes below, and .. is an\n");
+  fprintf(f, "application that is not shown.  Only the nodes that reach %d counts are\n", (int)PROF_HOT_MIN);
+  fprintf(f, "recorded, and only the %d dead ones of each kind with the most counts are\nkept.\n", (int)PROF_DEAD_KEEP);
+  fprintf(f, "\nNodes made at run time, by the code in (made by).\n");
+  prof_report_hot_table(f, &prof_dead_rt, live, prof_nhot, 0, tunw, tred);
+  fprintf(f, "\nLoaded nodes that apply another definition, or have been rewritten (a CAF),\n");
+  fprintf(f, "in the code of definition (in).\n");
+  prof_report_hot_table(f, &prof_dead_ld, live, prof_nhot, 1, tunw, tred);
+  for (j = 0; j < prof_nhot; j++)
+    FREE(live[j].desc);
+  FREE(live);
+}
+
+/* Write the profile to PROGRAM.prof, see prof_charge.  The counts of the loaded
+ * nodes are summed per definition; then come the loaded nodes with the most
+ * reductions.  Runs when the program exits (atexit). */
+static void
+prof_report(void)
+{
+  heapoffs_t nl = prof_nlabels + 2;  /* index 0: no label, l+1: label l, nl-1: main */
+  counter_t *red = mmalloc(nl * sizeof(counter_t));
+  counter_t *unw = mmalloc(nl * sizeof(counter_t));
+  counter_t *alc = mmalloc(nl * sizeof(counter_t));
+  struct node **start = mmalloc(nl * sizeof(struct node *));
+  heapoffs_t *order = mmalloc(nl * sizeof(heapoffs_t));
+  heapoffs_t i, nhot = 0;
+  counter_t tred, tunw, talc, cum;
+  struct node **hot;
+  char fname[1024], buf[64];
+  const char *base;
+  FILE *f;
+
+  for (i = 0; i < nl; i++) {
+    red[i] = unw[i] = alc[i] = 0;
+    start[i] = 0;
+    order[i] = i;
+  }
+  for (struct node *p = prof_lo; p < prof_hi; p++) {
+    i = p->prof_label == PROF_MAIN ? nl - 1 : p->prof_label;
+    red[i] += p->prof_red;
+    unw[i] += p->prof_unwind;
+    alc[i] += p->prof_alloc;
+    if (!start[i])
+      start[i] = p;
+    if (p->prof_red)
+      nhot++;
+  }
+  tred = prof_runtime.prof_red;
+  tunw = prof_runtime.prof_unwind;
+  talc = prof_runtime.prof_alloc;
+  for (i = 0; i < nl; i++) {
+    tred += red[i];
+    tunw += unw[i];
+    talc += alc[i];
+  }
+  if (!tred)
+    tred = 1;
+
+  base = strrchr(progname, '/');
+  base = base ? base + 1 : progname;
+  snprintf(fname, sizeof fname, "%s.prof", *base && strcmp(base, "?") ? base : "mhs");
+  f = fopen(fname, "w");
+  if (!f) {
+    fprintf(stderr, "cannot write profile %s\n", fname);
+    return;
+  }
+  fprintf(f, "Profile of %s\n", progname);
+  fprintf(f, "%15"PRIcounter" reductions (num_reductions %"PRIcounter")\n", tred, num_reductions);
+  fprintf(f, "%15"PRIcounter" unwinding steps\n", tunw);
+  fprintf(f, "%15"PRIcounter" cells allocated\n", talc);
+  fprintf(f, "%15"PRIcounter" reductions, %"PRIcounter" cells allocated by the runtime itself\n",
+          prof_runtime.prof_red, prof_runtime.prof_alloc);
+  fprintf(f, "Self costs; a closure is charged to the definition that created it.\n\n");
+
+  prof_key = red;
+  qsort(order, nl, sizeof(heapoffs_t), prof_cmp);
+  fprintf(f, "     reductions    %%red   cum%%     unwinding steps   cells allocated  definition\n");
+  cum = 0;
+  for (heapoffs_t j = 0; j < nl; j++) {
+    i = order[j];
+    if (!red[i] && !unw[i] && !alc[i])
+      continue;
+    cum += red[i];
+    fprintf(f, "%15"PRIcounter" %6.2f %6.2f %19"PRIcounter" %17"PRIcounter"  %s\n",
+            red[i], 100.0 * red[i] / tred, 100.0 * cum / tred, unw[i], alc[i],
+            prof_label_name(i == nl - 1 ? PROF_MAIN : (uint32_t)i, buf, sizeof buf));
+  }
+
+  prof_report_unwind(f, tunw);
+  prof_report_prims(f, tred);
+  prof_report_calls(f, red, alc, nl);
+  prof_report_callers(f, order, nl);
+  prof_report_hot(f, tunw, tred);
+
+  /* The loaded nodes with the most reductions */
+  hot = mmalloc((nhot + 1) * sizeof(struct node *));
+  nhot = 0;
+  for (struct node *p = prof_lo; p < prof_hi; p++)
+    if (p->prof_red)
+      hot[nhot++] = p;
+  qsort(hot, nhot, sizeof(struct node *), prof_cmp_node);
+  fprintf(f, "\nLoaded nodes with the most reductions (the node is the combinator applied to its first argument)\n");
+  fprintf(f, "     reductions    %%red  node   definition+cell\n");
+  for (heapoffs_t j = 0; j < nhot && j < PROF_HOT_NODES; j++) {
+    struct node *p = hot[j];
+    NODEPTR n, fn;
+    const char *what;
+    n.node_ptr = p;
+    fn = FUN(n);
+    if (is_VIRT(fn))
+      what = TAGNAME(get_VIRT_TAG(fn));
+    else if (is_AP(fn))
+      what = "@";
+    else
+      what = TAGNAME(get_DATA_TAG(fn));
+    i = p->prof_label == PROF_MAIN ? nl - 1 : p->prof_label;
+    fprintf(f, "%15"PRIcounter" %6.2f  %-6s %s+%ld\n",
+            p->prof_red, 100.0 * p->prof_red / tred, what ? what : "?",
+            prof_label_name(p->prof_label, buf, sizeof buf), (long)(p - start[i]));
+  }
+  fclose(f);
+  if (verbose)
+    PRINT("profile written to %s\n", fname);
+  FREE(red); FREE(unw); FREE(alc); FREE(start); FREE(order); FREE(hot);
+}
+#endif  /* WANT_STDIO */
+
+/* A node on the hot list is dead (or, for a loaded node, unreachable): keep
+ * it, with a description, if it is interesting and among the PROF_DEAD_KEEP
+ * dead nodes of its kind with the most counts.  The description is only
+ * needed for the report, which needs stdio. */
+static void
+prof_retire(struct node *p)
+{
+#if WANT_STDIO
+  struct prof_keep *k = PROF_LOADED(p) ? &prof_dead_ld : &prof_dead_rt;
+  struct prof_dead e, *d;
+  if (k->n == PROF_DEAD_KEEP && p->prof_ncalls + p->prof_nred <= k->es[k->min].ncalls + k->es[k->min].nred)
+    return;
+  prof_describe_node(&e, p);
+  e.gc = num_gc;
+  if (!PROF_INTERESTING(&e)) {
+    FREE(e.desc);
+    return;
+  }
+  if (k->n < PROF_DEAD_KEEP) {
+    if (!k->es)
+      k->es = mmalloc(PROF_DEAD_KEEP * sizeof(struct prof_dead));
+    d = &k->es[k->n++];
+  } else {
+    d = &k->es[k->min];
+    FREE(d->desc);
+  }
+  *d = e;
+  if (k->n == PROF_DEAD_KEEP) {
+    counter_t m = ~(counter_t)0;
+    for (size_t i = 0; i < k->n; i++)
+      if (k->es[i].ncalls + k->es[i].nred < m) {
+        m = k->es[i].ncalls + k->es[i].nred;
+        k->min = i;
+      }
+  }
+#else
+  (void)p;
+#endif
+}
+
+/* Take the dead nodes off the hot list.  This runs after marking, and
+ * before prof_pin, so an unmarked loaded node is unreachable. */
+static void
+prof_hot_gc(void)
+{
+  size_t i, j = 0;
+  for (i = 0; i < prof_nhot; i++) {
+    struct node *p = prof_hot[i];
+    NODEPTR n;
+    n.node_ptr = p;
+    if (is_marked_used(n))
+      prof_hot[j++] = p;
+    else
+      prof_retire(p);
+  }
+  prof_nhot = j;
+}
+#endif  /* WANT_PROFILE */
 
 extern const uint8_t *combexpr;
 extern const int combexprlen;
@@ -10734,9 +12117,18 @@ MHS_INIT_ARGS(
       /* put it back, we need it */
       ungetb(c, bf);
     }
+#if WANT_PROFILE
+    prof_loading = 1;
+#endif
     prog = parse_top(bf, xffe_table);
     if (is_NIL(prog))
       ERR("deser failed");
+#if WANT_PROFILE
+    prof_end_load(bf);
+#if WANT_STDIO
+    atexit(prof_report);        /* also when the program ends with exitWith, or an uncaught exception */
+#endif
+#endif
     closeb(bf);
   }
 

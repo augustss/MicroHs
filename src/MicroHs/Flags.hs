@@ -17,6 +17,7 @@ data Flags = Flags {
   writeCache :: Bool,       -- generate cache
   cacheName  :: FilePath,   -- file name for compilation cache
   useTicks   :: Bool,       -- emit ticks
+  profile    :: Bool,       -- add the names of the definitions, and use a profiling runtime
   doCPP      :: Bool,       -- run ccphs on input files
   noCode     :: Bool,       -- don't generate code
   cppArgs    :: [String],   -- flags for CPP
@@ -63,6 +64,7 @@ defaultFlags = Flags {
   writeCache = False,
   cacheName  = ".mhscache",
   useTicks   = False,
+  profile    = False,
   doCPP      = False,
   noCode     = False,
   cppArgs    = [],
