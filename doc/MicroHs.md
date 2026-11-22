@@ -398,7 +398,7 @@ A function like `jsAdd` can be defined in a JavaScript file that is given on the
 
 ## Preprocessor
 
-Sadly, many Haskell packages need the C preprocessor. MicroHs uses `cpphs`, and the distribution contains the combinator code for it, so `make` builds `bin/cpphs`. The symbol `__MHS__` is defined when compiling with MicroHs.
+Sadly, many Haskell packages need the C preprocessor. MicroHs uses `cpphs`, and the distribution contains the combinator code for it, so `make` builds `bin/cpphs`. The symbol `__MHS__` is defined when compiling with MicroHs. As in GHC, so are `OS_HOST_OS` and `ARCH_HOST_ARCH` (and `OS_BUILD_OS` and `ARCH_BUILD_ARCH`), where `OS` and `ARCH` are the values of `System.Info.os` and `System.Info.arch`, which are the names GHC uses, e.g., `darwin_HOST_OS`, `linux_HOST_OS`, `aarch64_HOST_ARCH`, and `x86_64_HOST_ARCH`. On Windows the system is `mingw32` when the runtime is compiled with MinGW (as for GHC), and `windows` otherwise, e.g., with `cl`.
 
 ---
 

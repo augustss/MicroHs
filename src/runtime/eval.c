@@ -498,6 +498,17 @@ iswindows(void)
 #endif
 }
 
+/* Was the runtime compiled with MinGW (rather than, e.g., cl)? */
+value_t
+ismingw(void)
+{
+#if defined(__MINGW32__)
+  return 1;
+#else
+  return 0;
+#endif
+}
+
 value_t
 ismacos(void)
 {
@@ -9133,6 +9144,9 @@ from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
+/* static, since a compiler that does not know ismingw is in the runtime
+   generates its own mhs_ismingw */
+static from_t mhs_ismingw(int s) { return mhs_from_Int(s, 0, ismingw()); }
 from_t mhs_malloc(int s) { return mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
 from_t mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_strlen(int s) { return mhs_from_CSize(s, 1, strlen(mhs_to_Ptr(s, 0))); }
@@ -9520,6 +9534,7 @@ const struct ffi_entry ffi_table[] = {
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},
+  { "ismingw", 0, mhs_ismingw},
   { "malloc", 1, mhs_malloc},
   { "memcpy", 3, mhs_memcpy},
   { "memmove", 3, mhs_memmove},

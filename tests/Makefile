@@ -5,9 +5,9 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
-.PHONY: testpreprocessorpaths testcacheinstance
+.PHONY: testpreprocessorpaths testcpphost testcacheinstance
 
-alltest: info cache test errtest testforimp testfordynamic testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
+alltest: info cache test errtest testforimp testfordynamic testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcpphost testcacheinstance
 # interactivetest
 
 cache:
@@ -29,6 +29,10 @@ interactivetest:
 
 testpreprocessorpaths:
 	sh preprocessor-paths.sh $(TMHS)
+
+# As in GHC, the preprocessor defines os_HOST_OS and arch_HOST_ARCH.
+testcpphost:
+	MHSCPPHS=../bin/cpphs $(TMHS) CppHost -oCppHost.exe && ./CppHost.exe > CppHost.out && diff CppHost.ref CppHost.out
 
 testcacheinstance:
 	sh cache-instance.sh $(TMHS)
