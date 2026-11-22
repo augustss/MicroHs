@@ -171,9 +171,11 @@ dsBinds ads ret =
     node ie@(i, e) = (ie, i, freeVars e)
     gr = map node $ checkDup ds
     asccs = stronglyConnComp gr
+    dicts = [ i | b@(Fcn i _) <- ads, isDictBind b ]
     loop _ [] = ret
-    loop vs (AcyclicSCC (i, e) : sccs) =
-      letE i e $ loop vs sccs
+    loop vs (AcyclicSCC (i, e) : sccs)
+      | i `elem` dicts = substExp i e $ loop vs sccs
+      | otherwise      = letE i e $ loop vs sccs
     loop vs (CyclicSCC [(i, e)] : sccs) =
       case lazier (i, e) of
         (i', e')
@@ -183,6 +185,31 @@ dsBinds ads ret =
       let (v:vs) = vvs in
       mutualRec v ies (loop vs sccs)
   in loop mvs asccs
+
+-- Is this the binding of a dictionary that is built from other dictionaries,
+-- by selecting a superclass or a constraint in a tuple of constraints, or by
+-- applying an instance?  E.g.,
+--   dict$19 = (\ (_, $x) -> $x) adict$3
+--   dict$23 = inst$Data.Eq.Eq@(Data.List_Type.[]@a) adict$4
+-- The type checker binds a solved constraint where it is solved, often
+-- inside a lambda.  As a let there, a method selection on it, e.g.,
+-- (+) dict$19, would be redone at every call of the lambda.  So these
+-- bindings are substituted, like variables: then (+) (sel adict$3) is free
+-- in the lambda, and the translation to combinators shares it.  A dictionary
+-- that is used in several places is then built once for each.
+-- XXX A better way would be let floating: move each dictionary binding out
+-- to where the variables it uses are bound.  That shares the dictionary
+-- without building it once for every use.
+isDictBind :: EBind -> Bool
+isDictBind (Fcn i [Eqn [] (EAlts [([], ae)] [])]) = dictPrefixDollar `isPrefixOf` unIdent i && dict ae
+  where dict (EVar _) = True
+        dict (EApp f e) = dfun f && dict e
+        dict _ = False
+        dfun (EVar s) = "$super" `isInfixOf` unIdent s || "inst$" `isPrefixOf` unIdent s
+        dfun (EApp f e) = dfun f && dict e
+        dfun (ELam _ [Eqn [ETuple _] (EAlts [([], EVar _)] [])]) = True
+        dfun _ = False
+isDictBind _ = False
 
 letE :: Ident -> Exp -> Exp -> Exp
 letE i e b = eLet i e b          -- do some minor optimizations
