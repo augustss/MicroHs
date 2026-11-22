@@ -791,16 +791,16 @@ The runtime does not need the arities `ak`, since a constructor knows its number
 
 If the type has more than 4 constructors and fewer than 3/4 of them have an arm, a sparse `case` is used instead:
 ```
-E_m d A_k1_n1 f1 ... A_km_nm fm e
+E_k1_n1_..._km_nm d f1 ... fm e
 ```
-Here `m` is the number of arms, `d` is the default, and each arm `fi` is preceded by `A_ki_ni`, which gives its constructor number and number of fields. The arms are sorted by constructor number.
+Here `m` is the number of arms, `d` is the default, and the arm `fj` is for constructor `kj`, which has `nj` fields. The arms are sorted by constructor number. Since the constructor numbers are part of the combinator, bracket abstraction cannot separate them from the `case`. Below, `E_m` stands for a sparse `case` with `m` arms.
 
 The scrutinee comes last so that `\ x -> case x of ...` becomes just `D_m f0 ... f{m-1}` after bracket abstraction, without any extra combinators.
 
 ### Evaluation
-The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields. A `D_m` uses those 19 bits for an index into a table of case arities, where each entry holds `m` and the arities. Equal entries are shared, and the table is never freed.
+The constructor and `case` combinators take no space in the heap. Their tag, the constructor number, and the number of fields (or arms) are stored in the pointer itself (see [Memory layout](#memory-layout)). There are 11 bits for the constructor number and 8 bits for the number of fields. A `D_m` or `E_m` uses those 19 bits for an index into a table of case arities, where each entry holds `m`, the arities, and for an `E_m` the constructor numbers. Equal entries are shared, and the table is never freed.
 
-To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
+To reduce `D_m f0 ... f{m-1} e`, the runtime leaves the arms on the stack, pushes a marker, and evaluates `e`. When the evaluation of `e` reaches a constructor `C_k_n` applied to its `n` fields, the marker is right below it on the stack. The runtime then selects the arm `fk` and overwrites the case redex with `fk e1 ... en`, which needs `n-1` new cells (or with an indirection to `fk` when `n` is 0). For `E_m`, the arm is found by binary search on the constructor numbers in the table, and if there is no match the result is `d`. A constructor that is not directly above a marker is a value.
 
 ### Class dictionaries
 
