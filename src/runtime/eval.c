@@ -2474,6 +2474,13 @@ counter_t num_samples_hit;               /* samples where some candidate recurre
 counter_t num_samples_none;              /* samples without any candidate */
 counter_t sample_miss_heads[T_LAST_TAG+1]; /* the heads of the samples where no candidate recurred */
 
+/* Extracting the subgraphs of hot nodes, see jx_extract. */
+extern int jx_limit;
+extern int jx_threshold;
+static void jx_hot(struct sample_entry *e);
+static void jx_gc(void);
+static void jx_report(void);
+
 static INLINE uint32_t
 sample_hash(NODEPTR n)
 {
@@ -2560,6 +2567,8 @@ sample_node(NODEPTR n)
     if (e && !hit) {
       e->outer++;
       hit = true;
+      if (jx_limit && e->outer == (counter_t)jx_threshold)
+        jx_hot(e);              /* it just got hot */
     }
   }
   if (ns <= 1) {
@@ -2589,6 +2598,7 @@ sample_gc(void)
       e->outer = 0;
     }
   }
+  jx_gc();
 }
 #endif  /* WANT_SAMPLE */
 
@@ -5406,18 +5416,6 @@ sample_dump(const char *name, NODEPTR n)
   closeb(bf);
 }
 
-extern int jx_limit;
-static bool jx_extract(FILE *f, int rank, struct sample_entry *e);
-#define SAMPLE_EXTRACT    30    /* number of subgraphs to extract */
-
-static int
-sample_cmp_outer(const void *a, const void *b)
-{
-  counter_t x = ((const struct sample_entry *)a)->outer;
-  counter_t y = ((const struct sample_entry *)b)->outer;
-  return x < y ? 1 : x > y ? -1 : 0;
-}
-
 /* Report the hottest nodes, and write the hottest ones to files. */
 void
 sample_report(void)
@@ -5475,23 +5473,8 @@ sample_report(void)
             (int)k + 1, es[k].hits, 100.0 * es[k].hits / num_samples, es[k].outer,
             (void *)get_node_ptr(es[k].node), head, nargs, name);
   }
-  if (jx_limit) {
-    /* Extract from the nodes that are most often the outermost recurring
-     * node of a sample, i.e., presumably the function that is called.  Skip
-     * the nodes that were copied for an earlier one. */
-    qsort(es, ne, sizeof(struct sample_entry), sample_cmp_outer);
-    FILE *f = fopen("mhs-extract.txt", "w");
-    if (f) {
-      int nx = 0;
-      for (size_t k = 0; k < ne && nx < SAMPLE_EXTRACT && es[k].outer > 0; k++)
-        if (jx_extract(f, nx + 1, &es[k]))
-          nx++;
-      fclose(f);
-      fprintf(stderr, "  the subgraphs of %d hot nodes, at most %d nodes copied, are in mhs-extract.txt\n",
-              nx, jx_limit);
-    }
-  }
   FREE(es);
+  jx_report();
 }
 #endif  /* WANT_SAMPLE */
 
@@ -6771,11 +6754,23 @@ check_arity(enum node_tag tag, int k)
  *    comes back to it, so it is copied first; when the traversal is done with
  *    it, its copy and everything after it in the array is dropped, and it
  *    becomes a reference;
- *  - a node that would make the copy larger than the size limit.
+ *  - a node that would make the copy larger than JX_EXPLORE times the size
+ *    limit.
  * The array is also the table of visited nodes, so sharing is kept.  A cycle
  * back to the root is a reference to the root's copy, entry 0.
+ *
+ * Finding the cycles needs a depth first traversal, but cutting the copy at
+ * the size limit in depth first order would spend it on whatever is first,
+ * e.g., the rotations of a balance function, and cut the tests near the root.
+ * So the traversal explores more, and then jx_select keeps the copied nodes
+ * that are nearest the root, breadth first, up to the size limit.
  */
+#define JX_EXPLORE 16
 enum jx_kind { JX_COPY, JX_DATA, JX_REDEX, JX_CYCLE, JX_CUT };
+/* Why the copy stopped at a reference: a value or constructor (whnf), a
+ * redex, the start of a cycle, or the size limit (depth, since the nodes
+ * furthest from the root are cut). */
+static const char *jx_why[] = { "copy", "whnf", "redex", "cycle", "depth" };
 
 /* An operand of a copied application: an index in the array, or a leaf. */
 struct jx_opnd {
@@ -6792,7 +6787,9 @@ struct jx_entry {
   int            uses;          /* references from other entries, for printing */
 };
 
+#define JX_LIMIT 500                    /* the default size limit */
 int jx_limit = 0;                       /* the size limit (+RTS -J); 0 means no extraction */
+int jx_threshold = 100;                 /* samples as the outermost node before a node is hot */
 static struct jx_entry *jx;             /* the extracted subgraph; jx[0] is the root */
 static int jx_n;                        /* the number of entries */
 static int jx_copies;                   /* the number of JX_COPY entries */
@@ -6858,7 +6855,7 @@ jx_visit(NODEPTR p)
       break;
     }
   }
-  if (k == JX_COPY && jx_copies >= jx_limit)
+  if (k == JX_COPY && jx_copies >= JX_EXPLORE * jx_limit)
     k = JX_CUT;
   int i = jx_n++;
   jx[i] = (struct jx_entry){ .orig = p, .kind = k };
@@ -6880,6 +6877,63 @@ jx_visit(NODEPTR p)
     jx[i] = (struct jx_entry){ .orig = p, .kind = JX_CYCLE };
   }
   return o;
+}
+
+/* Keep the jx_limit copied nodes that are nearest the root, breadth first.
+ * A copied node that is used by a kept one, but is not kept itself, becomes
+ * a cut reference, and what is only reachable through it is dropped.  The
+ * kept entries stay in the same order, so the root stays entry 0. */
+static void
+jx_select(void)
+{
+  int *queue = mmalloc(jx_n * sizeof(int));
+  int *newi = mmalloc(jx_n * sizeof(int));   /* new index, -1 if dropped */
+  bool *keep = mcalloc(jx_n, sizeof(bool));  /* a copied node that is kept */
+  for (int i = 0; i < jx_n; i++)
+    newi[i] = -1;
+  int qh = 0, qt = 0, kept = 1;
+  queue[qt++] = 0;
+  keep[0] = true;
+  newi[0] = 0;                  /* used */
+  while (qh < qt) {
+    int i = queue[qh++];
+    struct jx_opnd os[2] = { jx[i].fun, jx[i].arg };
+    for (int k = 0; k < 2; k++) {
+      int j = os[k].index;
+      if (j < 0 || newi[j] >= 0)
+        continue;
+      newi[j] = 0;              /* used */
+      if (jx[j].kind == JX_COPY && kept < jx_limit) {
+        keep[j] = true;
+        kept++;
+        queue[qt++] = j;
+      }
+    }
+  }
+  /* Compact: the new index is never larger than the old one. */
+  int n = 0;
+  for (int i = 0; i < jx_n; i++)
+    if (newi[i] >= 0)
+      newi[i] = n++;
+  for (int i = 0; i < jx_n; i++) {
+    if (newi[i] < 0)
+      continue;
+    struct jx_entry e = jx[i];
+    if (e.kind == JX_COPY) {
+      if (keep[i]) {
+        if (e.fun.index >= 0) e.fun.index = newi[e.fun.index];
+        if (e.arg.index >= 0) e.arg.index = newi[e.arg.index];
+      } else {
+        e.kind = JX_CUT;
+      }
+    }
+    jx[newi[i]] = e;
+  }
+  jx_n = n;
+  jx_copies = kept;
+  FREE(queue);
+  FREE(newi);
+  FREE(keep);
 }
 
 /* Print a node that is not an application. */
@@ -7013,12 +7067,15 @@ struct dc_node {
                                  * LET: var, rhs, body.  CASE: scrutinee, first arm, arms, default or -1 */
   NODEPTR leaf;                 /* LEAF */
   int dec;                      /* the decompiled term, or -1 */
+  int simp;                     /* the simplified term, or -1 */
+  int sgen, sres;               /* memo of dc_subst: the result, if sgen is dc_sgen */
+  int inl;                      /* printed on one line: 1 yes, -1 no, 0 not known */
   int uses;                     /* uses in the decompiled term */
-  int label;                    /* label when printed, if shared */
+  int label;                    /* the name of a shared term, sN */
 };
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
-#define DC_MAX_NODES (1 << 18)
+#define DC_MAX_NODES (1 << 20)
 #define DC_MAX_ARMS  (1 << 14)
 #define DC_MAX_ARGS  64
 #define DC_FUEL      100000     /* combinator reductions */
@@ -7038,7 +7095,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= DC_MAX_NODES)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, 0, 0 };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, 0, 0, 0, 0, 0 };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7193,18 +7250,23 @@ dc_dense(NODEPTR lf, int *args)
   return dc_new(DC_CASE, dc_go(args[m]), a0, m, -1, NIL_NODEPTR);
 }
 
-/* E_m d A_k1_n1 f1 ... A_km_nm fm e */
+/* E_m d A_k1_n1 f1 ... A_km_nm fm e
+ * The tags can be expressions, as in LOOKS.  If a tag is not known, e.g., when
+ * it comes from an argument after eta expansion, return -1. */
 static int
 dc_sparse(NODEPTR lf, int *args, int n)
 {
   int m = (int)get_CASE_size(lf);
+  int tags[m];
+  for (int j = 0; j < m; j++) {
+    int t = tags[j] = dc_go(args[1 + 2 * j]);
+    if (dc[t].kind != DC_LEAF || !is_VIRT(dc[t].leaf) || get_VIRT_TAG(dc[t].leaf) != V_ARM)
+      return -1;
+  }
   int a0 = dc_new_arms(m);
   for (int j = 0; j < m; j++) {
-    int t = args[1 + 2 * j];
     int k, nf;
-    if (dc[t].kind != DC_LEAF || !is_VIRT(dc[t].leaf) || get_VIRT_TAG(dc[t].leaf) != V_ARM)
-      longjmp(dc_fail, 4);
-    get_CON_info(dc[t].leaf, &k, &nf);
+    get_CON_info(dc[tags[j]].leaf, &k, &nf);
     dc_arm(a0 + j, k, nf, args[2 + 2 * j]);
   }
   int d = dc_go(args[0]);
@@ -7251,6 +7313,8 @@ dc_go1(int e)
         if (na < n)
           return dc_eta(e, n - na);
         int c = t == V_CASED ? dc_dense(lf, args) : dc_sparse(lf, args, n);
+        if (c < 0)
+          return dc_args(h, args, na);      /* unknown tags, so an application of E_m */
         return dc_args(c, args + n, na - n);
       }
     } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
@@ -7259,6 +7323,153 @@ dc_go1(int e)
     }
     return dc_args(h, args, na);
   }
+}
+
+/*
+ * Simplifying a decompiled term.  This is the place for the transformations
+ * of the decompiled code.  So far:
+ *  - a case on a known constructor becomes its arm, with the fields
+ *    substituted for the arm's variables, or the default.
+ * Still to come is cheap strictness, i.e., strictness that can be found
+ * locally, so that arithmetic can be done strictly.
+ */
+
+/* Rebuild the case e with fn applied to its parts; e itself if none changed. */
+static int
+dc_map_case(int e, int (*fn)(int))
+{
+  int m = dc[e].c, a0 = dc[e].b;
+  int s = fn(dc[e].a);
+  int d = dc[e].d >= 0 ? fn(dc[e].d) : -1;
+  int bodies[m > 0 ? m : 1];
+  bool changed = s != dc[e].a || d != dc[e].d;
+  for (int j = 0; j < m; j++) {
+    bodies[j] = fn(dc_arms[a0 + j].body);
+    changed = changed || bodies[j] != dc_arms[a0 + j].body;
+  }
+  if (!changed)
+    return e;
+  int na0 = dc_new_arms(m);
+  for (int j = 0; j < m; j++) {
+    dc_arms[na0 + j] = dc_arms[a0 + j];
+    dc_arms[na0 + j].body = bodies[j];
+  }
+  return dc_new(DC_CASE, s, na0, m, d, NIL_NODEPTR);
+}
+
+/* Substitute dc_sterms[i] for the variable dc_svar+i, i < dc_sn.  The
+ * variables are all different, so nothing can be captured. */
+static int dc_sgen;
+static int dc_svar, dc_sn;
+static int *dc_sterms;
+
+static int
+dc_subst(int e)
+{
+  if (dc[e].sgen == dc_sgen)
+    return dc[e].sres;
+  int r = e;
+  switch (dc[e].kind) {
+  case DC_VAR:
+    if (dc[e].a >= dc_svar && dc[e].a < dc_svar + dc_sn)
+      r = dc_sterms[dc[e].a - dc_svar];
+    break;
+  case DC_APP: {
+    int a = dc_subst(dc[e].a), b = dc_subst(dc[e].b);
+    if (a != dc[e].a || b != dc[e].b)
+      r = dc_app(a, b);
+    break;
+  }
+  case DC_LAM: {
+    int b = dc_subst(dc[e].b);
+    if (b != dc[e].b)
+      r = dc_new(DC_LAM, dc[e].a, b, 0, 0, NIL_NODEPTR);
+    break;
+  }
+  case DC_LET: {
+    int b = dc_subst(dc[e].b), c = dc_subst(dc[e].c);
+    if (b != dc[e].b || c != dc[e].c)
+      r = dc_new(DC_LET, dc[e].a, b, c, 0, NIL_NODEPTR);
+    break;
+  }
+  case DC_CASE:
+    r = dc_map_case(e, dc_subst);
+    break;
+  default:
+    break;
+  }
+  dc[e].sgen = dc_sgen;
+  dc[e].sres = r;
+  return r;
+}
+
+static int
+dc_subst_vars(int e, int var, int n, int *terms)
+{
+  dc_sgen++;
+  dc_svar = var;
+  dc_sn = n;
+  dc_sterms = terms;
+  return dc_subst(e);
+}
+
+static int
+dc_simplify(int e)
+{
+  if (dc[e].simp >= 0)
+    return dc[e].simp;
+  int r = e;
+  switch (dc[e].kind) {
+  case DC_APP: {
+    int a = dc_simplify(dc[e].a), b = dc_simplify(dc[e].b);
+    if (a != dc[e].a || b != dc[e].b)
+      r = dc_app(a, b);
+    break;
+  }
+  case DC_LAM: {
+    int b = dc_simplify(dc[e].b);
+    if (b != dc[e].b)
+      r = dc_new(DC_LAM, dc[e].a, b, 0, 0, NIL_NODEPTR);
+    break;
+  }
+  case DC_LET: {
+    int b = dc_simplify(dc[e].b), c = dc_simplify(dc[e].c);
+    if (b != dc[e].b || c != dc[e].c)
+      r = dc_new(DC_LET, dc[e].a, b, c, 0, NIL_NODEPTR);
+    break;
+  }
+  case DC_CASE: {
+    /* A case on a known constructor? */
+    int args[DC_MAX_ARGS], na;
+    int h = dc_spine(dc_simplify(dc[e].a), args, &na);
+    if (dc[h].kind == DC_LEAF && is_VIRT(dc[h].leaf) && get_VIRT_TAG(dc[h].leaf) == V_CONSTR) {
+      int k, n;
+      get_CON_info(dc[h].leaf, &k, &n);
+      if (na == n) {
+        int j;
+        for (j = 0; j < dc[e].c; j++) {
+          struct dc_arm *a = &dc_arms[dc[e].b + j];
+          if (a->k == k) {
+            r = dc_simplify(dc_subst_vars(a->body, a->var, a->n, args));
+            break;
+          }
+        }
+        if (j < dc[e].c)
+          break;
+        if (dc[e].d >= 0) {
+          r = dc_simplify(dc[e].d);
+          break;
+        }
+      }
+    }
+    r = dc_map_case(e, dc_simplify);
+    break;
+  }
+  default:
+    break;
+  }
+  dc[e].simp = r;
+  return r;
 }
 
 static bool
@@ -7297,6 +7508,12 @@ dc_print_leaf(FILE *f, NODEPTR n, int p)
       fprintf(f, op ? "(%s)" : "%s", s);
       return;
     }
+    if (t == V_CONSTR) {
+      int k, nf;
+      get_CON_info(n, &k, &nf);
+      fprintf(f, "C_%d", k);    /* the number of fields is clear from the use */
+      return;
+    }
   } else if (get_DATA_TAG(FUN(n)) == D_INT) {
     value_t i = GETVALUE(n);
     fprintf(f, i < 0 && p > 1 ? "(%"PRIvalue")" : "%"PRIvalue, i);
@@ -7326,28 +7543,416 @@ dc_count(int e)
   }
 }
 
+/*
+ * A shared term, i.e., one with several uses, is bound by a let, and its uses
+ * are its name, s1, s2, ...  The let goes in the innermost scope that has all
+ * the uses.  A scope is the body of the definition (0), of a lambda or a let
+ * (1+e for the node e), or of a case arm (dc_arm_scope).  Every term that is
+ * not shared is printed once, so the scope of a node is well defined.  The
+ * definition of a shared term is printed where it is bound, so the uses in it
+ * are found after that, i.e., the shared terms are handled from the outside in.
+ */
+static bool
+dc_shared(int e)
+{
+  return dc[e].uses > 1 && dc[e].kind != DC_VAR && dc[e].kind != DC_LEAF && dc[e].kind != DC_REF;
+}
+
+static int *dc_site;            /* the scope of the let of a shared term, or -1 */
+static int *dc_sparent;         /* the enclosing scope of a scope */
+static int *dc_sdepth;          /* the depth of a scope */
+static bool *dc_slets;          /* does the scope have lets */
+static int *dc_order;           /* the shared terms, the ones they use first */
+static int dc_norder;
+static char *dc_seen;
+static int dc_nodes0;           /* dc_n when the scopes were found */
 static int dc_nlabels;
 
-/* Print a term.  p is 0 anywhere, 1 for the function of an application,
- * and 2 for an argument. */
+static int
+dc_arm_scope(int arm)
+{
+  return 1 + dc_nodes0 + arm;
+}
+
+/* Find the shared terms in e, the ones a shared term uses before it. */
+static void dc_order_term(int e);
+
+static void
+dc_order_parts(int e)
+{
+  switch (dc[e].kind) {
+  case DC_APP: dc_order_term(dc[e].a); dc_order_term(dc[e].b); break;
+  case DC_LAM: dc_order_term(dc[e].b); break;
+  case DC_LET: dc_order_term(dc[e].b); dc_order_term(dc[e].c); break;
+  case DC_CASE:
+    dc_order_term(dc[e].a);
+    if (dc[e].d >= 0)
+      dc_order_term(dc[e].d);
+    for (int j = 0; j < dc[e].c; j++)
+      dc_order_term(dc_arms[dc[e].b + j].body);
+    break;
+  default: break;
+  }
+}
+
+static void
+dc_order_term(int e)
+{
+  if (!dc_shared(e)) {
+    dc_order_parts(e);
+  } else if (!dc_seen[e]) {
+    dc_seen[e] = 1;
+    dc_order_parts(e);
+    dc_order[dc_norder++] = e;
+  }
+}
+
+/* The innermost scope that encloses both scopes. */
+static int
+dc_lca(int a, int b)
+{
+  while (dc_sdepth[a] > dc_sdepth[b]) a = dc_sparent[a];
+  while (dc_sdepth[b] > dc_sdepth[a]) b = dc_sparent[b];
+  while (a != b) {
+    a = dc_sparent[a];
+    b = dc_sparent[b];
+  }
+  return a;
+}
+
+static void
+dc_new_scope(int sc, int parent)
+{
+  dc_sparent[sc] = parent;
+  dc_sdepth[sc] = dc_sdepth[parent] + 1;
+}
+
+/* Record the uses of shared terms in the parts of e, which is in scope. */
+static void dc_scope_term(int e, int scope);
+
+static void
+dc_scope_parts(int e, int scope)
+{
+  switch (dc[e].kind) {
+  case DC_APP:
+    dc_scope_term(dc[e].a, scope);
+    dc_scope_term(dc[e].b, scope);
+    break;
+  case DC_LAM:
+    dc_new_scope(1 + e, scope);
+    dc_scope_term(dc[e].b, 1 + e);
+    break;
+  case DC_LET:
+    dc_new_scope(1 + e, scope);
+    dc_scope_term(dc[e].b, 1 + e);
+    dc_scope_term(dc[e].c, 1 + e);
+    break;
+  case DC_CASE:
+    dc_scope_term(dc[e].a, scope);
+    if (dc[e].d >= 0)
+      dc_scope_term(dc[e].d, scope);
+    for (int j = 0; j < dc[e].c; j++) {
+      int sc = dc_arm_scope(dc[e].b + j);
+      dc_new_scope(sc, scope);
+      dc_scope_term(dc_arms[dc[e].b + j].body, sc);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+static void
+dc_scope_term(int e, int scope)
+{
+  if (dc_shared(e))
+    dc_site[e] = dc_site[e] < 0 ? scope : dc_lca(dc_site[e], scope);
+  else
+    dc_scope_parts(e, scope);
+}
+
+/* Find the scope of the let of every shared term in the root e. */
+static void
+dc_scopes(int e)
+{
+  dc_nodes0 = dc_n;
+  int ns = 1 + dc_n + dc_narms;
+  FREE(dc_site); FREE(dc_sparent); FREE(dc_sdepth); FREE(dc_slets); FREE(dc_order); FREE(dc_seen);
+  dc_site = mmalloc(dc_n * sizeof(int));
+  dc_sparent = mmalloc(ns * sizeof(int));
+  dc_sdepth = mmalloc(ns * sizeof(int));
+  dc_slets = mcalloc(ns, sizeof(bool));
+  dc_order = mmalloc(dc_n * sizeof(int));
+  dc_seen = mcalloc(dc_n, 1);
+  for (int i = 0; i < dc_n; i++)
+    dc_site[i] = -1;
+  dc_sparent[0] = 0;
+  dc_sdepth[0] = 0;
+  dc_norder = 0;
+  dc_order_term(e);
+  dc_scope_term(e, 0);
+  for (int i = dc_norder - 1; i >= 0; i--) {   /* the outer ones first */
+    int t = dc_order[i];
+    dc_scope_parts(t, dc_site[t]);
+  }
+  for (int i = 0; i < dc_norder; i++)
+    dc_slets[dc_site[dc_order[i]]] = true;
+}
+
+/* Name the shared terms that are bound in the scope. */
+static void
+dc_label_scope(int scope)
+{
+  for (int i = 0; i < dc_norder; i++)
+    if (dc_site[dc_order[i]] == scope)
+      dc[dc_order[i]].label = ++dc_nlabels;
+}
+
+/* The column of the output, from the position in the file. */
+static long dc_line_start;
+
+static int
+dc_column(FILE *f)
+{
+  return (int)(ftell(f) - dc_line_start);
+}
+
+/* A new line, indented to column col. */
+static void
+dc_nl(FILE *f, int col)
+{
+  fputc('\n', f);
+  dc_line_start = ftell(f);
+  fprintf(f, "%*s", col, "");
+}
+
+#define DC_WIDTH 120            /* the width of a line */
+
+/* Can the term be printed on one line?  A let cannot, and neither can a
+ * scope with lets.  A shared term that is used is just its name. */
+static bool dc_inline(int e);
+
+static bool
+dc_inline_use(int e)
+{
+  return dc_shared(e) || dc_inline(e);
+}
+
+static bool
+dc_inline(int e)
+{
+  if (dc[e].inl)
+    return dc[e].inl > 0;
+  bool r;
+  switch (dc[e].kind) {
+  case DC_APP:
+    r = dc_inline_use(dc[e].a) && dc_inline_use(dc[e].b);
+    break;
+  case DC_LAM:
+    r = !dc_slets[1 + e] && dc_inline_use(dc[e].b);
+    break;
+  case DC_LET:
+    r = false;
+    break;
+  case DC_CASE:
+    r = dc_inline_use(dc[e].a) && (dc[e].d < 0 || dc_inline_use(dc[e].d));
+    for (int j = 0; j < dc[e].c && r; j++)
+      r = !dc_slets[dc_arm_scope(dc[e].b + j)] && dc_inline_use(dc_arms[dc[e].b + j].body);
+    break;
+  default:
+    r = true;
+    break;
+  }
+  dc[e].inl = r ? 1 : -1;
+  return r;
+}
+
+static int
+dc_digits(long n)
+{
+  int d = n < 0 ? 2 : 1;
+  for (n = n < 0 ? -n : n; n >= 10; n /= 10)
+    d++;
+  return d;
+}
+
+/* The width of a leaf, as dc_print_leaf prints it (roughly, for the rare ones). */
+static int
+dc_leaf_width(NODEPTR n)
+{
+  if (is_VIRT(n)) {
+    enum node_tag t = get_VIRT_TAG(n);
+    if (t == V_CONSTR) {
+      int k, nf;
+      get_CON_info(n, &k, &nf);
+      return 2 + dc_digits(k);
+    }
+    if (t <= T_LAST_TAG && TAGNAME(t))
+      return (int)strlen(TAGNAME(t)) + 2;
+    return 8;
+  }
+  if (get_DATA_TAG(FUN(n)) == D_INT)
+    return dc_digits(GETVALUE(n)) + (GETVALUE(n) < 0 ? 2 : 0);
+  return 12;
+}
+
+/* The width of a term printed on one line, but at most lim. */
+static int dc_width(int e, int lim);
+
+static int
+dc_width_use(int e, int lim)
+{
+  return dc_shared(e) ? 1 + dc_digits(dc_norder) : dc_width(e, lim);
+}
+
+static int
+dc_width(int e, int lim)
+{
+  int w = 0;
+#define W(x) do { if (w < lim) w += (x); } while (0)
+  switch (dc[e].kind) {
+  case DC_VAR:  W(1 + dc_digits(dc[e].a)); break;
+  case DC_LEAF: W(dc_leaf_width(dc[e].leaf)); break;
+  case DC_REF:  W(dc[e].a == 0 ? 4 : 20); break;
+  case DC_APP: {
+    /* An argument that is not atomic is in parentheses. */
+    int b = dc[e].b;
+    bool paren = !dc_shared(b) && dc[b].kind != DC_VAR && dc[b].kind != DC_LEAF && dc[b].kind != DC_REF;
+    W(dc_width_use(dc[e].a, lim - w) + 1 + (paren ? 2 : 0));
+    W(dc_width_use(b, lim - w));
+    break;
+  }
+  case DC_LAM:  W(6 + 4); W(dc_width_use(dc[e].b, lim - w)); break;
+  case DC_LET:  W(lim); break;
+  case DC_CASE:
+    W(15 + dc_width_use(dc[e].a, lim - w));
+    for (int j = 0; j < dc[e].c && w < lim; j++) {
+      struct dc_arm *a = &dc_arms[dc[e].b + j];
+      W(9 + 4 * a->n + dc_width_use(a->body, lim - w));
+    }
+    if (dc[e].d >= 0)
+      W(7 + dc_width_use(dc[e].d, lim - w));
+    break;
+  }
+#undef W
+  return w < lim ? w : lim;
+}
+
+/* Printing on one line, since the term being printed fits. */
+static bool dc_flat;
+
+/* Does the term fit on one line, starting at column col? */
+static bool
+dc_fits_term(int e, int col)
+{
+  if (dc_flat)
+    return true;
+  int room = DC_WIDTH - col;
+  return dc_inline(e) && room > 0 && dc_width(e, room + 1) <= room;
+}
+
+/* Does a use of the term fit?  A use of a shared term is just its name. */
+static bool
+dc_fits(int e, int col)
+{
+  return dc_shared(e) || dc_fits_term(e, col);
+}
+
+static void dc_print(FILE *f, int e, int p);
+static void dc_print1(FILE *f, int e, int p);
+
+/* Print a term that fits on one line. */
+static void
+dc_print_flat(FILE *f, int e, int p)
+{
+  bool old = dc_flat;
+  dc_flat = true;
+  dc_print(f, e, p);
+  dc_flat = old;
+}
+
+/* Print the definitions of the shared terms bound in the scope, one per line
+ * at column c, each as sN = term. */
+static void
+dc_print_defs(FILE *f, int scope, int c, bool first)
+{
+  for (int i = 0; i < dc_norder; i++) {
+    int t = dc_order[i];
+    if (dc_site[t] != scope)
+      continue;
+    if (!first)
+      dc_nl(f, c);
+    first = false;
+    fprintf(f, "s%d =", dc[t].label);
+    if (dc_fits_term(t, dc_column(f) + 1)) {
+      fputc(' ', f);
+      bool old = dc_flat;
+      dc_flat = true;
+      dc_print1(f, t, 0);
+      dc_flat = old;
+    } else {
+      dc_nl(f, c + 2);
+      dc_print1(f, t, 0);
+    }
+  }
+}
+
+/* Print the body e of the scope: the lets of the shared terms bound there,
+ * and then e. */
+static void
+dc_print_scope(FILE *f, int e, int scope)
+{
+  if (dc_slets[scope]) {
+    int c = dc_column(f);
+    dc_label_scope(scope);
+    fputs("let ", f);
+    dc_print_defs(f, scope, c + 4, true);
+    dc_nl(f, c);
+    fputs("in  ", f);
+  }
+  dc_print(f, e, 0);
+}
+
+/* Print the body of a lambda or an arm of the scope, after "->" at column c. */
+static void
+dc_print_body(FILE *f, int e, int c, int scope)
+{
+  if (!dc_slets[scope] && dc_fits(e, dc_column(f) + 1)) {
+    fputc(' ', f);
+    dc_print_flat(f, e, 0);
+  } else {
+    dc_nl(f, c + 2);
+    dc_print_scope(f, e, scope);
+  }
+}
+
+/* Print a use of a term: the name of a shared term, otherwise the term. */
 static void
 dc_print(FILE *f, int e, int p)
 {
-  static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
   if (++dc_printed > DC_MAX_PRINT) {
     if (dc_printed == DC_MAX_PRINT + 1)
       fputs("...", f);
     return;
   }
-  if (dc[e].uses > 1 && dc[e].kind != DC_VAR && dc[e].kind != DC_LEAF && dc[e].kind != DC_REF) {
-    if (dc[e].label) {
+  if (dc_shared(e)) {
+    if (dc[e].label)
       fprintf(f, "s%d", dc[e].label);
-      return;
-    }
-    dc[e].label = ++dc_nlabels;
-    fprintf(f, "s%d@", dc[e].label);
-    p = 2;                      /* so it is in parentheses */
+    else
+      fputs("s?", f);
+    return;
   }
+  dc_print1(f, e, p);
+}
+
+/* Print a term.  p is 0 anywhere, 1 for the function of an application,
+ * and 2 for an argument.  A term that does not fit on one line is laid out:
+ * a case has its arms on separate lines, indented from the case, a let has
+ * the in below the let, and an application has its arguments on separate
+ * lines, indented from the function. */
+static void
+dc_print1(FILE *f, int e, int p)
+{
   switch (dc[e].kind) {
   case DC_VAR:
     fprintf(f, "x%d", dc[e].a);
@@ -7359,54 +7964,129 @@ dc_print(FILE *f, int e, int p)
     if (dc[e].a == 0)
       fputs("self", f);
     else
-      fprintf(f, "%s%d", names[jx[dc[e].a].kind], dc[e].a);
+      fprintf(f, "%s@%p", jx_why[jx[dc[e].a].kind], (void *)get_node_ptr(jx[dc[e].a].orig));  /* a node in the heap */
     break;
   case DC_LAM: {
     if (p > 0) fputc('(', f);
+    int c = dc_column(f);
     fputc('\\', f);
-    int b = e;
-    for (bool first = true; dc[b].kind == DC_LAM; first = false, b = dc[b].b)
+    int b = e, last = e;
+    for (bool first = true; dc[b].kind == DC_LAM && (first || !dc_shared(b)); first = false, b = dc[b].b) {
       fprintf(f, first ? "x%d" : " x%d", dc[b].a);
-    fputs(" -> ", f);
-    dc_print(f, b, 0);
+      last = b;
+    }
+    fputs(" ->", f);
+    dc_print_body(f, b, c, 1 + last);
     if (p > 0) fputc(')', f);
     break;
   }
   case DC_APP:
     if (p > 1) fputc('(', f);
-    dc_print(f, dc[e].a, 1);
-    fputc(' ', f);
-    dc_print(f, dc[e].b, 2);
+    if (dc_fits_term(e, dc_column(f))) {
+      bool old = dc_flat;
+      dc_flat = true;
+      dc_print(f, dc[e].a, 1);
+      fputc(' ', f);
+      dc_print(f, dc[e].b, 2);
+      dc_flat = old;
+    } else {
+      /* The function, and the arguments that fit on the same line; the rest
+       * on separate lines. */
+      int c = dc_column(f);
+      int args[DC_MAX_ARGS], na = 0;
+      int h = e;
+      do {
+        args[na++] = dc[h].b;
+        h = dc[h].a;
+      } while (dc[h].kind == DC_APP && !dc_shared(h) && na < DC_MAX_ARGS);
+      dc_print(f, h, 1);
+      bool broken = false;
+      for (int i = na - 1; i >= 0; i--) {
+        if (!broken && dc_fits(args[i], dc_column(f) + 1)) {
+          fputc(' ', f);
+          dc_print_flat(f, args[i], 2);
+        } else {
+          broken = true;
+          dc_nl(f, c + 2);
+          dc_print(f, args[i], 2);
+        }
+      }
+    }
     if (p > 1) fputc(')', f);
     break;
-  case DC_LET:
+  case DC_LET: {
+    /* The recursive let from Y, with the shared terms bound in its scope. */
     if (p > 0) fputc('(', f);
-    fprintf(f, "let { x%d = ", dc[e].a);
-    dc_print(f, dc[e].b, 0);
-    fputs(" } in ", f);
+    int c = dc_column(f);
+    int sc = 1 + e;
+    dc_label_scope(sc);
+    fprintf(f, "let x%d =", dc[e].a);
+    if (dc_fits(dc[e].b, dc_column(f) + 1)) {
+      fputc(' ', f);
+      dc_print_flat(f, dc[e].b, 0);
+    } else {
+      dc_nl(f, c + 6);
+      dc_print(f, dc[e].b, 0);
+    }
+    dc_print_defs(f, sc, c + 4, false);
+    dc_nl(f, c);
+    fputs("in  ", f);
     dc_print(f, dc[e].c, 0);
     if (p > 0) fputc(')', f);
     break;
-  case DC_CASE:
+  }
+  case DC_CASE: {
     if (p > 0) fputc('(', f);
+    if (dc_fits_term(e, dc_column(f))) {
+      bool old = dc_flat;
+      dc_flat = true;
+      fputs("case ", f);
+      dc_print(f, dc[e].a, 0);
+      fputs(" of { ", f);
+      for (int j = 0; j < dc[e].c; j++) {
+        struct dc_arm *a = &dc_arms[dc[e].b + j];
+        fprintf(f, "%sC_%d", j ? "; " : "", a->k);
+        for (int v = a->var; v < a->var + a->n; v++)
+          fprintf(f, dc_occurs(v, a->body) ? " x%d" : " _", v);
+        fputs(" -> ", f);
+        dc_print(f, a->body, 0);
+      }
+      if (dc[e].d >= 0) {
+        fputs(dc[e].c ? "; _ -> " : "_ -> ", f);
+        dc_print(f, dc[e].d, 0);
+      }
+      fputs(" }", f);
+      dc_flat = old;
+      if (p > 0) fputc(')', f);
+      break;
+    }
+    int c = dc_column(f);
     fputs("case ", f);
+    bool one = dc_fits(dc[e].a, dc_column(f));
     dc_print(f, dc[e].a, 0);
-    fputs(" of { ", f);
+    if (one) {
+      fputs(" of", f);
+    } else {
+      dc_nl(f, c);
+      fputs("of", f);
+    }
     for (int j = 0; j < dc[e].c; j++) {
       struct dc_arm *a = &dc_arms[dc[e].b + j];
-      fprintf(f, "%sC_%d_%d", j ? "; " : "", a->k, a->n);
+      dc_nl(f, c + 2);
+      fprintf(f, "C_%d", a->k);
       for (int v = a->var; v < a->var + a->n; v++)
         fprintf(f, dc_occurs(v, a->body) ? " x%d" : " _", v);
-      fputs(" -> ", f);
-      dc_print(f, a->body, 0);
+      fputs(" ->", f);
+      dc_print_body(f, a->body, c + 2, dc_arm_scope(dc[e].b + j));
     }
     if (dc[e].d >= 0) {
-      fputs(dc[e].c ? "; _ -> " : "_ -> ", f);
-      dc_print(f, dc[e].d, 0);
+      dc_nl(f, c + 2);
+      fputs("_ ->", f);
+      dc_print_body(f, dc[e].d, c + 2, -1);
     }
-    fputs(" }", f);
     if (p > 0) fputc(')', f);
     break;
+  }
   }
 }
 
@@ -7432,16 +8112,25 @@ dc_decompile(FILE *f)
   int r = setjmp(dc_fail);
   if (r) {
     static const char *why[] = { "", "too many nodes", "too many arguments", "too many arms",
-                                 "bad sparse case", "too many reductions" };
+                                 "", "too many reductions" };
     fprintf(f, "cannot decompile: %s\n", why[r]);
     return;
   }
   int root = dc_app(dc_from_opnd(jx[0].fun, memo), dc_from_opnd(jx[0].arg, memo));
-  int e = dc_go(root);
+  int e = dc_simplify(dc_go(root));
   dc_count(e);
-  dc[e].uses = 1;               /* the root is not labelled */
-  fputs("self = ", f);
-  dc_print(f, e, 0);
+  dc[e].uses = 1;               /* the root is not shared */
+  dc_scopes(e);
+  /* Print it as a definition, self x1 ... xn = body */
+  dc_line_start = ftell(f);
+  fputs("self", f);
+  int b = e, sc = 0;
+  for (; dc[b].kind == DC_LAM && (b == e || !dc_shared(b)); b = dc[b].b) {
+    fprintf(f, " x%d", dc[b].a);
+    sc = 1 + b;
+  }
+  fputs(" =", f);
+  dc_print_body(f, b, 0, sc);
   fputc('\n', f);
 }
 
@@ -7458,8 +8147,8 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   for (size_t j = 0; j < jx_ndone; j++)
     if (jx_done[j].node_bits == r.node_bits)
       return false;
-  fprintf(f, "== %d: node %p, %.2f%% of the samples, the outermost in %.2f%%\n", rank,
-          (void *)get_node_ptr(r), 100.0 * e->hits / num_samples, 100.0 * e->outer / num_samples);
+  fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
+          rank, (void *)get_node_ptr(r), num_samples, e->outer);
   if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
     fprintf(f, "not a partial application: ");
     jx_print_orig(f, r, 3, false);
@@ -7467,10 +8156,11 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
     return true;
   }
   if (!jx)
-    jx = mmalloc((3 * (size_t)jx_limit + 2) * sizeof(struct jx_entry));
+    jx = mmalloc((3 * (size_t)JX_EXPLORE * jx_limit + 2) * sizeof(struct jx_entry));
   jx_n = 0;
   jx_copies = 0;
   (void)jx_visit(r);
+  jx_select();
   for (int i = 0; i < jx_n; i++) {
     if (jx[i].kind != JX_COPY)
       continue;
@@ -7491,20 +8181,53 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
       if (jx[i].arg.index >= 0) jx[jx[i].arg.index].uses++;
     }
   }
-  fprintf(f, "%d nodes copied, %d references back to the root, references to %d data, %d redexes, %d cycles, %d cut\n",
+  fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
           count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
   jx[0].uses++;                 /* so it is never printed inline */
   dc_decompile(f);
-  for (int i = 0; i < jx_n; i++) {
-    if (jx[i].kind != JX_COPY && !jx_inline_data(i)) {
-      static const char *names[] = { "@", "data", "redex", "cycle", "cut" };
-      fprintf(f, "  %s%d = ", names[jx[i].kind], i);
-      jx_print_orig(f, jx[i].orig, 3, false);
-      fputc('\n', f);
-    }
-  }
   fputc('\n', f);
   return true;
+}
+
+static FILE *jx_file;
+static int jx_nhot;
+
+/* The node of the entry got hot: extract its subgraph now, as a JIT would. */
+static void
+jx_hot(struct sample_entry *e)
+{
+  if (!jx_file) {
+    jx_file = fopen("mhs-extract.txt", "w");
+    if (!jx_file)
+      return;
+  }
+  if (jx_extract(jx_file, jx_nhot + 1, e)) {
+    jx_nhot++;
+    fflush(jx_file);
+  }
+}
+
+/* Forget the copied nodes that were freed, since the addresses are reused. */
+static void
+jx_gc(void)
+{
+  size_t k = 0;
+  for (size_t j = 0; j < jx_ndone; j++)
+    if (is_marked_used(jx_done[j]))
+      jx_done[k++] = jx_done[j];
+  jx_ndone = k;
+}
+
+static void
+jx_report(void)
+{
+  if (!jx_limit)
+    return;
+  if (jx_file)
+    fclose(jx_file);
+  jx_file = 0;
+  fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
+          jx_nhot, jx_threshold, jx_limit);
 }
 #endif  /* WANT_SAMPLE */
 
@@ -9909,7 +10632,13 @@ MHS_INIT_ARGS(
           sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
         }
         else if (strncmp(p, "-J", 2) == 0)
-          jx_limit = p[2] ? (int)memsize(&p[2]) : 200;
+        {
+          /* -J[limit[,threshold]] */
+          char *q = &p[2];
+          jx_limit = *q && *q != ',' ? (int)strtol(q, &q, 10) : JX_LIMIT;
+          if (*q == ',')
+            jx_threshold = (int)strtol(q + 1, 0, 10);
+        }
 #endif
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
