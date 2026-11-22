@@ -6747,10 +6747,12 @@ check_arity(enum node_tag tag, int k)
  *    comes back to it, so it is copied first; when the traversal is done with
  *    it, its copy and everything after it in the array is dropped, and it
  *    becomes a reference;
- *  - a node that would make the copy larger than JX_EXPLORE times the size
- *    limit.
- * The array is also the table of visited nodes, so sharing is kept.  A cycle
- * back to the root is a reference to the root's copy, entry 0.
+ *  - a node beyond the exploration limit: JX_EXPLORE times the size limit
+ *    copies made, counting the ones that are dropped, so a graph with many
+ *    cycles cannot make it explore the same nodes over and over.
+ * The array, with a hash table on the address (jx_lookup), is also the table
+ * of visited nodes, so sharing is kept.  A cycle back to the root is a
+ * reference to the root's copy, entry 0.
  *
  * Finding the cycles needs a depth first traversal, but cutting the copy at
  * the size limit in depth first order would spend it on whatever is first,
@@ -6758,7 +6760,7 @@ check_arity(enum node_tag tag, int k)
  * So the traversal explores more, and then jx_select keeps the copied nodes
  * that are nearest the root, breadth first, up to the size limit.
  */
-#define JX_EXPLORE 16
+#define JX_EXPLORE 4            /* explore up to this many times the size limit */
 enum jx_kind { JX_COPY, JX_DATA, JX_REDEX, JX_CYCLE, JX_CUT };
 /* Why the copy stopped at a reference: a value or constructor (whnf), a
  * redex, the start of a cycle, or the size limit (depth, since the nodes
@@ -6786,6 +6788,7 @@ int jx_threshold = 100;                 /* samples as the outermost node before 
 static struct jx_entry *jx;             /* the extracted subgraph; jx[0] is the root */
 static int jx_n;                        /* the number of entries */
 static int jx_copies;                   /* the number of JX_COPY entries */
+static int jx_made;                     /* the number of copies made, also dropped ones */
 
 /* What the application node p is: code to copy, data, or a redex. */
 static enum jx_kind
@@ -6813,6 +6816,58 @@ jx_classify(NODEPTR p)
   }
 }
 
+/* A hash table from the address of a node to its entry.  The slots carry
+ * the generation of the extraction, so the table never needs clearing.
+ * Dropping entries (see jx_visit) leaves slots behind; a slot only counts if
+ * its entry is still in use for the same node, since indices are reused. */
+struct jx_slot { uint32_t gen; int index; };
+static struct jx_slot *jx_table;
+static uint32_t jx_table_bits, jx_gen;
+static uint32_t jx_nslots;      /* slots used in this generation */
+
+static INLINE uint32_t
+jx_hash(NODEPTR p)
+{
+  return (uint32_t)(((uint64_t)p.node_bits >> 4) * 0x9E3779B97F4A7C15ULL >> (64 - jx_table_bits));
+}
+
+static int
+jx_lookup(NODEPTR p)
+{
+  uint32_t mask = (1u << jx_table_bits) - 1;
+  for (uint32_t h = jx_hash(p); jx_table[h].gen == jx_gen; h = (h + 1) & mask) {
+    int i = jx_table[h].index;
+    if (i < jx_n && jx[i].orig.node_bits == p.node_bits)
+      return i;
+  }
+  return -1;
+}
+
+static void
+jx_insert1(NODEPTR p, int i)
+{
+  uint32_t mask = (1u << jx_table_bits) - 1;
+  uint32_t h = jx_hash(p);
+  while (jx_table[h].gen == jx_gen)
+    h = (h + 1) & mask;
+  jx_table[h] = (struct jx_slot){ jx_gen, i };
+  jx_nslots++;
+}
+
+static void
+jx_insert(NODEPTR p, int i)
+{
+  if (2 * (jx_nslots + 1) > (1u << jx_table_bits)) {
+    /* Too many slots of dropped entries; a new generation with the live ones. */
+    jx_gen++;
+    jx_nslots = 0;
+    for (int j = 0; j < jx_n; j++)
+      if (j != i)
+        jx_insert1(jx[j].orig, j);
+  }
+  jx_insert1(p, i);
+}
+
 static struct jx_opnd
 jx_visit(NODEPTR p)
 {
@@ -6822,13 +6877,12 @@ jx_visit(NODEPTR p)
     o.leaf = p;
     return o;
   }
-  for (int i = 0; i < jx_n; i++) {
-    if (jx[i].orig.node_bits == p.node_bits) {
-      if (jx[i].active && i != 0)
-        jx[i].starts_cycle = true;
-      o.index = i;
-      return o;
-    }
+  int found = jx_lookup(p);
+  if (found >= 0) {
+    if (jx[found].active && found != 0)
+      jx[found].starts_cycle = true;
+    o.index = found;
+    return o;
   }
   enum jx_kind k;
   NODEPTR f = FUN(p);
@@ -6848,14 +6902,16 @@ jx_visit(NODEPTR p)
       break;
     }
   }
-  if (k == JX_COPY && jx_copies >= JX_EXPLORE * jx_limit)
+  if (k == JX_COPY && jx_made >= JX_EXPLORE * jx_limit)
     k = JX_CUT;
   int i = jx_n++;
   jx[i] = (struct jx_entry){ .orig = p, .kind = k };
+  jx_insert(p, i);
   o.index = i;
   if (k != JX_COPY)
     return o;
   jx_copies++;
+  jx_made++;
   jx[i].active = true;
   struct jx_opnd fo = jx_visit(FUN(p));
   struct jx_opnd ao = jx_visit(ARG(p));
@@ -7078,6 +7134,7 @@ struct dc_node {
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
 #define DC_MAX_NODES (1 << 20)
+#define DC_BUDGET    32         /* at most this many terms per node of the size limit */
 #define DC_MAX_ARMS  (1 << 14)
 #define DC_MAX_ARGS  64
 #define DC_FUEL      100000     /* combinator reductions */
@@ -7092,11 +7149,12 @@ static long dc_fuel;
 static long dc_printed;
 static jmp_buf dc_fail;
 static int dc_cur_from = -1;    /* the from of new terms, set just before they are made */
+static int dc_max;              /* the most terms for this function */
 
 static int
 dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
-  if (dc_n >= DC_MAX_NODES)
+  if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
   dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from };
   return dc_n++;
@@ -8060,11 +8118,11 @@ dc_print_defs(FILE *f, int scope, int c, bool first)
 }
 
 /* Print the body e of the scope: the lets of the shared terms bound there,
- * and then e. */
+ * and then e.  The scope -1 (a default arm, which binds nothing) has none. */
 static void
 dc_print_scope(FILE *f, int e, int scope)
 {
-  if (dc_slets[scope]) {
+  if (scope >= 0 && dc_slets[scope]) {
     int c = dc_column(f);
     dc_label_scope(scope);
     fputs("let ", f);
@@ -8079,7 +8137,7 @@ dc_print_scope(FILE *f, int e, int scope)
 static void
 dc_print_body(FILE *f, int e, int c, int scope)
 {
-  if (!dc_slets[scope] && dc_fits(e, dc_column(f) + 1)) {
+  if (!(scope >= 0 && dc_slets[scope]) && dc_fits(e, dc_column(f) + 1)) {
     fputc(' ', f);
     dc_print_flat(f, e, 0);
   } else {
@@ -8270,7 +8328,7 @@ dc_decompile(FILE *f)
 {
   static int *memo;
   if (!dc) {
-    dc = mmalloc(DC_MAX_NODES * sizeof(struct dc_node));
+    dc = mmalloc((size_t)(DC_BUDGET * jx_limit < DC_MAX_NODES ? DC_BUDGET * jx_limit : DC_MAX_NODES) * sizeof(struct dc_node));
     dc_arms = mmalloc(DC_MAX_ARMS * sizeof(struct dc_arm));
   }
   FREE(memo);
@@ -8285,9 +8343,12 @@ dc_decompile(FILE *f)
   dc_nlabels = 0;
   dc_ncold = 0;
   dc_cur_from = -1;
+  /* Decompiling can blow up; a function whose normal form is that big is
+   * better left to the interpreter. */
+  dc_max = DC_BUDGET * jx_limit < DC_MAX_NODES ? DC_BUDGET * jx_limit : DC_MAX_NODES;
   int r = setjmp(dc_fail);
   if (r) {
-    static const char *why[] = { "", "too many nodes", "too many arguments", "too many arms",
+    static const char *why[] = { "", "too many terms", "too many arguments", "too many arms",
                                  "", "too many reductions" };
     fprintf(f, "cannot decompile: %s\n", why[r]);
     return;
@@ -8339,10 +8400,20 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
     fprintf(f, "\n\n");
     return true;
   }
-  if (!jx)
-    jx = mmalloc((3 * (size_t)JX_EXPLORE * jx_limit + 2) * sizeof(struct jx_entry));
+  if (!jx) {
+    size_t cap = 3 * (size_t)JX_EXPLORE * jx_limit + 2;
+    jx = mmalloc(cap * sizeof(struct jx_entry));
+    /* The table is at most half full, counting the slots of dropped entries
+     * (at most one per entry made). */
+    for (jx_table_bits = 4; (1u << jx_table_bits) < 4 * cap; jx_table_bits++)
+      ;
+    jx_table = mcalloc((size_t)1 << jx_table_bits, sizeof(struct jx_slot));
+  }
+  jx_gen++;
+  jx_nslots = 0;
   jx_n = 0;
   jx_copies = 0;
+  jx_made = 0;
   (void)jx_visit(r);
   jx_select();
   for (int i = 0; i < jx_n; i++) {
