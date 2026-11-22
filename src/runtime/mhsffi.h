@@ -26,8 +26,6 @@ typedef float flt32_t;
 struct node;
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 typedef uintptr_t uvalue_t;     /* Make unsigned value the same size as pointers, since they are in a union */
-
-value_t ismingw(void);          /* for System.Info */
 typedef intptr_t stackptr_t;    /* Index into stack */
 typedef void (*HsFunPtr)(void);
 
