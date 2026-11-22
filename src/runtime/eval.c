@@ -7159,6 +7159,7 @@ struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body *
 #define DC_MAX_ARMS  (1 << 14)
 #define DC_MAX_ARGS  64
 #define DC_FUEL      100000     /* combinator reductions */
+#define DC_MIN_WORK  5          /* fewer reductions than this, and no recursion: too small */
 #define DC_MAX_PRINT 20000      /* nodes printed */
 
 static struct dc_node *dc;
@@ -8411,6 +8412,32 @@ dc_print1(FILE *f, int e, int p)
   }
 }
 
+/* Does the code of e, outside cold cases and graph terms, use the root,
+ * i.e., is it recursive? */
+static bool
+dc_uses_self(int e, char *seen)
+{
+  if (seen[e])
+    return false;
+  seen[e] = 1;
+  switch (dc[e].kind) {
+  case DC_REF: return dc[e].a == 0;
+  case DC_APP: return dc_uses_self(dc[e].a, seen) || dc_uses_self(dc[e].b, seen);
+  case DC_LAM: return dc_uses_self(dc[e].b, seen);
+  case DC_LET: return dc_uses_self(dc[e].b, seen) || dc_uses_self(dc[e].c, seen);
+  case DC_CASE:
+    if (dc_uses_self(dc[e].a, seen) || (dc[e].d >= 0 && dc_uses_self(dc[e].d, seen)))
+      return true;
+    for (int j = 0; j < dc[e].c; j++)
+      if (dc_uses_self(dc_arms[dc[e].b + j].body, seen))
+        return true;
+    return false;
+  default: return false;
+  }
+}
+
+static int jx_nsmall;           /* the number of extractions that were too small */
+
 /* Decompile the extracted subgraph and print it. */
 static void
 dc_decompile(FILE *f)
@@ -8447,6 +8474,24 @@ dc_decompile(FILE *f)
   dc[root].jx = 0;
   dc_top = true;                /* the root is eta expanded */
   int e = dc_simplify(dc_go(root));
+  /* A function that does little, i.e., where the combinators make few
+   * reductions, is not worth compiling on its own: a call would save about
+   * as much as entering and leaving the compiled code costs.  Such functions
+   * are small helpers, and their callers get them anyway, since the
+   * extraction of a caller copies them.  A recursive function is a loop, so
+   * it is worth it.  The reductions are counted for all of the code, also
+   * the arms that turn out to be cold, so this is an approximation. */
+  long nred = DC_FUEL - dc_fuel;
+  if (nred < DC_MIN_WORK) {
+    char *seen = mcalloc(dc_n, 1);
+    bool rec = dc_uses_self(e, seen);
+    FREE(seen);
+    if (!rec) {
+      fprintf(f, "too small: %ld reduction%s\n", nred, nred == 1 ? "" : "s");
+      jx_nsmall++;
+      return;
+    }
+  }
   dc_count(e);
   dc[e].uses = 1;               /* the root is not shared */
   dc_scopes(e);
@@ -8577,6 +8622,7 @@ jx_report(void)
   jx_file = 0;
   fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
           jx_nhot, jx_threshold, jx_limit);
+  fprintf(stderr, "  %d of them do fewer than %d reductions, and are too small to compile\n", jx_nsmall, DC_MIN_WORK);
 }
 #endif  /* WANT_SAMPLE */
 
