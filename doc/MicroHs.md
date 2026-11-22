@@ -607,6 +607,7 @@ Programs compiled with MicroHs, including `mhs` itself, take runtime flags betwe
 * `-rFILE` read the combinators from `FILE` instead of `out.comb` (for `mhseval`).
 * `-oFILE` read the program, run a garbage collection, and write the resulting graph to `FILE`.
 * `-S[N]` and `-J[LIMIT[,THRESHOLD]]` sample the evaluation every `N` reductions, and extract the code of the hot function nodes to `mhs-extract.txt`. Only in a runtime compiled with `-DWANT_SAMPLE=1` (see [Hot code extraction](#hot-code-extraction-experimental)).
+* `-j[N[,THRESHOLD]]` sample every `N` reductions (default 1000), and install code on the hot function nodes, without a report or a file. Only in a runtime compiled with `-DWANT_SAMPLE=1 -DWANT_JIT=1` (see [Installing code](#installing-code)).
 
 For example, `./prog +RTS -H1M -v -RTS hello` runs `prog` with a heap of 1M cells and prints statistics at the end, and the program gets the single argument `hello`.
 
@@ -860,6 +861,7 @@ Some other macros control how the runtime works. These are set in `config.h`:
 * `STACKOVL` check for stack overflow.
 * `WANT_KPERF` make `+RTS -v` also print the number of instructions executed, using the CPU's performance counters. This only works on some CPUs, see the comment in `unix/config.h`.
 * `WANT_SAMPLE` (default 0) the sampler and the extraction of hot code (see [Hot code extraction](#hot-code-extraction-experimental)).
+* `WANT_JIT` (default 0, needs `WANT_SAMPLE`) installing code on hot function nodes (see [Installing code](#installing-code)). With `-DJIT_TEST_INTERVAL=N -DJIT_TEST_THRESHOLD=T` every run installs code as with `+RTS -jN,T`, e.g., `-DJIT_TEST_INTERVAL=10 -DJIT_TEST_THRESHOLD=2` to run the test suite with code on almost everything.
 
 These have defaults, and can be set with `-D`, e.g., `mhs -optc -DMARK_PFQ=0 ...`:
 * `BUMP_ALLOC` (default 1) allocate cells by moving a pointer through a run of free cells, instead of searching the bitmap for each cell.
@@ -949,6 +951,17 @@ For each hot node `mhs-extract.txt` has its address, when it got hot, the number
 * A last line says how many cold cases and lambdas are left to the interpreter, and how many of the copied nodes the rest of the code uses.
 
 A function that is too small is reported as `too small: N reductions` instead.
+
+### Installing code
+
+With `WANT_JIT` and `+RTS -j`, a hot node that was decompiled, and is not too small, gets code. The node, a partial application, is overwritten with a `T_JIT` node, whose payload points to a `struct jit` allocated with `malloc`. It holds the number of arguments the code takes, which is the number of parameters of the decompiled function, and a table of the nodes in the graph that the code refers to. The first two entries are the function and the argument of the node as it was, i.e., the original graph.
+
+* The garbage collector marks the table, and updates it like any other reference, so code must read the pointers from the table. When the `T_JIT` node dies, the collector frees its `struct jit`.
+* The serializer, and anything else that prints the graph, prints a `T_JIT` node as the node it was.
+* A node on the stack cannot be overwritten, since the evaluator reads the arguments of a reduction from the nodes on the stack. Such a node gets its code at the first garbage collection where it is not on the stack.
+* The evaluator enters the code when it unwinds to a `T_JIT` node. There is no code generator yet, so for now the code is to run the original graph: a copy of the node as it was. That is also what it will do with fewer arguments than the code takes, since the original graph may do reductions before it has all its arguments, and they must be shared as before.
+
+`+RTS -v` prints how many nodes got code, how many of them had to wait for a garbage collection, how many were freed, and how many times the original graph was run.
 
 ---
 

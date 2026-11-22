@@ -42,6 +42,13 @@
 #define WANT_SAMPLE 0           /* sampling profiler for hot function nodes */
 #endif /* defined(WANT_SAMPLE) */
 
+#if !defined(WANT_JIT)
+#define WANT_JIT 0              /* compiled code for hot function nodes, see T_JIT */
+#endif /* defined(WANT_JIT) */
+#if WANT_JIT && !WANT_SAMPLE
+#error "WANT_JIT needs WANT_SAMPLE"
+#endif
+
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -561,6 +568,7 @@ enum node_tag { D_NONE,
                 D_ARR, D_THID, D_MVAR, D_WEAK,
                 D_IO_CCALL,
                 D_BADDYN, D_TICK,
+                T_JIT,          /* a function node with compiled code, see struct jit */
 
                 /* Tags with extra info */
                 V_CONSTR, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
@@ -637,7 +645,7 @@ static const char* tag_names [T_LAST_TAG+1] =
   { [D_NONE] = "NONE", [X_AP] = "AP", [D_IND] = "IND",
     [D_INT] = "INT", [D_INT64] = "INT64", [D_DBL] = "DBL", [D_FLT32] = "FLT32", [D_PTR] = "PTR",
     [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
-    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK",
+    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK", [T_JIT] = "JIT",
     [V_CONSTR] = "C_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
   };
 #define TAGNAME(t) tag_names[t]
@@ -815,6 +823,7 @@ struct forptr;
 struct mthread;
 struct mvar;
 struct weak_ptr;
+struct jit;
 
 typedef struct PACKED node {
   NODEPTR            ufun;
@@ -840,6 +849,7 @@ typedef struct PACKED node {
     struct mthread  *uuthread;
     struct mvar     *uumvar;
     struct weak_ptr *uuweak;
+    struct jit      *uujit;
   } uarg;
 } node;
 
@@ -1026,6 +1036,30 @@ mk_AP(NODEPTR n, NODEPTR fun, NODEPTR arg)
 #define THR(p) NPTR(p)->uarg.uuthread
 #define MVAR(p) NPTR(p)->uarg.uumvar
 #define WEAK(p) NPTR(p)->uarg.uuweak
+#define JIT(p) NPTR(p)->uarg.uujit
+
+#if WANT_JIT
+/*
+ * Compiled code for a function node (see jit-plan.md).  The node, a partial
+ * application, is overwritten with a T_JIT node, whose payload points to a
+ * struct jit.  consts[] is the table of the nodes in the graph that the
+ * code refers to.  The GC marks it, and updates it (it short-circuits
+ * indirections), so the code must read the pointers from it.  consts[0] and
+ * consts[1] are the function and the argument of the node as it was, i.e.,
+ * the original graph, which is used to fall back, and to serialize the node.
+ */
+struct jit {
+  struct jit *next;             /* all of them, to free the ones whose node died */
+  int         arity;            /* the number of arguments the code takes */
+  int         marked;           /* the node was reached by the last GC */
+  size_t      nconsts;
+  NODEPTR    *consts;
+};
+#define JIT_FUN(p) (JIT(p)->consts[0])
+#define JIT_ARG(p) (JIT(p)->consts[1])
+static struct jit *jit_root;    /* all of them, linked by next */
+static void jit_gc(void);
+#endif  /* WANT_JIT */
 
 #define NODE_SIZE sizeof(node)
 #define LABEL(n) ((heapoffs_t)((n).node_ptr - cells))
@@ -3805,6 +3839,18 @@ mark(NODEPTR *np)
     WEAK(n)->marked = 1;
     goto fin;
 
+#if WANT_JIT
+  case T_JIT:
+    {
+      struct jit *j = JIT(n);
+      j->marked = 1;
+      for (size_t i = 0; i < j->nconsts; i++)
+        if (!is_marked_used(j->consts[i]))
+          PUSH_SLOT(&j->consts[i]);
+      goto fin;
+    }
+#endif  /* WANT_JIT */
+
   default:
     goto fin;
   }
@@ -3907,6 +3953,9 @@ gc(void)
 
 #if WANT_SAMPLE
   sample_gc();
+#endif
+#if WANT_JIT
+  jit_gc();
 #endif
 
   gc_mark_time += GETTIMEMILLI();
@@ -5021,7 +5070,11 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
 
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = get_XTAG(n);
-  if (tag == X_AP || tag == D_ARR || tag == D_FORPTR) {
+  if (tag == X_AP || tag == D_ARR || tag == D_FORPTR
+#if WANT_JIT
+      || tag == T_JIT
+#endif
+      ) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -5045,6 +5098,12 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
           find_sharing(num_sharedp, pb, ARR(n)->array[i]);
         }
         break;
+#if WANT_JIT
+      case T_JIT:               /* the node as it was */
+        find_sharing(num_sharedp, pb, JIT_FUN(n));
+        n = JIT_ARG(n);
+        goto top;
+#endif
       default:
         break;
       }
@@ -5142,16 +5201,28 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
   tag = get_XTAG(n);
   switch (tag) {
   case X_AP:
-    if (prefix) {
-      putb('(', f);
-      printrec(f, pb, FUN(n), prefix);
-      putb(' ', f);
-      printrec(f, pb, ARG(n), prefix);
-      putb(')', f);
-    } else {
-      printrec(f, pb, FUN(n), prefix);
-      printrec(f, pb, ARG(n), prefix);
-      putb('@', f);
+#if WANT_JIT
+  case T_JIT:                   /* compiled code: the node as it was */
+#endif
+    {
+      NODEPTR fun = FUN(n), arg = ARG(n);
+#if WANT_JIT
+      if (tag == T_JIT) {
+        fun = JIT_FUN(n);
+        arg = JIT_ARG(n);
+      }
+#endif
+      if (prefix) {
+        putb('(', f);
+        printrec(f, pb, fun, prefix);
+        putb(' ', f);
+        printrec(f, pb, arg, prefix);
+        putb(')', f);
+      } else {
+        printrec(f, pb, fun, prefix);
+        printrec(f, pb, arg, prefix);
+        putb('@', f);
+      }
     }
     break;
   case D_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
@@ -5427,11 +5498,17 @@ sample_dump(const char *name, NODEPTR n)
 }
 
 /* Report the hottest nodes, and write the hottest ones to files. */
+static bool sample_quiet;       /* sampling only for the JIT, no report (+RTS -j) */
+
 void
 sample_report(void)
 {
   if (!sample_interval || !sample_table)
     return;
+  if (sample_quiet) {
+    jx_report();
+    return;
+  }
   struct sample_entry *es = mmalloc(SAMPLE_TABLE_SIZE * sizeof(struct sample_entry));
   size_t ne = 0;
   for (size_t i = 0; i < SAMPLE_TABLE_SIZE; i++)
@@ -6714,6 +6791,9 @@ is_whnf(NODEPTR n)
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity;
     case D_TICK:     return d < 1;
     case D_BADDYN:   return false; /* evaluating it is an error */
+#if WANT_JIT
+    case T_JIT:      d++; n = JIT_FUN(n); continue; /* as the node was */
+#endif
     default:         return true;  /* a value */
     }
   }
@@ -6823,6 +6903,9 @@ jx_classify(NODEPTR p)
     case D_IND:      n = ARG(n); continue;
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity ? JX_COPY : JX_REDEX;
     case D_TICK:     return d < 1 ? JX_COPY : JX_REDEX;
+#if WANT_JIT
+    case T_JIT:      return d < JIT(n)->arity ? JX_COPY : JX_REDEX;
+#endif
     default:         return d == 0 ? JX_DATA : JX_REDEX; /* a value, or an error */
     }
   }
@@ -7113,7 +7196,11 @@ jx_print_orig(FILE *f, NODEPTR n, int depth, bool paren)
 static bool
 jx_inline_data(int i)
 {
-  return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig));
+  return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig))
+#if WANT_JIT
+    && get_DATA_TAG(FUN(jx[i].orig)) != T_JIT
+#endif
+    ;
 }
 
 /*
@@ -8450,8 +8537,10 @@ dc_uses_self(int e, char *seen)
 
 static int jx_nsmall;           /* the number of extractions that were too small */
 
-/* Decompile the extracted subgraph and print it. */
-static void
+/* Decompile the extracted subgraph, and print it if f is not NULL.
+ * Return the number of parameters, or -1 if the function is not to be
+ * compiled. */
+static int
 dc_decompile(FILE *f)
 {
   static int *memo;
@@ -8479,8 +8568,9 @@ dc_decompile(FILE *f)
   if (r) {
     static const char *why[] = { "", "too many terms", "too many arguments", "too many arms",
                                  "", "too many reductions" };
-    fprintf(f, "cannot decompile: %s\n", why[r]);
-    return;
+    if (f)
+      fprintf(f, "cannot decompile: %s\n", why[r]);
+    return -1;
   }
   int root = dc_app(dc_from_opnd(jx[0].fun, memo), dc_from_opnd(jx[0].arg, memo));
   dc[root].jx = 0;
@@ -8499,14 +8589,20 @@ dc_decompile(FILE *f)
     bool rec = dc_uses_self(e, seen);
     FREE(seen);
     if (!rec) {
-      fprintf(f, "too small: %ld reduction%s\n", nred, nred == 1 ? "" : "s");
+      if (f)
+        fprintf(f, "too small: %ld reduction%s\n", nred, nred == 1 ? "" : "s");
       jx_nsmall++;
-      return;
+      return -1;
     }
   }
   dc_count(e);
   dc[e].uses = 1;               /* the root is not shared */
   dc_scopes(e);
+  int nparams = 0;
+  for (int b = e; dc[b].kind == DC_LAM && (b == e || !dc_shared(b)); b = dc[b].b)
+    nparams++;
+  if (!f)
+    return nparams > 0 ? nparams : -1;
   /* Print it as a definition, self x1 ... xn = body */
   dc_line_start = ftell(f);
   fputs("self", f);
@@ -8528,6 +8624,7 @@ dc_decompile(FILE *f)
       fprintf(f, "%d lambda%s", dc_ngraph, dc_ngraph == 1 ? "" : "s");
     fprintf(f, " left to the interpreter; the rest uses %d of the %d copied nodes\n", dc_count_used(e), ncopy);
   }
+  return nparams > 0 ? nparams : -1;
 }
 
 /* The nodes copied by the earlier extractions, to skip them as roots: a hash
@@ -8598,20 +8695,28 @@ jx_add_done(NODEPTR p)
   jx_done_insert(p);
 }
 
-/* Extract the subgraph of a hot node, and print it.  Return false if the node
- * was skipped. */
+#if WANT_JIT
+static void jit_install(NODEPTR p, int arity);
+static bool jit_on;             /* install compiled code (+RTS -j) */
+#endif
+
+/* Extract the subgraph of a hot node, and print it if f is not NULL.
+ * Return false if the node was skipped. */
 static bool
 jx_extract(FILE *f, int rank, struct sample_entry *e)
 {
   NODEPTR r = sample_skip_ind(e->node);
   if (jx_is_done(r))
     return false;
-  fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
-          rank, (void *)get_node_ptr(r), num_samples, e->outer);
+  if (f)
+    fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
+            rank, (void *)get_node_ptr(r), num_samples, e->outer);
   if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
-    fprintf(f, "not a partial application: ");
-    jx_print_orig(f, r, 3, false);
-    fprintf(f, "\n\n");
+    if (f) {
+      fprintf(f, "not a partial application: ");
+      jx_print_orig(f, r, 3, false);
+      fprintf(f, "\n\n");
+    }
     return true;
   }
   if (!jx) {
@@ -8644,29 +8749,39 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
       if (jx[i].arg.index >= 0) jx[jx[i].arg.index].uses++;
     }
   }
-  fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
-          count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
+  if (f)
+    fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
+            count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
   jx[0].uses++;                 /* so it is never printed inline */
-  dc_decompile(f);
-  fputc('\n', f);
+  int arity = dc_decompile(f);
+  if (f)
+    fputc('\n', f);
+#if WANT_JIT
+  if (jit_on && arity > 0)
+    jit_install(r, arity);
+#else
+  (void)arity;
+#endif
   return true;
 }
 
 static FILE *jx_file;
+static bool jx_write;           /* write the extracted code to mhs-extract.txt (+RTS -J) */
 static int jx_nhot;
 
 /* The node of the entry got hot: extract its subgraph now, as a JIT would. */
 static void
 jx_hot(struct sample_entry *e)
 {
-  if (!jx_file) {
+  if (jx_write && !jx_file) {
     jx_file = fopen("mhs-extract.txt", "w");
     if (!jx_file)
       return;
   }
   if (jx_extract(jx_file, jx_nhot + 1, e)) {
     jx_nhot++;
-    fflush(jx_file);
+    if (jx_file)
+      fflush(jx_file);
   }
 }
 
@@ -8678,6 +8793,10 @@ jx_gc(void)
     jx_done_rebuild(jx_ndone, jx_keep_live);
 }
 
+#if WANT_JIT
+static counter_t num_jit_installed, num_jit_waited, num_jit_fallback, num_jit_freed;
+#endif
+
 static void
 jx_report(void)
 {
@@ -8686,10 +8805,104 @@ jx_report(void)
   if (jx_file)
     fclose(jx_file);
   jx_file = 0;
-  fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
-          jx_nhot, jx_threshold, jx_limit);
-  fprintf(stderr, "  %d of them do fewer than %d reductions, and are too small to compile\n", jx_nsmall, DC_MIN_WORK);
+  if (jx_write) {
+    fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
+            jx_nhot, jx_threshold, jx_limit);
+    fprintf(stderr, "  %d of them do fewer than %d reductions, and are too small to compile\n", jx_nsmall, DC_MIN_WORK);
+  }
+#if WANT_JIT
+  if (jit_on && verbose)
+    fprintf(stderr, "jit: %"PRIcounter" nodes got code (%"PRIcounter" of them after waiting for a GC), %"PRIcounter" freed, %"PRIcounter" fallbacks to the original graph\n",
+            num_jit_installed, num_jit_waited, num_jit_freed, num_jit_fallback);
+#endif
 }
+
+#if WANT_JIT
+/*
+ * Installing compiled code on a function node, and running it.
+ * For now there is no code: running it runs the original graph.
+ */
+
+#define JIT_MAX_WAITING 32
+/* The nodes that could not get their code at once, since they were on the stack. */
+static struct { NODEPTR node; int arity; } jit_waiting[JIT_MAX_WAITING];
+static int jit_nwaiting;
+
+static bool
+jit_on_stack(NODEPTR p)
+{
+  for (stackptr_t i = 0; i <= stack_ptr; i++)
+    if (stack[i].node_bits == p.node_bits)
+      return true;
+  return false;
+}
+
+static void
+jit_install_now(NODEPTR p, int arity)
+{
+  struct jit *j = mmalloc(sizeof(struct jit));
+  j->arity = arity;
+  j->marked = 0;
+  j->nconsts = 2;
+  j->consts = mmalloc(j->nconsts * sizeof(NODEPTR));
+  j->consts[0] = FUN(p);        /* the node as it was */
+  j->consts[1] = ARG(p);
+  j->next = jit_root;
+  jit_root = j;
+  set_DATA_TAG(p, T_JIT);
+  JIT(p) = j;
+  num_jit_installed++;
+}
+
+/* Install code on the function node p, a partial application, which then
+ * takes arity arguments.  The node is overwritten, so this cannot be done
+ * while it is on the stack, since the interpreter reads the arguments from
+ * the nodes there.  If it is, it waits for a GC. */
+static void
+jit_install(NODEPTR p, int arity)
+{
+  if (!jit_on_stack(p)) {
+    jit_install_now(p, arity);
+  } else if (jit_nwaiting < JIT_MAX_WAITING) {
+    jit_waiting[jit_nwaiting].node = p;
+    jit_waiting[jit_nwaiting].arity = arity;
+    jit_nwaiting++;
+  }
+}
+
+/* After marking: free the code of the nodes that died, and install the code
+ * that waited. */
+static void
+jit_gc(void)
+{
+  for (struct jit **jp = &jit_root; *jp; ) {
+    struct jit *j = *jp;
+    if (j->marked) {
+      j->marked = 0;
+      jp = &j->next;
+    } else {
+      *jp = j->next;
+      FREE(j->consts);
+      FREE(j);
+      num_jit_freed++;
+    }
+  }
+  int k = 0;
+  for (int i = 0; i < jit_nwaiting; i++) {
+    NODEPTR p = jit_waiting[i].node;
+    if (!is_marked_used(p) || !is_AP(FUN(p)))
+      continue;                 /* it died, or the GC simplified it */
+    if (jit_on_stack(p)) {
+      jit_waiting[k++] = jit_waiting[i];
+    } else {
+      jit_install_now(p, jit_waiting[i].arity);
+      num_jit_waited++;
+    }
+  }
+  jit_nwaiting = k;
+}
+
+#endif  /* WANT_JIT */
 #endif  /* WANT_SAMPLE */
 
 /*
@@ -8764,6 +8977,20 @@ struct prim_res { NODEPTR n; enum prim_next next; };
 #define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); GOTOP(n); } while(0)
 #define GOPAIRUNIT do { FUN(n) = combPUnit; GOTOP(n); } while(0)
 
+#if WANT_JIT
+/* Run the code of the T_JIT node n, which is at the head of the spine.
+ * There is no code yet, so run the original graph, i.e., a copy of the node
+ * as it was, which also handles too few arguments. */
+static struct prim_res
+jit_enter(NODEPTR n, stackptr_t stk)
+{
+  (void)stk;
+  num_jit_fallback++;
+  GCCHECK(1);
+  return (struct prim_res){ new_ap(JIT_FUN(n), JIT_ARG(n)), PRIM_TOP };
+}
+#endif
+
 /* Reduce the primitive tag, which is at the head of the spine (n).
  * stk is the stack base of the calling evali. */
 static NOINLINE struct prim_res
@@ -8779,6 +9006,11 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
 #endif  /* WANT_STDIO */
 
   switch (tag) {
+
+#if WANT_JIT
+  case T_JIT:
+    return jit_enter(n, stk);
+#endif
 
 #if WANT_FLOAT32
   case T_FADD:
@@ -11050,6 +11282,16 @@ MHS_INIT_ARGS(
   heap_size = HEAP_CELLS;       /* number of heap cells */
   stack_size = STACK_SIZE;      /* number of stack slots */
 
+#if WANT_JIT && defined(JIT_TEST_INTERVAL)
+  /* For testing: install code as with +RTS -jJIT_TEST_INTERVAL,JIT_TEST_THRESHOLD
+   * in every run, e.g., of the test suite, which runs mhs without RTS flags. */
+  sample_interval = sample_left = JIT_TEST_INTERVAL;
+  sample_quiet = true;
+  jx_threshold = JIT_TEST_THRESHOLD;
+  jx_limit = JX_LIMIT;
+  jit_on = true;
+#endif
+
 #if WANT_ARGS
   progname = argv[0];
   argc--, argv++;
@@ -11076,6 +11318,7 @@ MHS_INIT_ARGS(
         else if (strncmp(p, "-S", 2) == 0) {
           sample_interval = p[2] ? (counter_t)memsize(&p[2]) : 1000;
           sample_left = sample_interval;
+          sample_quiet = false;
         }
         else if (strncmp(p, "-J", 2) == 0)
         {
@@ -11084,7 +11327,26 @@ MHS_INIT_ARGS(
           jx_limit = *q && *q != ',' ? (int)strtol(q, &q, 10) : JX_LIMIT;
           if (*q == ',')
             jx_threshold = (int)strtol(q + 1, 0, 10);
+          jx_write = true;
         }
+#if WANT_JIT
+        else if (strncmp(p, "-j", 2) == 0)
+        {
+          /* -j[interval[,threshold]]: install code on the hot nodes, quietly */
+          char *q = &p[2];
+          counter_t interval = *q && *q != ',' ? (counter_t)strtol(q, &q, 10) : 1000;
+          if (*q == ',')
+            jx_threshold = (int)strtol(q + 1, 0, 10);
+          if (!sample_interval) {
+            sample_interval = interval;
+            sample_left = interval;
+            sample_quiet = true;
+          }
+          if (!jx_limit)
+            jx_limit = JX_LIMIT;
+          jit_on = true;
+        }
+#endif
 #endif
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
