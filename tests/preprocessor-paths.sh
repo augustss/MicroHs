@@ -89,13 +89,17 @@ EOF
     cat > "$inst/bin/hsc2hs" <<'EOF'
 #!/bin/sh
 set -eu
-test "$#" = 6
+test "$#" = 10
 test "$1" = -o
 test "$3" = -D__MHS__
-test "$4" = "-I$MHSDIR/src/runtime"
-test "$5" = "-I$MHSDIR/src/runtime/unix"
-printf '{-# LINE 1 "%s" #-}\n' "$6" > "$2"
-cat "$6" >> "$2"
+case "$4" in -D*_HOST_OS) ;; *) exit 1;; esac
+case "$5" in -D*_HOST_ARCH) ;; *) exit 1;; esac
+case "$6" in -D*_BUILD_OS) ;; *) exit 1;; esac
+case "$7" in -D*_BUILD_ARCH) ;; *) exit 1;; esac
+test "$8" = "-I$MHSDIR/src/runtime"
+test "$9" = "-I$MHSDIR/src/runtime/unix"
+printf '{-# LINE 1 "%s" #-}\n' "${10}" > "$2"
+cat "${10}" >> "$2"
 EOF
     chmod +x "$inst/bin/hsc2hs"
     export MHSHSC2HS="$inst/bin/hsc2hs"

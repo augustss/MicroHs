@@ -5,9 +5,9 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 TESTER=../bin/tester
 .PHONY: test nfib clean errtest alltest cache info
-.PHONY: testpreprocessorpaths testcacheinstance
+.PHONY: testpreprocessorpaths testcpphost testcacheinstance
 
-alltest: info cache test errtest testforimp testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcacheinstance
+alltest: info cache test errtest testforimp testfordynamic testforimpforall testffiname testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths testcpphost testcacheinstance
 # interactivetest
 
 cache:
@@ -30,11 +30,19 @@ interactivetest:
 testpreprocessorpaths:
 	sh preprocessor-paths.sh $(TMHS)
 
+# As in GHC, the preprocessor defines os_HOST_OS and arch_HOST_ARCH.
+testcpphost:
+	MHSCPPHS=../bin/cpphs $(TMHS) CppHost -oCppHost.exe && ./CppHost.exe > CppHost.out && diff CppHost.ref CppHost.out
+
 testcacheinstance:
 	sh cache-instance.sh $(TMHS)
 
 testforimp:
 	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+
+# `foreign import ccall "dynamic"`: calls through C function pointers of several types.
+testfordynamic:
+	$(TMHS) -optc -I. Dynamic dynamic.c -oDynamic.exe && ./Dynamic.exe > Dynamic.out && diff Dynamic.ref Dynamic.out
 
 testforimpforall:
 	$(TMHS) ForImpForall -of.exe && ./f.exe > ForImpForall.out && diff ForImpForall.ref ForImpForall.out

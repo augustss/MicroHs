@@ -14,12 +14,14 @@ import MicroHs.Names
 -- The export table has (internal-name, external-name, external-type)
 makeFFI :: Flags -> [(Ident, Ident, CType, IsJavascript)] -> [IdentModule ]-> [[LDef]] -> (String, String)
 makeFFI _ forExps exclude dss =
-  let ffiImports = nubBy eq [ (ie, n, t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
+  let ffiImports = nubBy eq [ (ie, n, cRep ie t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
                        eq (_, n, _, _) (_, n', _, _) = n == n'
+                       -- Only a call through a pointer needs the C types.
+                       cRep ImpDynamic t = t
+                       cRep _          t = repType t
       wrappers = [ t | (ImpWrapper, _, t, _) <- ffiImports]
-      dynamics = [ t | (ImpDynamic, _, t, _) <- ffiImports]
       imps     = filter ((`notElem` exclude) . impModule) $ filter ((`notElem` runtimeFFI) . impName) ffiImports
       includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _, _) <- imps, inc <- iincs ]
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
@@ -38,7 +40,7 @@ makeFFI _ forExps exclude dss =
          "#endif"
         ]
   in
-    if not (null wrappers) || not (null dynamics) then mhsError "Unimplemented FFI feature" else
+    if not (null wrappers) then mhsError "Unimplemented FFI feature: foreign import \"wrapper\"" else
     (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       (if any (\ (_, _, _, js) -> js) forExps then
@@ -107,6 +109,7 @@ mkEntry (ImpStatic _ IFunc  _, f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t
 mkEntry (ImpStatic _ IPtr   _, f, _, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
 mkEntry (ImpStatic _ IValue _, f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry (ImpJS _,              f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpDynamic,           f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -190,7 +193,41 @@ mkHdr (ImpJS s, f, ty, _) =
         else
           "return " ++ mkRet rt n call
   in  mkMhsFun f fcall
+-- Call the function pointer in the first argument with the other arguments.
+-- The pointer is cast to the exact C type of the function.
+mkHdr (ImpDynamic, f, t, _) =
+  let (ats, ior) = getArrows t
+      (fpt, as) =
+        case ats of
+          fp : as' | Just ft <- dropApp identFunPtr fp
+                   , let (fas, fr) = getArrows ft
+                   , length fas == length as' && and (zipWith eqEType fas as') && eqEType fr ior
+                   -> (fp, as')
+          _ -> errorMessage (getSLoc t) $ "foreign import dynamic must have type FunPtr ft -> ft: " ++ showEType t
+      r = checkIO ior
+      len = length ats
+      cfun = cCallTypeName r ++ " (*)(" ++ (if null as then "void" else intercalate ", " (map cCallTypeName as)) ++ ")"
+      call = "((" ++ cfun ++ ")" ++ mkArg fpt 0 ++ ")(" ++ intercalate ", " (zipWith mkArg (map repType as) [1..]) ++ ")"
+      fcall =
+        if isUnit r then
+          call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
+        else
+          "return " ++ mkRet (repType r) len call
+  in  mkMhsFun f fcall
 mkHdr _ = undefined
+
+-- Replace the newtypes for C types by the types that represent them.
+repType :: EType -> EType
+repType (EApp f a) = EApp (repType f) (repType a)
+repType t@(EVar i) | Just (_, r) <- lookup (unIdent i) cNewtypes = EVar (mkIdentSLoc (getSLoc i) r)
+                   | otherwise = t
+repType t = t
+
+-- The C type of an argument or the result of a call through a pointer.
+cCallTypeName :: EType -> String
+cCallTypeName (EApp (EVar ptr) _) | ptr == identFunPtr = "HsFunPtr"
+cCallTypeName (EVar i) | Just (c, _) <- lookup (unIdent i) cNewtypes = c
+cCallTypeName t = cTypeName t
 
 arity :: EType -> Int
 arity = length . fst . getArrows
@@ -272,7 +309,7 @@ runtimeFFI :: [String]
 runtimeFFI = [
   "GETRAW", "GETTIMEMICRO", "GETBOOTTIMEMICRO", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
   "asin", "atan", "atan2", "calloc", "closeb",
-  "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "isattyb", "filesizeb", "islinux", "ismacos", "iswindows", "log", "malloc",
+  "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "isattyb", "filesizeb", "islinux", "ismacos", "ismingw", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
   "putb", "putchar", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "remove",
   "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",

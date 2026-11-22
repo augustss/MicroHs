@@ -1813,7 +1813,8 @@ tcDefValue adef =
       return $ Fcn (qualIdent' mn i) teqns
     ForImp cc sf ie i t -> do
       mn <- gets moduleName
-      t' <- withNewtypeAsSyns (expandSynLoc t)
+      -- Keep the newtypes for C types, see cNewtypes.
+      t' <- withSomeNewtypesAsSyns ((`notElem` map fst cNewtypes) . unIdent) (expandSynLoc t)
       pure $ ForImp cc sf ie (qualIdent' mn i) t'
     -- Check that a foreign export match the declaration type.
     -- In most cases the types will be the same, but the declaration can be overloaded
@@ -3936,11 +3937,15 @@ solveInstCoercible loc iCls t1 t2 = do
 -- XXX It's rather inefficient to do this over and over.
 -- XXX We give up on direct recursive newtypes.  Should do it for mutual recursion too.
 withNewtypeAsSyns :: T a -> T a
-withNewtypeAsSyns act = do
+withNewtypeAsSyns = withSomeNewtypesAsSyns (const True)
+
+-- Treat the newtypes whose names satisfy the predicate as synonyms.
+withSomeNewtypesAsSyns :: (Ident -> Bool) -> T a -> T a
+withSomeNewtypesAsSyns expand act = do
   st <- gets synTable  -- get old syntable
   -- Copy newtypes to syn table
   dt <- gets dataTable
-  let ext (qi, Newtype (_, vs) (Constr _ _ _c _ et) _) = do
+  let ext (qi, Newtype (_, vs) (Constr _ _ _c _ et) _) | expand qi = do
           -- XXX We should check that the constructor name (_c) is visible.
           -- But this is tricky since we don't know under what qualified name it
           -- it could be visible.

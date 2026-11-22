@@ -44,6 +44,9 @@ readProcess cmd args sin = do
   bracket_ (return ())
            (removeFile fin >> removeFile fout)
            (do
-               callCommand $ unwords $ cmd : ("<" ++ fin) : (">" ++ fout) : args
+               callCommand $ unwords $ cmd : ("<" ++ quote fin) : (">" ++ quote fout) : args
                res <- readFile fout
                seq (length res) $ return res)
+  -- The temporary directory can contain spaces.
+  -- Double quotes work for both sh and cmd.exe.
+  where quote s = "\"" ++ s ++ "\""

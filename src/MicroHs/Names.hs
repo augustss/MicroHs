@@ -137,6 +137,50 @@ identPtr = mkIdentB "Primitives.Ptr"
 identFunPtr :: Ident
 identFunPtr = mkIdentB "Primitives.FunPtr"
 
+-- The newtypes for C types, each with its C type and the primitive type
+-- that represents it (which must match the newtype's definition).
+-- The type of a foreign import keeps these newtypes, while all others
+-- are expanded, because a call through a function pointer needs the
+-- exact C types.
+cNewtypes :: [(String, (String, String))]
+cNewtypes =
+  [ (c "CBool",    ("uint8_t",            w))
+  , (c "CChar",    ("char",               i))
+  , (c "CSChar",   ("signed char",        i))
+  , (c "CUChar",   ("unsigned char",      w))
+  , (c "CWchar",   ("wchar_t",            i))
+  , (c "CShort",   ("short",              i))
+  , (c "CUShort",  ("unsigned short",     w))
+  , (c "CInt",     ("int",                i))
+  , (c "CUInt",    ("unsigned int",       w))
+  , (c "CLong",    ("long",               i))
+  , (c "CULong",   ("unsigned long",      w))
+  , (c "CPtrdiff", ("ptrdiff_t",          w))
+  , (c "CSize",    ("size_t",             w))
+  , (c "CSSize",   ("intptr_t",           i))   -- ssize_t is not standard C
+  , (c "CLLong",   ("long long",          i64))
+  , (c "CULLong",  ("unsigned long long", w64))
+  , (c "CIntPtr",  ("intptr_t",           i))
+  , (c "CUIntPtr", ("uintptr_t",          w))
+  , (c "CIntMax",  ("intmax_t",           i64))
+  , (c "CUIntMax", ("uintmax_t",          w64))
+  , (c "CClock",   ("clock_t",            i))
+  , (c "CTime",    ("time_t",             i))
+  , (c "CFloat",   ("float",              "Primitives.Float"))
+  , (c "CDouble",  ("double",             "Primitives.Double"))
+  , ("Data.Int.Int8.Int8",      ("int8_t",   i))
+  , ("Data.Int.Int16.Int16",    ("int16_t",  i))
+  , ("Data.Int.Int32.Int32",    ("int32_t",  i))
+  , ("Data.Word.Word8.Word8",   ("uint8_t",  w))
+  , ("Data.Word.Word16.Word16", ("uint16_t", w))
+  , ("Data.Word.Word32.Word32", ("uint32_t", w))
+  ]
+  where c s = "Foreign.C.Types." ++ s
+        i   = "Primitives.Int"
+        w   = "Primitives.Word"
+        i64 = "Primitives.Int64"
+        w64 = "Primitives.Word64"
+
 identStablePtr :: Ident
 identStablePtr = mkIdentB "Foreign.StablePtr.StablePtr"
 

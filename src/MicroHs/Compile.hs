@@ -30,6 +30,7 @@ import System.IO
 import System.IO.MD5
 import System.IO.Serialize
 import System.IO.TimeMilli
+import System.Info(os, arch)
 import System.Process
 import MicroHs.Abstract
 import MicroHs.Builtin
@@ -472,7 +473,14 @@ runPreString flags pgm args fn ifile = do
 mhsDefines :: [String]
 mhsDefines =
   [ "-D__MHS__"                                 -- We are MHS
+  -- The same symbols as GHC, e.g., darwin_HOST_OS and aarch64_HOST_ARCH.
+  -- The compiled program runs where the compiler does, so BUILD is HOST.
+  , "-D" ++ sym os   ++ "_HOST_OS"
+  , "-D" ++ sym arch ++ "_HOST_ARCH"
+  , "-D" ++ sym os   ++ "_BUILD_OS"
+  , "-D" ++ sym arch ++ "_BUILD_ARCH"
   ]
+  where sym = map (\ c -> if isAlphaNum c then c else '_')
 
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do

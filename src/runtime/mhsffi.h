@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <time.h>
 #if WANT_MATH

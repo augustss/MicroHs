@@ -37,6 +37,8 @@ deriving instance Ord a => Ord (Const a b)
 deriving instance Real a => Real (Const a b)
 deriving instance RealFloat a => RealFloat (Const a b)
 deriving instance RealFrac a => RealFrac (Const a b)
+deriving instance Semigroup a => Semigroup (Const a b)
+deriving instance Monoid a => Monoid (Const a b)
 
 instance forall m . Monoid m => Applicative (Const m) where
   pure _ = Const mempty

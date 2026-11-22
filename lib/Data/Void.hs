@@ -4,6 +4,10 @@ import Text.Read
 
 data Void deriving (Eq, Ord, Read, Show)
 
+instance Semigroup Void where
+  a <> _ = a
+  stimes _ a = a
+
 absurd :: forall a . Void -> a
 absurd v = seq v (error "absurd")
 
