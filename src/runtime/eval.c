@@ -2467,11 +2467,14 @@ static INLINE int is_marked_used(NODEPTR n)
  * is built for one call never recurs, so only shared nodes get counts.
  * The table is not a GC root; entries for freed nodes are dropped after
  * every GC.
+ * The recurring nodes are live, so how many there can be depends on the
+ * size of the heap.  The table has an entry per SAMPLE_CELLS cells, rounded
+ * up to a power of 2, which is 2^18 entries for the default heap of 50M
+ * cells.  With 2^14 entries about 10% of the recurring nodes in the
+ * compiler were lost to collisions.
  */
-#if !defined(SAMPLE_TABLE_BITS)
-#define SAMPLE_TABLE_BITS 18          /* 16K entries miss about 10% of the recurring nodes in the compiler */
-#endif
-#define SAMPLE_TABLE_SIZE (1 << SAMPLE_TABLE_BITS)
+#define SAMPLE_CELLS      256   /* cells per entry of the table */
+#define SAMPLE_MIN_BITS   10    /* the smallest table */
 #define SAMPLE_MAX_DEPTH  32    /* how far down a spine to look */
 #define SAMPLE_REPORT     30    /* number of entries to report */
 #define SAMPLE_DUMP       10    /* number of entries to write to files */
@@ -2483,6 +2486,8 @@ struct sample_entry {
   counter_t outer;              /* number of hits where it was the outermost hit in its spine */
 };
 struct sample_entry *sample_table;
+static uint32_t sample_table_bits;      /* the table has 2^sample_table_bits entries */
+#define SAMPLE_TABLE_SIZE ((size_t)1 << sample_table_bits)
 counter_t sample_interval = 0;           /* 0 means no sampling */
 counter_t sample_left = ~(counter_t)0;   /* reductions until the next sample */
 counter_t num_samples;                   /* number of samples */
@@ -2500,7 +2505,7 @@ static void jx_report(void);
 static INLINE uint32_t
 sample_hash(NODEPTR n)
 {
-  return (uint32_t)((n.node_bits >> 3) * 2654435761u) >> (32 - SAMPLE_TABLE_BITS);
+  return (uint32_t)((n.node_bits >> 3) * 2654435761u) >> (32 - sample_table_bits);
 }
 
 /* Skip indirections. */
@@ -2544,6 +2549,13 @@ sample_node(NODEPTR n)
   }
   sample_left = sample_interval;
   num_samples++;
+  if (!sample_table) {
+    /* Allocated here, when the size of the heap is known. */
+    for (sample_table_bits = SAMPLE_MIN_BITS; sample_table_bits < 30 &&
+           ((heapoffs_t)1 << sample_table_bits) * SAMPLE_CELLS < heap_size; sample_table_bits++)
+      ;
+    sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
+  }
 
   /* The part of the spine that is on the stack: the stack entries that
    * are applications of the node below them. */
@@ -5418,7 +5430,7 @@ sample_dump(const char *name, NODEPTR n)
 void
 sample_report(void)
 {
-  if (!sample_interval)
+  if (!sample_interval || !sample_table)
     return;
   struct sample_entry *es = mmalloc(SAMPLE_TABLE_SIZE * sizeof(struct sample_entry));
   size_t ne = 0;
@@ -11010,7 +11022,6 @@ MHS_INIT_ARGS(
         else if (strncmp(p, "-S", 2) == 0) {
           sample_interval = p[2] ? (counter_t)memsize(&p[2]) : 1000;
           sample_left = sample_interval;
-          sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
         }
         else if (strncmp(p, "-J", 2) == 0)
         {

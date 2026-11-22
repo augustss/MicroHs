@@ -896,7 +896,7 @@ Every `N` reductions (`-S[N]`, default 1000) the sampler looks at the spine of t
 
 The limits, and why:
 * One sample per 1000 reductions. The cost is a countdown per reduction. Sampling every 10 reductions finds the same hot nodes at the same time, so coarse sampling is good enough.
-* A table of 2^18 entries. A node that misses its slot decrements the count there, and takes the slot over when it reaches 0, so the slot keeps the node that is hit most. With 2^14 entries about 10% of the recurring nodes in the compiler were lost to collisions.
+* A table with an entry per 256 cells of the heap, rounded up to a power of 2, i.e., 2^18 entries for the default heap. The recurring nodes are live, so the heap bounds how many there can be. A node that misses its slot decrements the count there, and takes the slot over when it reaches 0, so the slot keeps the node that is hit most. With 2^14 entries about 10% of the recurring nodes in the compiler were lost to collisions.
 * At most 32 nodes down a spine, to bound the cost of a sample.
 * A threshold of 100. That is enough samples that a node is not hot by chance, and still few enough that the hottest nodes of a compile of the compiler get hot within the first 6% of the run.
 * Entries for nodes that are freed are dropped at every garbage collection, since their addresses are reused.
