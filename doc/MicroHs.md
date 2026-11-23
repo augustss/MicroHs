@@ -920,7 +920,7 @@ The limits, and why:
 
 ### Recreating the lambdas
 
-The copy is turned into a lambda expression by reducing the combinators symbolically, with the rules of `Mhs.Reflect`. Each term is decompiled once, so the result is a graph with the sharing of the original.
+The copy is turned into a lambda expression by reducing the combinators symbolically, with the rules of `Mhs.Reflect`. Each term is decompiled once, so the result is a graph with the sharing of the original. That includes a redex, or a call, that is used in several places and applied to different arguments: the interpreter reduces it once and overwrites it, so the decompiler reduces it once too, and every use gets the same term.
 * The root is a partial application, so it is applied to new variables until it has all the arguments it needs, i.e., it is eta expanded. These variables are the parameters, and the result is printed as `self x1 ... xn = body`.
 * A combinator with all its arguments is reduced by its rule, e.g., `S x y z` becomes `x z (y z)`.
 * `Y f` becomes `let r = f r in r`.
@@ -958,10 +958,19 @@ With `WANT_JIT` and `+RTS -j`, a hot node that was decompiled, and is not too sm
 
 * The garbage collector marks the table, and updates it like any other reference, so code must read the pointers from the table. When the `T_JIT` node dies, the collector frees its `struct jit`.
 * The serializer, and anything else that prints the graph, prints a `T_JIT` node as the node it was.
-* A node on the stack cannot be overwritten, since the evaluator reads the arguments of a reduction from the nodes on the stack. Such a node gets its code at the first garbage collection where it is not on the stack.
-* The evaluator enters the code when it unwinds to a `T_JIT` node. There is no code generator yet, so for now the code is to run the original graph: a copy of the node as it was. That is also what it will do with fewer arguments than the code takes, since the original graph may do reductions before it has all its arguments, and they must be shared as before.
+* A node on the stack cannot be overwritten, since the evaluator reads the arguments of a reduction from the nodes on the stack.
+* The evaluator enters the code when it unwinds to a `T_JIT` node with as many arguments as the code takes. With fewer, it runs the original graph instead, i.e., a copy of the node as it was, since the original graph may do reductions before it has all its arguments, and they must be shared as before.
 
-`+RTS -v` prints how many nodes got code, how many of them had to wait for a garbage collection, how many were freed, and how many times the original graph was run.
+There is no code generator yet: the code is the decompiled function itself, as a term, which the runtime runs with the compilation schemes of the G-machine (see `jit-plan.md`). The body is run with the R scheme: the result overwrites the redex, and the interpreter goes on with it. A `case` evaluates its scrutinee (the E scheme), which calls the interpreter, and picks the arm. Anything lazy is built as a graph (the C scheme); a lazy `case`, and a cold one, are built as the graph they come from. The variables of the function, and the terms it uses more than once, which are built once per call, are in a frame on the stack, so the garbage collector finds them. This is slow, but it checks the decompiler and the schemes against the interpreter.
+
+A node does not get code when:
+* it is on the stack (rare);
+* the root takes its parameters in several steps (the graph does a reduction before it has all of them), and the graph would build something that may be evaluated before the last step. The graph shares that between the calls of a partial application, while the code would build it in every call;
+* the graph of a lazy `case` and the code both have something with the same value, e.g., a call. The graph is made of the input of the decompiler, and the code of decompiled terms, so they would make two nodes for it, and maybe evaluate both, where the original graph has one. That can make the code exponentially slower. Sharing them needs a lazy `case` that runs code instead of being a graph.
+
+The code also runs the original graph when the C stack is deep (more than 1 MB), since the E scheme calls the interpreter recursively.
+
+`+RTS -v` prints how many nodes got code and how many were freed, why the others did not, how many times code ran, and how many times the original graph ran instead.
 
 ---
 
