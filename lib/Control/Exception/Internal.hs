@@ -16,6 +16,7 @@ module Control.Exception.Internal(
   asyncExceptionFromException,
   BlockedIndefinitelyOnMVar(..),
   BlockedIndefinitelyOnSTM(..),
+  NonTermination(..),
   ErrorCall(ErrorCallWithLocation, ErrorCall),
 
   uninterruptibleMask,
@@ -77,6 +78,7 @@ rtsExn e =
       else if primIntEQ n (7::Int) then SomeException Overflow
       else if primIntEQ n (8::Int) then SomeException Serialize
       else if primIntEQ n (9::Int) then SomeException Deserialize
+      else if primIntEQ n (10::Int) then SomeException NonTermination
       else e
 
 -- Throw an exception when executed, not when evaluated
@@ -315,6 +317,16 @@ instance Exception BlockedIndefinitelyOnSTM
 
 instance Show BlockedIndefinitelyOnSTM where
   showsPrec _ BlockedIndefinitelyOnSTM = showString "thread blocked indefinitely in an STM transaction"
+
+--------------------
+
+-- The runtime raises it when evaluating a value needs the value itself.
+data NonTermination = NonTermination
+
+instance Exception NonTermination
+
+instance Show NonTermination where
+  showsPrec _ NonTermination = showString "<<loop>>"
 
 --------------------
 

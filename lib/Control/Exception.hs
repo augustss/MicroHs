@@ -41,6 +41,7 @@ module Control.Exception(
   --
   BlockedIndefinitelyOnMVar(..), blockedIndefinitelyOnMVar,
   BlockedIndefinitelyOnSTM(..), blockedIndefinitelyOnSTM,
+  NonTermination(..), nonTermination,
   --
   ErrorCall(..),
   --
@@ -153,6 +154,9 @@ blockedIndefinitelyOnMVar = toException BlockedIndefinitelyOnMVar
 
 blockedIndefinitelyOnSTM :: SomeException -- for the RTS
 blockedIndefinitelyOnSTM = toException BlockedIndefinitelyOnSTM
+
+nonTermination :: SomeException
+nonTermination = toException NonTermination
 
 -------------------
 

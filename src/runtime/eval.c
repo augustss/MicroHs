@@ -1423,7 +1423,7 @@ free_stableptr(uvalue_t sp)
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
                exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
-               exn_serialize, exn_deserialize, exn_last };
+               exn_serialize, exn_deserialize, exn_nontermination, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -8421,6 +8421,7 @@ die_exn(NODEPTR exn)
         "arithmetic overflow",
         "Serialize",
         "Deserialize",
+        "<<loop>>",
       };
     if (eexn < 0 || eexn >= exn_last) {
       msg = "unknown";
