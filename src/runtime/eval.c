@@ -571,7 +571,7 @@ enum node_tag { D_NONE,
                 T_JIT,          /* a function node with compiled code, see struct jit */
                 T_BH,           /* a black hole: a node whose value is being made, e.g., the
                                  * variable of a recursive let while its right hand side is
-                                 * built (see jc_letrec); evaluating it is an error */
+                                 * built (see jc_letrec); evaluating it raises NonTermination */
 
                 /* Tags with extra info */
                 V_CONSTR, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
@@ -6800,7 +6800,7 @@ is_whnf(NODEPTR n)
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity;
     case D_TICK:     return d < 1;
     case D_BADDYN:   return false; /* evaluating it is an error */
-    case T_BH:       return false; /* evaluating it is an error */
+    case T_BH:       return false; /* evaluating it raises NonTermination */
 #if WANT_JIT
     case T_JIT:      d++; n = JIT_FUN(n); continue; /* as the node was */
 #endif
@@ -7001,7 +7001,7 @@ jx_visit(NODEPTR p)
       return o;
     case D_BADDYN:
     case T_BH:
-      k = JX_REDEX;             /* evaluating it is an error */
+      k = JX_REDEX;             /* evaluating it is an error, or NonTermination */
       break;
     default:
       k = JX_DATA;
@@ -9332,7 +9332,8 @@ static void jc_build(struct jit *j, stackptr_t fb, int t);
 
 /* The recursive let: a cell for the variable, then the right hand side with
  * the variable bound to it, and the cell becomes an indirection to that.
- * The cell is a black hole.  It must not be an application, e.g., I I,
+ * The cell is a black hole, so evaluating the variable before it is
+ * defined raises NonTermination.  It must not be an application, e.g., I I,
  * since the GC reduces some of those (I x --> x), and that would lose it. */
 static void
 jc_letrec(struct jit *j, stackptr_t fb, struct jterm *x)
@@ -11291,7 +11292,7 @@ evali(NODEPTR an)
   case D_MVAR:   RET;
   case D_WEAK:   RET;
   case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-  case T_BH:     ERR("evaluating a black hole");
+  case T_BH:     EV_RAISE(exn_nontermination); /* <<loop>> */
 
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
