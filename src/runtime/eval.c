@@ -2608,6 +2608,8 @@ sample_count(NODEPTR p)
   return 0;
 }
 
+static bool jx_is_redex(NODEPTR p);
+
 void
 sample_node(NODEPTR n)
 {
@@ -2656,11 +2658,14 @@ sample_node(NODEPTR n)
     p = f;
   }
 
-  /* The outermost candidate that recurs is presumably the function. */
+  /* The outermost candidate that recurs is presumably the function.  A
+   * candidate that is a redex is not: it is an expression whose value is a
+   * function, e.g., C f g x applied to y.  It recurs while it is evaluated,
+   * but it is evaluated once, and the function is inside it. */
   bool hit = false;
   for (int j = 1; j < ns; j++) {
     struct sample_entry *e = sample_count(spine[j]);
-    if (e && !hit) {
+    if (e && !hit && !jx_is_redex(spine[j])) {
       e->outer++;
       hit = true;
       if (jx_limit && e->outer == (counter_t)jx_threshold)
@@ -6958,6 +6963,12 @@ jx_classify(NODEPTR p)
     default:         return d == 0 ? JX_DATA : JX_REDEX; /* a value, or an error */
     }
   }
+}
+
+static bool
+jx_is_redex(NODEPTR p)
+{
+  return jx_classify(p) == JX_REDEX;
 }
 
 /* A hash table from the address of a node to its entry.  The slots carry
