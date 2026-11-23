@@ -8771,6 +8771,9 @@ jx_add_done(NODEPTR p)
 #if WANT_JIT
 static void jit_install(NODEPTR p, int arity);
 static bool jit_on;             /* install compiled code (+RTS -j) */
+#define JIT_ON jit_on
+#else
+#define JIT_ON false
 #endif
 
 /* Extract the subgraph of a hot node, and print it if f is not NULL.
@@ -8779,7 +8782,11 @@ static bool
 jx_extract(FILE *f, int rank, struct sample_entry *e)
 {
   NODEPTR r = sample_skip_ind(e->node);
-  if (jx_is_done(r))
+  /* In a report each piece of code is shown once.  With the JIT a node that
+   * was copied into the code of another one needs code of its own, since it
+   * is reached from elsewhere too: a helper copied into one caller is called
+   * by others, and the static part of a short-lived closure outlives it. */
+  if (!JIT_ON && jx_is_done(r))
     return false;
   if (f)
     fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
@@ -8808,7 +8815,7 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   jx_made = 0;
   (void)jx_visit(r);
   jx_select();
-  for (int i = 0; i < jx_n; i++) {
+  for (int i = 0; i < jx_n && !JIT_ON; i++) {
     if (jx[i].kind != JX_COPY)
       continue;
     jx_add_done(jx[i].orig);
