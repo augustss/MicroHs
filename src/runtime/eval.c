@@ -9892,6 +9892,10 @@ jit_on_stack(NODEPTR p)
 static void
 jit_install(NODEPTR p, int arity)
 {
+  /* The permanent nodes, at the start of the heap, are never marked, so the
+   * GC would not see that their code is in use, and would free it. */
+  if (get_node_ptr(p) - cells < (ptrdiff_t)heap_start)
+    return;
   if (jit_on_stack(p)) {
     num_jit_onstack++;
     return;
