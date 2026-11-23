@@ -2,10 +2,10 @@ module ForImpJS where
 import Data.Text hiding(show)
 import Foreign.C.String(CString)
 
-foreign import javascript "console.log('log: ' + UTF8ToString($0))" clog :: CString -> IO ()
-foreign import javascript "return stringToNewUTF8('PRE' + UTF8ToString($0))" pre :: CString -> IO CString
-foreign import javascript "return $0 + $1"                           add :: Int -> Int -> Int
-foreign import javascript "return $0 * $1"                           mul :: Double -> Double -> Double
+foreign import javascript "console.log('log: ' + UTF8ToString($1))" clog :: CString -> IO ()
+foreign import javascript "return stringToNewUTF8('PRE' + UTF8ToString($1))" pre :: CString -> IO CString
+foreign import javascript "return $1 + $2"                           add :: Int -> Int -> Int
+foreign import javascript "return $1 * $2"                           mul :: Double -> Double -> Double
 
 hlog :: Text -> IO ()
 hlog t = useAsCString t clog

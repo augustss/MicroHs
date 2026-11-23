@@ -28,6 +28,16 @@ cppArch = "x86_64"
 cppArch = "i386"
 #elif defined(arm_HOST_ARCH) && defined(arm_BUILD_ARCH)
 cppArch = "arm"
+#elif defined(powerpc64le_HOST_ARCH) && defined(powerpc64le_BUILD_ARCH)
+cppArch = "powerpc64le"
+#elif defined(powerpc64_HOST_ARCH) && defined(powerpc64_BUILD_ARCH)
+cppArch = "powerpc64"
+#elif defined(powerpc_HOST_ARCH) && defined(powerpc_BUILD_ARCH)
+cppArch = "powerpc"
+#elif defined(riscv64_HOST_ARCH) && defined(riscv64_BUILD_ARCH)
+cppArch = "riscv64"
+#elif defined(s390x_HOST_ARCH) && defined(s390x_BUILD_ARCH)
+cppArch = "s390x"
 #else
 cppArch = "unknown"
 #endif

@@ -16,6 +16,7 @@ os = if _isWindows then (if isMinGW then "mingw32" else "windows") else
 
 arch :: String
 arch = if _isWindows then if _wordSize == 64 then "x86_64" else "i386" else
+  narrow $
   case uname "-m" of
     "arm64"   -> "aarch64"
     "amd64"   -> "x86_64"
@@ -25,6 +26,16 @@ arch = if _isWindows then if _wordSize == 64 then "x86_64" else "i386" else
     s | s `elem` ["i386", "i486", "i586", "i686", "x86"] -> "i386"
       | take 3 s == "arm" -> "arm"
       | otherwise -> s
+  where
+    -- uname gives the kernel's architecture, which can be 64 bit when
+    -- the runtime is 32 bit, e.g., a 32 bit x86 program on x86_64.
+    narrow a | _wordSize == 32 =
+               case a of
+                 "x86_64"    -> "i386"
+                 "aarch64"   -> "arm"
+                 "powerpc64" -> "powerpc"
+                 _           -> a
+             | otherwise = a
 
 compilerName :: String
 compilerName = "mhs"
