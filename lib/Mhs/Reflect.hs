@@ -303,7 +303,7 @@ dec = go
     -- E_k1_n1_..._km_nm d f1 ... fm e
     sparse kns (d : cas) = do
       let (arms, scrut) = splitAt (length kns) cas
-      arms' <- sequence (zipWith (\ (k, n) f -> arm k n f) kns arms)
+      arms' <- zipWithM (uncurry arm) kns arms
       d' <- go d
       s <- go (head scrut)
       return (Case s arms' (Just d'))

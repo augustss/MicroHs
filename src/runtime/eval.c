@@ -57,6 +57,12 @@
 #if JX_PROVENANCE && !(WANT_PROFILE && WANT_SAMPLE)
 #error "JX_PROVENANCE needs WANT_PROFILE and WANT_SAMPLE"
 #endif
+#if !defined(WANT_JIT)
+#define WANT_JIT 0              /* compiled code for hot function nodes, see T_JIT */
+#endif /* defined(WANT_JIT) */
+#if WANT_JIT && !WANT_SAMPLE
+#error "WANT_JIT needs WANT_SAMPLE"
+#endif
 
 #if WANT_STDIO
 #include <stdio.h>
@@ -577,6 +583,10 @@ enum node_tag { D_NONE,
                 D_ARR, D_THID, D_MVAR, D_WEAK,
                 D_IO_CCALL,
                 D_BADDYN, D_TICK,
+                T_JIT,          /* a function node with compiled code, see struct jit */
+                T_BH,           /* a black hole: a node whose value is being made, e.g., the
+                                 * variable of a recursive let while its right hand side is
+                                 * built (see jc_letrec); evaluating it raises NonTermination */
 
                 /* Tags with extra info */
                 V_CONSTR, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
@@ -653,7 +663,7 @@ static const char* tag_names [T_LAST_TAG+1] =
   { [D_NONE] = "NONE", [X_AP] = "AP", [D_IND] = "IND",
     [D_INT] = "INT", [D_INT64] = "INT64", [D_DBL] = "DBL", [D_FLT32] = "FLT32", [D_PTR] = "PTR",
     [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
-    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK",
+    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK", [T_JIT] = "JIT", [T_BH] = "BH",
     [V_CONSTR] = "C_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
   };
 #define TAGNAME(t) tag_names[t]
@@ -831,6 +841,7 @@ struct forptr;
 struct mthread;
 struct mvar;
 struct weak_ptr;
+struct jit;
 
 typedef struct PACKED node {
   NODEPTR            ufun;
@@ -856,6 +867,7 @@ typedef struct PACKED node {
     struct mthread  *uuthread;
     struct mvar     *uumvar;
     struct weak_ptr *uuweak;
+    struct jit      *uujit;
   } uarg;
 #if WANT_PROFILE
   /* See prof_charge().  The counts and the label are only used in loaded nodes. */
@@ -1055,6 +1067,35 @@ mk_AP(NODEPTR n, NODEPTR fun, NODEPTR arg)
 #define THR(p) NPTR(p)->uarg.uuthread
 #define MVAR(p) NPTR(p)->uarg.uumvar
 #define WEAK(p) NPTR(p)->uarg.uuweak
+#define JIT(p) NPTR(p)->uarg.uujit
+
+#if WANT_JIT
+/*
+ * Compiled code for a function node (see jit-plan.md).  The node, a partial
+ * application, is overwritten with a T_JIT node, whose payload points to a
+ * struct jit.  consts[] is the table of the nodes in the graph that the
+ * code refers to.  The GC marks it, and updates it (it short-circuits
+ * indirections), so the code must read the pointers from it.  consts[0] and
+ * consts[1] are the function and the argument of the node as it was, i.e.,
+ * the original graph, which is used to fall back, and to serialize the node.
+ */
+struct jit {
+  struct jit *next;             /* all of them, to free the ones whose node died */
+  int         arity;            /* the number of arguments the code takes */
+  int         marked;           /* the node was reached by the last GC */
+  size_t      nconsts;
+  NODEPTR    *consts;
+  /* The code, for now the decompiled function as a term, see jc_compile. */
+  struct jterm *terms;
+  struct jarm  *arms;
+  int         root;             /* the body, an index in terms */
+  int         nslots;           /* the size of the frame */
+};
+#define JIT_FUN(p) (JIT(p)->consts[0])
+#define JIT_ARG(p) (JIT(p)->consts[1])
+static struct jit *jit_root;    /* all of them, linked by next */
+static void jit_gc(void);
+#endif  /* WANT_JIT */
 
 #define NODE_SIZE sizeof(node)
 #define LABEL(n) ((heapoffs_t)((n).node_ptr - cells))
@@ -1465,7 +1506,7 @@ free_stableptr(uvalue_t sp)
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
                exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
-               exn_serialize, exn_deserialize, exn_last };
+               exn_serialize, exn_deserialize, exn_nontermination, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -2503,11 +2544,14 @@ static INLINE int is_marked_used(NODEPTR n)
  * is built for one call never recurs, so only shared nodes get counts.
  * The table is not a GC root; entries for freed nodes are dropped after
  * every GC.
+ * The recurring nodes are live, so how many there can be depends on the
+ * size of the heap.  The table has an entry per SAMPLE_CELLS cells, rounded
+ * up to a power of 2, which is 2^18 entries for the default heap of 50M
+ * cells.  With 2^14 entries about 10% of the recurring nodes in the
+ * compiler were lost to collisions.
  */
-#if !defined(SAMPLE_TABLE_BITS)
-#define SAMPLE_TABLE_BITS 18          /* 16K entries miss about 10% of the recurring nodes in the compiler */
-#endif
-#define SAMPLE_TABLE_SIZE (1 << SAMPLE_TABLE_BITS)
+#define SAMPLE_CELLS      256   /* cells per entry of the table */
+#define SAMPLE_MIN_BITS   10    /* the smallest table */
 #define SAMPLE_MAX_DEPTH  32    /* how far down a spine to look */
 #define SAMPLE_REPORT     30    /* number of entries to report */
 #define SAMPLE_DUMP       10    /* number of entries to write to files */
@@ -2519,6 +2563,8 @@ struct sample_entry {
   counter_t outer;              /* number of hits where it was the outermost hit in its spine */
 };
 struct sample_entry *sample_table;
+static uint32_t sample_table_bits;      /* the table has 2^sample_table_bits entries */
+#define SAMPLE_TABLE_SIZE ((size_t)1 << sample_table_bits)
 counter_t sample_interval = 0;           /* 0 means no sampling */
 counter_t sample_left = ~(counter_t)0;   /* reductions until the next sample */
 counter_t num_samples;                   /* number of samples */
@@ -2536,7 +2582,7 @@ static void jx_report(void);
 static INLINE uint32_t
 sample_hash(NODEPTR n)
 {
-  return (uint32_t)((n.node_bits >> 3) * 2654435761u) >> (32 - SAMPLE_TABLE_BITS);
+  return (uint32_t)((n.node_bits >> 3) * 2654435761u) >> (32 - sample_table_bits);
 }
 
 /* Skip indirections. */
@@ -2580,6 +2626,13 @@ sample_node(NODEPTR n)
   }
   sample_left = sample_interval;
   num_samples++;
+  if (!sample_table) {
+    /* Allocated here, when the size of the heap is known. */
+    for (sample_table_bits = SAMPLE_MIN_BITS; sample_table_bits < 30 &&
+           ((heapoffs_t)1 << sample_table_bits) * SAMPLE_CELLS < heap_size; sample_table_bits++)
+      ;
+    sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
+  }
 
   /* The part of the spine that is on the stack: the stack entries that
    * are applications of the node below them. */
@@ -4069,6 +4122,18 @@ mark(NODEPTR *np)
     WEAK(n)->marked = 1;
     goto fin;
 
+#if WANT_JIT
+  case T_JIT:
+    {
+      struct jit *j = JIT(n);
+      j->marked = 1;
+      for (size_t i = 0; i < j->nconsts; i++)
+        if (!is_marked_used(j->consts[i]))
+          PUSH_SLOT(&j->consts[i]);
+      goto fin;
+    }
+#endif  /* WANT_JIT */
+
   default:
     goto fin;
   }
@@ -4194,6 +4259,9 @@ gc(void)
 
 #if WANT_SAMPLE
   sample_gc();
+#endif
+#if WANT_JIT
+  jit_gc();
 #endif
 
   gc_mark_time += GETTIMEMILLI();
@@ -5323,7 +5391,11 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
 
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = get_XTAG(n);
-  if (tag == X_AP || tag == D_ARR || tag == D_FORPTR) {
+  if (tag == X_AP || tag == D_ARR || tag == D_FORPTR
+#if WANT_JIT
+      || tag == T_JIT
+#endif
+      ) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -5347,6 +5419,12 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
           find_sharing(num_sharedp, pb, ARR(n)->array[i]);
         }
         break;
+#if WANT_JIT
+      case T_JIT:               /* the node as it was */
+        find_sharing(num_sharedp, pb, JIT_FUN(n));
+        n = JIT_ARG(n);
+        goto top;
+#endif
       default:
         break;
       }
@@ -5444,16 +5522,28 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
   tag = get_XTAG(n);
   switch (tag) {
   case X_AP:
-    if (prefix) {
-      putb('(', f);
-      printrec(f, pb, FUN(n), prefix);
-      putb(' ', f);
-      printrec(f, pb, ARG(n), prefix);
-      putb(')', f);
-    } else {
-      printrec(f, pb, FUN(n), prefix);
-      printrec(f, pb, ARG(n), prefix);
-      putb('@', f);
+#if WANT_JIT
+  case T_JIT:                   /* compiled code: the node as it was */
+#endif
+    {
+      NODEPTR fun = FUN(n), arg = ARG(n);
+#if WANT_JIT
+      if (tag == T_JIT) {
+        fun = JIT_FUN(n);
+        arg = JIT_ARG(n);
+      }
+#endif
+      if (prefix) {
+        putb('(', f);
+        printrec(f, pb, fun, prefix);
+        putb(' ', f);
+        printrec(f, pb, arg, prefix);
+        putb(')', f);
+      } else {
+        printrec(f, pb, fun, prefix);
+        printrec(f, pb, arg, prefix);
+        putb('@', f);
+      }
     }
     break;
   case D_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
@@ -5584,6 +5674,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   case D_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case D_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+  case T_BH: SER_ERR("cannot serialize a black hole");
 #if WANT_TICK
   case D_TICK:
     putb('!', f);
@@ -5729,11 +5820,17 @@ sample_dump(const char *name, NODEPTR n)
 }
 
 /* Report the hottest nodes, and write the hottest ones to files. */
+static bool sample_quiet;       /* sampling only for the JIT, no report (+RTS -j) */
+
 void
 sample_report(void)
 {
-  if (!sample_interval)
+  if (!sample_interval || !sample_table)
     return;
+  if (sample_quiet) {
+    jx_report();
+    return;
+  }
   struct sample_entry *es = mmalloc(SAMPLE_TABLE_SIZE * sizeof(struct sample_entry));
   size_t ne = 0;
   for (size_t i = 0; i < SAMPLE_TABLE_SIZE; i++)
@@ -7159,6 +7256,10 @@ is_whnf(NODEPTR n)
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity;
     case D_TICK:     return d < 1;
     case D_BADDYN:   return false; /* evaluating it is an error */
+    case T_BH:       return false; /* evaluating it raises NonTermination */
+#if WANT_JIT
+    case T_JIT:      d++; n = JIT_FUN(n); continue; /* as the node was */
+#endif
     default:         return true;  /* a value */
     }
   }
@@ -7268,6 +7369,9 @@ jx_classify(NODEPTR p)
     case D_IND:      n = ARG(n); continue;
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity ? JX_COPY : JX_REDEX;
     case D_TICK:     return d < 1 ? JX_COPY : JX_REDEX;
+#if WANT_JIT
+    case T_JIT:      return d < JIT(n)->arity ? JX_COPY : JX_REDEX;
+#endif
     default:         return d == 0 ? JX_DATA : JX_REDEX; /* a value, or an error */
     }
   }
@@ -7352,7 +7456,8 @@ jx_visit(NODEPTR p)
       o.leaf = p;               /* a function, which never changes */
       return o;
     case D_BADDYN:
-      k = JX_REDEX;             /* evaluating it is an error */
+    case T_BH:
+      k = JX_REDEX;             /* evaluating it is an error, or NonTermination */
       break;
     default:
       k = JX_DATA;
@@ -7488,6 +7593,7 @@ jx_print_leaf(FILE *f, NODEPTR n)
 #endif
   case D_IO_CCALL: fprintf(f, "^%s", FFI_IX(GETVALUE(n)).ffi_name); return;
   case D_BADDYN:   fprintf(f, "^%s", CSTR(n)); return;
+  case T_BH:       fputs("BH", f); return;
   case D_TICK:     fprintf(f, "!tick%"PRIvalue, GETVALUE(n)); return;
   case D_FORPTR:
 #if WANT_GMP || WANT_IMATH
@@ -7558,7 +7664,11 @@ jx_print_orig(FILE *f, NODEPTR n, int depth, bool paren)
 static bool
 jx_inline_data(int i)
 {
-  return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig));
+  return jx[i].kind == JX_DATA && !is_AP(FUN(jx[i].orig))
+#if WANT_JIT
+    && get_DATA_TAG(FUN(jx[i].orig)) != T_JIT
+#endif
+    ;
 }
 
 /*
@@ -7608,6 +7718,8 @@ struct dc_node {
   int jx;                       /* the entry of the extracted graph it is, or -1 */
   int from;                     /* the term it is derived from, or -1; see dc_graph_node */
   int gr;                       /* its graph form, or -1; see dc_graph_term */
+  int red;                      /* a redex: its reduct, or -1; see dc_go1 */
+  bool eta;                     /* made by the eta expansion of the root */
 };
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
@@ -7635,7 +7747,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1 };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1, false };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7748,10 +7860,19 @@ static int dc_go(int e);
 static int
 dc_args(int f, int *args, int *apps, int n)
 {
+  /* An application of the input, apps[i], can be used in several places,
+   * e.g., a call that is applied to more arguments, so it always gets the
+   * same output, as dc_go does; otherwise the code would build it, and
+   * evaluate it, once per use. */
   for (int i = 0; i < n; i++) {
+    if (dc[apps[i]].dec >= 0) {
+      f = dc[apps[i]].dec;
+      continue;
+    }
     int a = dc_go(args[i]);
     dc_cur_from = apps[i];
     f = dc_app(f, a);
+    dc[apps[i]].dec = f;
   }
   return f;
 }
@@ -7766,6 +7887,7 @@ dc_eta(int e, int k)
   for (int i = 0; i < k; i++) {
     dc_cur_from = e;
     x = dc_app(x, dc_var(v0 + i));
+    dc[x].eta = true;           /* a call of the root, see jc_conv1 */
   }
   int b = dc_go(x);
   for (int i = k - 1; i >= 0; i--) {
@@ -7857,6 +7979,12 @@ dc_graph_term(int e)
  * argument is a parameter of the root? */
 static bool dc_top;
 
+/* The root's parameters, in the steps of eta expansion that made them: the
+ * graph does a reduction before it has the parameters of the next step. */
+#define DC_MAX_STAGES 64
+static int dc_stage_size[DC_MAX_STAGES];
+static int dc_nstages;
+
 /* e needs k more arguments, i.e., it is a function value.  In the body of the
  * root it is eta expanded, the parameters of the root; anywhere else it is
  * left as the graph it is. */
@@ -7864,6 +7992,10 @@ static int
 dc_function(int e, int k, bool top)
 {
   if (top) {
+    if (dc_nstages < DC_MAX_STAGES)
+      dc_stage_size[dc_nstages++] = k;
+    else
+      longjmp(dc_fail, 2);      /* too many arguments */
     dc_top = true;              /* for the body */
     int r = dc_eta(e, k);
     dc_top = false;
@@ -7883,6 +8015,15 @@ dc_go(int e)
   return dc[e].dec;
 }
 
+/*
+ * A redex in the graph can be shared, and applied to more arguments in
+ * several places.  The interpreter reduces it once, and overwrites it with
+ * the result, so the result is shared.  So the decompiler does the same: a
+ * redex term remembers its reduct (red), and every use of it gets the same
+ * one.  Otherwise every use would build the results again, e.g., a call
+ * that the graph makes once would be made once per use.  For a combinator
+ * the reduct is a term to reduce further; for Y and a case it is decompiled.
+ */
 static int
 dc_go1(int e)
 {
@@ -7896,34 +8037,44 @@ dc_go1(int e)
       enum node_tag t = get_VIRT_TAG(lf);
       int n = dc_comb_arity(t);
       if (n > 0) {
-        if (--dc_fuel <= 0)
-          longjmp(dc_fail, 5);
         if (na < n)
           return dc_function(e, n - na, top);
-        /* The result is derived from the redex, i.e., the application of the n:th argument. */
-        dc_cur_from = apps[n - 1];
-        int r = dc_rule(t, args);
-        e = dc_reapply(r, args + n, apps + n, na - n);
+        /* The redex is the application of the n:th argument. */
+        int rx = apps[n - 1];
+        if (dc[rx].red < 0) {
+          if (--dc_fuel <= 0)
+            longjmp(dc_fail, 5);
+          dc_cur_from = rx;     /* the result is derived from the redex */
+          dc[rx].red = dc_rule(t, args);
+        }
+        e = dc_reapply(dc[rx].red, args + n, apps + n, na - n);
         continue;
       }
       if (t == T_Y && na >= 1) {
         /* Y f = let r = f r in r */
-        int v = dc_nvars++;
-        dc_cur_from = apps[0];
-        int fr = dc_app(args[0], dc_var(v));
-        int b = dc_go(fr);
-        dc_cur_from = apps[0];
-        int vr = dc_var(v);
-        int l = dc_new(DC_LET, v, b, vr, 0, NIL_NODEPTR);
-        return dc_args(l, args + 1, apps + 1, na - 1);
+        int rx = apps[0];
+        if (dc[rx].red < 0) {
+          int v = dc_nvars++;
+          dc_cur_from = rx;
+          int fr = dc_app(args[0], dc_var(v));
+          int b = dc_go(fr);
+          dc_cur_from = rx;
+          int vr = dc_var(v);
+          dc[rx].red = dc_new(DC_LET, v, b, vr, 0, NIL_NODEPTR);
+        }
+        return dc_args(dc[rx].red, args + 1, apps + 1, na - 1);
       }
       if (t == V_CASED || t == V_CASES) {
         n = arity_virt(lf);
         if (na < n)
           return dc_function(e, n - na, top);
-        int c = t == V_CASED ? dc_dense(lf, args, apps[n - 1]) : dc_sparse(lf, args, apps[n - 1]);
-        dc[c].raw = dc_reapply(h, args, apps, n);  /* the case as it is in the graph */
-        return dc_args(c, args + n, apps + n, na - n);
+        int rx = apps[n - 1];
+        if (dc[rx].red < 0) {
+          int c = t == V_CASED ? dc_dense(lf, args, rx) : dc_sparse(lf, args, rx);
+          dc[c].raw = dc_reapply(h, args, apps, n);  /* the case as it is in the graph */
+          dc[rx].red = c;
+        }
+        return dc_args(dc[rx].red, args + n, apps + n, na - n);
       }
     } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
       e = dc_reapply(args[0], args + 1, apps + 1, na - 1);
@@ -8895,8 +9046,12 @@ dc_uses_self(int e, char *seen)
 
 static int jx_nsmall;           /* the number of extractions that were too small */
 
-/* Decompile the extracted subgraph and print it. */
-static void
+static int dc_final;             /* the result of the last dc_decompile */
+
+/* Decompile the extracted subgraph, and print it if f is not NULL.
+ * Return the number of parameters, or -1 if the function is not to be
+ * compiled. */
+static int
 dc_decompile(FILE *f)
 {
   static int *memo;
@@ -8924,13 +9079,16 @@ dc_decompile(FILE *f)
   if (r) {
     static const char *why[] = { "", "too many terms", "too many arguments", "too many arms",
                                  "", "too many reductions" };
-    fprintf(f, "cannot decompile: %s\n", why[r]);
-    return;
+    if (f)
+      fprintf(f, "cannot decompile: %s\n", why[r]);
+    return -1;
   }
   int root = dc_app(dc_from_opnd(jx[0].fun, memo), dc_from_opnd(jx[0].arg, memo));
   dc[root].jx = 0;
+  dc_nstages = 0;
   dc_top = true;                /* the root is eta expanded */
   int e = dc_simplify(dc_go(root));
+  dc_final = e;
   /* A function that does little, i.e., where the combinators make few
    * reductions, is not worth compiling on its own: a call would save about
    * as much as entering and leaving the compiled code costs.  Such functions
@@ -8944,14 +9102,20 @@ dc_decompile(FILE *f)
     bool rec = dc_uses_self(e, seen);
     FREE(seen);
     if (!rec) {
-      fprintf(f, "too small: %ld reduction%s\n", nred, nred == 1 ? "" : "s");
+      if (f)
+        fprintf(f, "too small: %ld reduction%s\n", nred, nred == 1 ? "" : "s");
       jx_nsmall++;
-      return;
+      return -1;
     }
   }
   dc_count(e);
   dc[e].uses = 1;               /* the root is not shared */
   dc_scopes(e);
+  int nparams = 0;
+  for (int b = e; dc[b].kind == DC_LAM && (b == e || !dc_shared(b)); b = dc[b].b)
+    nparams++;
+  if (!f)
+    return nparams > 0 ? nparams : -1;
   /* Print it as a definition, self x1 ... xn = body */
   dc_line_start = ftell(f);
   fputs("self", f);
@@ -8973,11 +9137,16 @@ dc_decompile(FILE *f)
       fprintf(f, "%d lambda%s", dc_ngraph, dc_ngraph == 1 ? "" : "s");
     fprintf(f, " left to the interpreter; the rest uses %d of the %d copied nodes\n", dc_count_used(e), ncopy);
   }
+  return nparams > 0 ? nparams : -1;
 }
 
-/* The nodes copied by the earlier extractions, to skip them as roots. */
+/* The nodes copied by the earlier extractions, to skip them as roots: a hash
+ * set on the address, with open addressing, at most half full.  It is
+ * rebuilt after every GC, without the nodes that died, since addresses are
+ * reused. */
 static NODEPTR *jx_done;
-static size_t jx_ndone, jx_done_size;
+static size_t jx_ndone;
+static uint32_t jx_done_bits;
 
 #if JX_PROVENANCE
 /* Provenance, from the profiling runtime: every node knows the loaded node
@@ -9084,25 +9253,92 @@ jx_print_refs(FILE *f)
 }
 #endif  /* JX_PROVENANCE */
 
-/* Extract the subgraph of a hot node, and print it.  Return false if the node
- * was skipped. */
+static INLINE size_t
+jx_done_hash(NODEPTR p)
+{
+  return (size_t)(((uint64_t)p.node_bits >> 4) * 0x9E3779B97F4A7C15ULL >> (64 - jx_done_bits));
+}
+
+static bool
+jx_is_done(NODEPTR p)
+{
+  if (!jx_done)
+    return false;
+  size_t mask = ((size_t)1 << jx_done_bits) - 1;
+  for (size_t h = jx_done_hash(p); !is_NIL(jx_done[h]); h = (h + 1) & mask)
+    if (jx_done[h].node_bits == p.node_bits)
+      return true;
+  return false;
+}
+
+static void
+jx_done_insert(NODEPTR p)
+{
+  size_t mask = ((size_t)1 << jx_done_bits) - 1;
+  size_t h = jx_done_hash(p);
+  while (!is_NIL(jx_done[h])) {
+    if (jx_done[h].node_bits == p.node_bits)
+      return;
+    h = (h + 1) & mask;
+  }
+  jx_done[h] = p;
+  jx_ndone++;
+}
+
+/* Make a new table for at least n nodes, with the ones of the old table that
+ * keep(). */
+static void
+jx_done_rebuild(size_t n, bool (*keep)(NODEPTR))
+{
+  NODEPTR *old = jx_done;
+  size_t oldsize = old ? (size_t)1 << jx_done_bits : 0;
+  for (jx_done_bits = 10; ((size_t)1 << jx_done_bits) < 2 * n; jx_done_bits++)
+    ;
+  jx_done = mcalloc((size_t)1 << jx_done_bits, sizeof(NODEPTR));
+  jx_ndone = 0;
+  for (size_t i = 0; i < oldsize; i++)
+    if (!is_NIL(old[i]) && keep(old[i]))
+      jx_done_insert(old[i]);
+  FREE(old);
+}
+
+static bool jx_keep_all(NODEPTR p) { (void)p; return true; }
+static bool jx_keep_live(NODEPTR p) { return is_marked_used(p); }
+
+static void
+jx_add_done(NODEPTR p)
+{
+  if (!jx_done || 2 * (jx_ndone + 1) > ((size_t)1 << jx_done_bits))
+    jx_done_rebuild(2 * (jx_ndone + 1), jx_keep_all);
+  jx_done_insert(p);
+}
+
+#if WANT_JIT
+static void jit_install(NODEPTR p, int arity);
+static bool jit_on;             /* install compiled code (+RTS -j) */
+#endif
+
+/* Extract the subgraph of a hot node, and print it if f is not NULL.
+ * Return false if the node was skipped. */
 static bool
 jx_extract(FILE *f, int rank, struct sample_entry *e)
 {
   NODEPTR r = sample_skip_ind(e->node);
-  for (size_t j = 0; j < jx_ndone; j++)
-    if (jx_done[j].node_bits == r.node_bits)
-      return false;
-  fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
-          rank, (void *)get_node_ptr(r), num_samples, e->outer);
+  if (jx_is_done(r))
+    return false;
+  if (f)
+    fprintf(f, "== %d: node %p, hot after %"PRIcounter" samples, the outermost in %"PRIcounter" of them\n",
+            rank, (void *)get_node_ptr(r), num_samples, e->outer);
 #if JX_PROVENANCE
-  if (!is_VIRT(r))
+  if (f && !is_VIRT(r))
     jx_print_provenance(f, r);
 #endif
   if (is_VIRT(r) || !is_AP(FUN(r)) || jx_classify(r) != JX_COPY) {
-    fprintf(f, "not a partial application: ");
-    jx_print_orig(f, r, 3, false);
-    fprintf(f, "\n\n");
+    if (f) {
+      fprintf(f, "not a partial application: ");
+      jx_print_orig(f, r, 3, false);
+      fprintf(f, "\n\n");
+    }
     return true;
   }
   if (!jx) {
@@ -9124,13 +9360,7 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
   for (int i = 0; i < jx_n; i++) {
     if (jx[i].kind != JX_COPY)
       continue;
-    if (jx_ndone == jx_done_size) {
-      jx_done_size = jx_done_size ? 2 * jx_done_size : 1024;
-      jx_done = realloc(jx_done, jx_done_size * sizeof(NODEPTR));
-      if (!jx_done)
-        memerr();
-    }
-    jx_done[jx_ndone++] = jx[i].orig;
+    jx_add_done(jx[i].orig);
   }
 
   int count[JX_CUT + 1] = { 0 };
@@ -9141,35 +9371,47 @@ jx_extract(FILE *f, int rank, struct sample_entry *e)
       if (jx[i].arg.index >= 0) jx[jx[i].arg.index].uses++;
     }
   }
-  fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
-          count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
+  if (f)
+    fprintf(f, "%d nodes copied, %d references back to the root, references that stopped the copy: whnf %d, redex %d, cycle %d, depth %d\n",
+            count[JX_COPY], jx[0].uses, count[JX_DATA], count[JX_REDEX], count[JX_CYCLE], count[JX_CUT]);
   jx[0].uses++;                 /* so it is never printed inline */
 #if JX_PROVENANCE
-  jx_print_code_from(f);
+  if (f)
+    jx_print_code_from(f);
 #endif
-  dc_decompile(f);
+  int arity = dc_decompile(f);
 #if JX_PROVENANCE
-  jx_print_refs(f);
+  if (f)
+    jx_print_refs(f);
 #endif
-  fputc('\n', f);
+  if (f)
+    fputc('\n', f);
+#if WANT_JIT
+  if (jit_on && arity > 0)
+    jit_install(r, arity);
+#else
+  (void)arity;
+#endif
   return true;
 }
 
 static FILE *jx_file;
+static bool jx_write;           /* write the extracted code to mhs-extract.txt (+RTS -J) */
 static int jx_nhot;
 
 /* The node of the entry got hot: extract its subgraph now, as a JIT would. */
 static void
 jx_hot(struct sample_entry *e)
 {
-  if (!jx_file) {
+  if (jx_write && !jx_file) {
     jx_file = fopen("mhs-extract.txt", "w");
     if (!jx_file)
       return;
   }
   if (jx_extract(jx_file, jx_nhot + 1, e)) {
     jx_nhot++;
-    fflush(jx_file);
+    if (jx_file)
+      fflush(jx_file);
   }
 }
 
@@ -9177,12 +9419,14 @@ jx_hot(struct sample_entry *e)
 static void
 jx_gc(void)
 {
-  size_t k = 0;
-  for (size_t j = 0; j < jx_ndone; j++)
-    if (is_marked_used(jx_done[j]))
-      jx_done[k++] = jx_done[j];
-  jx_ndone = k;
+  if (jx_done)
+    jx_done_rebuild(jx_ndone, jx_keep_live);
 }
+
+#if WANT_JIT
+static counter_t num_jit_installed, num_jit_onstack, num_jit_sharing, num_jit_nocode;
+static counter_t num_jit_run, num_jit_fallback, num_jit_deep, num_jit_freed;
+#endif
 
 static void
 jx_report(void)
@@ -9192,10 +9436,616 @@ jx_report(void)
   if (jx_file)
     fclose(jx_file);
   jx_file = 0;
-  fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
-          jx_nhot, jx_threshold, jx_limit);
-  fprintf(stderr, "  %d of them do fewer than %d reductions, and are too small to compile\n", jx_nsmall, DC_MIN_WORK);
+  if (jx_write) {
+    fprintf(stderr, "  the subgraphs of %d nodes that got hot (the outermost in %d samples), at most %d nodes copied, are in mhs-extract.txt\n",
+            jx_nhot, jx_threshold, jx_limit);
+    fprintf(stderr, "  %d of them do fewer than %d reductions, and are too small to compile\n", jx_nsmall, DC_MIN_WORK);
+  }
+#if WANT_JIT
+  if (jit_on && verbose) {
+    fprintf(stderr, "jit: %"PRIcounter" nodes got code, %"PRIcounter" freed; no code for %"PRIcounter" on the stack, %"PRIcounter" losing sharing, %"PRIcounter" that cannot be compiled\n",
+            num_jit_installed, num_jit_freed, num_jit_onstack, num_jit_sharing, num_jit_nocode);
+    fprintf(stderr, "jit: %"PRIcounter" runs of code, %"PRIcounter" of the original graph (%"PRIcounter" since the C stack was deep)\n",
+            num_jit_run, num_jit_fallback, num_jit_deep);
+  }
+#endif
 }
+
+#if WANT_JIT
+/*
+ * Installing code on a function node, and running it.
+ *
+ * For now the code is the decompiled function itself, as a term (struct
+ * jterm), which the functions below run with the compilation schemes of
+ * the G-machine (see jit-plan.md): jc_build is the C scheme (build the
+ * graph), jc_eval the E scheme (evaluate), and jit_enter the R scheme (the
+ * body: the result overwrites the redex, and the interpreter continues).
+ * This is slow, but it checks the decompiler and the schemes against the
+ * interpreter.
+ *
+ * The variables of the function, and the terms that are used more than once
+ * (which are built once per call, and then shared), are in a frame of slots
+ * on the stack, so the GC finds them, and so is everything that is being
+ * built.  The pointers to the graph are in the table consts[].
+ */
+enum jop {
+  JT_SLOT,                      /* a: slot */
+  JT_CONST,                     /* a: index in consts */
+  JT_APP,                       /* a: function, b: argument */
+  JT_CASE,                      /* a: scrutinee, b: first arm, c: number of arms, d: default or -1,
+                                 * e: the graph of the case, for C */
+  JT_LETREC,                    /* a: slot, b: right hand side, c: body */
+  JT_GRAPH,                     /* a: the graph of a function value, i.e., a value */
+  JT_COLD,                      /* a: the graph of a cold case */
+};
+struct jterm {
+  uint8_t op;
+  int32_t a, b, c, d, e;
+  int32_t memo;                 /* the slot of a term used more than once, or -1 */
+};
+struct jarm { int32_t k, n, slot, body; }; /* constructor k with n fields in slots slot... */
+
+/*** Compiling the decompiled term to a jterm ***/
+
+static struct jterm *jc_terms;
+static int jc_nterms, jc_maxterms;
+static struct jarm *jc_arms;
+static int jc_narms, jc_maxarms;
+static NODEPTR *jc_consts;
+static int jc_nconsts, jc_maxconsts;
+static int *jc_memo;            /* the jterm of a dc term, or -1 */
+static int *jc_var;             /* the slot of a dc variable, or -1 */
+static int *jc_uses;            /* uses of a jterm */
+static int jc_nslots;
+static NODEPTR jc_self;
+static jmp_buf jc_fail;
+
+static int *jc_from;            /* the dc term of a jterm */
+static int jc_cur_dc;           /* the dc term being converted */
+
+static int
+jc_new(enum jop op, int a, int b, int c, int d, int e)
+{
+  if (jc_nterms == jc_maxterms) {
+    jc_maxterms = jc_maxterms ? 2 * jc_maxterms : 256;
+    jc_terms = mrealloc(jc_terms, jc_maxterms * sizeof(struct jterm));
+    jc_from = mrealloc(jc_from, jc_maxterms * sizeof(int));
+  }
+  jc_terms[jc_nterms] = (struct jterm){ op, a, b, c, d, e, -1 };
+  jc_from[jc_nterms] = jc_cur_dc;
+  return jc_nterms++;
+}
+
+static int
+jc_const(NODEPTR p)
+{
+  for (int i = 0; i < jc_nconsts; i++)
+    if (jc_consts[i].node_bits == p.node_bits)
+      return jc_new(JT_CONST, i, 0, 0, 0, 0);
+  if (jc_nconsts == jc_maxconsts) {
+    jc_maxconsts = jc_maxconsts ? 2 * jc_maxconsts : 64;
+    jc_consts = mrealloc(jc_consts, jc_maxconsts * sizeof(NODEPTR));
+  }
+  jc_consts[jc_nconsts] = p;
+  return jc_new(JT_CONST, jc_nconsts++, 0, 0, 0, 0);
+}
+
+static int
+jc_bind(int v)
+{
+  if (jc_var[v] < 0)
+    jc_var[v] = jc_nslots++;
+  return jc_var[v];
+}
+
+static int jc_conv(int e);
+
+static int
+jc_conv1(int e)
+{
+  switch (dc[e].kind) {
+  case DC_VAR:
+    if (jc_var[dc[e].a] < 0)
+      longjmp(jc_fail, 1);      /* not bound; cannot happen */
+    return jc_new(JT_SLOT, jc_var[dc[e].a], 0, 0, 0, 0);
+  case DC_LEAF:
+    return jc_const(dc[e].leaf);
+  case DC_REF:
+    return jc_const(dc[e].a == 0 ? jc_self : jx[dc[e].a].orig);
+  case DC_APP:
+    if (dc[e].jx >= 0)          /* a copied node, in the graph of a case */
+      return jc_const(dc[e].jx == 0 ? jc_self : jx[dc[e].jx].orig);
+    {
+      int f = jc_conv(dc[e].a);
+      return jc_new(JT_APP, f, jc_conv(dc[e].b), 0, 0, 0);
+    }
+  case DC_CASE: {
+    int s = jc_conv(dc[e].a);
+    int m = dc[e].c, a0 = jc_narms;
+    if (jc_narms + m > jc_maxarms) {
+      while (jc_narms + m > jc_maxarms)
+        jc_maxarms = jc_maxarms ? 2 * jc_maxarms : 64;
+      jc_arms = mrealloc(jc_arms, jc_maxarms * sizeof(struct jarm));
+    }
+    jc_narms += m;
+    for (int j = 0; j < m; j++) {
+      struct dc_arm *da = &dc_arms[dc[e].b + j];
+      int slot = jc_nslots;
+      for (int i = 0; i < da->n; i++)
+        jc_var[da->var + i] = jc_nslots++;
+      int body = jc_conv(da->body);
+      jc_arms[a0 + j] = (struct jarm){ da->k, da->n, slot, body };
+    }
+    int d = dc[e].d >= 0 ? jc_conv(dc[e].d) : -1;
+    int raw = dc[e].raw >= 0 ? jc_conv(dc[e].raw) : -1;
+    return jc_new(JT_CASE, s, a0, m, d, raw);
+  }
+  case DC_LET: {
+    int slot = jc_bind(dc[e].a);
+    int rhs = jc_conv(dc[e].b);
+    return jc_new(JT_LETREC, slot, rhs, jc_conv(dc[e].c), 0, 0);
+  }
+  case DC_GRAPH:
+    return jc_new(JT_GRAPH, jc_conv(dc[e].a), 0, 0, 0, 0);
+  case DC_COLD:
+    return jc_new(JT_COLD, jc_conv(dc[e].b), 0, 0, 0, 0);
+  default:                      /* DC_LAM inside the body; cannot happen */
+    longjmp(jc_fail, 1);
+  }
+}
+
+/* Each dc term becomes one jterm, so the sharing is kept. */
+static int
+jc_conv(int e)
+{
+  if (jc_memo[e] < 0) {
+    int old = jc_cur_dc;
+    jc_cur_dc = e;
+    jc_memo[e] = jc_conv1(e);
+    jc_cur_dc = old;
+  }
+  return jc_memo[e];
+}
+
+/* Mark how the code uses each jterm: 1, built as a graph (the C scheme);
+ * 2, run (the R and E schemes).  A term that is used more than once is
+ * built, and then evaluated. */
+static char *jc_mode;
+
+static void
+jc_walk(int t, bool c)
+{
+  int bit = c ? 1 : 2;
+  if (jc_mode[t] & bit)
+    return;
+  jc_mode[t] |= bit;
+  struct jterm *x = &jc_terms[t];
+  if (!c && jc_uses[t] > 1 && x->op != JT_SLOT && x->op != JT_CONST) {
+    jc_walk(t, true);
+    return;
+  }
+  switch (x->op) {
+  case JT_APP:
+    jc_walk(x->a, true);
+    jc_walk(x->b, true);
+    break;
+  case JT_CASE:
+    if (c) {
+      if (x->e >= 0)
+        jc_walk(x->e, true);
+    } else {
+      jc_walk(x->a, false);
+      for (int j = 0; j < x->c; j++)
+        jc_walk(jc_arms[x->b + j].body, false);
+      if (x->d >= 0)
+        jc_walk(x->d, false);
+    }
+    break;
+  case JT_LETREC:
+    jc_walk(x->b, true);
+    jc_walk(x->c, c);
+    break;
+  case JT_GRAPH:
+  case JT_COLD:
+    jc_walk(x->a, true);
+    break;
+  default:
+    break;
+  }
+}
+
+/* Count the uses of the jterms reachable from t. */
+static void
+jc_count(int t)
+{
+  if (jc_uses[t]++)
+    return;
+  struct jterm *x = &jc_terms[t];
+  switch (x->op) {
+  case JT_APP:    jc_count(x->a); jc_count(x->b); break;
+  case JT_CASE:
+    jc_count(x->a);
+    for (int j = 0; j < x->c; j++)
+      jc_count(jc_arms[x->b + j].body);
+    if (x->d >= 0) jc_count(x->d);
+    if (x->e >= 0) jc_count(x->e);
+    break;
+  case JT_LETREC: jc_count(x->b); jc_count(x->c); break;
+  case JT_GRAPH:
+  case JT_COLD:   jc_count(x->a); break;
+  default:        break;
+  }
+}
+
+/* The stage of eta expansion of the parameters a jterm uses, i.e., when the
+ * graph has what it needs to build it.  0 if it uses none.  A variable bound
+ * by a case arm or a let counts as the stage of what it comes from. */
+static int *jc_stage;           /* of a jterm, or -1 */
+static int *jc_slot_stage;      /* of a slot */
+
+static int
+jc_stage_of(int t)
+{
+  if (jc_stage[t] >= 0)
+    return jc_stage[t];
+  struct jterm *x = &jc_terms[t];
+  int s = 0;
+#define MAXS(e) do { int _s = jc_stage_of(e); if (_s > s) s = _s; } while (0)
+  switch (x->op) {
+  case JT_SLOT:  s = jc_slot_stage[x->a]; break;
+  case JT_CONST: s = 0; break;
+  case JT_APP:   MAXS(x->a); MAXS(x->b); break;
+  case JT_CASE: {
+    MAXS(x->a);
+    int ss = s;
+    for (int j = 0; j < x->c; j++) {
+      struct jarm *a = &jc_arms[x->b + j];
+      for (int i = 0; i < a->n; i++)
+        jc_slot_stage[a->slot + i] = ss;
+      MAXS(a->body);
+    }
+    if (x->d >= 0) MAXS(x->d);
+    break;
+  }
+  case JT_LETREC:
+    jc_stage[t] = 0;            /* in case the right hand side uses it */
+    MAXS(x->b);
+    jc_slot_stage[x->a] = s;
+    MAXS(x->c);
+    break;
+  case JT_GRAPH:
+  case JT_COLD:  MAXS(x->a); break;
+  }
+#undef MAXS
+  jc_stage[t] = s;
+  return s;
+}
+
+/* Taking all the parameters at once loses sharing if the graph would build
+ * a term that may be evaluated, i.e., an application that is not a
+ * constructor with its fields, or a case, before the last stage of
+ * parameters: the graph builds it once for a partial application, and
+ * shares it between the calls of that, while the code builds it in every
+ * call.  This is the condition under which eta expansion is safe. */
+static bool
+jc_loses_sharing(int root, int nstages)
+{
+  if (nstages <= 1)
+    return false;
+  (void)jc_stage_of(root);      /* from the root, so the variables of the arms get their stages first */
+  for (int t = 0; t < jc_nterms; t++) {
+    if (!jc_uses[t])
+      continue;
+    struct jterm *x = &jc_terms[t];
+    if (x->op != JT_APP && x->op != JT_CASE && x->op != JT_COLD)
+      continue;
+    if (x->op == JT_APP) {
+      int h = t;
+      while (jc_terms[h].op == JT_APP)
+        h = jc_terms[h].a;
+      if (jc_terms[h].op == JT_CONST) {
+        NODEPTR c = jc_consts[jc_terms[h].a];
+        if (is_VIRT(c) && get_VIRT_TAG(c) == V_CONSTR)
+          continue;             /* a constructor: building it is all there is */
+      }
+    }
+    if (jc_stage_of(t) < nstages)
+      return true;
+  }
+  return false;
+}
+
+/* Make the code for the function the last dc_decompile made, which is the
+ * node self.  Return NULL if it cannot. */
+static struct jit *
+jc_compile(NODEPTR self, int arity)
+{
+  int e = dc_final;
+  jc_nterms = jc_narms = jc_nconsts = jc_nslots = 0;
+  jc_self = self;
+  jc_cur_dc = -1;
+  FREE(jc_memo); FREE(jc_var);
+  jc_memo = mmalloc(dc_n * sizeof(int));
+  jc_var = mmalloc((dc_nvars + 1) * sizeof(int));
+  for (int i = 0; i < dc_n; i++) jc_memo[i] = -1;
+  for (int i = 0; i <= dc_nvars; i++) jc_var[i] = -1;
+  /* consts[0] and consts[1] are the node as it was */
+  (void)jc_const(FUN(self));
+  (void)jc_const(ARG(self));
+  if (jc_nconsts != 2) {        /* FUN and ARG are the same; keep two entries anyway */
+    jc_consts[1] = ARG(self);
+    jc_nconsts = 2;
+  }
+  jc_nterms = 0;
+  int b = e;
+  for (int i = 0; i < arity; i++, b = dc[b].b)
+    jc_var[dc[b].a] = jc_nslots++;
+  if (setjmp(jc_fail)) {
+    num_jit_nocode++;
+    return 0;
+  }
+  int root = jc_conv(b);
+  FREE(jc_uses);
+  jc_uses = mcalloc(jc_nterms, sizeof(int));
+  jc_count(root);
+  /* The graph of a case that is built, i.e., not run, is made of the input
+   * of the decompiler, while the code is made of decompiled terms.  Where
+   * both have the same value, e.g., a call, the graph and the code would
+   * make two nodes for it, and maybe evaluate both, where the original graph
+   * has one.  That can make the code exponentially slower, so such a
+   * function gets no code for now.  Sharing the node needs a lazy case that
+   * runs code, instead of a graph. */
+  FREE(jc_mode);
+  jc_mode = mcalloc(jc_nterms, 1);
+  jc_walk(root, false);
+  for (int t = 0; t < jc_nterms; t++) {
+    int e = jc_from[t];
+    if (!(jc_mode[t] & 1) || e < 0 || dc[e].kind != DC_APP || dc[e].jx >= 0 || dc[e].dec < 0 || dc[e].eta)
+      continue;
+    int d = dc[dc[e].dec].simp;
+    if (d >= 0 && jc_memo[d] >= 0 && jc_memo[d] != t && jc_mode[jc_memo[d]]) {
+      num_jit_sharing++;
+      return 0;
+    }
+  }
+  /* The stages of the parameters. */
+  FREE(jc_stage); FREE(jc_slot_stage);
+  jc_stage = mmalloc(jc_nterms * sizeof(int));
+  for (int t = 0; t < jc_nterms; t++) jc_stage[t] = -1;
+  jc_slot_stage = mcalloc(jc_nslots + 1, sizeof(int));
+  for (int s = 0, i = 0; s < dc_nstages; s++)
+    for (int k = 0; k < dc_stage_size[s] && i < arity; k++)
+      jc_slot_stage[i++] = s + 1;
+  if (jc_loses_sharing(root, dc_nstages)) {
+    num_jit_sharing++;
+    return 0;
+  }
+  /* A term that is used more than once, and is not a slot or a constant,
+   * gets a slot, so it is built once per call. */
+  for (int t = 0; t < jc_nterms; t++)
+    if (jc_uses[t] > 1 && jc_terms[t].op != JT_SLOT && jc_terms[t].op != JT_CONST)
+      jc_terms[t].memo = jc_nslots++;
+  struct jit *j = mmalloc(sizeof(struct jit));
+  j->arity = arity;
+  j->marked = 0;
+  j->nconsts = jc_nconsts;
+  j->consts = mmalloc(jc_nconsts * sizeof(NODEPTR));
+  memcpy(j->consts, jc_consts, jc_nconsts * sizeof(NODEPTR));
+  j->terms = mmalloc(jc_nterms * sizeof(struct jterm));
+  memcpy(j->terms, jc_terms, jc_nterms * sizeof(struct jterm));
+  j->arms = mmalloc((jc_narms ? jc_narms : 1) * sizeof(struct jarm));
+  memcpy(j->arms, jc_arms, jc_narms * sizeof(struct jarm));
+  j->root = root;
+  j->nslots = jc_nslots;
+  return j;
+}
+
+static void
+jit_free(struct jit *j)
+{
+  FREE(j->consts);
+  FREE(j->terms);
+  FREE(j->arms);
+  FREE(j);
+}
+
+static bool
+jit_on_stack(NODEPTR p)
+{
+  for (stackptr_t i = 0; i <= stack_ptr; i++)
+    if (stack[i].node_bits == p.node_bits)
+      return true;
+  return false;
+}
+
+/* Install code on the function node p, a partial application, which then
+ * takes arity arguments: the function the last dc_decompile made.  The node
+ * is overwritten, so this cannot be done while it is on the stack, since
+ * the interpreter reads the arguments from the nodes there; then it does
+ * not get code (it is rare). */
+static void
+jit_install(NODEPTR p, int arity)
+{
+  if (jit_on_stack(p)) {
+    num_jit_onstack++;
+    return;
+  }
+  struct jit *j = jc_compile(p, arity);
+  if (!j)
+    return;
+  j->next = jit_root;
+  jit_root = j;
+  set_DATA_TAG(p, T_JIT);
+  JIT(p) = j;
+  num_jit_installed++;
+}
+
+/* After marking: free the code of the nodes that died. */
+static void
+jit_gc(void)
+{
+  for (struct jit **jp = &jit_root; *jp; ) {
+    struct jit *j = *jp;
+    if (j->marked) {
+      j->marked = 0;
+      jp = &j->next;
+    } else {
+      *jp = j->next;
+      jit_free(j);
+      num_jit_freed++;
+    }
+  }
+}
+
+/*** Running the code ***/
+
+#define JSLOT(i) stack[fb + (i)]
+
+static void jc_build(struct jit *j, stackptr_t fb, int t);
+
+/* The recursive let: a cell for the variable, then the right hand side with
+ * the variable bound to it, and the cell becomes an indirection to that.
+ * The cell is a black hole, so evaluating the variable before it is
+ * defined raises NonTermination.  It must not be an application, e.g., I I,
+ * since the GC reduces some of those (I x --> x), and that would lose it. */
+static void
+jc_letrec(struct jit *j, stackptr_t fb, struct jterm *x)
+{
+  GCCHECK(1);
+  JSLOT(x->a) = alloc_node(T_BH);
+  jc_build(j, fb, x->b);
+  set_IND(JSLOT(x->a), TOP(0));
+  POP(1);
+}
+
+/* C: push the graph of term t. */
+static void
+jc_build(struct jit *j, stackptr_t fb, int t)
+{
+  struct jterm *x = &j->terms[t];
+  if (x->memo >= 0 && !is_NIL(JSLOT(x->memo))) {
+    PUSH(JSLOT(x->memo));
+    return;
+  }
+  switch (x->op) {
+  case JT_SLOT:
+    PUSH(JSLOT(x->a));
+    break;
+  case JT_CONST:
+    PUSH(j->consts[x->a]);
+    break;
+  case JT_APP:
+    jc_build(j, fb, x->a);
+    jc_build(j, fb, x->b);
+    GCCHECK(1);
+    {
+      NODEPTR r = new_ap(TOP(1), TOP(0));
+      POP(2);
+      PUSH(r);
+    }
+    break;
+  case JT_CASE:
+    if (x->e < 0)
+      ERR("jc_build: case without a graph");
+    jc_build(j, fb, x->e);
+    break;
+  case JT_LETREC:
+    jc_letrec(j, fb, x);
+    jc_build(j, fb, x->c);
+    break;
+  case JT_GRAPH:
+  case JT_COLD:
+    jc_build(j, fb, x->a);
+    break;
+  }
+  if (x->memo >= 0)
+    JSLOT(x->memo) = TOP(0);
+}
+
+static NODEPTR
+jc_skip_ind(NODEPTR p)
+{
+  while (!is_VIRT(p) && !is_AP(FUN(p)) && get_DATA_TAG(FUN(p)) == D_IND)
+    p = ARG(p);
+  return p;
+}
+
+static void jc_eval(struct jit *j, stackptr_t fb, int t);
+
+/* A case: evaluate the scrutinee, bind the fields of the arm, and return the
+ * term to go on with, the arm or the default. */
+static int
+jc_case(struct jit *j, stackptr_t fb, struct jterm *x)
+{
+  jc_eval(j, fb, x->a);
+  NODEPTR v = jc_skip_ind(TOP(0));
+  /* The value is a constructor applied to its fields. */
+  int d = 0;
+  NODEPTR h = v;
+  while (!is_VIRT(h)) {
+    if (!is_AP(FUN(h)))
+      ERR("jc_case: not a constructor");
+    d++;
+    h = jc_skip_ind(FUN(h));
+  }
+  if (get_VIRT_TAG(h) != V_CONSTR)
+    ERR("jc_case: not a constructor");
+  int k, nf;
+  get_CON_info(h, &k, &nf);
+  if (d != nf)
+    ERR("jc_case: wrong number of fields");
+  for (int i = 0; i < x->c; i++) {
+    struct jarm *a = &j->arms[x->b + i];
+    if (a->k == k) {
+      NODEPTR p = v;
+      for (int f = nf - 1; f >= 0; f--) {
+        JSLOT(a->slot + f) = ARG(p);
+        p = jc_skip_ind(FUN(p));
+      }
+      POP(1);
+      return a->body;
+    }
+  }
+  if (x->d < 0)
+    ERR("jc_case: no arm");
+  POP(1);
+  return x->d;
+}
+
+/* E: push the value of term t. */
+static void
+jc_eval(struct jit *j, stackptr_t fb, int t)
+{
+  for (;;) {
+    struct jterm *x = &j->terms[t];
+    if (x->memo < 0) {
+      if (x->op == JT_CASE) {
+        t = jc_case(j, fb, x);
+        continue;
+      }
+      if (x->op == JT_LETREC) {
+        jc_letrec(j, fb, x);
+        t = x->c;
+        continue;
+      }
+      if (x->op == JT_GRAPH) {  /* a function value */
+        jc_build(j, fb, t);
+        return;
+      }
+    }
+    /* Build it, and evaluate it with the interpreter, so the value is shared. */
+    jc_build(j, fb, t);
+    NODEPTR v = evali(TOP(0));
+    TOP(0) = v;
+    return;
+  }
+}
+
+/* For the depth of the C stack, see jit_enter. */
+static char *jit_cstack_base;
+#define JIT_CSTACK_MAX (1 << 20)        /* bytes */
+
+#endif  /* WANT_JIT */
 #endif  /* WANT_SAMPLE */
 
 /*
@@ -9277,6 +10127,68 @@ struct prim_res { NODEPTR n; enum prim_next next; };
 #define GOPAIR(a) do { FUN(n) = new_ap(combP, (a)); PROF_OVERWRITE(n); GOTOP(n); } while(0)
 #define GOPAIRUNIT do { FUN(n) = combPUnit; PROF_OVERWRITE(n); GOTOP(n); } while(0)
 
+#if WANT_JIT
+/* Run the code of the T_JIT node n, which is at the head of the spine: the
+ * R scheme.  With too few arguments, or when the C stack is deep (E calls
+ * the interpreter recursively), run the original graph instead, i.e., a
+ * copy of the node as it was: the graph may do reductions before it has all
+ * the arguments, and they must be shared as before. */
+static struct prim_res
+jit_enter(NODEPTR n, stackptr_t stk)
+{
+  struct jit *j = JIT(n);
+  char here;
+  bool deep = jit_cstack_base && (size_t)(jit_cstack_base - &here) > JIT_CSTACK_MAX;
+  if (!HASNARGS(j->arity) || deep) {
+    num_jit_fallback++;
+    if (deep)
+      num_jit_deep++;
+    GCCHECK(1);
+    return (struct prim_res){ new_ap(JIT_FUN(n), JIT_ARG(n)), PRIM_TOP };
+  }
+  num_jit_run++;
+  /* The arguments are in the spine, x1 in TOP(0); the redex is TOP(arity-1). */
+  stackptr_t top0 = stack_ptr;
+  stackptr_t redex = top0 - (j->arity - 1);
+  stackptr_t fb = stack_ptr + 1;
+  for (int i = 0; i < j->nslots; i++)
+    PUSH(NIL_NODEPTR);
+  for (int i = 0; i < j->arity; i++)
+    JSLOT(i) = ARG(stack[top0 - i]);
+  int t = j->root;
+  for (;;) {
+    struct jterm *x = &j->terms[t];
+    if (x->memo < 0) {
+      if (x->op == JT_CASE) {
+        t = jc_case(j, fb, x);
+        continue;
+      }
+      if (x->op == JT_LETREC) {
+        jc_letrec(j, fb, x);
+        t = x->c;
+        continue;
+      }
+      if (x->op == JT_APP) {
+        /* The application overwrites the redex, and the interpreter goes on with it. */
+        jc_build(j, fb, x->a);
+        jc_build(j, fb, x->b);
+        NODEPTR f = TOP(1), a = TOP(0), r = stack[redex];
+        stack_ptr = redex - 1;  /* pop the frame and the arguments */
+        FUN(r) = f;
+        ARG(r) = a;
+        return (struct prim_res){ r, PRIM_TOP };
+      }
+    }
+    /* Anything else: build it, and the redex becomes an indirection to it. */
+    jc_build(j, fb, t);
+    NODEPTR v = TOP(0), r = stack[redex];
+    stack_ptr = redex - 1;
+    SETIND(r, v);
+    return (struct prim_res){ v, PRIM_TOP };
+  }
+}
+#endif
+
 /* Reduce the primitive tag, which is at the head of the spine (n).
  * stk is the stack base of the calling evali. */
 static NOINLINE struct prim_res
@@ -9292,6 +10204,11 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
 #endif  /* WANT_STDIO */
 
   switch (tag) {
+
+#if WANT_JIT
+  case T_JIT:
+    return jit_enter(n, stk);
+#endif
 
 #if WANT_FLOAT32
   case T_FADD:
@@ -10979,6 +11896,7 @@ evali(NODEPTR an)
   case D_MVAR:   RET;
   case D_WEAK:   RET;
   case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
+  case T_BH:     EV_RAISE(exn_nontermination); /* <<loop>> */
 
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
@@ -11482,6 +12400,7 @@ die_exn(NODEPTR exn)
         "arithmetic overflow",
         "Serialize",
         "Deserialize",
+        "<<loop>>",
       };
     if (eexn < 0 || eexn >= exn_last) {
       msg = "unknown";
@@ -12500,6 +13419,22 @@ MHS_INIT_ARGS(
   heap_size = HEAP_CELLS;       /* number of heap cells */
   stack_size = STACK_SIZE;      /* number of stack slots */
 
+#if WANT_JIT
+  {
+    char base;
+    jit_cstack_base = &base;    /* for the depth of the C stack, near the start of it */
+  }
+#endif
+#if WANT_JIT && defined(JIT_TEST_INTERVAL)
+  /* For testing: install code as with +RTS -jJIT_TEST_INTERVAL,JIT_TEST_THRESHOLD
+   * in every run, e.g., of the test suite, which runs mhs without RTS flags. */
+  sample_interval = sample_left = JIT_TEST_INTERVAL;
+  sample_quiet = true;
+  jx_threshold = JIT_TEST_THRESHOLD;
+  jx_limit = JX_LIMIT;
+  jit_on = true;
+#endif
+
 #if WANT_ARGS
   progname = argv[0];
   argc--, argv++;
@@ -12526,7 +13461,7 @@ MHS_INIT_ARGS(
         else if (strncmp(p, "-S", 2) == 0) {
           sample_interval = p[2] ? (counter_t)memsize(&p[2]) : 1000;
           sample_left = sample_interval;
-          sample_table = mcalloc(SAMPLE_TABLE_SIZE, sizeof(struct sample_entry));
+          sample_quiet = false;
         }
         else if (strncmp(p, "-J", 2) == 0)
         {
@@ -12535,7 +13470,26 @@ MHS_INIT_ARGS(
           jx_limit = *q && *q != ',' ? (int)strtol(q, &q, 10) : JX_LIMIT;
           if (*q == ',')
             jx_threshold = (int)strtol(q + 1, 0, 10);
+          jx_write = true;
         }
+#if WANT_JIT
+        else if (strncmp(p, "-j", 2) == 0)
+        {
+          /* -j[interval[,threshold]]: install code on the hot nodes, quietly */
+          char *q = &p[2];
+          counter_t interval = *q && *q != ',' ? (counter_t)strtol(q, &q, 10) : 1000;
+          if (*q == ',')
+            jx_threshold = (int)strtol(q + 1, 0, 10);
+          if (!sample_interval) {
+            sample_interval = interval;
+            sample_left = interval;
+            sample_quiet = true;
+          }
+          if (!jx_limit)
+            jx_limit = JX_LIMIT;
+          jit_on = true;
+        }
+#endif
 #endif
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)

@@ -337,10 +337,10 @@ main = do
 
 MicroHs supports `foreign import ccall`, `foreign import capi`, `foreign export ccall`, `foreign import javascript`, and `foreign export javascript` (the last two for the emscripten target, see [JavaScript](#javascript)). When running a program directly (using `-r`), in the interactive system, or when generating a `.comb` file, only the C functions built into the runtime (plus those from embedded packages) can be called. When generating a `.c` file or an executable, any C function can be called.
 
-As in GHC, the import string can name header files and use `&` to import the address of a C object. In addition, MicroHs has a non-standard form, `"value EXPR"`, which imports the value of an arbitrary C expression. Inside `EXPR`, `$0`, `$1`, … (up to `$9`) are replaced by the function's arguments, numbered from 0 as in a JavaScript import. For example:
+As in GHC, the import string can name header files and use `&` to import the address of a C object. In addition, MicroHs has a non-standard form, `"value EXPR"`, which imports the value of an arbitrary C expression. Inside `EXPR`, `$1`, `$2`, … (up to `$9`) are replaced by the function's arguments, numbered from 1 as in a JavaScript import (and as in GHC); any other `$k`, in particular `$0`, is an error. For example:
 ```haskell
 foreign import capi "value EINTR" eINTR :: Errno
-foreign import ccall "value ($0 + $1) * 2" addTwice :: CInt -> CInt -> IO CInt
+foreign import ccall "value ($1 + $2) * 2" addTwice :: CInt -> CInt -> IO CInt
 ```
 The expression is pasted verbatim into the generated C code, so it must be a valid C expression for the argument and result types. A type without `IO` gives a pure value.
 
@@ -388,9 +388,9 @@ Alternatively, `mhs -c ForExp -oForExpHs.c` writes the C code for the Haskell pa
 
 ### JavaScript
 
-With the `emscripten` target (see [Targets](#targets)), `foreign import javascript` calls JavaScript code. The import string is the body of a JavaScript function, where `$0`, `$1`, … are the arguments, numbered from 0 as in a `"value"` import. The arguments can have the types `Int`, `Double`, `Float`, and `Ptr`, and the result can also be `()`. As usual, the result can be in `IO`:
+With the `emscripten` target (see [Targets](#targets)), `foreign import javascript` calls JavaScript code. The import string is the body of a JavaScript function, where `$1`, `$2`, … (up to `$9`) are the arguments, numbered from 1 as in GHC and in a `"value"` import. The arguments can have the types `Int`, `Double`, `Float`, and `Ptr`, and the result can also be `()`. As usual, the result can be in `IO`:
 ```haskell
-foreign import javascript "return jsAdd($0, $1)" jsAdd :: Int -> Int -> IO Int
+foreign import javascript "return jsAdd($1, $2)" jsAdd :: Int -> Int -> IO Int
 ```
 A function like `jsAdd` can be defined in a JavaScript file that is given on the command line, e.g., `mhs -temscripten add.js Main -oout.js`. The file is embedded in the output. A package can also provide JavaScript files, in its `jsbits` directory; they are embedded in every program that uses the package.
 
@@ -634,6 +634,8 @@ Programs compiled with MicroHs, including `mhs` itself, take runtime flags betwe
 * `-B` ring the bell on every garbage collection.
 * `-rFILE` read the combinators from `FILE` instead of `out.comb` (for `mhseval`).
 * `-oFILE` read the program, run a garbage collection, and write the resulting graph to `FILE`.
+* `-S[N]` and `-J[LIMIT[,THRESHOLD]]` sample the evaluation every `N` reductions, and extract the code of the hot function nodes to `mhs-extract.txt`. Only in a runtime compiled with `-DWANT_SAMPLE=1` (see [Hot code extraction](#hot-code-extraction-experimental)).
+* `-j[N[,THRESHOLD]]` sample every `N` reductions (default 1000), and install code on the hot function nodes, without a report or a file. Only in a runtime compiled with `-DWANT_SAMPLE=1 -DWANT_JIT=1` (see [Installing code](#installing-code)).
 
 For example, `./prog +RTS -H1M -v -RTS hello` runs `prog` with a heap of 1M cells and prints statistics at the end, and the program gets the single argument `hello`.
 
@@ -886,6 +888,8 @@ Some other macros control how the runtime works. These are set in `config.h`:
 * `SANITY` do some sanity checks during evaluation.
 * `STACKOVL` check for stack overflow.
 * `WANT_KPERF` make `+RTS -v` also print the number of instructions executed, using the CPU's performance counters. This only works on some CPUs, see the comment in `unix/config.h`.
+* `WANT_SAMPLE` (default 0) the sampler and the extraction of hot code (see [Hot code extraction](#hot-code-extraction-experimental)).
+* `WANT_JIT` (default 0, needs `WANT_SAMPLE`) installing code on hot function nodes (see [Installing code](#installing-code)). With `-DJIT_TEST_INTERVAL=N -DJIT_TEST_THRESHOLD=T` every run installs code as with `+RTS -jN,T`, e.g., `-DJIT_TEST_INTERVAL=10 -DJIT_TEST_THRESHOLD=2` to run the test suite with code on almost everything.
 
 These have defaults, and can be set with `-D`, e.g., `mhs -optc -DMARK_PFQ=0 ...`:
 * `BUMP_ALLOC` (default 1) allocate cells by moving a pointer through a run of free cells, instead of searching the bitmap for each cell.
@@ -903,6 +907,98 @@ imath and GMP have the same interface, so the Haskell code in `lib` is the same 
 ```
 mhs -i -i. -i$MHSDIR/lib/no-gmp -i$MHSDIR/lib -optc -DWANT_IMATH=0 Prog -oprog
 ```
+
+## Hot code extraction (experimental)
+
+This is the first step towards a JIT compiler (see `jit-plan.md`). With `WANT_SAMPLE`, the runtime finds the function nodes that are hot, copies the graph of each one when it gets hot, turns the copy back into a lambda expression, and writes it to `mhs-extract.txt`. Nothing is compiled yet. The code is in `src/runtime/eval.c`, after the comment "Extracting the subgraph of a hot function node".
+
+To try it on the compiler itself, compile the runtime with the flag and run with `-S` and `-J`:
+```
+cc -O3 -DWANT_SAMPLE=1 -Isrc/runtime -Isrc/runtime/unix src/runtime/main.c src/runtime/eval.c generated/mhs.c -lm -o mhs-sample
+./mhs-sample +RTS -S -J -RTS -i -imhs -isrc -ilib MicroHs.Main -oout.c
+```
+
+### Finding hot nodes
+
+In a combinator graph most functions only exist at run time: a function value is any partial application, e.g., an overloaded function applied to its dictionary. So the unit of compilation is a function node in the graph, not a definition.
+
+Every `N` reductions (`-S[N]`, default 1000) the sampler looks at the spine of the node that is being evaluated. The application nodes inside the outermost one are the candidates: partial applications and their parts. The outermost node is not a candidate, since it is the redex, which is overwritten in place, e.g., by every iteration of a loop. Each candidate is counted by its address in a hash table. A node that is built for one call never shows up again, so only shared nodes get counts. Of the candidates that recur, the outermost one is taken to be the function, and gets a count as the outermost. When that count reaches the threshold (`-J[LIMIT,THRESHOLD]`, default 100), the node is hot, and it is extracted at once, as a JIT would. At the end `+RTS -S` prints the hottest nodes, and writes the top 10 to `mhs-sample-NN.comb`.
+
+The limits, and why:
+* One sample per 1000 reductions. The cost is a countdown per reduction. Sampling every 10 reductions finds the same hot nodes at the same time, so coarse sampling is good enough.
+* A table with an entry per 256 cells of the heap, rounded up to a power of 2, i.e., 2^18 entries for the default heap. The recurring nodes are live, so the heap bounds how many there can be. A node that misses its slot decrements the count there, and takes the slot over when it reaches 0, so the slot keeps the node that is hit most. With 2^14 entries about 10% of the recurring nodes in the compiler were lost to collisions.
+* At most 32 nodes down a spine, to bound the cost of a sample.
+* A threshold of 100. That is enough samples that a node is not hot by chance, and still few enough that the hottest nodes of a compile of the compiler get hot within the first 6% of the run.
+* Entries for nodes that are freed are dropped at every garbage collection, since their addresses are reused.
+
+### Copying the graph
+
+The subgraph of the hot node is copied into an array, with a hash table on the address of the original node. The table makes the array the set of visited nodes too, so shared nodes are copied once, and sharing is kept. The traversal is depth first from the root, and copies the application nodes that are code, i.e., partial applications. It stops at a reference to the original node, which the code will use as it is, at:
+* data (`whnf`): a value, e.g., a number, or a constructor with its fields. A value never changes, so there is nothing to compile.
+* a redex (`redex`): an application with as many arguments as its head needs. It can be shared, and copying it would duplicate the work of evaluating it, so the code refers to it, and evaluates it when needed.
+* the start of a cycle (`cycle`), other than the root. A cycle is a recursive function, which can be compiled on its own. That a node starts a cycle is only known when the traversal comes back to it, so it is copied first, and when the traversal is done with it, its copy and everything copied after it are dropped (the write index of the array is moved back). A cycle back to the root is a recursive call, `self`.
+* the limits below (`depth`).
+
+The limits, and why:
+* At most 500 copied nodes (`-J[LIMIT]`). The size of the code, and the time to compile it, grow with the number of nodes. 500 is enough to get, e.g., the balancing functions of a search tree whole.
+* The depth first traversal makes at most 4 times as many copies as the limit (`JX_EXPLORE`), counting the ones that are dropped again. Without the bound a graph with many cycles made the traversal explore the same nodes over and over; one extraction took 105 ms. With it, the copying for the whole compile of the compiler takes about 3 ms, 70 µs at most per node. It also bounds the depth of the recursion.
+* The cycles can only be found depth first, but cutting the copy at the limit in depth first order would spend it on whatever comes first, e.g., the rotations of a balancing function, and cut the tests near the root. So the traversal explores more than the limit, and then the copied nodes nearest the root are kept, breadth first, up to the limit. A copied node that is not kept becomes a reference.
+* A node that was copied by an earlier extraction is not extracted again, so each piece of code is extracted once. The list of such nodes is pruned at every garbage collection, since addresses are reused.
+* A hot node that is not a partial application is skipped (`not a partial application`), since only function values are compiled.
+
+### Recreating the lambdas
+
+The copy is turned into a lambda expression by reducing the combinators symbolically, with the rules of `Mhs.Reflect`. Each term is decompiled once, so the result is a graph with the sharing of the original. That includes a redex, or a call, that is used in several places and applied to different arguments: the interpreter reduces it once and overwrites it, so the decompiler reduces it once too, and every use gets the same term.
+* The root is a partial application, so it is applied to new variables until it has all the arguments it needs, i.e., it is eta expanded. These variables are the parameters, and the result is printed as `self x1 ... xn = body`.
+* A combinator with all its arguments is reduced by its rule, e.g., `S x y z` becomes `x z (y z)`.
+* `Y f` becomes `let r = f r in r`.
+* A `case` combinator (`D_...` or `E_...`) with its scrutinee becomes a `case`. Each arm is applied to new variables for the fields; the number of fields comes from the atom, since it cannot be read from the arm after bracket abstraction.
+* Ticks are dropped. Primitives and references stay as they are.
+* Any other lambda, i.e., a combinator without all its arguments inside the body, is not decompiled. It is left as the graph it comes from, `graph(...)`, which the code will build, and the interpreter will run. That is the simplest thing for a first JIT; 18% of the functions in the compiler have such lambdas. The comment at the top of the decompiler lists ways to do better.
+
+Then the expression is simplified:
+* A `case` on a constructor with its fields becomes the arm, with the fields substituted for the variables.
+* A `case` on an application of a redex is cold: if the `case` had ever run, it would have evaluated the redex, and the redex would have been overwritten with its value. So it is left to the interpreter, as the graph it comes from (`cold@`).
+
+Every term remembers the term it was derived from, and the terms made directly from the copy remember their node, so a cold `case` and a lambda can be traced back to the graph.
+
+The limits, and why:
+* At most 100000 combinator reductions (`DC_FUEL`), as a guard: symbolic reduction can blow up.
+* At most 32 terms per node of the size limit (16000 by default, `DC_BUDGET`). The lambda expression of a graph can be much bigger than the graph, since sharing between the arms is lost (122 copied nodes once gave 176000 terms). A function that needs more is left to the interpreter (`cannot decompile: too many terms`). This also bounds the time to decompile.
+* At most 64 arguments on a spine and 16384 `case` arms per function, the sizes of fixed arrays (`cannot decompile: too many arguments`, `too many arms`).
+* At least 5 reductions (`DC_MIN_WORK`), unless the function is recursive. A function where the combinators make fewer reductions is a small helper, e.g., `&&`. A call of it would save about as much as getting in and out of compiled code costs, and the callers that are extracted copy it anyway. A recursive function is a loop, which is always worth it. This leaves out about a third of the hot nodes of the compiler (`too small`). Functions that only pass their arguments on, e.g., `x1 x3 x4 x5 (x2 x4)`, are kept, since compiled code should be about as cheap to enter as a combinator.
+
+### The output
+
+For each hot node `mhs-extract.txt` has its address, when it got hot, the number of nodes copied, the number of references back to the root, and the number of references of each kind. Then comes the definition, laid out to 120 columns:
+* A term that is used more than once is bound by a `let`, `s1`, `s2`, ..., in the innermost scope that has all the uses.
+* A reference is the reason the copy stopped, and the address of the node: `whnf@0x...`, `redex@0x...`, `cycle@0x...`, or `depth@0x...`.
+* A constructor is `C_k`; its number of fields is clear from the arguments.
+* A cold `case` is `cold@0x...(case S of ...)`, with the address of the graph it comes from.
+* A lambda inside the body is `graph(...)`, where the nodes of the copy are `copy@0x...`.
+* A last line says how many cold cases and lambdas are left to the interpreter, and how many of the copied nodes the rest of the code uses.
+
+A function that is too small is reported as `too small: N reductions` instead.
+
+### Installing code
+
+With `WANT_JIT` and `+RTS -j`, a hot node that was decompiled, and is not too small, gets code. The node, a partial application, is overwritten with a `T_JIT` node, whose payload points to a `struct jit` allocated with `malloc`. It holds the number of arguments the code takes, which is the number of parameters of the decompiled function, and a table of the nodes in the graph that the code refers to. The first two entries are the function and the argument of the node as it was, i.e., the original graph.
+
+* The garbage collector marks the table, and updates it like any other reference, so code must read the pointers from the table. When the `T_JIT` node dies, the collector frees its `struct jit`.
+* The serializer, and anything else that prints the graph, prints a `T_JIT` node as the node it was.
+* A node on the stack cannot be overwritten, since the evaluator reads the arguments of a reduction from the nodes on the stack.
+* The evaluator enters the code when it unwinds to a `T_JIT` node with as many arguments as the code takes. With fewer, it runs the original graph instead, i.e., a copy of the node as it was, since the original graph may do reductions before it has all its arguments, and they must be shared as before.
+
+There is no code generator yet: the code is the decompiled function itself, as a term, which the runtime runs with the compilation schemes of the G-machine (see `jit-plan.md`). The body is run with the R scheme: the result overwrites the redex, and the interpreter goes on with it. A `case` evaluates its scrutinee (the E scheme), which calls the interpreter, and picks the arm. Anything lazy is built as a graph (the C scheme); a lazy `case`, and a cold one, are built as the graph they come from. The variables of the function, and the terms it uses more than once, which are built once per call, are in a frame on the stack, so the garbage collector finds them. This is slow, but it checks the decompiler and the schemes against the interpreter.
+
+A node does not get code when:
+* it is on the stack (rare);
+* the root takes its parameters in several steps (the graph does a reduction before it has all of them), and the graph would build something that may be evaluated before the last step. The graph shares that between the calls of a partial application, while the code would build it in every call;
+* the graph of a lazy `case` and the code both have something with the same value, e.g., a call. The graph is made of the input of the decompiler, and the code of decompiled terms, so they would make two nodes for it, and maybe evaluate both, where the original graph has one. That can make the code exponentially slower. Sharing them needs a lazy `case` that runs code instead of being a graph.
+
+The code also runs the original graph when the C stack is deep (more than 1 MB), since the E scheme calls the interpreter recursively.
+
+`+RTS -v` prints how many nodes got code and how many were freed, why the others did not, how many times code ran, and how many times the original graph ran instead.
 
 ---
 

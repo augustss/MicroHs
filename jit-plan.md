@@ -101,15 +101,14 @@ encoding" in `doc/MicroHs.md`):
   shared.
 * A constructor is `C_k_n`, and a value is the constructor applied to its
   fields. `case` is `D_a0_..._a{m-1} f0 ... f{m-1} e` (dense, `ak` is the
-  number of fields of constructor `k`) or `E_m d A_k1_n1 f1 ... e`
-  (sparse). The
+  number of fields of constructor `k`) or `E_k1_n1_..._km_nm d f1 ... fm e`
+  (sparse, arm `fj` is for constructor `kj` with `nj` fields). The
   constructor and case combinators are tags in the pointer, and use no heap.
   Evaluating a `case` pushes a marker and evaluates the scrutinee. The
   constructor then finds the marker below it, selects the arm, and
   overwrites the case redex with `fk e1 ... en`, which costs n-1 cells.
-* Every arm of a `case` has a known number of fields: a dense case has
-  them in its atom (e.g., `D_0_2` for a list), and a sparse case in its
-  `A_k_n` tags. The interpreter does not need them, but anything that turns
+* Every arm of a `case` has a known number of fields, in its atom (e.g.,
+  `D_0_2` for a list). The interpreter does not need them, but anything that turns
   the graph back into code does, since they cannot be read back from an arm
   after bracket abstraction (`\ x xs -> x` is just `K`). `Mhs.Reflect`
   uses them.
@@ -219,7 +218,8 @@ combinator reductions.
    exception is method selection from an evaluated dictionary, which is
    cheap and cannot fail, so recovery may do it to get the specialisation
    without waiting for the program to do it.
-3. **IR and optimisation.** A small IR of strict and lazy expressions:
+3. **IR and optimisation.** (The decompiled code on `jit-sampler` is this
+   IR; see "Code generation schemes".) A small IR of strict and lazy expressions:
    evaluate, case, primitive, known call, build a graph, return. Mark the
    strict positions (case scrutinees, arguments of strict primitives,
    `seq`), never more, since evaluating anything else can diverge or raise
@@ -237,6 +237,202 @@ combinator reductions.
    key, and the data leaves are its parameters. How a rebuilt node finds
    its code (at sampling, when built, or by compiling the function that
    builds it) is open.
+
+### Code generation schemes
+
+(2026-11-22.) The input is a decompiled function, `self x1 ... xn = body`,
+as printed in `mhs-extract.txt`. Only the root's lambdas are decompiled, so
+the body has no lambdas. It is built from:
+
+* variables: the parameters, the fields bound by `case` arms, and the
+  variables bound by `let`;
+* constants: constructors (`C_k`), primitives, and literals;
+* references to nodes in the heap: values (`whnf@`), nodes that may be
+  unevaluated (`redex@`, `cycle@`, `depth@`), and `self`, the function node;
+* applications, where the function can be any term;
+* `case`, with arms for some of the constructors, and maybe a default;
+* `let`, of two kinds: the recursive binding that `Y` becomes, and the
+  bindings of shared terms (`sN`), which are not recursive;
+* graph to build: a lambda inside the code (`graph(...)`) and a cold `case`
+  (`cold@`). Their contents are combinator terms over the variables and
+  nodes in the heap (`copy@`), i.e., what the interpreter would have built.
+
+As in the G-machine (Johnsson, "Efficient compilation of lazy evaluation",
+1984), code comes from a few compilation schemes. Each takes a term, and an
+environment that says where each variable is:
+
+* **E[e]** evaluates `e` to weak head normal form and gives a pointer to
+  the value. The code then goes on.
+* **C[e]** builds the graph of `e`, evaluating nothing, and gives a pointer
+  to it.
+* **R[e]** is E in tail position. It ends the reduction: the result
+  overwrites the redex, and control goes back to the interpreter.
+* **B[e]**, later: evaluates an `e` of a basic type (`Int`, perhaps
+  `Double`) to an unboxed value in a register.
+
+The body is compiled with R, and the code switches to C for anything lazy
+and to E for anything strict.
+
+**Why R is not just E.** E returns to the code that asked for the value; R
+does not return. In tail position compiled code hands its result to the
+interpreter, as a combinator reduction does, instead of evaluating it. For
+`self x1 x2 = x1 x2 C_0` the code overwrites the redex with `x1 x2 C_0` (one
+new cell, for `x1 x2`) and jumps to the top of `evali`, which unwinds it. If
+the body were compiled with E, and the entry updated the redex with the
+value afterwards, every tail call from compiled code would nest a C call,
+and a loop that goes through compiled and interpreted code, e.g., in a state
+monad, would use C stack in proportion to its length. With `evali` in
+assembler (see "The interface to `evali`"), entering compiled code is a
+jump, and R's exits are jumps to `evali`'s labels.
+
+**R[e]**, by the form of `e`:
+
+* An application whose function is not known (a variable, a reference, a
+  graph term): C of the arguments, and of the applications except the
+  outermost one, which overwrites the redex; then pop the arguments and
+  jump to the top of `evali`, as `GOAP` does.
+* A call of `self` with all `n` arguments: a loop. C of the new arguments
+  into the code's own argument slots (not the spine, which belongs to the
+  caller), decrement `glob_slice`, and jump to the start. The redex stays
+  on the stack, and is overwritten when the loop ends, so the intermediate
+  calls never exist as cells. With more arguments, the call is E and the
+  rest an unknown application; with fewer, it is a value.
+* A value: a constructor with its fields, a partial application, a literal.
+  Build it, with the outermost application in the redex, and continue in
+  the interpreter, which sees a value.
+* A strict primitive with all its arguments, e.g., `(+) a b`: E (later B)
+  of the arguments, the operation, and the result in the redex. Other
+  primitives (IO, lazy ones) are unknown applications.
+* A variable, or a reference: overwrite the redex with an indirection to
+  it, and jump to the top, since it may be unevaluated (`GOIND`).
+* `case s of ...`: E[s], branch on the constructor number, bind the fields,
+  and R of each arm. Each arm ends with its own exit.
+* `let`: C of the shared term into a variable, then R of the body. The
+  recursive `let x = e in b`: allocate a cell for `x`, C[e] with `x` bound
+  to that cell, fill the cell in, then R[b].
+* `graph(...)` and `cold@(...)`: C of the contents, then as a variable.
+
+**E[e]:**
+
+* A variable, or a reference: if it is not a value, call `evali`. A data
+  node (an `Int`) is a value. An application may or may not be one, and
+  only its spine tells. For a scrutinee that is no extra cost, since the
+  `case` walks the spine anyway to find the constructor and the fields: if
+  the head is a constructor with all its fields, it is a value; otherwise
+  call `evali` and walk again.
+* An application whose function is not known: C of it, then `evali`.
+* A call of `self` with all its arguments: in the first version C of it and
+  `evali`. A direct call that builds nothing needs a second entry (see
+  below).
+* A value (a constructor with its fields, a partial application, a literal,
+  `graph(...)`): C of it.
+* A strict primitive: E (later B) of the arguments, then the operation.
+* `case`: E of the scrutinee and of each arm; the arms meet after the
+  `case`, with the value in a register.
+* `let`: as in R.
+
+**C[e]:**
+
+* A variable: the pointer in its slot. A constant: the leaf, since
+  constructors and primitives are tags in the pointer and use no cells. A
+  reference: the node's address, from the constants of the code, which the
+  GC traces. `self`: the function node.
+* An application: C of the parts, and a new cell per application.
+* `case`, which has no graph of its own: the graph it comes from, i.e., its
+  `D_` or `E_` application with the arms as combinator code, which the
+  decompiler keeps (`raw`). The same for a cold `case`. `graph(...)` is a
+  graph already.
+* The recursive `let`: as in R. A shared term: the variable it is bound to.
+
+So C builds what the combinators would have built, but with straight-line
+code instead of reductions. A later improvement is a thunk that points to
+compiled code, e.g., a lazy `case` compiled as a function of its free
+variables and applied to them, i.e., the lambda lifting that the comment at
+the top of the decompiler lists.
+
+**Which scheme where.** R for the body, and for the arms of a `case` and
+the body of a `let` that are in tail position. E for the scrutinee of a
+`case`, the arguments of strict primitives, and the first argument of
+`seq`. C for everything else: the fields of constructors, the arguments of
+unknown functions and of `self`, and the right hand sides of `let`. E must
+never be used where the lazy code would not evaluate, since that can diverge
+or raise an exception that the lazy code would not. Cheap strictness in
+`dc_simplify` will move some C to E: an argument that is evaluated on every
+path anyway, and a cheap primitive that cannot fail on values that are
+evaluated already (cheap eagerness, as in the balance experiment).
+
+**Sharing.** A shared term that is used both lazily and strictly is built
+once with C, and E evaluates that cell, so the value is shared through the
+update. A term that is only used strictly, and once, need not be built.
+
+**Entering and leaving.** The function node is overwritten with a node that
+points to the code and has arity `n`. The interpreter enters the code when
+it unwinds to that node with at least `n` arguments: they are
+`ARG(TOP(0))` ... `ARG(TOP(n-1))`, and the redex is `TOP(n-1)`. With fewer
+arguments the node is a value, as a combinator with too few arguments is.
+The code leaves with the redex overwritten, and jumps to the top of `evali`
+(or to its return path, for a value). In the first version E calls `evali`
+recursively, which costs writing back and reloading the cached globals at
+each call. The rules for compiled code above apply: the only write to
+existing graph is the last one, pointers are kept in slots on the stack
+across calls of `evali`, and loops count `glob_slice`. A `longjmp` out of an
+E (a thread switch, an exception) leaves the graph valid, and the reduction
+starts over when the thread restarts.
+
+**B[e] (later).** Basic values in registers. B of a literal is the number,
+B of `(+) a b` is B[a] + B[b], and B of anything else is E followed by a
+load of the payload. A value from B is boxed (one cell) only where it
+leaves B: in C, or as the result. A `case` on a comparison,
+`case (<) a b of { C_0 -> ...; C_1 -> ... }`, becomes a compare and a
+branch, and no `Bool` is made. Together with direct calls of `self` that
+return unboxed results, this is the unboxed worker of `nfib` measured above.
+
+**Open points:**
+
+* Direct calls. A strict call of `self` with all its arguments, as in
+  `nfib`, is best a direct call that builds no cells: the arguments passed
+  directly, and the result returned instead of written to a redex. That is
+  a second entry, i.e., the body compiled a second time, with E instead of
+  R, where the calls in tail position that leave the function are evaluated
+  instead. Only functions with such calls need it.
+* R hands unknown calls back to the interpreter, also when the callee is
+  compiled too. With the jump-based interface that costs about one
+  reduction's dispatch; a call of a known compiled function could jump to
+  it directly.
+* How much C costs compared with the combinators. A lazy `case` rebuilt
+  from `raw` may need more cells than the combinators, which build the
+  branches lazily; the counts from the decompiler can tell.
+
+### The interface to `evali`
+
+(Discussion of 2026-11-22; for now `evali` stays in C.) Compiled code has
+to evaluate scrutinees and the arguments of primitives. With the C `evali`
+each such call writes back and reloads the cached globals (`EV_SAVE`,
+`EV_LOAD`), although they are in registers already.
+
+* The long term plan is `evali` in assembler for arm64 and x86-64, with the
+  C version kept for the other platforms. Entering compiled code is then a
+  jump, not a call, and compiled code ends with a jump to a label in `evali`
+  (`top`, `ap`, `ap2`, ...). The cached globals stay in fixed registers,
+  which is the contract with compiled code.
+* A way to get the assembler: compile just `evali` with `-S`, and change it
+  with a script: give the cached globals fixed registers, turn markers in
+  the C source (`asm volatile("// @@top")`) into global labels, and turn
+  the recursive calls into calls of an internal entry. Check the result in,
+  regenerate it when `evali` changes, and make the script fail loudly when
+  its assumptions break. Not tried yet.
+* With calls that are just `bl`/`ret`, control could move to the native
+  stack, and the markers that use the pointer stack for control
+  (`BININT2`, the `case` markers) might go away. The native stack then needs
+  a depth check for stack overflow, live pointers stay on the pointer stack
+  (GC roots), and `catch` saves both stack pointers. Thread switches are no
+  problem, since they throw away both stacks already.
+* On x86-64 not all the globals fit in registers. The ones that are only
+  read (`bump_end`, the stack limit, `num_free`, `glob_slice`) can stay in
+  memory, since they are in the L1 cache.
+* Until then, the cheapest interface to the C `evali` is a call with the
+  globals in pinned registers (local `register ... asm("x19")` variables),
+  which GCC and clang support, but not MSVC or tcc.
 
 ### Rules for compiled code
 
@@ -266,6 +462,19 @@ native code:
   of reachable applications, which do not move) across such calls, and read
   the pointers from the slots after the last `GCCHECK`. The balance
   experiment (phase 1) crashed with a small heap until it did this.
+* **References to the graph from the code.** Every node the code refers
+  to goes in a table that the `T_JIT` node points to, and the GC marks the
+  table, as it marks the elements of an array. That is the references
+  (`whnf@`, `redex@`, `cycle@`, `depth@`), `self`, the nodes in the graphs
+  the code builds (`copy@`, and the graph a lazy or cold `case` comes from),
+  and the original graph, for falling back. The code must load these
+  pointers from the table every time, never have them as immediates in the
+  instructions: marking short-circuits a reference to an indirection and
+  frees the indirection, and the first GCs after loading rewrite the graph,
+  and both update the slot in the table but cannot update the code. A
+  `redex@` that has been evaluated is such an indirection. When the GC finds
+  a `T_JIT` node dead, its code and table can be freed, as foreign pointers
+  with finalizers are.
 * **The cost to the interpreter.** The code in `evali` that calls compiled
   code must not make the rest of `evali` slower. In the balance experiment,
   a `case` that passed `&x` and `&y` (locals of `evali`) to a helper cost 4%
@@ -469,6 +678,14 @@ changed since.
 
 ### Phase 2: groundwork in the compiler and the combinator format
 
+* **Constructor numbers and arities in the sparse `case` atom: done**
+  (2026-11-22, format v9.3). `E_k1_n1_..._km_nm d f1 ... fm e` replaces
+  `E_m d A_k1_n1 f1 ... A_km_nm fm e`. Bracket abstraction used to separate
+  the `A_k_n` tags from the `E_`, so a hot node could be a piece of a `case`
+  whose tags were parameters. The entries are in the same table as for `D_`,
+  with the constructor numbers, and the interpreter finds the arm by binary
+  search there. Compiling the compiler: -2.8% instructions, -3% wall clock,
+  and 1.1% less code.
 * **Arm arities for dense `case`: done** (2026-11-18, format v9.2). The
   atom is `D_a0_..._a{m-1}`, without `m`. The runtime keeps a table of
   `struct case_arity { uint16_t m; uint8_t *arities; }`, found by linear
