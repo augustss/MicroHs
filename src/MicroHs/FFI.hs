@@ -165,12 +165,7 @@ mkHdr (ImpStatic _ IValue val, f, t, _) =
   let (as, ior) = getArrows t
       r = checkIO ior
       len = length as
-      call = expand val
-      expand [] = []
-      expand ('$':c:cs) | isDigit c =
-        let n = digitToInt c                -- $0 is the first argument, as for JavaScript
-        in mkArg (as !! n) n ++ expand cs
-      expand (c:cs) = c : expand cs
+      call = expandArgs t len (\ i -> mkArg (as !! i) i) val
       fcall =
         if isUnit r then
           call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
@@ -186,7 +181,7 @@ mkHdr (ImpJS s, f, ty, _) =
       arg t i = ", " ++ mkJSArg t i
       call = "EM_ASM" ++
              (if isUnit rt then "" else '_':jsr) ++
-             "({ " ++ s ++ " }" ++ args ++ ")"
+             "({ " ++ expandArgs ty n (\ i -> '$' : show i) s ++ " }" ++ args ++ ")"  -- EM_ASM counts from $0
       fcall =
         if isUnit rt then
           call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
@@ -215,6 +210,25 @@ mkHdr (ImpDynamic, f, t, _) =
           "return " ++ mkRet (repType r) len call
   in  mkMhsFun f fcall
 mkHdr _ = undefined
+
+-- Replace $1, $2, ... (up to $9) in the code of a "value" or javascript import
+-- by the arguments, numbered from 1 as in GHC.  The function gets the argument
+-- number counted from 0.  Any other $k is an error.
+expandArgs :: EType -> Int -> (Int -> String) -> String -> String
+expandArgs t len arg = expand
+  where
+    expand [] = []
+    expand ('$':c:cs) | isDigit c =
+      let k = digitToInt c
+      in  if k < 1 || k > len then
+            errorMessage (getSLoc t) $ "foreign import: $" ++ show k ++ " is not an argument: " ++ argsAre ++
+              (if k == 0 then " (they start at $1, not $0)" else "")
+          else
+            arg (k - 1) ++ expand cs
+    expand (c:cs) = c : expand cs
+    argsAre | len == 0  = "the import has no arguments"
+            | len == 1  = "the argument is $1"
+            | otherwise = "the arguments are $1 .. $" ++ show len
 
 -- Replace the newtypes for C types by the types that represent them.
 repType :: EType -> EType
