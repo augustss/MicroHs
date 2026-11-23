@@ -569,6 +569,9 @@ enum node_tag { D_NONE,
                 D_IO_CCALL,
                 D_BADDYN, D_TICK,
                 T_JIT,          /* a function node with compiled code, see struct jit */
+                T_BH,           /* a black hole: a node whose value is being made, e.g., the
+                                 * variable of a recursive let while its right hand side is
+                                 * built (see jc_letrec); evaluating it is an error */
 
                 /* Tags with extra info */
                 V_CONSTR, V_TAG, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
@@ -645,7 +648,7 @@ static const char* tag_names [T_LAST_TAG+1] =
   { [D_NONE] = "NONE", [X_AP] = "AP", [D_IND] = "IND",
     [D_INT] = "INT", [D_INT64] = "INT64", [D_DBL] = "DBL", [D_FLT32] = "FLT32", [D_PTR] = "PTR",
     [D_FUNPTR] = "FUNPTR", [D_FORPTR] = "FORPTR", [D_ARR] = "ARR", [D_THID] = "THID", [D_MVAR] = "MVAR", [D_WEAK] = "WEAK",
-    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK", [T_JIT] = "JIT",
+    [D_IO_CCALL] = "IO.ccall", [D_BADDYN] = "BADDYN", [D_TICK] = "TICK", [T_JIT] = "JIT", [T_BH] = "BH",
     [V_CONSTR] = "C_", [V_TAG] = "TAG", [V_CASED] = "D_", [V_LOOKD] = "L_", [V_CASES] = "E_", [V_LOOKS] = "M_",
   };
 #define TAGNAME(t) tag_names[t]
@@ -5358,6 +5361,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   case D_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case D_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+  case T_BH: SER_ERR("cannot serialize a black hole");
 #if WANT_TICK
   case D_TICK:
     putb('!', f);
@@ -6796,6 +6800,7 @@ is_whnf(NODEPTR n)
     case D_IO_CCALL: return d < FFI_IX(GETVALUE(n)).ffi_arity;
     case D_TICK:     return d < 1;
     case D_BADDYN:   return false; /* evaluating it is an error */
+    case T_BH:       return false; /* evaluating it is an error */
 #if WANT_JIT
     case T_JIT:      d++; n = JIT_FUN(n); continue; /* as the node was */
 #endif
@@ -6995,6 +7000,7 @@ jx_visit(NODEPTR p)
       o.leaf = p;               /* a function, which never changes */
       return o;
     case D_BADDYN:
+    case T_BH:
       k = JX_REDEX;             /* evaluating it is an error */
       break;
     default:
@@ -7131,6 +7137,7 @@ jx_print_leaf(FILE *f, NODEPTR n)
 #endif
   case D_IO_CCALL: fprintf(f, "^%s", FFI_IX(GETVALUE(n)).ffi_name); return;
   case D_BADDYN:   fprintf(f, "^%s", CSTR(n)); return;
+  case T_BH:       fputs("BH", f); return;
   case D_TICK:     fprintf(f, "!tick%"PRIvalue, GETVALUE(n)); return;
   case D_FORPTR:
 #if WANT_GMP || WANT_IMATH
@@ -9324,12 +9331,14 @@ jit_gc(void)
 static void jc_build(struct jit *j, stackptr_t fb, int t);
 
 /* The recursive let: a cell for the variable, then the right hand side with
- * the variable bound to it, and the cell becomes an indirection to that. */
+ * the variable bound to it, and the cell becomes an indirection to that.
+ * The cell is a black hole.  It must not be an application, e.g., I I,
+ * since the GC reduces some of those (I x --> x), and that would lose it. */
 static void
 jc_letrec(struct jit *j, stackptr_t fb, struct jterm *x)
 {
   GCCHECK(1);
-  JSLOT(x->a) = new_ap(combI, combI);  /* a placeholder */
+  JSLOT(x->a) = alloc_node(T_BH);
   jc_build(j, fb, x->b);
   set_IND(JSLOT(x->a), TOP(0));
   POP(1);
@@ -11282,6 +11291,7 @@ evali(NODEPTR an)
   case D_MVAR:   RET;
   case D_WEAK:   RET;
   case D_BADDYN: ERR1("FFI unknown %s", CSTR(n));
+  case T_BH:     ERR("evaluating a black hole");
 
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
