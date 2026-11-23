@@ -1045,27 +1045,53 @@ mk_AP(NODEPTR n, NODEPTR fun, NODEPTR arg)
 /*
  * Compiled code for a function node (see jit-plan.md).  The node, a partial
  * application, is overwritten with a T_JIT node, whose payload points to a
- * struct jit.  consts[] is the table of the nodes in the graph that the
- * code refers to.  The GC marks it, and updates it (it short-circuits
- * indirections), so the code must read the pointers from it.  consts[0] and
- * consts[1] are the function and the argument of the node as it was, i.e.,
- * the original graph, which is used to fall back, and to serialize the node.
+ * struct jit, the function.  The code can have more functions, the lifted
+ * ones, each with a T_JIT node of its own (see jc_closure).  The functions
+ * share the code (struct jcode), and consts[], the table of the nodes in
+ * the graph that the code refers to.  The GC marks it, and updates it (it
+ * short-circuits indirections), so the code must read the pointers from
+ * it.  consts[0] and consts[1] are the function and the argument of the
+ * node as it was, i.e., the original graph, which is used to fall back, and
+ * to serialize the node.
  */
+struct jterm;
+struct jarm;
+struct jg;
+struct jcode;
 struct jit {
-  struct jit *next;             /* all of them, to free the ones whose node died */
+  struct jcode *code;
   int         arity;            /* the number of arguments the code takes */
-  int         marked;           /* the node was reached by the last GC */
+  int         nargs;            /* lifted: the free variables, the first arguments */
+  int         args;             /* lifted: their terms are code->args[args...], -1 for a dummy */
+  int         root;             /* the body, an index in terms */
+  bool        is_case;          /* a lifted case, whose body is the case itself */
+  int         nlocal;           /* the size of the frame */
+  int        *map;              /* the frame index of each slot, or -1 */
+  int         node;             /* lifted: the index in consts of its T_JIT node; -1 for the hot node */
+  int         graph;            /* lifted: the index in consts of its graph */
+  int         gtree;            /* lifted: its graph in gnodes, until it is made */
+};
+struct jcode {
+  struct jcode *next;           /* all of them, to free the ones whose nodes died */
+  int         marked;           /* a node of it was reached by the last GC */
+  bool        ready;            /* the nodes of the lifted functions are made */
   size_t      nconsts;
   NODEPTR    *consts;
-  /* The code, for now the decompiled function as a term, see jc_compile. */
+  /* The code, for now the decompiled function as terms, see jc_compile. */
   struct jterm *terms;
   struct jarm  *arms;
-  int         root;             /* the body, an index in terms */
-  int         nslots;           /* the size of the frame */
+  int         nfuns;
+  struct jit *funs;             /* funs[0] is the hot node */
+  int        *args;             /* the free variables of the lifted functions */
+  int        *maps;             /* the maps of the functions */
+  struct jg  *gnodes;           /* the graphs of the lifted functions, until they are made */
+  int         ngnodes;
 };
-#define JIT_FUN(p) (JIT(p)->consts[0])
-#define JIT_ARG(p) (JIT(p)->consts[1])
-static struct jit *jit_root;    /* all of them, linked by next */
+#define JIT_FUN(p) (JIT(p)->code->consts[0])
+#define JIT_ARG(p) (JIT(p)->code->consts[1])
+#define JIT_LIFTED(p) (JIT(p)->node >= 0)
+#define JIT_GRAPH(p) (JIT(p)->code->consts[JIT(p)->graph])
+static struct jcode *jit_root;  /* all of them, linked by next */
 static void jit_gc(void);
 #endif  /* WANT_JIT */
 
@@ -3850,11 +3876,13 @@ mark(NODEPTR *np)
 #if WANT_JIT
   case T_JIT:
     {
-      struct jit *j = JIT(n);
-      j->marked = 1;
-      for (size_t i = 0; i < j->nconsts; i++)
-        if (!is_marked_used(j->consts[i]))
-          PUSH_SLOT(&j->consts[i]);
+      struct jcode *c = JIT(n)->code;
+      if (!c->marked) {
+        c->marked = 1;
+        for (size_t i = 0; i < c->nconsts; i++)
+          if (!is_NIL(c->consts[i]) && !is_marked_used(c->consts[i]))
+            PUSH_SLOT(&c->consts[i]);
+      }
       goto fin;
     }
 #endif  /* WANT_JIT */
@@ -5107,7 +5135,11 @@ find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
         }
         break;
 #if WANT_JIT
-      case T_JIT:               /* the node as it was */
+      case T_JIT:               /* the node as it was, or the graph of a lifted function */
+        if (JIT_LIFTED(n)) {
+          n = JIT_GRAPH(n);
+          goto top;
+        }
         find_sharing(num_sharedp, pb, JIT_FUN(n));
         n = JIT_ARG(n);
         goto top;
@@ -5210,12 +5242,16 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
   switch (tag) {
   case X_AP:
 #if WANT_JIT
-  case T_JIT:                   /* compiled code: the node as it was */
+  case T_JIT:                   /* compiled code: the node as it was, or a graph */
 #endif
     {
       NODEPTR fun = FUN(n), arg = ARG(n);
 #if WANT_JIT
       if (tag == T_JIT) {
+        if (JIT_LIFTED(n)) {    /* its graph */
+          printrec(f, pb, JIT_GRAPH(n), prefix);
+          break;
+        }
         fun = JIT_FUN(n);
         arg = JIT_ARG(n);
       }
@@ -6802,7 +6838,10 @@ is_whnf(NODEPTR n)
     case D_BADDYN:   return false; /* evaluating it is an error */
     case T_BH:       return false; /* evaluating it raises NonTermination */
 #if WANT_JIT
-    case T_JIT:      d++; n = JIT_FUN(n); continue; /* as the node was */
+    case T_JIT:
+      if (JIT_LIFTED(n))
+        return d < JIT(n)->arity;
+      d++; n = JIT_FUN(n); continue; /* as the node was */
 #endif
     default:         return true;  /* a value */
     }
@@ -7223,12 +7262,11 @@ jx_inline_data(int i)
  * never updated, and each term is decompiled once, so sharing is kept; a
  * term that is used more than once is bound by a let.
  *
- * Only the lambdas of the root, its parameters, are made.  Any other lambda,
- * i.e., a function value made inside the code, is left as the graph it comes
- * from (DC_GRAPH): the code builds that graph, and the interpreter runs it.
- * That is the simplest thing that works.  On a self-compile, 18% of the
- * decompiled functions had such lambdas.  Ways to do better, the most
- * common first:
+ * A lambda inside the code, i.e., a function value that the code makes, is
+ * eta expanded too, as far as the graph would reduce it when it gets
+ * arguments: its body is what the graph does with the arguments.  The code
+ * lambda lifts it (see jc_closure).  Ways to do better, the most common
+ * first:
  *  - A local function from Y that is only called is a local function, and a
  *    loop if it is only called strictly.  But most are also called lazily,
  *    as in map's C_1 (f x) (go xs), and the thunk needs go as a value.
@@ -7237,22 +7275,20 @@ jx_inline_data(int i)
  *  - The continuation of IO.>>=: compile the bind.
  *  - (case s of { p -> \x -> e }) a: push the argument into the arms.
  *  - Mutually recursive functions from Y on a tuple: split them.
- *  - A lambda without free variables is a constant.
- *  - The rest are passed to unknown functions or stored: lambda lift them to
- *    functions of their own, compiled like the root, which the interpreter
- *    can apply like a combinator.  The value is then the partial application
- *    to the free variables.
  */
-enum dc_kind { DC_APP, DC_LAM, DC_VAR, DC_LEAF, DC_REF, DC_CASE, DC_LET, DC_COLD, DC_GRAPH };
+enum dc_kind { DC_APP, DC_LAM, DC_VAR, DC_LEAF, DC_REF, DC_CASE, DC_LET, DC_COLD };
 
 struct dc_node {
   enum dc_kind kind;
-  int a, b, c, d;               /* APP: fun, arg.  LAM: var, body.  VAR: var.  REF: jx index.
+  int a, b, c, d;               /* APP: fun, arg.  VAR: var.  REF: jx index.
+                                 * LAM: var, body, and for a lambda inside the code, on the
+                                 *      outermost of its lambdas, the number of them
                                  * LET: var, rhs, body.  CASE: scrutinee, first arm, arms, default or -1
-                                 * COLD: the scrutinee of the case (to print), the term it comes from
-                                 * GRAPH: the term it comes from, with the copied nodes as REFs */
+                                 * COLD: the scrutinee of the case (to print), the term it comes
+                                 *       from, the case */
   NODEPTR leaf;                 /* LEAF */
-  int raw;                      /* CASE: the term it comes from, D_... or E_..., or -1 */
+  int raw;                      /* CASE: the term it comes from, D_... or E_..., or -1
+                                 * LAM inside the code: the term it comes from */
   int dec;                      /* the decompiled term, or -1 */
   int simp;                     /* the simplified term, or -1 */
   int sgen, sres;               /* memo of dc_subst: the result, if sgen is dc_sgen */
@@ -7261,9 +7297,7 @@ struct dc_node {
   int label;                    /* the name of a shared term, sN */
   int jx;                       /* the entry of the extracted graph it is, or -1 */
   int from;                     /* the term it is derived from, or -1; see dc_graph_node */
-  int gr;                       /* its graph form, or -1; see dc_graph_term */
   int red;                      /* a redex: its reduct, or -1; see dc_go1 */
-  bool eta;                     /* made by the eta expansion of the root */
   int rap, raph;                /* an application rebuilt after a reduction: the new one, and
                                  * its function; see dc_reapply_shared */
 };
@@ -7293,7 +7327,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1, false, -1, -1 };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1, -1 };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7458,7 +7492,6 @@ dc_eta(int e, int k)
   for (int i = 0; i < k; i++) {
     dc_cur_from = e;
     x = dc_app(x, dc_var(v0 + i));
-    dc[x].eta = true;           /* a call of the root, see jc_conv1 */
   }
   int b = dc_go(x);
   for (int i = k - 1; i >= 0; i--) {
@@ -7524,28 +7557,6 @@ dc_sparse(NODEPTR lf, int *args, int from)
 
 static int dc_go1(int e);
 
-/* The graph form of a term that is not decompiled: the term itself, with the
- * copied nodes in it as references to them, since they are in the heap. */
-static int
-dc_graph_term(int e)
-{
-  if (dc[e].gr < 0) {
-    int r = e;
-    if (dc[e].kind == DC_APP && dc[e].jx >= 0) {
-      dc_cur_from = e;
-      r = dc_new(DC_REF, dc[e].jx, 0, 0, 0, NIL_NODEPTR);
-      dc[r].jx = dc[e].jx;
-    } else if (dc[e].kind == DC_APP) {
-      int a = dc_graph_term(dc[e].a), b = dc_graph_term(dc[e].b);
-      dc_cur_from = e;
-      if (a != dc[e].a || b != dc[e].b)
-        r = dc_app(a, b);
-    }
-    dc[e].gr = r;
-  }
-  return dc[e].gr;
-}
-
 /* Is the term being decompiled the body of the root, so that a missing
  * argument is a parameter of the root? */
 static bool dc_top;
@@ -7556,9 +7567,9 @@ static bool dc_top;
 static int dc_stage_size[DC_MAX_STAGES];
 static int dc_nstages;
 
-/* e needs k more arguments, i.e., it is a function value.  In the body of the
- * root it is eta expanded, the parameters of the root; anywhere else it is
- * left as the graph it is. */
+/* e needs k more arguments, i.e., it is a function value, so it is eta
+ * expanded.  In the body of the root that makes the parameters of the root;
+ * anywhere else a lambda, which knows the term it comes from. */
 static int
 dc_function(int e, int k, bool top)
 {
@@ -7572,9 +7583,10 @@ dc_function(int e, int k, bool top)
     dc_top = false;
     return r;
   }
-  int g = dc_graph_term(e);
-  dc_cur_from = e;
-  return dc_new(DC_GRAPH, g, 0, 0, 0, NIL_NODEPTR);
+  int r = dc_eta(e, k);
+  dc[r].c = k;
+  dc[r].raw = e;
+  return r;
 }
 
 /* Decompile e, once. */
@@ -7662,10 +7674,8 @@ dc_go1(int e)
  *    substituted for the arm's variables, or the default;
  *  - a case on an application of a redex is cold: the case forces the redex,
  *    which is shared and would have been overwritten with its value if the
- *    case had ever run.  So it is left to the interpreter: it becomes the
- *    term it comes from, which is built from nodes of the graph and the
- *    variables.
- * A graph term (DC_GRAPH) is not code, so it is left as it is.
+ *    case had ever run.  It is printed as just that, but compiled like any
+ *    other case.
  * Still to come is cheap strictness, i.e., strictness that can be found
  * locally, so that arithmetic can be done strictly.
  */
@@ -7723,9 +7733,12 @@ dc_subst(int e)
   }
   case DC_LAM: {
     int b = dc_subst(dc[e].b);
+    int raw = dc[e].raw >= 0 ? dc_subst(dc[e].raw) : -1;
     dc_cur_from = e;
-    if (b != dc[e].b)
-      r = dc_new(DC_LAM, dc[e].a, b, 0, 0, NIL_NODEPTR);
+    if (b != dc[e].b || raw != dc[e].raw) {
+      r = dc_new(DC_LAM, dc[e].a, b, dc[e].c, 0, NIL_NODEPTR);
+      dc[r].raw = raw;
+    }
     break;
   }
   case DC_LET: {
@@ -7739,17 +7752,10 @@ dc_subst(int e)
     r = dc_map_case(e, dc_subst);
     break;
   case DC_COLD: {
-    int a = dc_subst(dc[e].a), b = dc_subst(dc[e].b);
+    int a = dc_subst(dc[e].a), b = dc_subst(dc[e].b), c = dc_subst(dc[e].c);
     dc_cur_from = e;
-    if (a != dc[e].a || b != dc[e].b)
-      r = dc_new(DC_COLD, a, b, 0, 0, NIL_NODEPTR);
-    break;
-  }
-  case DC_GRAPH: {
-    int a = dc_subst(dc[e].a);
-    dc_cur_from = e;
-    if (a != dc[e].a)
-      r = dc_new(DC_GRAPH, a, 0, 0, 0, NIL_NODEPTR);
+    if (a != dc[e].a || b != dc[e].b || c != dc[e].c)
+      r = dc_new(DC_COLD, a, b, c, 0, NIL_NODEPTR);
     break;
   }
   default:
@@ -7789,8 +7795,10 @@ dc_simplify(int e)
   case DC_LAM: {
     int b = dc_simplify(dc[e].b);
     dc_cur_from = e;
-    if (b != dc[e].b)
-      r = dc_new(DC_LAM, dc[e].a, b, 0, 0, NIL_NODEPTR);
+    if (b != dc[e].b) {
+      r = dc_new(DC_LAM, dc[e].a, b, dc[e].c, 0, NIL_NODEPTR);
+      dc[r].raw = dc[e].raw;
+    }
     break;
   }
   case DC_LET: {
@@ -7806,8 +7814,9 @@ dc_simplify(int e)
     int h = dc_spine(s, args, 0, &na);
     /* A case on an application of a redex is cold. */
     if (dc[h].kind == DC_REF && dc[h].a != 0 && jx[dc[h].a].kind == JX_REDEX && dc[e].raw >= 0) {
+      int c = dc_map_case(e, dc_simplify);
       dc_cur_from = e;
-      r = dc_new(DC_COLD, s, dc[e].raw, 0, 0, NIL_NODEPTR);
+      r = dc_new(DC_COLD, s, dc[e].raw, c, 0, NIL_NODEPTR);
       dc_ncold++;
       break;
     }
@@ -7892,15 +7901,14 @@ dc_mark_from(int d)
   }
 }
 
-/* Mark what the final term uses, except in cold cases and graph terms, which
- * are left to the interpreter. */
+/* Mark what the final term uses, except in cold cases, which are not printed. */
 static void
 dc_mark_used(int e, char *seen)
 {
   if (seen[e])
     return;
   seen[e] = 1;
-  if (dc[e].kind == DC_COLD || dc[e].kind == DC_GRAPH)
+  if (dc[e].kind == DC_COLD)
     return;
   dc_mark_from(e);
   switch (dc[e].kind) {
@@ -7918,8 +7926,7 @@ dc_mark_used(int e, char *seen)
   }
 }
 
-/* The number of copied nodes the term uses, outside the cold cases and graph
- * terms. */
+/* The number of copied nodes the term uses, outside the cold cases. */
 static int
 dc_count_used(int e)
 {
@@ -7943,7 +7950,6 @@ dc_occurs(int v, int e)
   switch (dc[e].kind) {
   case DC_VAR: return dc[e].a == v;
   case DC_COLD: return dc_occurs(v, dc[e].a) || dc_occurs(v, dc[e].b);
-  case DC_GRAPH: return dc_occurs(v, dc[e].a);
   case DC_APP: return dc_occurs(v, dc[e].a) || dc_occurs(v, dc[e].b);
   case DC_LAM: return dc_occurs(v, dc[e].b);
   case DC_LET: return dc_occurs(v, dc[e].b) || dc_occurs(v, dc[e].c);
@@ -7990,7 +7996,6 @@ dc_print_leaf(FILE *f, NODEPTR n, int p)
 }
 
 /* Count the uses of the terms in a decompiled term. */
-static int dc_ngraph;           /* the number of graph terms */
 
 static void
 dc_count(int e)
@@ -8000,7 +8005,6 @@ dc_count(int e)
   switch (dc[e].kind) {
   case DC_APP: dc_count(dc[e].a); dc_count(dc[e].b); break;
   case DC_COLD: dc_count(dc[e].a); break;
-  case DC_GRAPH: dc_ngraph++; dc_count(dc[e].a); break;
   case DC_LAM: dc_count(dc[e].b); break;
   case DC_LET: dc_count(dc[e].b); dc_count(dc[e].c); break;
   case DC_CASE:
@@ -8053,7 +8057,7 @@ dc_order_parts(int e)
 {
   switch (dc[e].kind) {
   case DC_APP: dc_order_term(dc[e].a); dc_order_term(dc[e].b); break;
-  case DC_COLD: case DC_GRAPH: dc_order_term(dc[e].a); break;
+  case DC_COLD: dc_order_term(dc[e].a); break;
   case DC_LAM: dc_order_term(dc[e].b); break;
   case DC_LET: dc_order_term(dc[e].b); dc_order_term(dc[e].c); break;
   case DC_CASE:
@@ -8111,7 +8115,6 @@ dc_scope_parts(int e, int scope)
     dc_scope_term(dc[e].b, scope);
     break;
   case DC_COLD:
-  case DC_GRAPH:
     dc_scope_term(dc[e].a, scope);
     break;
   case DC_LAM:
@@ -8231,7 +8234,6 @@ dc_inline(int e)
     r = false;
     break;
   case DC_COLD:
-  case DC_GRAPH:
     r = dc_inline_use(dc[e].a);
     break;
   case DC_CASE:
@@ -8305,7 +8307,6 @@ dc_width(int e, int lim)
   case DC_LAM:  W(6 + 4); W(dc_width_use(dc[e].b, lim - w)); break;
   case DC_LET:  W(lim); break;
   case DC_COLD: W(20 + dc_width_use(dc[e].a, lim - w)); break;
-  case DC_GRAPH: W(7 + dc_width_use(dc[e].a, lim - w)); break;
   case DC_CASE:
     W(15 + dc_width_use(dc[e].a, lim - w));
     for (int j = 0; j < dc[e].c && w < lim; j++) {
@@ -8497,8 +8498,7 @@ dc_print1(FILE *f, int e, int p)
     if (p > 1) fputc(')', f);
     break;
   case DC_COLD: {
-    /* A cold case, left to the interpreter; show where it is in the graph,
-     * and what it is on. */
+    /* A cold case; show where it is in the graph, and what it is on. */
     NODEPTR g = dc_graph_node(e);
     if (is_NIL(g))
       fputs("cold(case ", f);
@@ -8508,13 +8508,6 @@ dc_print1(FILE *f, int e, int p)
     fputs(" of ...)", f);
     break;
   }
-  case DC_GRAPH:
-    /* A function value, left as graph to build; the copied nodes in it are
-     * shown as copy@address. */
-    fputs("graph(", f);
-    dc_print(f, dc[e].a, 0);
-    fputc(')', f);
-    break;
   case DC_LET: {
     /* The recursive let from Y, with the shared terms bound in its scope. */
     if (p > 0) fputc('(', f);
@@ -8591,7 +8584,7 @@ dc_print1(FILE *f, int e, int p)
   }
 }
 
-/* Does the code of e, outside cold cases and graph terms, use the root,
+/* Does the code of e, outside cold cases, use the root,
  * i.e., is it recursive? */
 static bool
 dc_uses_self(int e, char *seen)
@@ -8641,7 +8634,6 @@ dc_decompile(FILE *f)
   dc_printed = 0;
   dc_nlabels = 0;
   dc_ncold = 0;
-  dc_ngraph = 0;
   dc_cur_from = -1;
   /* Decompiling can blow up; a function whose normal form is that big is
    * better left to the interpreter. */
@@ -8698,15 +8690,12 @@ dc_decompile(FILE *f)
   fputs(" =", f);
   dc_print_body(f, b, 0, sc);
   fputc('\n', f);
-  if (dc_ncold || dc_ngraph) {
+  if (dc_ncold) {
     int ncopy = 0;
     for (int i = 0; i < jx_n; i++)
       ncopy += jx[i].kind == JX_COPY;
-    if (dc_ncold)
-      fprintf(f, "%d cold case%s%s", dc_ncold, dc_ncold == 1 ? "" : "s", dc_ngraph ? " and " : "");
-    if (dc_ngraph)
-      fprintf(f, "%d lambda%s", dc_ngraph, dc_ngraph == 1 ? "" : "s");
-    fprintf(f, " left to the interpreter; the rest uses %d of the %d copied nodes\n", dc_count_used(e), ncopy);
+    fprintf(f, "%d cold case%s, not shown; the rest uses %d of the %d copied nodes\n",
+            dc_ncold, dc_ncold == 1 ? "" : "s", dc_count_used(e), ncopy);
   }
   return nparams > 0 ? nparams : -1;
 }
@@ -8880,6 +8869,7 @@ jx_gc(void)
 #if WANT_JIT
 static counter_t num_jit_installed, num_jit_onstack, num_jit_sharing, num_jit_nocode;
 static counter_t num_jit_run, num_jit_fallback, num_jit_deep, num_jit_freed;
+static counter_t num_jit_lifted, num_jit_lifted_run;
 #endif
 
 static void
@@ -8897,10 +8887,10 @@ jx_report(void)
   }
 #if WANT_JIT
   if (jit_on && verbose) {
-    fprintf(stderr, "jit: %"PRIcounter" nodes got code, %"PRIcounter" freed; no code for %"PRIcounter" on the stack, %"PRIcounter" losing sharing, %"PRIcounter" that cannot be compiled\n",
-            num_jit_installed, num_jit_freed, num_jit_onstack, num_jit_sharing, num_jit_nocode);
-    fprintf(stderr, "jit: %"PRIcounter" runs of code, %"PRIcounter" of the original graph (%"PRIcounter" since the C stack was deep)\n",
-            num_jit_run, num_jit_fallback, num_jit_deep);
+    fprintf(stderr, "jit: %"PRIcounter" nodes got code, with %"PRIcounter" lifted functions, %"PRIcounter" freed; no code for %"PRIcounter" on the stack, %"PRIcounter" losing sharing, %"PRIcounter" that cannot be compiled\n",
+            num_jit_installed, num_jit_lifted, num_jit_freed, num_jit_onstack, num_jit_sharing, num_jit_nocode);
+    fprintf(stderr, "jit: %"PRIcounter" runs of code, %"PRIcounter" of lifted code, %"PRIcounter" of the original graph (%"PRIcounter" since the C stack was deep)\n",
+            num_jit_run, num_jit_lifted_run, num_jit_fallback, num_jit_deep);
   }
 #endif
 }
@@ -8917,25 +8907,46 @@ jx_report(void)
  * This is slow, but it checks the decompiler and the schemes against the
  * interpreter.
  *
- * The variables of the function, and the terms that are used more than once
- * (which are built once per call, and then shared), are in a frame of slots
- * on the stack, so the GC finds them, and so is everything that is being
- * built.  The pointers to the graph are in the table consts[].
+ * A lambda, and a case that is built rather than run, i.e., a lazy case, is
+ * lambda lifted: it becomes a function of its own, with a T_JIT node of its
+ * own, and building it builds that node applied to its free variables (a
+ * closure).  When the interpreter evaluates the closure, or applies it to
+ * the arguments of the lambda, it runs the code of the lifted function.  A
+ * free variable is a maximal subterm that uses none of the variables bound
+ * in the lifted term (fully lazy lambda lifting): it is built where the
+ * closure is, so it is built once, and shared, as it is in the graph, where
+ * bracket abstraction keeps such a subterm whole.  A variable that the
+ * lifted term uses from outside it is such a subterm.  So the code of a
+ * lifted term uses the very nodes that the code around it uses, e.g., a
+ * call that both make.
+ *
+ * The functions made from one hot node, the node itself and the lifted
+ * ones, share the terms and the table of pointers to the graph, consts[]
+ * (struct jcode).  The variables, and the terms that are used more than
+ * once (which are built once per call, and then shared), have slots,
+ * numbered for the whole code.  Each function has a frame on the stack, so
+ * the GC finds them, with the slots it uses (map); the arguments are first.
+ *
+ * A lifted function also has the graph it comes from, with its free
+ * variables abstracted (bracket abstraction), i.e., the combinator code of
+ * the function.  The interpreter runs that instead of the code when the C
+ * stack is deep, and it is what a closure serializes to.
  */
 enum jop {
   JT_SLOT,                      /* a: slot */
   JT_CONST,                     /* a: index in consts */
   JT_APP,                       /* a: function, b: argument */
   JT_CASE,                      /* a: scrutinee, b: first arm, c: number of arms, d: default or -1,
-                                 * e: the graph of the case, for C */
+                                 * e: the graph of the case */
   JT_LETREC,                    /* a: slot, b: right hand side, c: body */
-  JT_GRAPH,                     /* a: the graph of a function value, i.e., a value */
-  JT_COLD,                      /* a: the graph of a cold case */
+  JT_LAM,                       /* a: the slot of the first parameter, b: body, c: number of
+                                 * parameters, e: the graph of the function value */
 };
 struct jterm {
   uint8_t op;
   int32_t a, b, c, d, e;
   int32_t memo;                 /* the slot of a term used more than once, or -1 */
+  int32_t fun;                  /* a lambda or a lazy case: its function in funs[], or -1 */
 };
 struct jarm { int32_t k, n, slot, body; }; /* constructor k with n fields in slots slot... */
 
@@ -8954,34 +8965,42 @@ static int jc_nslots;
 static NODEPTR jc_self;
 static jmp_buf jc_fail;
 
-static int *jc_from;            /* the dc term of a jterm */
-static int jc_cur_dc;           /* the dc term being converted */
-
 static int
 jc_new(enum jop op, int a, int b, int c, int d, int e)
 {
   if (jc_nterms == jc_maxterms) {
     jc_maxterms = jc_maxterms ? 2 * jc_maxterms : 256;
     jc_terms = mrealloc(jc_terms, jc_maxterms * sizeof(struct jterm));
-    jc_from = mrealloc(jc_from, jc_maxterms * sizeof(int));
   }
-  jc_terms[jc_nterms] = (struct jterm){ op, a, b, c, d, e, -1 };
-  jc_from[jc_nterms] = jc_cur_dc;
+  jc_terms[jc_nterms] = (struct jterm){ op, a, b, c, d, e, -1, -1 };
   return jc_nterms++;
 }
 
 static int
-jc_const(NODEPTR p)
+jc_add_const(NODEPTR p)
 {
-  for (int i = 0; i < jc_nconsts; i++)
-    if (jc_consts[i].node_bits == p.node_bits)
-      return jc_new(JT_CONST, i, 0, 0, 0, 0);
   if (jc_nconsts == jc_maxconsts) {
     jc_maxconsts = jc_maxconsts ? 2 * jc_maxconsts : 64;
     jc_consts = mrealloc(jc_consts, jc_maxconsts * sizeof(NODEPTR));
   }
   jc_consts[jc_nconsts] = p;
-  return jc_new(JT_CONST, jc_nconsts++, 0, 0, 0, 0);
+  return jc_nconsts++;
+}
+
+/* The index of p in consts. */
+static int
+jc_const_index(NODEPTR p)
+{
+  for (int i = 0; i < jc_nconsts; i++)
+    if (jc_consts[i].node_bits == p.node_bits)
+      return i;
+  return jc_add_const(p);
+}
+
+static int
+jc_const(NODEPTR p)
+{
+  return jc_new(JT_CONST, jc_const_index(p), 0, 0, 0, 0);
 }
 
 static int
@@ -9007,7 +9026,7 @@ jc_conv1(int e)
   case DC_REF:
     return jc_const(dc[e].a == 0 ? jc_self : jx[dc[e].a].orig);
   case DC_APP:
-    if (dc[e].jx >= 0)          /* a copied node, in the graph of a case */
+    if (dc[e].jx >= 0)          /* a copied node, in the graph of a case or a lambda */
       return jc_const(dc[e].jx == 0 ? jc_self : jx[dc[e].jx].orig);
     {
       int f = jc_conv(dc[e].a);
@@ -9039,11 +9058,23 @@ jc_conv1(int e)
     int rhs = jc_conv(dc[e].b);
     return jc_new(JT_LETREC, slot, rhs, jc_conv(dc[e].c), 0, 0);
   }
-  case DC_GRAPH:
-    return jc_new(JT_GRAPH, jc_conv(dc[e].a), 0, 0, 0, 0);
-  case DC_COLD:
-    return jc_new(JT_COLD, jc_conv(dc[e].b), 0, 0, 0, 0);
-  default:                      /* DC_LAM inside the body; cannot happen */
+  case DC_LAM: {                /* a lambda inside the body, made by dc_function */
+    int k = dc[e].c;
+    if (k <= 0 || dc[e].raw < 0)
+      longjmp(jc_fail, 1);      /* a parameter of the root inside the body; cannot happen */
+    int slot = jc_nslots, b = e;
+    for (int i = 0; i < k; i++, b = dc[b].b) {
+      if (dc[b].kind != DC_LAM)
+        longjmp(jc_fail, 1);
+      jc_var[dc[b].a] = jc_nslots++;
+    }
+    int body = jc_conv(b);
+    int raw = jc_conv(dc[e].raw);
+    return jc_new(JT_LAM, slot, body, k, 0, raw);
+  }
+  case DC_COLD:                 /* compiled like any other case */
+    return jc_conv(dc[e].c);
+  default:
     longjmp(jc_fail, 1);
   }
 }
@@ -9052,63 +9083,13 @@ jc_conv1(int e)
 static int
 jc_conv(int e)
 {
-  if (jc_memo[e] < 0) {
-    int old = jc_cur_dc;
-    jc_cur_dc = e;
+  if (jc_memo[e] < 0)
     jc_memo[e] = jc_conv1(e);
-    jc_cur_dc = old;
-  }
   return jc_memo[e];
 }
 
-/* Mark how the code uses each jterm: 1, built as a graph (the C scheme);
- * 2, run (the R and E schemes).  A term that is used more than once is
- * built, and then evaluated. */
-static char *jc_mode;
-
-static void
-jc_walk(int t, bool c)
-{
-  int bit = c ? 1 : 2;
-  if (jc_mode[t] & bit)
-    return;
-  jc_mode[t] |= bit;
-  struct jterm *x = &jc_terms[t];
-  if (!c && jc_uses[t] > 1 && x->op != JT_SLOT && x->op != JT_CONST) {
-    jc_walk(t, true);
-    return;
-  }
-  switch (x->op) {
-  case JT_APP:
-    jc_walk(x->a, true);
-    jc_walk(x->b, true);
-    break;
-  case JT_CASE:
-    if (c) {
-      if (x->e >= 0)
-        jc_walk(x->e, true);
-    } else {
-      jc_walk(x->a, false);
-      for (int j = 0; j < x->c; j++)
-        jc_walk(jc_arms[x->b + j].body, false);
-      if (x->d >= 0)
-        jc_walk(x->d, false);
-    }
-    break;
-  case JT_LETREC:
-    jc_walk(x->b, true);
-    jc_walk(x->c, c);
-    break;
-  case JT_GRAPH:
-  case JT_COLD:
-    jc_walk(x->a, true);
-    break;
-  default:
-    break;
-  }
-}
-
-/* Count the uses of the jterms reachable from t. */
+/* Count the uses of the jterms of the code reachable from t; the graphs of
+ * cases and lambdas are not code. */
 static void
 jc_count(int t)
 {
@@ -9122,18 +9103,18 @@ jc_count(int t)
     for (int j = 0; j < x->c; j++)
       jc_count(jc_arms[x->b + j].body);
     if (x->d >= 0) jc_count(x->d);
-    if (x->e >= 0) jc_count(x->e);
     break;
   case JT_LETREC: jc_count(x->b); jc_count(x->c); break;
-  case JT_GRAPH:
-  case JT_COLD:   jc_count(x->a); break;
+  case JT_LAM:    jc_count(x->b); break;
   default:        break;
   }
 }
 
 /* The stage of eta expansion of the parameters a jterm uses, i.e., when the
  * graph has what it needs to build it.  0 if it uses none.  A variable bound
- * by a case arm or a let counts as the stage of what it comes from. */
+ * by a case arm or a let counts as the stage of what it comes from, and a
+ * parameter of a lambda as 0, since the graph builds what the lambda uses
+ * from outside it when it builds the lambda. */
 static int *jc_stage;           /* of a jterm, or -1 */
 static int *jc_slot_stage;      /* of a slot */
 
@@ -9167,8 +9148,11 @@ jc_stage_of(int t)
     jc_slot_stage[x->a] = s;
     MAXS(x->c);
     break;
-  case JT_GRAPH:
-  case JT_COLD:  MAXS(x->a); break;
+  case JT_LAM:
+    for (int i = 0; i < x->c; i++)
+      jc_slot_stage[x->a + i] = 0;
+    MAXS(x->b);
+    break;
   }
 #undef MAXS
   jc_stage[t] = s;
@@ -9191,7 +9175,7 @@ jc_loses_sharing(int root, int nstages)
     if (!jc_uses[t])
       continue;
     struct jterm *x = &jc_terms[t];
-    if (x->op != JT_APP && x->op != JT_CASE && x->op != JT_COLD)
+    if (x->op != JT_APP && x->op != JT_CASE)
       continue;
     if (x->op == JT_APP) {
       int h = t;
@@ -9209,32 +9193,489 @@ jc_loses_sharing(int root, int nstages)
   return false;
 }
 
+/*** Lambda lifting ***/
+
+/* The free variables of each jterm, as a set of slots.  Only the variables
+ * have slots at this point, the memo slots come later.  A case and a lambda
+ * also have the free variables of their graph, since that is what the
+ * lifted function falls back to. */
+static int jl_words;            /* the words of a set */
+static uint64_t *jl_fv;
+static char *jl_fvdone;
+static int *jl_slot_term;       /* a JT_SLOT jterm for each slot, or -1 */
+
+#define JL_FV(t) (jl_fv + (size_t)(t) * jl_words)
+#define JL_HAS(set, s) (((set)[(s) / 64] >> ((s) % 64)) & 1)
+#define JL_DEL(set, s) ((set)[(s) / 64] &= ~((uint64_t)1 << ((s) % 64)))
+
+static void jl_fv_of(int t);
+
+static void
+jl_fv_add(uint64_t *set, int t)
+{
+  jl_fv_of(t);
+  uint64_t *u = JL_FV(t);
+  for (int i = 0; i < jl_words; i++)
+    set[i] |= u[i];
+}
+
+static void
+jl_fv_of(int t)
+{
+  if (jl_fvdone[t])
+    return;
+  jl_fvdone[t] = 1;
+  uint64_t *set = JL_FV(t);
+  struct jterm *x = &jc_terms[t];
+  switch (x->op) {
+  case JT_SLOT:
+    set[x->a / 64] |= (uint64_t)1 << (x->a % 64);
+    break;
+  case JT_CONST:
+    break;
+  case JT_APP:
+    jl_fv_add(set, x->a);
+    jl_fv_add(set, x->b);
+    break;
+  case JT_CASE:
+    jl_fv_add(set, x->a);
+    if (x->d >= 0)
+      jl_fv_add(set, x->d);
+    for (int j = 0; j < x->c; j++)
+      jl_fv_add(set, jc_arms[x->b + j].body);
+    for (int j = 0; j < x->c; j++)  /* the variables are unique, so this only removes the arm's */
+      for (int i = 0; i < jc_arms[x->b + j].n; i++)
+        JL_DEL(set, jc_arms[x->b + j].slot + i);
+    if (x->e >= 0)
+      jl_fv_add(set, x->e);
+    break;
+  case JT_LETREC:
+    jl_fv_add(set, x->b);
+    jl_fv_add(set, x->c);
+    JL_DEL(set, x->a);
+    break;
+  case JT_LAM:
+    jl_fv_add(set, x->b);
+    for (int i = 0; i < x->c; i++)
+      JL_DEL(set, x->a + i);
+    if (x->e >= 0)
+      jl_fv_add(set, x->e);
+    break;
+  }
+}
+
+/* Does t use only variables that are free in the term f? */
+static bool
+jl_subset(int t, int f)
+{
+  jl_fv_of(t);
+  jl_fv_of(f);
+  uint64_t *a = JL_FV(t), *b = JL_FV(f);
+  for (int i = 0; i < jl_words; i++)
+    if (a[i] & ~b[i])
+      return false;
+  return true;
+}
+
+/* A function being made: the root (term -1), or a lifted term. */
+struct jl_fun {
+  int term;
+  bool done;
+  char *seen;                   /* the terms visited: 1 built, 2 run */
+  int *args, nargs, maxargs;    /* the terms of the free variables, -1 for a dummy */
+  int *uses, nuses, maxuses;    /* the slots it binds, and the terms it builds or runs */
+};
+static struct jl_fun *jl_funs;
+static int jl_nfuns;
+
+static void
+jl_push(int **a, int *n, int *max, int x)
+{
+  if (*n == *max) {
+    *max = *max ? 2 * *max : 8;
+    *a = mrealloc(*a, *max * sizeof(int));
+  }
+  (*a)[(*n)++] = x;
+}
+
+/* The lifted function of the term t, a lambda or a case. */
+static int
+jl_fun_of(int t)
+{
+  if (jc_terms[t].fun < 0) {
+    jl_funs[jl_nfuns] = (struct jl_fun){ .term = t };
+    jc_terms[t].fun = jl_nfuns++;
+  }
+  return jc_terms[t].fun;
+}
+
+static void
+jl_add_arg(int f, int t)
+{
+  struct jl_fun *F = &jl_funs[f];
+  for (int i = 0; i < F->nargs; i++) {
+    int u = F->args[i];
+    if (u == t || (jc_terms[t].op == JT_SLOT && jc_terms[u].op == JT_SLOT && jc_terms[u].a == jc_terms[t].a))
+      return;
+  }
+  jl_push(&F->args, &F->nargs, &F->maxargs, t);
+}
+
+/* A slot that f binds is recorded as -1-slot, a term as itself. */
+static void
+jl_use(int f, int x)
+{
+  struct jl_fun *F = &jl_funs[f];
+  jl_push(&F->uses, &F->nuses, &F->maxuses, x);
+}
+
+static void jl_lift(int h);
+static void jl_visit(int f, int t, bool c);
+
+/* f builds the closure of the lifted term h: the free variables of h. */
+static void
+jl_visit_args(int f, int h)
+{
+  jl_lift(h);
+  for (int i = 0; i < jl_funs[h].nargs; i++)
+    jl_visit(f, jl_funs[h].args[i], true);
+}
+
+/* f runs the case t. */
+static void
+jl_visit_case(int f, int t)
+{
+  struct jterm *x = &jc_terms[t];
+  jl_visit(f, x->a, false);
+  for (int j = 0; j < x->c; j++) {
+    struct jarm *a = &jc_arms[x->b + j];
+    for (int i = 0; i < a->n; i++)
+      jl_use(f, -1 - (a->slot + i));
+    jl_visit(f, a->body, false);
+  }
+  if (x->d >= 0)
+    jl_visit(f, x->d, false);
+}
+
+/* f builds (c) or runs the term t, as jc_build and jc_eval do: find the
+ * terms that are free in f, and the lifted terms. */
+static void
+jl_visit(int f, int t, bool c)
+{
+  int bit = c ? 1 : 2;
+  if (jl_funs[f].seen[t] & bit)
+    return;
+  jl_funs[f].seen[t] |= bit;
+  struct jterm *x = &jc_terms[t];
+  if (x->op == JT_CONST)
+    return;
+  if (x->op == JT_LAM) {
+    int h = jl_fun_of(t);
+    jl_lift(h);
+    if (jl_funs[h].nargs == 0)
+      return;                   /* no free variables, so the closure is the node itself */
+  }
+  if (jl_funs[f].term >= 0 && jl_subset(t, jl_funs[f].term)) {
+    /* Free in f: built where the closure of f is. */
+    jl_add_arg(f, t);
+    if (x->op == JT_CASE)
+      (void)jl_fun_of(t);
+    return;
+  }
+  if (!c && jc_uses[t] > 1 && x->op != JT_SLOT) {
+    jl_visit(f, t, true);       /* built once, then evaluated */
+    return;
+  }
+  if (x->op != JT_SLOT)
+    jl_use(f, t);
+  switch (x->op) {
+  case JT_APP:
+    jl_visit(f, x->a, true);
+    jl_visit(f, x->b, true);
+    break;
+  case JT_CASE:
+    if (c)
+      jl_visit_args(f, jl_fun_of(t));
+    else
+      jl_visit_case(f, t);
+    break;
+  case JT_LETREC:
+    jl_use(f, -1 - x->a);
+    jl_visit(f, x->b, true);
+    jl_visit(f, x->c, c);
+    break;
+  case JT_LAM:
+    jl_visit_args(f, x->fun);
+    break;
+  default:
+    break;
+  }
+}
+
+/* Find the free variables of the lifted term of h, and what it uses. */
+static void
+jl_lift(int h)
+{
+  if (jl_funs[h].done)
+    return;
+  jl_funs[h].done = true;
+  jl_funs[h].seen = mcalloc(jc_nterms, 1);
+  int t = jl_funs[h].term;
+  struct jterm *x = &jc_terms[t];
+  if (x->op == JT_CASE) {
+    jl_visit_case(h, t);
+  } else {
+    for (int i = 0; i < x->c; i++)
+      jl_use(h, -1 - (x->a + i));
+    jl_visit(h, x->b, false);
+  }
+  /* The graph may use variables that the code does not. */
+  if (x->e >= 0) {
+    jl_fv_of(x->e);
+    uint64_t *set = JL_FV(x->e);
+    for (int s = 0; s < 64 * jl_words; s++)
+      if (JL_HAS(set, s))
+        jl_add_arg(h, jl_slot_term[s]);
+  }
+}
+
+/*** The graph of a lifted function, by bracket abstraction ***/
+
+enum { JG_LEAF, JG_APP, JG_VAR };
+struct jg { int32_t op, a, b; };  /* LEAF: a, index in consts; APP: a, b; VAR: a, the variable */
+static struct jg *jg;
+static int jg_n, jg_max;
+static int *jg_occ_pass, *jg_abs_pass, *jg_abs_res;
+static char *jg_occ_res;
+static int jg_pass;
+static int jg_S, jg_K, jg_I, jg_B, jg_C, jg_Y;
+#define JG_MAX_NODES (1 << 20)
+
+static int
+jg_new(int op, int a, int b)
+{
+  if (jg_n == jg_max) {
+    if (jg_max >= JG_MAX_NODES)
+      longjmp(jc_fail, 1);
+    jg_max = jg_max ? 2 * jg_max : 1024;
+    jg = mrealloc(jg, jg_max * sizeof(struct jg));
+    jg_occ_pass = mrealloc(jg_occ_pass, jg_max * sizeof(int));
+    jg_abs_pass = mrealloc(jg_abs_pass, jg_max * sizeof(int));
+    jg_abs_res = mrealloc(jg_abs_res, jg_max * sizeof(int));
+    jg_occ_res = mrealloc(jg_occ_res, jg_max);
+  }
+  jg[jg_n] = (struct jg){ op, a, b };
+  jg_occ_pass[jg_n] = jg_abs_pass[jg_n] = 0;
+  return jg_n++;
+}
+
+static int jg_app(int f, int a) { return jg_new(JG_APP, f, a); }
+
+static bool
+jg_occurs(int v, int g)
+{
+  if (jg[g].op == JG_LEAF)
+    return false;
+  if (jg[g].op == JG_VAR)
+    return jg[g].a == v;
+  if (jg_occ_pass[g] != jg_pass) {
+    bool r = jg_occurs(v, jg[g].a) || jg_occurs(v, jg[g].b);
+    jg_occ_pass[g] = jg_pass;
+    jg_occ_res[g] = r;
+  }
+  return jg_occ_res[g];
+}
+
+/* \v -> g, with S, K, I, B, and C, and \v -> f v = f. */
+static int
+jg_abs1(int v, int g)
+{
+  if (!jg_occurs(v, g))
+    return jg_app(jg_K, g);
+  if (jg[g].op == JG_VAR)
+    return jg_I;
+  if (jg_abs_pass[g] == jg_pass)
+    return jg_abs_res[g];
+  int f = jg[g].a, a = jg[g].b, r;
+  if (!jg_occurs(v, f)) {
+    if (jg[a].op == JG_VAR)
+      r = f;
+    else
+      r = jg_app(jg_app(jg_B, f), jg_abs1(v, a));
+  } else if (!jg_occurs(v, a)) {
+    r = jg_app(jg_app(jg_C, jg_abs1(v, f)), a);
+  } else {
+    int af = jg_abs1(v, f);
+    r = jg_app(jg_app(jg_S, af), jg_abs1(v, a));
+  }
+  jg_abs_pass[g] = jg_pass;
+  jg_abs_res[g] = r;
+  return r;
+}
+
+static int
+jg_abs(int v, int g)
+{
+  jg_pass++;
+  return jg_abs1(v, g);
+}
+
+static bool
+jg_has_var(int g)
+{
+  if (jg[g].op == JG_LEAF)
+    return false;
+  if (jg[g].op == JG_VAR)
+    return true;
+  if (jg_occ_pass[g] != jg_pass) {
+    bool r = jg_has_var(jg[g].a) || jg_has_var(jg[g].b);
+    jg_occ_pass[g] = jg_pass;
+    jg_occ_res[g] = r;
+  }
+  return jg_occ_res[g];
+}
+
+/* Is the graph g closed? */
+static bool
+jg_closed(int g)
+{
+  jg_pass++;
+  return !jg_has_var(g);
+}
+
+/* The graph of a jterm for the lifted function being made, with its
+ * arguments as the variables 0, 1, ..., and any other variable as -1-slot. */
+static int *jg_term_gen, *jg_term_res, jg_term_g;
+static int *jg_arg_gen, *jg_arg_of, *jg_slot_gen, *jg_slot_arg;
+
+static int
+jg_tree(int t)
+{
+  if (jg_term_gen[t] == jg_term_g)
+    return jg_term_res[t];
+  struct jterm *x = &jc_terms[t];
+  int r;
+  if (jg_arg_gen[t] == jg_term_g) {
+    r = jg_new(JG_VAR, jg_arg_of[t], 0);
+  } else {
+    switch (x->op) {
+    case JT_SLOT:
+      if (jg_slot_gen[x->a] == jg_term_g)
+        r = jg_new(JG_VAR, jg_slot_arg[x->a], 0);
+      else
+        r = jg_new(JG_VAR, -1 - x->a, 0);  /* bound by a let in the graph, or an error */
+      break;
+    case JT_CONST:
+      r = jg_new(JG_LEAF, x->a, 0);
+      break;
+    case JT_APP: {
+      int f = jg_tree(x->a);
+      r = jg_app(f, jg_tree(x->b));
+      break;
+    }
+    case JT_CASE:
+    case JT_LAM:
+      if (x->e < 0)
+        longjmp(jc_fail, 1);
+      r = jg_tree(x->e);
+      break;
+    case JT_LETREC: {           /* let v = b in c is (\v -> c) (Y (\v -> b)) */
+      int v = -1 - x->a;
+      int body = jg_abs(v, jg_tree(x->c));
+      int rhs = jg_abs(v, jg_tree(x->b));
+      r = jg_app(body, jg_app(jg_Y, rhs));
+      break;
+    }
+    default:
+      longjmp(jc_fail, 1);
+    }
+  }
+  jg_term_gen[t] = jg_term_g;
+  jg_term_res[t] = r;
+  return r;
+}
+
+/* The graph of the lifted function h: the graph of its term, with the free
+ * variables abstracted, the first one outermost. */
+static int
+jg_function(int h)
+{
+  struct jl_fun *H = &jl_funs[h];
+  jg_term_g++;
+  for (int i = 0; i < H->nargs; i++) {
+    int u = H->args[i];
+    if (u < 0)
+      continue;
+    if (jc_terms[u].op == JT_SLOT) {
+      jg_slot_gen[jc_terms[u].a] = jg_term_g;
+      jg_slot_arg[jc_terms[u].a] = i;
+    } else {
+      jg_arg_gen[u] = jg_term_g;
+      jg_arg_of[u] = i;
+    }
+  }
+  int g = jg_tree(jc_terms[H->term].e);
+  for (int i = H->nargs - 1; i >= 0; i--)
+    g = jg_abs(i, g);
+  if (!jg_closed(g))
+    longjmp(jc_fail, 1);
+  return g;
+}
+
+/*** The code ***/
+
+static void
+jit_free(struct jcode *c)
+{
+  FREE(c->consts);
+  FREE(c->terms);
+  FREE(c->arms);
+  FREE(c->funs);
+  FREE(c->args);
+  FREE(c->maps);
+  FREE(c->gnodes);
+  FREE(c);
+}
+
+static void
+jl_free(void)
+{
+  for (int f = 0; f < jl_nfuns; f++) {
+    FREE(jl_funs[f].seen);
+    FREE(jl_funs[f].args);
+    FREE(jl_funs[f].uses);
+  }
+  FREE(jl_funs);
+  jl_funs = 0;
+  jl_nfuns = 0;
+}
+
+static int *jc_groot;           /* the graph of each lifted function */
+
 /* Make the code for the function the last dc_decompile made, which is the
  * node self.  Return NULL if it cannot. */
-static struct jit *
+static struct jcode *
 jc_compile(NODEPTR self, int arity)
 {
   int e = dc_final;
   jc_nterms = jc_narms = jc_nconsts = jc_nslots = 0;
+  jg_n = 0;
   jc_self = self;
-  jc_cur_dc = -1;
   FREE(jc_memo); FREE(jc_var);
   jc_memo = mmalloc(dc_n * sizeof(int));
   jc_var = mmalloc((dc_nvars + 1) * sizeof(int));
   for (int i = 0; i < dc_n; i++) jc_memo[i] = -1;
   for (int i = 0; i <= dc_nvars; i++) jc_var[i] = -1;
   /* consts[0] and consts[1] are the node as it was */
-  (void)jc_const(FUN(self));
-  (void)jc_const(ARG(self));
-  if (jc_nconsts != 2) {        /* FUN and ARG are the same; keep two entries anyway */
-    jc_consts[1] = ARG(self);
-    jc_nconsts = 2;
-  }
-  jc_nterms = 0;
+  (void)jc_add_const(FUN(self));
+  (void)jc_add_const(ARG(self));
   int b = e;
   for (int i = 0; i < arity; i++, b = dc[b].b)
     jc_var[dc[b].a] = jc_nslots++;
   if (setjmp(jc_fail)) {
+    jl_free();
+    FREE(jc_groot);
+    jc_groot = 0;
     num_jit_nocode++;
     return 0;
   }
@@ -9242,26 +9683,7 @@ jc_compile(NODEPTR self, int arity)
   FREE(jc_uses);
   jc_uses = mcalloc(jc_nterms, sizeof(int));
   jc_count(root);
-  /* The graph of a case that is built, i.e., not run, is made of the input
-   * of the decompiler, while the code is made of decompiled terms.  Where
-   * both have the same value, e.g., a call, the graph and the code would
-   * make two nodes for it, and maybe evaluate both, where the original graph
-   * has one.  That can make the code exponentially slower, so such a
-   * function gets no code for now.  Sharing the node needs a lazy case that
-   * runs code, instead of a graph. */
-  FREE(jc_mode);
-  jc_mode = mcalloc(jc_nterms, 1);
-  jc_walk(root, false);
-  for (int t = 0; t < jc_nterms; t++) {
-    int e = jc_from[t];
-    if (!(jc_mode[t] & 1) || e < 0 || dc[e].kind != DC_APP || dc[e].jx >= 0 || dc[e].dec < 0 || dc[e].eta)
-      continue;
-    int d = dc[dc[e].dec].simp;
-    if (d >= 0 && jc_memo[d] >= 0 && jc_memo[d] != t && jc_mode[jc_memo[d]]) {
-      num_jit_sharing++;
-      return 0;
-    }
-  }
+
   /* The stages of the parameters. */
   FREE(jc_stage); FREE(jc_slot_stage);
   jc_stage = mmalloc(jc_nterms * sizeof(int));
@@ -9274,33 +9696,164 @@ jc_compile(NODEPTR self, int arity)
     num_jit_sharing++;
     return 0;
   }
-  /* A term that is used more than once, and is not a slot or a constant,
-   * gets a slot, so it is built once per call. */
-  for (int t = 0; t < jc_nterms; t++)
-    if (jc_uses[t] > 1 && jc_terms[t].op != JT_SLOT && jc_terms[t].op != JT_CONST)
-      jc_terms[t].memo = jc_nslots++;
-  struct jit *j = mmalloc(sizeof(struct jit));
-  j->arity = arity;
-  j->marked = 0;
-  j->nconsts = jc_nconsts;
-  j->consts = mmalloc(jc_nconsts * sizeof(NODEPTR));
-  memcpy(j->consts, jc_consts, jc_nconsts * sizeof(NODEPTR));
-  j->terms = mmalloc(jc_nterms * sizeof(struct jterm));
-  memcpy(j->terms, jc_terms, jc_nterms * sizeof(struct jterm));
-  j->arms = mmalloc((jc_narms ? jc_narms : 1) * sizeof(struct jarm));
-  memcpy(j->arms, jc_arms, jc_narms * sizeof(struct jarm));
-  j->root = root;
-  j->nslots = jc_nslots;
-  return j;
-}
 
-static void
-jit_free(struct jit *j)
-{
-  FREE(j->consts);
-  FREE(j->terms);
-  FREE(j->arms);
-  FREE(j);
+  /* Lambda lifting: find the lifted terms, and their free variables. */
+  int nvars = jc_nslots;
+  jl_words = (nvars + 63) / 64 + 1;
+  FREE(jl_fv); FREE(jl_fvdone); FREE(jl_slot_term);
+  jl_fv = mcalloc((size_t)jc_nterms * jl_words, sizeof(uint64_t));
+  jl_fvdone = mcalloc(jc_nterms, 1);
+  jl_slot_term = mmalloc((nvars + 1) * sizeof(int));
+  for (int s = 0; s <= nvars; s++) jl_slot_term[s] = -1;
+  for (int t = 0; t < jc_nterms; t++)
+    if (jc_terms[t].op == JT_SLOT && jl_slot_term[jc_terms[t].a] < 0)
+      jl_slot_term[jc_terms[t].a] = t;
+  jl_funs = mcalloc(jc_nterms + 1, sizeof(struct jl_fun));
+  jl_funs[0] = (struct jl_fun){ .term = -1, .done = true };
+  jl_nfuns = 1;
+  jl_funs[0].seen = mcalloc(jc_nterms, 1);
+  jl_visit(0, root, false);
+  /* A lazy case with no free variables still needs an argument, so that
+   * the closure is an application, which the interpreter evaluates. */
+  for (int f = 1; f < jl_nfuns; f++)
+    if (jl_funs[f].nargs == 0 && jc_terms[jl_funs[f].term].op == JT_CASE)
+      jl_push(&jl_funs[f].args, &jl_funs[f].nargs, &jl_funs[f].maxargs, -1);
+
+  /* A term that is used more than once, and is not a slot or a constant,
+   * gets a slot, so it is built once per call; so does a free variable of a
+   * lifted function, which is its argument. */
+  for (int t = 0; t < jc_nterms; t++) {
+    struct jterm *x = &jc_terms[t];
+    if (jc_uses[t] > 1 && x->op != JT_SLOT && x->op != JT_CONST &&
+        !(x->op == JT_LAM && x->fun >= 0 && jl_funs[x->fun].nargs == 0))
+      x->memo = jc_nslots++;
+  }
+  for (int f = 1; f < jl_nfuns; f++)
+    for (int i = 0; i < jl_funs[f].nargs; i++) {
+      int u = jl_funs[f].args[i];
+      if (u >= 0 && jc_terms[u].op != JT_SLOT && jc_terms[u].memo < 0)
+        jc_terms[u].memo = jc_nslots++;
+    }
+
+  /* The graphs of the lifted functions. */
+  jg_S = jg_new(JG_LEAF, jc_const_index(mk_TAG(T_S)), 0);
+  jg_K = jg_new(JG_LEAF, jc_const_index(combK), 0);
+  jg_I = jg_new(JG_LEAF, jc_const_index(combI), 0);
+  jg_B = jg_new(JG_LEAF, jc_const_index(combB), 0);
+  jg_C = jg_new(JG_LEAF, jc_const_index(combC), 0);
+  jg_Y = jg_new(JG_LEAF, jc_const_index(mk_TAG(T_Y)), 0);
+  FREE(jg_term_gen); FREE(jg_term_res); FREE(jg_arg_gen); FREE(jg_arg_of); FREE(jg_slot_gen); FREE(jg_slot_arg);
+  jg_term_gen = mcalloc(jc_nterms, sizeof(int));
+  jg_term_res = mmalloc(jc_nterms * sizeof(int));
+  jg_arg_gen = mcalloc(jc_nterms, sizeof(int));
+  jg_arg_of = mmalloc(jc_nterms * sizeof(int));
+  jg_slot_gen = mcalloc(nvars + 1, sizeof(int));
+  jg_slot_arg = mmalloc((nvars + 1) * sizeof(int));
+  jg_term_g = 0;
+  jc_groot = mmalloc(jl_nfuns * sizeof(int));
+  int *groot = jc_groot;
+  for (int f = 1; f < jl_nfuns; f++)
+    groot[f] = jg_function(f);
+  /* Keep the nodes the graphs use; a node comes after the nodes it uses. */
+  int *gnew = mmalloc((jg_n ? jg_n : 1) * sizeof(int));
+  for (int i = 0; i < jg_n; i++) gnew[i] = -1;
+  for (int f = 1; f < jl_nfuns; f++)
+    gnew[groot[f]] = 0;
+  for (int i = jg_n - 1; i >= 0; i--)
+    if (gnew[i] >= 0 && jg[i].op == JG_APP)
+      gnew[jg[i].a] = gnew[jg[i].b] = 0;
+  int ngnodes = 0;
+  for (int i = 0; i < jg_n; i++)
+    if (gnew[i] >= 0)
+      gnew[i] = ngnodes++;
+
+  /* The functions, and their frames: the arguments, then the slots of the
+   * variables they bind, and of the terms they build or run. */
+  int nfuns = jl_nfuns;
+  struct jcode *c = mcalloc(1, sizeof(struct jcode));
+  c->funs = mcalloc(nfuns, sizeof(struct jit));
+  c->nfuns = nfuns;
+  c->maps = mmalloc((size_t)nfuns * (jc_nslots + 1) * sizeof(int));
+  for (size_t i = 0; i < (size_t)nfuns * (jc_nslots + 1); i++)
+    c->maps[i] = -1;
+  int nargs = 0;
+  for (int f = 1; f < nfuns; f++)
+    nargs += jl_funs[f].nargs;
+  c->args = mmalloc((nargs ? nargs : 1) * sizeof(int));
+  nargs = 0;
+  for (int f = 0; f < nfuns; f++) {
+    struct jl_fun *F = &jl_funs[f];
+    struct jit *j = &c->funs[f];
+    int *map = c->maps + (size_t)f * (jc_nslots + 1);
+    int n = 0;
+    j->code = c;
+    j->map = map;
+    j->node = j->graph = -1;
+    if (f == 0) {
+      j->arity = arity;
+      j->root = root;
+      for (; n < arity; n++)
+        map[n] = n;             /* the parameters are slots 0, 1, ... */
+    } else {
+      struct jterm *x = &jc_terms[F->term];
+      j->nargs = F->nargs;
+      j->args = nargs;
+      for (; n < F->nargs; n++) {
+        int u = F->args[n];
+        c->args[nargs++] = u;
+        if (u >= 0)
+          map[jc_terms[u].op == JT_SLOT ? jc_terms[u].a : jc_terms[u].memo] = n;
+      }
+      if (x->op == JT_CASE) {
+        j->is_case = true;
+        j->root = F->term;
+        j->arity = F->nargs;
+      } else {
+        j->root = x->b;
+        j->arity = F->nargs + x->c;
+        for (int i = 0; i < x->c; i++)
+          map[x->a + i] = n++;
+      }
+      j->gtree = gnew[groot[f]];
+    }
+    for (int i = 0; i < F->nuses; i++) {
+      int u = F->uses[i];
+      int s = u < 0 ? -1 - u : jc_terms[u].memo;
+      if (s >= 0 && map[s] < 0)
+        map[s] = n++;
+    }
+    j->nlocal = n;
+  }
+  /* The table of the graph: then a node, and a graph, per lifted function,
+   * which are made when the code first runs. */
+  for (int f = 1; f < nfuns; f++) {
+    c->funs[f].node = jc_add_const(NIL_NODEPTR);
+    c->funs[f].graph = jc_add_const(NIL_NODEPTR);
+  }
+  c->ngnodes = ngnodes;
+  c->gnodes = mmalloc((ngnodes ? ngnodes : 1) * sizeof(struct jg));
+  for (int i = 0; i < jg_n; i++)
+    if (gnew[i] >= 0) {
+      struct jg g = jg[i];
+      if (g.op == JG_APP) {
+        g.a = gnew[g.a];
+        g.b = gnew[g.b];
+      }
+      c->gnodes[gnew[i]] = g;
+    }
+  FREE(gnew);
+  FREE(jc_groot);
+  jc_groot = 0;
+  c->nconsts = jc_nconsts;
+  c->consts = mmalloc(jc_nconsts * sizeof(NODEPTR));
+  memcpy(c->consts, jc_consts, jc_nconsts * sizeof(NODEPTR));
+  c->terms = mmalloc(jc_nterms * sizeof(struct jterm));
+  memcpy(c->terms, jc_terms, jc_nterms * sizeof(struct jterm));
+  c->arms = mmalloc((jc_narms ? jc_narms : 1) * sizeof(struct jarm));
+  memcpy(c->arms, jc_arms, jc_narms * sizeof(struct jarm));
+  num_jit_lifted += nfuns - 1;
+  jl_free();
+  return c;
 }
 
 static bool
@@ -9316,7 +9869,8 @@ jit_on_stack(NODEPTR p)
  * takes arity arguments: the function the last dc_decompile made.  The node
  * is overwritten, so this cannot be done while it is on the stack, since
  * the interpreter reads the arguments from the nodes there; then it does
- * not get code (it is rare). */
+ * not get code (it is rare).  Nothing can be allocated in the heap here, so
+ * the nodes of the lifted functions are made when the code first runs. */
 static void
 jit_install(NODEPTR p, int arity)
 {
@@ -9324,28 +9878,52 @@ jit_install(NODEPTR p, int arity)
     num_jit_onstack++;
     return;
   }
-  struct jit *j = jc_compile(p, arity);
-  if (!j)
+  struct jcode *c = jc_compile(p, arity);
+  if (!c)
     return;
-  j->next = jit_root;
-  jit_root = j;
+  c->next = jit_root;
+  jit_root = c;
   set_DATA_TAG(p, T_JIT);
-  JIT(p) = j;
+  JIT(p) = &c->funs[0];
   num_jit_installed++;
 }
 
-/* After marking: free the code of the nodes that died. */
+/* Make the T_JIT nodes of the lifted functions, and their graphs. */
+static void
+jit_ready(struct jcode *c)
+{
+  GCCHECK((heapoffs_t)(c->nfuns + c->ngnodes));
+  NODEPTR *built = mmalloc((c->ngnodes ? c->ngnodes : 1) * sizeof(NODEPTR));
+  for (int i = 0; i < c->ngnodes; i++) {
+    struct jg *g = &c->gnodes[i];
+    built[i] = g->op == JG_LEAF ? c->consts[g->a] : new_ap(built[g->a], built[g->b]);
+  }
+  for (int f = 1; f < c->nfuns; f++) {
+    struct jit *j = &c->funs[f];
+    NODEPTR n = alloc_node(T_JIT);
+    JIT(n) = j;
+    c->consts[j->node] = n;
+    c->consts[j->graph] = built[j->gtree];
+  }
+  FREE(built);
+  FREE(c->gnodes);
+  c->gnodes = 0;
+  c->ngnodes = 0;
+  c->ready = true;
+}
+
+/* After marking: free the code whose nodes all died. */
 static void
 jit_gc(void)
 {
-  for (struct jit **jp = &jit_root; *jp; ) {
-    struct jit *j = *jp;
-    if (j->marked) {
-      j->marked = 0;
-      jp = &j->next;
+  for (struct jcode **cp = &jit_root; *cp; ) {
+    struct jcode *c = *cp;
+    if (c->marked) {
+      c->marked = 0;
+      cp = &c->next;
     } else {
-      *jp = j->next;
-      jit_free(j);
+      *cp = c->next;
+      jit_free(c);
       num_jit_freed++;
     }
   }
@@ -9353,7 +9931,9 @@ jit_gc(void)
 
 /*** Running the code ***/
 
-#define JSLOT(i) stack[fb + (i)]
+/* A slot in the frame of the function j, which starts at fb. */
+#define JSLOT(i) stack[fb + j->map[i]]
+#define JTERM(t) (&j->code->terms[t])
 
 static void jc_build(struct jit *j, stackptr_t fb, int t);
 
@@ -9372,11 +9952,33 @@ jc_letrec(struct jit *j, stackptr_t fb, struct jterm *x)
   POP(1);
 }
 
+/* Push the closure of a lifted term: its node applied to the free variables. */
+static void
+jc_closure(struct jit *j, stackptr_t fb, struct jterm *x)
+{
+  struct jcode *c = j->code;
+  if (x->fun < 0)
+    ERR("jc_closure: not lifted");
+  struct jit *h = &c->funs[x->fun];
+  PUSH(c->consts[h->node]);
+  for (int i = 0; i < h->nargs; i++) {
+    int u = c->args[h->args + i];
+    if (u < 0)
+      PUSH(combI);              /* a dummy */
+    else
+      jc_build(j, fb, u);
+    GCCHECK(1);
+    NODEPTR r = new_ap(TOP(1), TOP(0));
+    POP(2);
+    PUSH(r);
+  }
+}
+
 /* C: push the graph of term t. */
 static void
 jc_build(struct jit *j, stackptr_t fb, int t)
 {
-  struct jterm *x = &j->terms[t];
+  struct jterm *x = JTERM(t);
   if (x->memo >= 0 && !is_NIL(JSLOT(x->memo))) {
     PUSH(JSLOT(x->memo));
     return;
@@ -9386,7 +9988,7 @@ jc_build(struct jit *j, stackptr_t fb, int t)
     PUSH(JSLOT(x->a));
     break;
   case JT_CONST:
-    PUSH(j->consts[x->a]);
+    PUSH(j->code->consts[x->a]);
     break;
   case JT_APP:
     jc_build(j, fb, x->a);
@@ -9399,17 +10001,12 @@ jc_build(struct jit *j, stackptr_t fb, int t)
     }
     break;
   case JT_CASE:
-    if (x->e < 0)
-      ERR("jc_build: case without a graph");
-    jc_build(j, fb, x->e);
+  case JT_LAM:
+    jc_closure(j, fb, x);
     break;
   case JT_LETREC:
     jc_letrec(j, fb, x);
     jc_build(j, fb, x->c);
-    break;
-  case JT_GRAPH:
-  case JT_COLD:
-    jc_build(j, fb, x->a);
     break;
   }
   if (x->memo >= 0)
@@ -9449,7 +10046,7 @@ jc_case(struct jit *j, stackptr_t fb, struct jterm *x)
   if (d != nf)
     ERR("jc_case: wrong number of fields");
   for (int i = 0; i < x->c; i++) {
-    struct jarm *a = &j->arms[x->b + i];
+    struct jarm *a = &j->code->arms[x->b + i];
     if (a->k == k) {
       NODEPTR p = v;
       for (int f = nf - 1; f >= 0; f--) {
@@ -9471,7 +10068,7 @@ static void
 jc_eval(struct jit *j, stackptr_t fb, int t)
 {
   for (;;) {
-    struct jterm *x = &j->terms[t];
+    struct jterm *x = JTERM(t);
     if (x->memo < 0) {
       if (x->op == JT_CASE) {
         t = jc_case(j, fb, x);
@@ -9482,7 +10079,7 @@ jc_eval(struct jit *j, stackptr_t fb, int t)
         t = x->c;
         continue;
       }
-      if (x->op == JT_GRAPH) {  /* a function value */
+      if (x->op == JT_LAM) {    /* a function value */
         jc_build(j, fb, t);
         return;
       }
@@ -9576,35 +10173,55 @@ struct prim_res { NODEPTR n; enum prim_next next; };
 
 #if WANT_JIT
 /* Run the code of the T_JIT node n, which is at the head of the spine: the
- * R scheme.  With too few arguments, or when the C stack is deep (E calls
- * the interpreter recursively), run the original graph instead, i.e., a
- * copy of the node as it was: the graph may do reductions before it has all
- * the arguments, and they must be shared as before. */
+ * R scheme.  When the C stack is deep (E calls the interpreter
+ * recursively), run the original graph instead.  For the hot node that is a
+ * copy of the node as it was, which is also what runs with too few
+ * arguments: the graph may do reductions before it has all the arguments,
+ * and they must be shared as before.  For a lifted function it is its
+ * graph, and with too few arguments a closure is a value: it is a lambda
+ * that takes all its arguments at once. */
 static struct prim_res
 jit_enter(NODEPTR n, stackptr_t stk)
 {
   struct jit *j = JIT(n);
+  struct jcode *c = j->code;
   char here;
   bool deep = jit_cstack_base && (size_t)(jit_cstack_base - &here) > JIT_CSTACK_MAX;
-  if (!HASNARGS(j->arity) || deep) {
-    num_jit_fallback++;
-    if (deep)
+  if (j->node >= 0) {
+    if (!HASNARGS(j->arity))
+      return (struct prim_res){ n, PRIM_RET };
+    if (deep) {
+      num_jit_fallback++;
       num_jit_deep++;
-    GCCHECK(1);
-    return (struct prim_res){ new_ap(JIT_FUN(n), JIT_ARG(n)), PRIM_TOP };
+      return (struct prim_res){ c->consts[j->graph], PRIM_TOP };
+    }
+    num_jit_lifted_run++;
+  } else {
+    if (!HASNARGS(j->arity) || deep) {
+      num_jit_fallback++;
+      if (deep)
+        num_jit_deep++;
+      GCCHECK(1);
+      return (struct prim_res){ new_ap(JIT_FUN(n), JIT_ARG(n)), PRIM_TOP };
+    }
+    if (!c->ready)
+      jit_ready(c);
+    num_jit_run++;
   }
-  num_jit_run++;
-  /* The arguments are in the spine, x1 in TOP(0); the redex is TOP(arity-1). */
+  /* The arguments are in the spine, the first in TOP(0); the redex is
+   * TOP(arity-1).  They are the first slots of the frame. */
   stackptr_t top0 = stack_ptr;
   stackptr_t redex = top0 - (j->arity - 1);
   stackptr_t fb = stack_ptr + 1;
-  for (int i = 0; i < j->nslots; i++)
+  for (int i = 0; i < j->nlocal; i++)
     PUSH(NIL_NODEPTR);
   for (int i = 0; i < j->arity; i++)
-    JSLOT(i) = ARG(stack[top0 - i]);
+    stack[fb + i] = ARG(stack[top0 - i]);
   int t = j->root;
+  if (j->is_case)               /* the body is the case itself */
+    t = jc_case(j, fb, JTERM(t));
   for (;;) {
-    struct jterm *x = &j->terms[t];
+    struct jterm *x = JTERM(t);
     if (x->memo < 0) {
       if (x->op == JT_CASE) {
         t = jc_case(j, fb, x);

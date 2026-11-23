@@ -926,13 +926,13 @@ The copy is turned into a lambda expression by reducing the combinators symbolic
 * `Y f` becomes `let r = f r in r`.
 * A `case` combinator (`D_...` or `E_...`) with its scrutinee becomes a `case`. Each arm is applied to new variables for the fields; the number of fields comes from the atom, since it cannot be read from the arm after bracket abstraction.
 * Ticks are dropped. Primitives and references stay as they are.
-* Any other lambda, i.e., a combinator without all its arguments inside the body, is not decompiled. It is left as the graph it comes from, `graph(...)`, which the code will build, and the interpreter will run. That is the simplest thing for a first JIT; 18% of the functions in the compiler have such lambdas. The comment at the top of the decompiler lists ways to do better.
+* Any other lambda, i.e., a combinator without all its arguments inside the body, is eta expanded too, as far as the graph would reduce it when it gets arguments, and its body is what the graph does with them. A function value that takes its arguments in steps becomes a lambda per step. The code lambda lifts them (see below). The comment at the top of the decompiler lists ways to do better.
 
 Then the expression is simplified:
 * A `case` on a constructor with its fields becomes the arm, with the fields substituted for the variables.
-* A `case` on an application of a redex is cold: if the `case` had ever run, it would have evaluated the redex, and the redex would have been overwritten with its value. So it is left to the interpreter, as the graph it comes from (`cold@`).
+* A `case` on an application of a redex is cold: if the `case` had ever run, it would have evaluated the redex, and the redex would have been overwritten with its value. It is printed as just that (`cold@`), but compiled like any other `case`.
 
-Every term remembers the term it was derived from, and the terms made directly from the copy remember their node, so a cold `case` and a lambda can be traced back to the graph.
+Every term remembers the term it was derived from, and the terms made directly from the copy remember their node, so a cold `case` can be traced back to the graph.
 
 The limits, and why:
 * At most 100000 combinator reductions (`DC_FUEL`), as a guard: symbolic reduction can blow up.
@@ -947,30 +947,32 @@ For each hot node `mhs-extract.txt` has its address, when it got hot, the number
 * A reference is the reason the copy stopped, and the address of the node: `whnf@0x...`, `redex@0x...`, `cycle@0x...`, or `depth@0x...`.
 * A constructor is `C_k`; its number of fields is clear from the arguments.
 * A cold `case` is `cold@0x...(case S of ...)`, with the address of the graph it comes from.
-* A lambda inside the body is `graph(...)`, where the nodes of the copy are `copy@0x...`.
-* A last line says how many cold cases and lambdas are left to the interpreter, and how many of the copied nodes the rest of the code uses.
+* A last line says how many cold cases there are, which are not shown, and how many of the copied nodes the rest of the code uses.
 
 A function that is too small is reported as `too small: N reductions` instead.
 
 ### Installing code
 
-With `WANT_JIT` and `+RTS -j`, a hot node that was decompiled, and is not too small, gets code. The node, a partial application, is overwritten with a `T_JIT` node, whose payload points to a `struct jit` allocated with `malloc`. It holds the number of arguments the code takes, which is the number of parameters of the decompiled function, and a table of the nodes in the graph that the code refers to. The first two entries are the function and the argument of the node as it was, i.e., the original graph.
+With `WANT_JIT` and `+RTS -j`, a hot node that was decompiled, and is not too small, gets code. The node, a partial application, is overwritten with a `T_JIT` node, whose payload points to a `struct jit`, the function, with the number of arguments its code takes, the number of parameters of the decompiled function. The code can have more functions, the lifted ones (see below), each with a `T_JIT` node of its own. The functions made from one hot node share a `struct jcode`, allocated with `malloc`: the code, and a table of the nodes in the graph that the code refers to. The first two entries are the function and the argument of the node as it was, i.e., the original graph.
 
-* The garbage collector marks the table, and updates it like any other reference, so code must read the pointers from the table. When the `T_JIT` node dies, the collector frees its `struct jit`.
-* The serializer, and anything else that prints the graph, prints a `T_JIT` node as the node it was.
+* The garbage collector marks the table, and updates it like any other reference, so code must read the pointers from the table. When all the `T_JIT` nodes of a code have died, the collector frees it.
+* The serializer, and anything else that prints the graph, prints the `T_JIT` node of a hot node as the node it was, and that of a lifted function as its graph (see below). Serializing code is not expected to work in general, e.g., the graph of a lifted function can lead to a pointer, which cannot be serialized.
 * A node on the stack cannot be overwritten, since the evaluator reads the arguments of a reduction from the nodes on the stack.
-* The evaluator enters the code when it unwinds to a `T_JIT` node with as many arguments as the code takes. With fewer, it runs the original graph instead, i.e., a copy of the node as it was, since the original graph may do reductions before it has all its arguments, and they must be shared as before.
+* The evaluator enters the code when it unwinds to a `T_JIT` node with as many arguments as the code takes. With fewer, the hot node runs the original graph instead, i.e., a copy of the node as it was, since the original graph may do reductions before it has all its arguments, and they must be shared as before. A lifted function with fewer arguments is a value.
 
-There is no code generator yet: the code is the decompiled function itself, as a term, which the runtime runs with the compilation schemes of the G-machine (see `jit-plan.md`). The body is run with the R scheme: the result overwrites the redex, and the interpreter goes on with it. A `case` evaluates its scrutinee (the E scheme), which calls the interpreter, and picks the arm. Anything lazy is built as a graph (the C scheme); a lazy `case`, and a cold one, are built as the graph they come from. The variables of the function, and the terms it uses more than once, which are built once per call, are in a frame on the stack, so the garbage collector finds them. This is slow, but it checks the decompiler and the schemes against the interpreter.
+There is no code generator yet: the code is the decompiled function itself, as a term, which the runtime runs with the compilation schemes of the G-machine (see `jit-plan.md`). The body is run with the R scheme: the result overwrites the redex, and the interpreter goes on with it. A `case` evaluates its scrutinee (the E scheme), which calls the interpreter, and picks the arm. Anything lazy is built as a graph (the C scheme). This is slow, but it checks the decompiler and the schemes against the interpreter.
+
+A lambda, and a `case` that is built rather than run, i.e., a lazy `case`, is lambda lifted: it becomes a function of its own, and building it builds a closure, the `T_JIT` node of the function applied to the free variables of the term. The interpreter runs the code of the function when it evaluates the closure, or applies it to the arguments of the lambda. A free variable is a maximal subterm that uses none of the variables bound in the lifted term, as in fully lazy lambda lifting: it is built where the closure is, so it is built once, and shared, as in the graph, where bracket abstraction keeps such a subterm whole. So the code of a lifted term uses the same nodes as the code around it, e.g., for a call they both make. A lambda without free variables is just its `T_JIT` node.
+
+The variables of a function, and the terms it uses more than once, which are built once per call, are in a frame on the stack, so the garbage collector finds them. A frame has the slots its function uses, the arguments first. The variable of a recursive `let` is a black hole (`T_BH`) while its right hand side is built; evaluating it raises `NonTermination`.
 
 A node does not get code when:
 * it is on the stack (rare);
-* the root takes its parameters in several steps (the graph does a reduction before it has all of them), and the graph would build something that may be evaluated before the last step. The graph shares that between the calls of a partial application, while the code would build it in every call;
-* the graph of a lazy `case` and the code both have something with the same value, e.g., a call. The graph is made of the input of the decompiler, and the code of decompiled terms, so they would make two nodes for it, and maybe evaluate both, where the original graph has one. That can make the code exponentially slower. Sharing them needs a lazy `case` that runs code instead of being a graph.
+* the root takes its parameters in several steps (the graph does a reduction before it has all of them), and the graph would build something that may be evaluated before the last step. The graph shares that between the calls of a partial application, while the code would build it in every call.
 
-The code also runs the original graph when the C stack is deep (more than 1 MB), since the E scheme calls the interpreter recursively.
+When the C stack is deep (more than 1 MB), the original graph runs instead of the code, since the E scheme calls the interpreter recursively. For a lifted function that is its graph: the term it comes from, with its free variables abstracted, by bracket abstraction with `S`, `K`, `I`, `B`, `C`, and `Y` for a recursive `let`. The nodes of the lifted functions, and their graphs, are made when the code of the hot node first runs, since nothing can be allocated when a node gets hot.
 
-`+RTS -v` prints how many nodes got code and how many were freed, why the others did not, how many times code ran, and how many times the original graph ran instead.
+`+RTS -v` prints how many nodes got code, with how many lifted functions, and how many were freed, why the others did not, how many times code and lifted code ran, and how many times the original graph ran instead.
 
 ---
 
