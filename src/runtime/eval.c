@@ -7250,6 +7250,7 @@ struct dc_node {
   int jx;                       /* the entry of the extracted graph it is, or -1 */
   int from;                     /* the term it is derived from, or -1; see dc_graph_node */
   int gr;                       /* its graph form, or -1; see dc_graph_term */
+  int red;                      /* a redex: its reduct, or -1; see dc_go1 */
 };
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
@@ -7277,7 +7278,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1 };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1 };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7390,10 +7391,19 @@ static int dc_go(int e);
 static int
 dc_args(int f, int *args, int *apps, int n)
 {
+  /* An application of the input, apps[i], can be used in several places,
+   * e.g., a call that is applied to more arguments, so it always gets the
+   * same output, as dc_go does; otherwise the code would build it, and
+   * evaluate it, once per use. */
   for (int i = 0; i < n; i++) {
+    if (dc[apps[i]].dec >= 0) {
+      f = dc[apps[i]].dec;
+      continue;
+    }
     int a = dc_go(args[i]);
     dc_cur_from = apps[i];
     f = dc_app(f, a);
+    dc[apps[i]].dec = f;
   }
   return f;
 }
@@ -7525,6 +7535,15 @@ dc_go(int e)
   return dc[e].dec;
 }
 
+/*
+ * A redex in the graph can be shared, and applied to more arguments in
+ * several places.  The interpreter reduces it once, and overwrites it with
+ * the result, so the result is shared.  So the decompiler does the same: a
+ * redex term remembers its reduct (red), and every use of it gets the same
+ * one.  Otherwise every use would build the results again, e.g., a call
+ * that the graph makes once would be made once per use.  For a combinator
+ * the reduct is a term to reduce further; for Y and a case it is decompiled.
+ */
 static int
 dc_go1(int e)
 {
@@ -7538,34 +7557,44 @@ dc_go1(int e)
       enum node_tag t = get_VIRT_TAG(lf);
       int n = dc_comb_arity(t);
       if (n > 0) {
-        if (--dc_fuel <= 0)
-          longjmp(dc_fail, 5);
         if (na < n)
           return dc_function(e, n - na, top);
-        /* The result is derived from the redex, i.e., the application of the n:th argument. */
-        dc_cur_from = apps[n - 1];
-        int r = dc_rule(t, args);
-        e = dc_reapply(r, args + n, apps + n, na - n);
+        /* The redex is the application of the n:th argument. */
+        int rx = apps[n - 1];
+        if (dc[rx].red < 0) {
+          if (--dc_fuel <= 0)
+            longjmp(dc_fail, 5);
+          dc_cur_from = rx;     /* the result is derived from the redex */
+          dc[rx].red = dc_rule(t, args);
+        }
+        e = dc_reapply(dc[rx].red, args + n, apps + n, na - n);
         continue;
       }
       if (t == T_Y && na >= 1) {
         /* Y f = let r = f r in r */
-        int v = dc_nvars++;
-        dc_cur_from = apps[0];
-        int fr = dc_app(args[0], dc_var(v));
-        int b = dc_go(fr);
-        dc_cur_from = apps[0];
-        int vr = dc_var(v);
-        int l = dc_new(DC_LET, v, b, vr, 0, NIL_NODEPTR);
-        return dc_args(l, args + 1, apps + 1, na - 1);
+        int rx = apps[0];
+        if (dc[rx].red < 0) {
+          int v = dc_nvars++;
+          dc_cur_from = rx;
+          int fr = dc_app(args[0], dc_var(v));
+          int b = dc_go(fr);
+          dc_cur_from = rx;
+          int vr = dc_var(v);
+          dc[rx].red = dc_new(DC_LET, v, b, vr, 0, NIL_NODEPTR);
+        }
+        return dc_args(dc[rx].red, args + 1, apps + 1, na - 1);
       }
       if (t == V_CASED || t == V_CASES) {
         n = arity_virt(lf);
         if (na < n)
           return dc_function(e, n - na, top);
-        int c = t == V_CASED ? dc_dense(lf, args, apps[n - 1]) : dc_sparse(lf, args, apps[n - 1]);
-        dc[c].raw = dc_reapply(h, args, apps, n);  /* the case as it is in the graph */
-        return dc_args(c, args + n, apps + n, na - n);
+        int rx = apps[n - 1];
+        if (dc[rx].red < 0) {
+          int c = t == V_CASED ? dc_dense(lf, args, rx) : dc_sparse(lf, args, rx);
+          dc[c].raw = dc_reapply(h, args, apps, n);  /* the case as it is in the graph */
+          dc[rx].red = c;
+        }
+        return dc_args(dc[rx].red, args + n, apps + n, na - n);
       }
     } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
       e = dc_reapply(args[0], args + 1, apps + 1, na - 1);
