@@ -7264,6 +7264,8 @@ struct dc_node {
   int gr;                       /* its graph form, or -1; see dc_graph_term */
   int red;                      /* a redex: its reduct, or -1; see dc_go1 */
   bool eta;                     /* made by the eta expansion of the root */
+  int rap, raph;                /* an application rebuilt after a reduction: the new one, and
+                                 * its function; see dc_reapply_shared */
 };
 struct dc_arm { int k, n, var, body; }; /* C_k_n x_var ... x_{var+n-1} -> body */
 
@@ -7291,7 +7293,7 @@ dc_new(enum dc_kind k, int a, int b, int c, int d, NODEPTR leaf)
 {
   if (dc_n >= dc_max)
     longjmp(dc_fail, 1);
-  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1, false };
+  dc[dc_n] = (struct dc_node){ k, a, b, c, d, leaf, -1, -1, -1, 0, 0, 0, 0, 0, -1, dc_cur_from, -1, -1, false, -1, -1 };
   return dc_n++;
 }
 static int dc_app(int f, int a) { return dc_new(DC_APP, f, a, 0, 0, NIL_NODEPTR); }
@@ -7393,6 +7395,31 @@ dc_reapply(int f, int *args, int *apps, int n)
   for (int i = 0; i < n; i++) {
     dc_cur_from = apps[i];
     f = dc_app(f, args[i]);
+  }
+  return f;
+}
+
+/* The same after a reduction inside a spine: the result of the reduction, f,
+ * applied to the arguments above the redex.  An application of the graph can
+ * be in several spines, e.g., a call that is also applied to more arguments.
+ * The interpreter reduces the redex in place, so the spines share the
+ * application, and the call is made once.  So an application is rebuilt as
+ * the same term every time, and is decompiled once (see dc_args); otherwise
+ * every spine makes the call again, which can be exponential. */
+static int
+dc_reapply_shared(int f, int *args, int *apps, int n)
+{
+  for (int i = 0; i < n; i++) {
+    struct dc_node *x = &dc[apps[i]];
+    if (x->rap >= 0 && x->raph == f) {
+      f = x->rap;
+      continue;
+    }
+    int g = f;
+    dc_cur_from = apps[i];
+    f = dc_app(g, args[i]);
+    x->rap = f;
+    x->raph = g;
   }
   return f;
 }
@@ -7591,7 +7618,7 @@ dc_go1(int e)
           dc_cur_from = rx;     /* the result is derived from the redex */
           dc[rx].red = dc_rule(t, args);
         }
-        e = dc_reapply(dc[rx].red, args + n, apps + n, na - n);
+        e = dc_reapply_shared(dc[rx].red, args + n, apps + n, na - n);
         continue;
       }
       if (t == T_Y && na >= 1) {
@@ -7621,7 +7648,7 @@ dc_go1(int e)
         return dc_args(dc[rx].red, args + n, apps + n, na - n);
       }
     } else if (dc[h].kind == DC_LEAF && get_DATA_TAG(FUN(dc[h].leaf)) == D_TICK && na >= 1) {
-      e = dc_reapply(args[0], args + 1, apps + 1, na - 1);
+      e = dc_reapply_shared(args[0], args + 1, apps + 1, na - 1);
       continue;
     }
     return dc_args(h, args, apps, na);

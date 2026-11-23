@@ -920,7 +920,7 @@ The limits, and why:
 
 ### Recreating the lambdas
 
-The copy is turned into a lambda expression by reducing the combinators symbolically, with the rules of `Mhs.Reflect`. Each term is decompiled once, so the result is a graph with the sharing of the original. That includes a redex, or a call, that is used in several places and applied to different arguments: the interpreter reduces it once and overwrites it, so the decompiler reduces it once too, and every use gets the same term.
+The copy is turned into a lambda expression by reducing the combinators symbolically, with the rules of `Mhs.Reflect`. Each term is decompiled once, so the result is a graph with the sharing of the original. That includes a redex, or a call, that is used in several places and applied to different arguments: the interpreter reduces it once and overwrites it, so the decompiler reduces it once too, and every use gets the same term. Likewise for the applications above a redex in a spine: they are rebuilt as the same terms every time, so a call that is also applied to more arguments is decompiled, and made, once.
 * The root is a partial application, so it is applied to new variables until it has all the arguments it needs, i.e., it is eta expanded. These variables are the parameters, and the result is printed as `self x1 ... xn = body`.
 * A combinator with all its arguments is reduced by its rule, e.g., `S x y z` becomes `x z (y z)`.
 * `Y f` becomes `let r = f r in r`.
