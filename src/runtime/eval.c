@@ -7592,6 +7592,11 @@ dc_function(int e, int k, bool top)
     dc_top = true;              /* for the body */
     int r = dc_eta(e, k);
     dc_top = false;
+    if (dc_nstages > 1) {
+      /* A later stage: the code may take it as a lambda (see jc_compile). */
+      dc[r].c = k;
+      dc[r].raw = e;
+    }
     return r;
   }
   int r = dc_eta(e, k);
@@ -8885,7 +8890,7 @@ jx_gc(void)
 }
 
 #if WANT_JIT
-static counter_t num_jit_installed, num_jit_onstack, num_jit_sharing, num_jit_nocode;
+static counter_t num_jit_installed, num_jit_onstack, num_jit_staged, num_jit_nocode;
 static counter_t num_jit_run, num_jit_fallback, num_jit_deep, num_jit_freed;
 static counter_t num_jit_lifted, num_jit_lifted_run;
 #endif
@@ -8905,8 +8910,8 @@ jx_report(void)
   }
 #if WANT_JIT
   if (jit_on && verbose) {
-    fprintf(stderr, "jit: %"PRIcounter" nodes got code, with %"PRIcounter" lifted functions, %"PRIcounter" freed; no code for %"PRIcounter" on the stack, %"PRIcounter" losing sharing, %"PRIcounter" that cannot be compiled\n",
-            num_jit_installed, num_jit_lifted, num_jit_freed, num_jit_onstack, num_jit_sharing, num_jit_nocode);
+    fprintf(stderr, "jit: %"PRIcounter" nodes got code (%"PRIcounter" taking the first stage of parameters), with %"PRIcounter" lifted functions, %"PRIcounter" freed; no code for %"PRIcounter" on the stack, %"PRIcounter" that cannot be compiled\n",
+            num_jit_installed, num_jit_staged, num_jit_lifted, num_jit_freed, num_jit_onstack, num_jit_nocode);
     fprintf(stderr, "jit: %"PRIcounter" runs of code, %"PRIcounter" of lifted code, %"PRIcounter" of the original graph (%"PRIcounter" since the C stack was deep)\n",
             num_jit_run, num_jit_lifted_run, num_jit_fallback, num_jit_deep);
   }
@@ -9176,6 +9181,9 @@ jc_stage_of(int t)
   jc_stage[t] = s;
   return s;
 }
+
+/* Set when taking all the parameters at once would lose sharing. */
+static bool jc_staged;
 
 /* Taking all the parameters at once loses sharing if the graph would build
  * a term that may be evaluated, i.e., an application that is not a
@@ -9679,6 +9687,7 @@ jc_compile(NODEPTR self, int arity)
   jc_nterms = jc_narms = jc_nconsts = jc_nslots = 0;
   jg_n = 0;
   jc_self = self;
+  jc_staged = false;
   FREE(jc_memo); FREE(jc_var);
   jc_memo = mmalloc(dc_n * sizeof(int));
   jc_var = mmalloc((dc_nvars + 1) * sizeof(int));
@@ -9707,11 +9716,18 @@ jc_compile(NODEPTR self, int arity)
   jc_stage = mmalloc(jc_nterms * sizeof(int));
   for (int t = 0; t < jc_nterms; t++) jc_stage[t] = -1;
   jc_slot_stage = mcalloc(jc_nslots + 1, sizeof(int));
-  for (int s = 0, i = 0; s < dc_nstages; s++)
+  int nst = 0;                  /* the stages the parameters cover */
+  for (int s = 0, i = 0; s < dc_nstages && i < arity; s++, nst++)
     for (int k = 0; k < dc_stage_size[s] && i < arity; k++)
       jc_slot_stage[i++] = s + 1;
-  if (jc_loses_sharing(root, dc_nstages)) {
-    num_jit_sharing++;
+  /* Then the code takes the parameters of the first stage only (see
+   * jit_install), and the rest of the stages are lambdas in its body, which
+   * are lifted.  The free variables of a lifted function are the maximal
+   * free subterms, so what the graph builds before the last stage is built
+   * once, when the closure is made, and shared by its calls, as in the
+   * graph; and the closure runs code. */
+  if (jc_loses_sharing(root, nst)) {
+    jc_staged = true;
     return 0;
   }
 
@@ -9901,8 +9917,16 @@ jit_install(NODEPTR p, int arity)
     return;
   }
   struct jcode *c = jc_compile(p, arity);
-  if (!c)
+  if (!c && jc_staged && dc_stage_size[0] < arity) {
+    c = jc_compile(p, dc_stage_size[0]);
+    if (c)
+      num_jit_staged++;
+  }
+  if (!c) {
+    if (jc_staged)
+      num_jit_nocode++;
     return;
+  }
   c->next = jit_root;
   jit_root = c;
   set_DATA_TAG(p, T_JIT);
