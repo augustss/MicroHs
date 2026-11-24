@@ -13,3 +13,6 @@ trace msg a = _primitive "IO.performIO" (
 
 traceM :: forall m . Monad m => String -> m ()
 traceM s = trace s (return ())
+
+traceShow :: forall a r. Show a => a -> r -> r
+traceShow a = trace (show a)
