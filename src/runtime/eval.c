@@ -4285,14 +4285,17 @@ gc(void)
 
   /* check for unmarked weak pointers */
   sweep_weaks();
+#if WANT_SAMPLE
+  /* Before prof_pin, which keeps the unreachable loaded nodes but not what
+   * they point to, e.g., their compiled code, which jit_gc frees.  The
+   * sampler must forget them, or its report would dump such a node. */
+  sample_gc();
+#endif
 #if WANT_PROFILE
   prof_hot_gc();                /* before prof_pin, to see which loaded nodes are unreachable */
   prof_pin();
 #endif
 
-#if WANT_SAMPLE
-  sample_gc();
-#endif
 #if WANT_JIT
   jit_gc();
 #endif
