@@ -20,8 +20,10 @@ import Data.Word.Word8(Word8)
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import Mhs.Builtin
 
 newtype MutSTUArr s a = MutSTUArr (MutIOUArr a)
+  deriving (Eq)
 
 newMutSTUArrB :: forall s a . (Storable a) => Word8 -> Int -> ST s (MutSTUArr s a)
 newMutSTUArrB b n = ST $ MutSTUArr <$> newMutIOUArrB b n
@@ -36,6 +38,9 @@ unsafeWriteMutSTUArr :: (Storable a) => MutSTUArr s a -> Int -> a -> ST s ()
 unsafeWriteMutSTUArr (MutSTUArr bs) i a = ST $ unsafeWriteMutIOUArr bs i a
 
 newtype MutIOUArr a = MutIOUArr ByteString
+
+instance Eq (MutIOUArr a) where
+  MutIOUArr a == MutIOUArr b  =  primBSsame a b
 
 newMutIOUArrB :: forall a . (Storable a) => Word8 -> Int -> IO (MutIOUArr a)
 newMutIOUArrB b n = return (MutIOUArr (primBSreplicate (n * sizeOf (undefined :: a)) b))

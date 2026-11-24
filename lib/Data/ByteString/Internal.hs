@@ -59,6 +59,11 @@ primPackCStringLen = _primitive "packCStringLen"
 primBS2FPtr :: ByteString -> ForeignPtr CChar
 primBS2FPtr = _primitive "bs2fp"
 
+-- Are two bytestrings the identical object?
+primBSsame :: ByteString -> ByteString -> Bool
+primBSsame a b =
+  primPtrToWord (primForeignPtrToPtr (primBS2FPtr a)) `primWordEQ` primPtrToWord (primForeignPtrToPtr (primBS2FPtr b))
+
 -- Warning: This function modifies the `ForeignPtr`,
 -- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
 primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
