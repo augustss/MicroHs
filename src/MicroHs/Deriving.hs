@@ -37,7 +37,7 @@ deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of argu
     DerStock                      -> deriveNoHdr mctx narg lhs cs  cls
     DerNewtype | newt             -> newtypeDer  mctx narg lhs  c acls =<< getVia narg lhs c
     DerAnyClass                   -> anyclassDer mctx narg lhs     cls
-    DerVia via | newt             -> newtypeDer  mctx narg lhs  c acls via
+    DerVia via                    -> newtypeDer  mctx narg lhs  c acls via
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic", "GHC.Generics.Generic1",
