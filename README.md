@@ -45,4 +45,6 @@ Running `mhs` with no arguments starts an interactive session.
 
 The full documentation is in [`doc/MicroHs.md`](doc/MicroHs.md).
 
+There are some [slides](https://augustss.github.io/miso-slides/) with a general presentation of MicroHs.
+
 There is also a [presentation from the Haskell Symposium 2024](https://docs.google.com/presentation/d/1WsSiSwypNVTm0oZ3spRYF8gA59wyteOsIkPRjCUAZec/edit?usp=sharing) ([video](https://m.youtube.com/watch?v=uMurx1a6Zck&t=36m)) and a short paper, [`doc/hs2024.pdf`](doc/hs2024.pdf).

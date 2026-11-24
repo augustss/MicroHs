@@ -241,8 +241,8 @@ combinator reductions.
 ### Code generation schemes
 
 (2026-11-22.) The input is a decompiled function, `self x1 ... xn = body`,
-as printed in `mhs-extract.txt`. Only the root's lambdas are decompiled, so
-the body has no lambdas. It is built from:
+as printed in `mhs-extract.txt`. (2026-11-23: lambdas inside the body are
+decompiled too, and lambda lifted, see C below.) It is built from:
 
 * variables: the parameters, the fields bound by `case` arms, and the
   variables bound by `let`;
@@ -253,9 +253,9 @@ the body has no lambdas. It is built from:
 * `case`, with arms for some of the constructors, and maybe a default;
 * `let`, of two kinds: the recursive binding that `Y` becomes, and the
   bindings of shared terms (`sN`), which are not recursive;
-* graph to build: a lambda inside the code (`graph(...)`) and a cold `case`
-  (`cold@`). Their contents are combinator terms over the variables and
-  nodes in the heap (`copy@`), i.e., what the interpreter would have built.
+* lambdas, one per step of arguments that the graph takes;
+* a cold `case` (`cold@`), which is compiled like any other `case`. (It
+  used to be left as the graph it comes from, see C below.)
 
 As in the G-machine (Johnsson, "Efficient compilation of lazy evaluation",
 1984), code comes from a few compilation schemes. Each takes a term, and an
@@ -310,7 +310,7 @@ jump, and R's exits are jumps to `evali`'s labels.
 * `let`: C of the shared term into a variable, then R of the body. The
   recursive `let x = e in b`: allocate a cell for `x`, C[e] with `x` bound
   to that cell, fill the cell in, then R[b].
-* `graph(...)` and `cold@(...)`: C of the contents, then as a variable.
+* A lambda: C of it (a closure, see C), then as a variable.
 
 **E[e]:**
 
@@ -325,7 +325,7 @@ jump, and R's exits are jumps to `evali`'s labels.
   `evali`. A direct call that builds nothing needs a second entry (see
   below).
 * A value (a constructor with its fields, a partial application, a literal,
-  `graph(...)`): C of it.
+  a lambda): C of it.
 * A strict primitive: E (later B) of the arguments, then the operation.
 * `case`: E of the scrutinee and of each arm; the arms meet after the
   `case`, with the value in a register.
@@ -338,17 +338,24 @@ jump, and R's exits are jumps to `evali`'s labels.
   reference: the node's address, from the constants of the code, which the
   GC traces. `self`: the function node.
 * An application: C of the parts, and a new cell per application.
-* `case`, which has no graph of its own: the graph it comes from, i.e., its
-  `D_` or `E_` application with the arms as combinator code, which the
-  decompiler keeps (`raw`). The same for a cold `case`. `graph(...)` is a
-  graph already.
+* `case`, which has no graph of its own, and a lambda: a closure. The term
+  is lambda lifted, i.e., compiled as a function of its own, and C builds
+  that function's node applied to the free variables of the term. A free
+  variable is a maximal subterm that uses none of the variables bound in
+  the term (fully lazy lambda lifting); it is built here, so it is shared
+  as in the graph, where bracket abstraction keeps such a subterm whole.
+  (2026-11-23.) This replaced building the graph a `case` comes from, its
+  `D_` or `E_` application with the arms as combinator code (`raw`), and a
+  lambda as its graph: those are made of the input of the decompiler, not of
+  the decompiled terms, so the graph and the code each built, and maybe
+  evaluated, their own node for a call they both have, which could be
+  exponentially slower. The graph is still kept: with the free variables
+  abstracted, it is what a lifted function falls back to.
 * The recursive `let`: as in R. A shared term: the variable it is bound to.
 
 So C builds what the combinators would have built, but with straight-line
-code instead of reductions. A later improvement is a thunk that points to
-compiled code, e.g., a lazy `case` compiled as a function of its free
-variables and applied to them, i.e., the lambda lifting that the comment at
-the top of the decompiler lists.
+code instead of reductions, and a lazy `case` or a lambda is a thunk or a
+function value whose code is compiled.
 
 **Which scheme where.** R for the body, and for the arms of a `case` and
 the body of a `let` that are in tail position. E for the scrutinee of a
@@ -399,9 +406,9 @@ return unboxed results, this is the unboxed worker of `nfib` measured above.
   compiled too. With the jump-based interface that costs about one
   reduction's dispatch; a call of a known compiled function could jump to
   it directly.
-* How much C costs compared with the combinators. A lazy `case` rebuilt
-  from `raw` may need more cells than the combinators, which build the
-  branches lazily; the counts from the decompiler can tell.
+* How much C costs compared with the combinators. A closure takes a cell
+  per free variable, and a free variable may be a subterm the combinators
+  would not have built until later; the counts can tell.
 
 ### The interface to `evali`
 
@@ -465,9 +472,9 @@ native code:
 * **References to the graph from the code.** Every node the code refers
   to goes in a table that the `T_JIT` node points to, and the GC marks the
   table, as it marks the elements of an array. That is the references
-  (`whnf@`, `redex@`, `cycle@`, `depth@`), `self`, the nodes in the graphs
-  the code builds (`copy@`, and the graph a lazy or cold `case` comes from),
-  and the original graph, for falling back. The code must load these
+  (`whnf@`, `redex@`, `cycle@`, `depth@`), `self`, the nodes of the lifted
+  functions, and the original graph and the graphs of the lifted functions,
+  for falling back. The code must load these
   pointers from the table every time, never have them as immediates in the
   instructions: marking short-circuits a reference to an indirection and
   frees the indirection, and the first GCs after loading rewrite the graph,

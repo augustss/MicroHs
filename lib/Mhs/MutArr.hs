@@ -1,12 +1,15 @@
 -- Temporary module
 module Mhs.MutArr(module Mhs.MutArr, MutIOArr) where
 import qualified Prelude(); import MiniPrelude              -- do not import Prelude
-import Primitives(Int, IO, IOArray, primArrAlloc, primArrSize, primArrRead, primArrWrite, primArrCopy, primArrTrunc)
+import Primitives(Int, IO, IOArray, primArrAlloc, primArrSize, primArrRead, primArrWrite, primArrCopy, primArrTrunc, primArrEQ)
 import Control.Monad.ST_Type
 import Mhs.Builtin
 
 -- primitive IOArray
 type MutIOArr a = IOArray a
+
+instance Eq (IOArray a) where
+  (==) = primArrEQ
 
 newMutIOArr :: forall a . Int -> a -> IO (MutIOArr a)
 newMutIOArr = primArrAlloc
@@ -29,6 +32,7 @@ shrinkMutIOArr = primArrTrunc
 ----------------
 
 newtype MutSTArr s a = MutSTArr (MutIOArr a)
+  deriving (Eq)
 
 newMutSTArr :: forall s a . Int -> a -> ST s (MutSTArr s a)
 newMutSTArr n a = ST $ MutSTArr <$> newMutIOArr n a
