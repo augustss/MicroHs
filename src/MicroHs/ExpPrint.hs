@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl, renumberCMdlM) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl, renumberCMdlNames, renumberCMdlM) where
 import qualified Prelude(); import MHSPrelude
 import qualified Data.ByteString.Char8 as BS
 import Data.Char(ord, chr)
@@ -39,16 +39,28 @@ removeUnused (ds, emain) = dfs roots M.empty
                                   where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
 renumberCMdl :: CMdl -> (ForExpTable, CMdl)
-renumberCMdl (ds, emain) =
+renumberCMdl cmdl =
+  let (fexps, cmdl', _) = renumberCMdlNames cmdl
+  in  (fexps, cmdl')
+
+-- As renumberCMdl, but also return the label (a number) of each definition,
+-- together with its original name.
+renumberCMdlNames :: CMdl -> (ForExpTable, CMdl, [(String, Ident)])
+renumberCMdlNames (ds, emain) =
   let fexps = [ (i, t, js) | (i, e) <- ds, Just (js, _, t) <- [getForExp e] ]
       dMap = M.fromList $ checkDupInstances ds
-  in  renumberCMdlM fexps dMap emain
+  in  renumberCMdlMNames fexps dMap emain
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- This is the "linking" of the program.
 -- Returns the renamed foreign exports and the "linked" CNdl
 renumberCMdlM :: [(Ident, CType, IsJavascript)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl)
 renumberCMdlM fexps dMap emain =
+  let (fexps', cmdl, _) = renumberCMdlMNames fexps dMap emain
+  in  (fexps', cmdl)
+
+renumberCMdlMNames :: [(Ident, CType, IsJavascript)] -> M.Map Exp -> Exp -> (ForExpTable, CMdl, [(String, Ident)])
+renumberCMdlMNames fexps dMap emain =
   let
     roots = freeVars emain ++ [ i | (i, _, _) <- fexps ]
     -- Shake the tree bottom-up, renaming identifiers as we go along.
@@ -80,8 +92,10 @@ renumberCMdlM fexps dMap emain =
     fexps' = [ (unVar (findIdent i), i, t, js) | (i, t, js) <- fexps ]
       where unVar (Var n) = n
             unVar _ = undefined
+    -- The label of each definition (the number after the _), and its name.
+    names = [ (drop 1 (showIdent l), n) | (n, Var l) <- M.toList defs ]
   in
-    (fexps', (res, substv emain))
+    (fexps', (res, substv emain), names)
 
 -- The argument is all definitions and the main expression.
 -- The result is the program as a string.

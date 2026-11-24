@@ -8,20 +8,25 @@
 -- case combinators (D_a0_..._a{m-1} and E_k1_n1_..._km_nm) become constructors
 -- and case expressions.  The number of fields of each arm comes from the
 -- arities in the case combinator.
+-- The definitions are named by their labels, or by their names when the
+-- file has them (mhs -oFILE.combffi).
 module Mhs.Reflect(
   Ident, Exp(..), Literal(..), Pat(..), Prog(..),
-  reflect, reflectCombinators,
+  reflect, reflectCombinators, hReflect,
   parseCombinators, decompile,
   ppProg, ppExp,
   ) where
 import Control.Monad
-import Data.ByteString.Char8(unpack, pack, ByteString)
+import Data.ByteString.Char8(unpack, pack, ByteString, hGetContents)
 import Data.Char(isAlphaNum, isDigit, isSpace, chr, ord)
 import Data.Int(Int64)
-import Data.List(stripPrefix)
+import Data.List(isSuffixOf, stripPrefix)
 import qualified Data.Text as T
 import Data.Text.Encoding(decodeUtf8)
+import Foreign.Ptr(Ptr)
 import Mhs.Array(accumArray, (!))
+import System.IO(Handle, hLookAhead, hGetChar)
+import System.IO.Internal(BFILE, addTransducer)
 import System.IO.Serialize(writeSerializedBS)
 
 type Ident = String
@@ -66,6 +71,25 @@ reflect a = decompile <$> reflectCombinators a
 reflectCombinators :: a -> IO Prog
 reflectCombinators a = parseCombinators . unpack <$> writeSerializedBS a
 
+foreign import ccall "add_lzma_decompressor" c_add_lzma_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
+
+-- | Read a serialized value, e.g., a combinator file written by mhs or a
+-- file written by writeSerialized, and turn it into an expression.
+-- A .combffi file written by mhs has the names of the definitions,
+-- and then they are used instead of the labels.
+-- The file may be compressed (mhs -z, or writeSerializedCompressed).
+-- Open the file with openBinaryFile, since it may contain bytes that
+-- are not UTF-8.  The handle is closed.
+hReflect :: Handle -> IO Prog
+hReflect h = do
+  c <- hLookAhead h
+  h' <- if c == 'z' || c == 'q' then do        -- compressed?
+          _ <- hGetChar h
+          addTransducer c_add_lzma_decompressor h
+        else
+          return h
+  decompile . parseCombinators . unpack <$> hGetContents h'
+
 -----------------------------------------------------------------------------
 -- Parsing the combinator file format
 
@@ -73,21 +97,25 @@ reflectCombinators a = parseCombinators . unpack <$> writeSerializedBS a
 combVersion :: String
 combVersion = "v9.3"
 
--- | Parse a serialized value, including the header.
+-- | Parse a serialized value, including the header, and the names
+-- of the definitions, if present.
 parseCombinators :: String -> Prog
 parseCombinators s =
   case stripPrefix (combVersion ++ "\n") s of
-    Just r | (n@(_:_), '\n':r') <- span isDigit r, all isDigit n -> renameLabels (parseGraph r')
+    Just r | (n@(_:_), '\n':r') <- span isDigit r, all isDigit n ->
+      case parseGraph r' of
+        (Prog defs e, rest) -> renameLabels (parseNames rest) (Prog defs (dropAs e))
     _ -> error $ "Mhs.Reflect: unsupported combinator file format: " ++ show (takeWhile (/= '\n') s)
 
-parseGraph :: String -> Prog
+-- Parse the graph, and return what follows it.
+parseGraph :: String -> (Prog, String)
 parseGraph = p [] []
   where
-    p :: [(Ident, Exp)] -> [Exp] -> String -> Prog
+    p :: [(Ident, Exp)] -> [Exp] -> String -> (Prog, String)
     p defs stk (' ':s) = p defs stk s
     p defs stk ('\n':s) = p defs stk s
     p defs (x:f:stk) ('@':s) = p defs (App f x : stk) s
-    p defs [e] ('}':_) = Prog (reverse defs) e
+    p defs [e] ('}':s) = (Prog (reverse defs) e, s)
     p defs stk ('#':'#':s) = lit (LInt64 . read) defs stk s
     p defs stk ('#':s) = lit (LInt . read) defs stk s
     p defs stk ('&':'&':s) = lit (LFloat . read) defs stk s
@@ -118,22 +146,47 @@ parseGraph = p [] []
     p defs stk s@(_:_) = case tok s of (c, r) -> p defs (atom c : stk) r
     p _ _ s = perr s
 
-    lit :: (String -> Literal) -> [(Ident, Exp)] -> [Exp] -> String -> Prog
+    lit :: (String -> Literal) -> [(Ident, Exp)] -> [Exp] -> String -> (Prog, String)
     lit con defs stk s =
       case tok s of (sn, r) -> p defs (Lit (con sn) : stk) r
 
     tok = break isSpace
     perr s = error $ "Mhs.Reflect: parse error at " ++ show (take 20 s)
 
--- The label numbers depend on heap addresses, so they differ between runs.
--- Rename the labels to _1, _2, ... in the order they are defined, which only
--- depends on the shape of the graph.
-renameLabels :: Prog -> Prog
-renameLabels (Prog defs e) = Prog [ (ren i, sub d) | (i, d) <- defs ] (sub e)
+-- In a file written by mhs the graph ends with A d1 (A d2 (... (A dn e))),
+-- where the di are the definitions.  Since A x y = y, that is just e.
+dropAs :: Exp -> Exp
+dropAs (App (App (Lit (LPrim "A")) _) e) = dropAs e
+dropAs e = e
+
+-- The names of the definitions, which mhs puts last in a .combffi file,
+-- after the foreign imports:
+--   #####Names
+--   label name
+--   ...
+parseNames :: String -> [(Int, Ident)]
+parseNames s =
+  case dropWhile (/= "#####Names") (lines s) of
+    _ : lns -> names lns
+    [] -> []
+  where
+    names (ln : lns) | (l@(_:_), ' ':n@(_:_)) <- span isDigit ln = (read l, n) : names lns
+    names _ = []
+
+-- A label that has a name is renamed to it.
+-- The label numbers of a serialized value depend on heap addresses, so they
+-- differ between runs.  Rename the other labels to _1, _2, ... in the order
+-- they are defined, which only depends on the shape of the graph.
+renameLabels :: [(Int, Ident)] -> Prog -> Prog
+renameLabels names (Prog defs e) = Prog [ (ren i, sub d) | (i, d) <- defs ] (sub e)
   where
     nums = [ read l | ('_':l, _) <- defs ] :: [Int]
-    tbl = accumArray (\ _ x -> x) 0 (0, maximum (0 : nums)) (zip nums [1 :: Int ..])
-    ren ('_':l) = '_' : show (tbl ! read l)
+    top = maximum (0 : nums)
+    tbl = accumArray (\ _ x -> x) 0 (0, top) (zip nums [1 :: Int ..])
+    named = accumArray (\ _ x -> Just x) Nothing (0, top) [ ln | ln@(l, _) <- names, l <= top ]
+    ren ('_':l) | Just n <- named ! k = n
+                | otherwise = '_' : show (tbl ! k)
+                where k = read l
     ren i = i
     sub (Var i) = Var (ren i)
     sub (App f a) = App (sub f) (sub a)
@@ -321,14 +374,14 @@ dec = go
 ppProg :: Prog -> String
 ppProg (Prog [] b) = ppExp b
 ppProg (Prog ies b) = unlines $
-  ["let"] ++ map (\ (i, e) -> "  " ++ i ++ " = " ++ ppExp e) ies ++ ["in  " ++ ppExp b]
+  ["let"] ++ map (\ (i, e) -> "  " ++ ppIdent i "" ++ " = " ++ ppExp e) ies ++ ["in  " ++ ppExp b]
 
 ppExp :: Exp -> String
 ppExp e = pp 0 e ""
 
 -- Precedence: 0 anywhere, 1 function in an application, 2 argument.
 pp :: Int -> Exp -> ShowS
-pp _ (Var i) = showString i
+pp _ (Var i) = ppIdent i
 pp p (Lit l) = ppLit p l
 pp _ (Con k n) = showString ("C_" ++ show k ++ "_" ++ show n)
 pp _ (Array es) = showString "[|" . commas (map (pp 0) es) . showString "|]"
@@ -345,7 +398,7 @@ pp p (Case s arms md) = paren (p > 0) $
           foldr (\ v r -> showString " " . showString (if v `occursIn` b then v else "_") . r) id vs .
           showString " -> " . pp 0 b
 pp p (Let bs b) = paren (p > 0) $
-  showString "let { " . semis (map (\ (i, e) -> showString i . showString " = " . pp 0 e) bs) .
+  showString "let { " . semis (map (\ (i, e) -> ppIdent i . showString " = " . pp 0 e) bs) .
   showString " } in " . pp 0 b
 
 ppLit :: Int -> Literal -> ShowS
@@ -365,9 +418,14 @@ ppLit p l =
   where num :: (Show a) => a -> ShowS
         num x = let s = show x in paren (p > 1 && take 1 s == "-") (showString s)
 
+-- A variable, which can be the name of a definition, e.g., Data.List.++
+ppIdent :: Ident -> ShowS
+ppIdent i = paren (isOper i) (showString i)
+
 -- Operators, e.g., + and IO.>>=, are printed in parentheses.
+-- A name that ends with a dot is the operator ., e.g., Data.Function..
 isOper :: String -> Bool
-isOper = not . all (\ c -> isAlphaNum c || c == '_' || c == '\'' || c == '.')
+isOper s = not (all (\ c -> isAlphaNum c || c == '_' || c == '\'' || c == '.') s) || "." `isSuffixOf` s
 
 lams :: Exp -> ([Ident], Exp)
 lams (Lam v e) = case lams e of (vs, b) -> (v:vs, b)
