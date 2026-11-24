@@ -7836,6 +7836,20 @@ ev_new_ap(NODEPTR f, NODEPTR a, struct node **bpp, struct node **bep, counter_t 
 #define GCCHECK(k) do { if (!((k) < num_free)) { EV_SAVE(); gc(); EV_LOAD(); } } while(0)
 #define EV_RAISE(e) do { EV_SAVE(); raise_rts(e); } while(0)
 
+#if defined(__EMSCRIPTEN__)
+/* With -sWASM=0 (JavaScript only) binaryen inlines evalprimop and evalprimret,
+ * which have a single caller each, into evali in spite of NOINLINE.  V8 does not
+ * optimize the result ("Function is too big to be optimized"), so all of evali
+ * runs slowly.  A call through a volatile pointer cannot be inlined. */
+static struct prim_res (* volatile evalprimop_p)(NODEPTR, enum node_tag, stackptr_t) = evalprimop;
+static struct prim_res (* volatile evalprimret_p)(NODEPTR, enum node_tag) = evalprimret;
+#define EVALPRIMOP evalprimop_p
+#define EVALPRIMRET evalprimret_p
+#else
+#define EVALPRIMOP evalprimop
+#define EVALPRIMRET evalprimret
+#endif
+
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
 evali(NODEPTR an)
@@ -8205,7 +8219,7 @@ evali(NODEPTR an)
     {
       /* Every other primitive */
       EV_SAVE();
-      struct prim_res pr = evalprimop(n, tag, stk);
+      struct prim_res pr = EVALPRIMOP(n, tag, stk);
       EV_LOAD();
       n = pr.n;
       if (pr.next == PRIM_TOP)
@@ -8360,7 +8374,7 @@ evali(NODEPTR an)
     case T_BINBS1:
       {
         EV_SAVE();
-        struct prim_res pr = evalprimret(n, tag);
+        struct prim_res pr = EVALPRIMRET(n, tag);
         EV_LOAD();
         n = pr.n;
         if (pr.next == PRIM_TOP)
