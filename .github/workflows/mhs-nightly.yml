@@ -79,6 +79,7 @@ jobs:
   build-linux-misc:
     runs-on: ubuntu-22.04          # traditional sudo
     strategy:
+      fail-fast: false             # one arch failing must not cancel the others
       matrix:
         arch:
           - aarch64
@@ -109,6 +110,7 @@ jobs:
 
   build-emscripten:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}

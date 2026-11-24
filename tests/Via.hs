@@ -39,6 +39,16 @@ euroSign = U 0x20ac
 
 -------
 
+newtype Hidden a = Hidden a
+
+instance Show (Hidden a) where
+  show _ = "<hidden>"
+
+data Password = Password String
+  deriving Show via Hidden Password
+
+-------
+
 class SPretty a where
   sPpr :: a -> String
   default sPpr :: Show a => a -> String
@@ -186,5 +196,7 @@ main = do
       neg :: Predicate Int
       neg = contramap negate pos
   print $ getPredicate neg (-5)
+
+  print $ Password "secret"
 
   putStrLn "done"

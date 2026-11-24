@@ -2,6 +2,8 @@
 
 MicroHs (`mhs`) is a compiler for an extended subset of Haskell. It compiles Haskell to combinators, which are then executed by a small runtime system written in C. The compiler is written in MicroHs and can compile itself. All you need to build and run MicroHs is a C compiler.
 
+There are some [slides](https://augustss.github.io/miso-slides/) with a general presentation of MicroHs.
+
 Contents:
 * [Language](#language)
 * [Compiler](#compiler)
