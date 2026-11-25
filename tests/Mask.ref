@@ -3,3 +3,6 @@ catch start Unmasked
 unintr start MaskedUninterruptible
 handler MaskedInterruptible
 end Unmasked
+rescheduled MaskedInterruptible
+handler MaskedInterruptible
+end Unmasked

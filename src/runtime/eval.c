@@ -2885,7 +2885,7 @@ struct {
   { "IO.strict", T_IO_STRICT, 2 },
   { "raise", T_RAISE, 1 },
   { "catch", T_CATCH, 3 },
-  { "catchr", T_CATCHR, 3 },
+  { "catchr", T_CATCHR, 4 },
   { "A.alloc", T_ARR_ALLOC, 3 },
   { "A.copy", T_ARR_COPY, 2 },
   { "A.size", T_ARR_SIZE, 2 },
@@ -7375,18 +7375,21 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     GOPAIRUNIT;
 
   case T_CATCH:
-    /* CATCH x y z --> CATCHR (x z) y z */
-    GCCHECK(3);
+    /* CATCH x y z --> CATCHR m (x z) y z
+     * where m is the current masking state, which the handler restores.
+     * It is kept in the graph rather than taken when CATCHR runs, because
+     * a rescheduled thread starts over from its root and runs CATCHR again,
+     * maybe with another masking state, e.g., inside a mask in the io. */
+    GCCHECK(5);
     CHKARG3;                    /* x=io, y=hdl, z=ST */
-    GOAP(new_ap(new_ap(combCATCHR, new_ap(x, z)), y), z);
+    GOAP(new_ap(new_ap(new_ap(combCATCHR, mkInt(runq.mq_head->mt_mask)), new_ap(x, z)), y), z);
   case T_CATCHR:
     {
-      CHKARG3NP;                /* x = (io st), y = hdl, z = st, n = (CATCHR (io st)) h */
+      CHKARG4NP;                /* x = mask, y = (io st), z = hdl, w = st, n = CATCHR m (io st) h st */
       struct handler *h = mmalloc(sizeof *h);
       h->hdl_old = cur_handler;
       cur_handler = h;
       stackptr_t ostack = stack_ptr;;    /* old stack pointer */
-      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
       if (setjmp(h->hdl_buf)) {
         /* An exception occurred: */
         stack_ptr = ostack;
@@ -7394,27 +7397,27 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
         NODEPTR exn = h->hdl_exn;       /* exception value */
         cur_handler = h->hdl_old;       /* reset handler */
         FREE(h);
-        GCCHECK(8);
-        POP(3);
+        GCCHECK(7);
+        POP(4);
         /*
          * Run:
          *  hdl exn `primBind` \ r ->
-         *  primSetMaskingState omask `primThen`
+         *  primSetMaskingState m `primThen`
          *  primReturn r
          * i.e.,
-         *  primBind (hdl exn) (B' primThen (primSetMaskingState omask) primReturn)
+         *  primBind (hdl exn) (B' primThen (primSetMaskingState m) primReturn)
          */
-        NODEPTR p = new_ap(combIOBIND, new_ap(y, exn));
-        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, mkInt(omask))), combIORETURN);
-        GOAP2(p, q, z);
+        NODEPTR p = new_ap(combIOBIND, new_ap(z, exn));
+        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, x)), combIORETURN);
+        GOAP2(p, q, w);
       } else {
         /* Normal execution: */
-        x = evali(x);             /* execute first argument */
+        y = evali(y);             /* execute the io */
         /* No exception occurred */
         cur_handler = h->hdl_old; /* restore old handler */
         FREE(h);
-        POP(3);
-        GOIND(x);
+        POP(4);
+        GOIND(y);
       }
     }
 
