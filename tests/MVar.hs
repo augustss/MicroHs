@@ -17,7 +17,6 @@ fun mv = do
 
 main :: IO ()
 main = do
-  yield
   test1
   putStrLn "---"
   test2

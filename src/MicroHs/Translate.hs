@@ -9,6 +9,7 @@ module MicroHs.Translate(
   translateAndRun
   ) where
 import qualified Prelude(); import MHSPrelude
+import Control.Concurrent(yield)
 import Data.ByteString(ByteString)
 import Data.ByteString.Char8(pack)
 import Data.Maybe
@@ -43,7 +44,12 @@ translateMap = TM . M.fromList
 -- Convert and assume the converted value is of type IO() and run it
 translateAndRun :: ([LDef], Exp) -> IO ()
 translateAndRun defs = do
-  let prog = unsafeCoerce (translate defs)
+  let prog = unsafeCoerce (translate defs) :: IO ()
+  -- Translate the program, and then yield, so that the program starts
+  -- with a new time slice, as it would when run on its own.
+  -- Otherwise its thread switches depend on how much of the slice
+  -- the compiler used, e.g., if the compilation cache was used.
+  prog `seq` yield
   prog
 
 ---------------------------------------------------------------------
