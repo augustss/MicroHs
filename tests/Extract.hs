@@ -97,7 +97,7 @@ main = do
           Just x -> do
             let (prog, refs) = extractionProg x
             putStrLn (extractionSummary x)
-            putStr (unlines (lines (ppProg (decompile prog))))
+            putStrLn (ppProg (decompile prog))
             -- The free variables, and the kinds of their cells.
             kinds <- mapM (\ (v, p) -> do c <- peek p; return (v ++ "=" ++ takeWhile (/= ' ') (show c))) refs
             putStrLn (unwords ("free:" : kinds))

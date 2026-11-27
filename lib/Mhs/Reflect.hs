@@ -25,6 +25,8 @@ import qualified Data.Text as T
 import Data.Text.Encoding(decodeUtf8)
 import Foreign.Ptr(Ptr)
 import Mhs.Array(accumArray, (!))
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(Pretty(..), Doc, text, (<+>), sep, vcat, hsep, nest, hang,
+                                           punctuate, maybeParens, render, appPrec)
 import System.IO(Handle, hLookAhead, hGetChar)
 import System.IO.Internal(BFILE, addTransducer)
 import System.IO.Serialize(writeSerializedBS)
@@ -369,58 +371,82 @@ dec = go
       return (PCon k n vs, b)
 
 -----------------------------------------------------------------------------
--- Printing
+-- Printing, as Haskell code.  What fits on a line is printed on one line,
+-- e.g., case x of { C_0_0 -> 0; C_1_2 y z -> y }, and otherwise a case or
+-- let has a line for each arm or definition, still with the braces and
+-- semicolons, and an application a line for each argument.
 
+instance Pretty Exp where
+  pPrintPrec _ d = ppr (if d <= 0 then 0 else if d <= appPrec then 1 else 2)
+
+instance Pretty Prog where
+  pPrint = pprProg
+
+-- | A program as Haskell code, a let with a definition per line if it has
+-- definitions.  There is no newline at the end.
 ppProg :: Prog -> String
-ppProg (Prog [] b) = ppExp b
-ppProg (Prog ies b) = unlines $
-  ["let"] ++ map (\ (i, e) -> "  " ++ ppIdent i "" ++ " = " ++ ppExp e) ies ++ ["in  " ++ ppExp b]
+ppProg = render . pprProg
 
+-- | An expression as Haskell code.
 ppExp :: Exp -> String
-ppExp e = pp 0 e ""
+ppExp = render . ppr 0
+
+pprProg :: Prog -> Doc
+pprProg (Prog [] b) = ppr 0 b
+pprProg (Prog ies b) = vcat [text "let", nest 2 (vcat (map pprDef ies)), text "in " <+> ppr 0 b]
+
+-- A definition.  The variables of a lambda are on the line of the name.
+pprDef :: (Ident, Exp) -> Doc
+pprDef (i, e@(Lam _ _)) = hang (ppIdent i <+> text "=" <+> h) 2 b where (h, b) = pprLam e
+pprDef (i, e) = hang (ppIdent i <+> text "=") 2 (ppr 0 e)
+
+-- The variables of a lambda, and its body.
+pprLam :: Exp -> (Doc, Doc)
+pprLam e = (text ("\\" ++ unwords vs ++ " ->"), ppr 0 b)
+  where (vs, b) = lams e
 
 -- Precedence: 0 anywhere, 1 function in an application, 2 argument.
-pp :: Int -> Exp -> ShowS
-pp _ (Var i) = ppIdent i
-pp p (Lit l) = ppLit p l
-pp _ (Con k n) = showString ("C_" ++ show k ++ "_" ++ show n)
-pp _ (Array es) = showString "[|" . commas (map (pp 0) es) . showString "|]"
-pp p e@(Lam _ _) = paren (p > 0) $
-  let (vs, b) = lams e
-  in  showString "\\" . showString (unwords vs) . showString " -> " . pp 0 b
-pp p (App f a) = paren (p > 1) $ pp 1 f . showString " " . pp 2 a
-pp p (Case s arms md) = paren (p > 0) $
-  showString "case " . pp 0 s . showString " of { " .
-  semis (map ppArm arms ++ maybe [] (\ d -> [showString "_ -> " . pp 0 d]) md) .
-  showString " }"
-  where ppArm (PCon k n vs, b) =
-          showString ("C_" ++ show k ++ "_" ++ show n) .
-          foldr (\ v r -> showString " " . showString (if v `occursIn` b then v else "_") . r) id vs .
-          showString " -> " . pp 0 b
-pp p (Let bs b) = paren (p > 0) $
-  showString "let { " . semis (map (\ (i, e) -> ppIdent i . showString " = " . pp 0 e) bs) .
-  showString " } in " . pp 0 b
+ppr :: Int -> Exp -> Doc
+ppr _ (Var i) = ppIdent i
+ppr p (Lit l) = pprLit p l
+ppr _ (Con k n) = conName k n
+ppr _ (Array es) = text "[|" <> sep (punctuate (text ",") (map (ppr 0) es)) <> text "|]"
+ppr p e@(Lam _ _) = maybeParens (p > 0) (hang h 2 b) where (h, b) = pprLam e
+ppr p e@(App _ _) = maybeParens (p > 1) (sep (ppr 1 f : map (nest 2 . ppr 2) as)) where (f, as) = spine e
+ppr p (Case s arms md) = maybeParens (p > 0) $
+  block (text "case" <+> ppr 0 s <+> text "of") (map pprArm arms ++ [ arm (text "_") d | Just d <- [md] ])
+  where pprArm (PCon k n vs, b) = arm (hsep (conName k n : [ text (if v `occursIn` b then v else "_") | v <- vs ])) b
+        arm l b = hang (l <+> text "->") 2 (ppr 0 b)
+ppr p (Let bs b) = maybeParens (p > 0) $
+  sep [block (text "let") (map pprDef bs), text "in" <+> ppr 0 b]
 
-ppLit :: Int -> Literal -> ShowS
-ppLit p l =
+-- A block, h { d1; ...; dn }, on one line, or with a line for each di.
+block :: Doc -> [Doc] -> Doc
+block h ds = sep ([h <+> text "{"] ++ map (nest 2) (punctuate (text ";") ds) ++ [text "}"])
+
+pprLit :: Int -> Literal -> Doc
+pprLit p l =
   case l of
     LInt i      -> num i
     LInt64 i    -> num i
     LDouble d   -> num d
     LFloat f    -> num f
     LInteger i  -> num i
-    LBytes bs   -> showString "B" . shows (unpack bs)
-    LString s   -> shows s
-    LPrim s     -> paren (isOper s) (showString s)
-    LFFI s      -> showString ("^" ++ s)
-    LFunPtr s   -> showString (";" ++ s)
-    LTick s     -> showString ("!" ++ show s)
-  where num :: (Show a) => a -> ShowS
-        num x = let s = show x in paren (p > 1 && take 1 s == "-") (showString s)
+    LBytes bs   -> text ("B" ++ show (unpack bs))
+    LString s   -> text (show s)
+    LPrim s     -> maybeParens (isOper s) (text s)
+    LFFI s      -> text ("^" ++ s)
+    LFunPtr s   -> text (";" ++ s)
+    LTick s     -> text ("!" ++ show s)
+  where num :: (Show a) => a -> Doc
+        num x = let s = show x in maybeParens (p > 1 && take 1 s == "-") (text s)
+
+conName :: Int -> Int -> Doc
+conName k n = text ("C_" ++ show k ++ "_" ++ show n)
 
 -- A variable, which can be the name of a definition, e.g., Data.List.++
-ppIdent :: Ident -> ShowS
-ppIdent i = paren (isOper i) (showString i)
+ppIdent :: Ident -> Doc
+ppIdent i = maybeParens (isOper i) (text i)
 
 -- Operators, e.g., + and IO.>>=, are printed in parentheses.
 -- A name that ends with a dot is the operator ., e.g., Data.Function..
@@ -441,15 +467,3 @@ occursIn v = occ
     occ (Let bs b) = v `notElem` map fst bs && (any (occ . snd) bs || occ b)
     occ (Array es) = any occ es
     occ _ = False
-
-paren :: Bool -> ShowS -> ShowS
-paren True s = showString "(" . s . showString ")"
-paren False s = s
-
-semis :: [ShowS] -> ShowS
-semis [] = id
-semis (s:ss) = s . foldr (\ t r -> showString "; " . t . r) id ss
-
-commas :: [ShowS] -> ShowS
-commas [] = id
-commas (s:ss) = s . foldr (\ t r -> showString ", " . t . r) id ss
