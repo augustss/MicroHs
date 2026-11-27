@@ -1,0 +1,5 @@
+./Error112.hs:5:44: error: foreign import javascript: only an unsafe (synchronous) import can return a type that is not IO
+  |
+5 | foreign import javascript "$1 + $2" add :: Int -> Int -> Int
+  |                                            ^
+

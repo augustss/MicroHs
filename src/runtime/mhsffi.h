@@ -73,6 +73,9 @@ from_t mhs_from_CTime(intptr_t, int, time_t); /* XXX wrong */
 from_t mhs_from_CIntPtr(intptr_t, int, intptr_t);
 from_t mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
 from_t mhs_from_Unit(intptr_t, int);
+#if defined(__EMSCRIPTEN__)
+from_t mhs_from_JSVal(intptr_t, int, int);
+#endif
 
 flt64_t            mhs_to_Double(intptr_t, int);
 flt32_t            mhs_to_Float(intptr_t, int);
@@ -100,6 +103,27 @@ time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 // ssize_t            mhs_to_CSSize(intptr_t, int);
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
+#if defined(__EMSCRIPTEN__)
+uintptr_t          mhs_to_HsStablePtr(intptr_t, int);
+int                mhs_to_JSVal(intptr_t, int);
+#endif
+
+#if defined(__EMSCRIPTEN__)
+/* MicroHs.FFI compiles the code of a foreign import javascript to an MHS_EM_JS
+ * function.  It is emscripten's _EM_JS, what EM_JS expands to, which takes the
+ * code as a C string, so the code need not consist of C tokens.  _EM_JS is not
+ * documented, so the dependency on it is kept here, and an emscripten without
+ * it fails to compile with this message. */
+#include <emscripten/em_js.h>
+#if !defined(_EM_JS)
+#error "foreign import javascript needs _EM_JS from emscripten/em_js.h"
+#endif
+#define MHS_EM_JS(ret, c_name, js_name, params, code) _EM_JS(ret, c_name, js_name, params, code)
+#endif
+
+/* The JavaScript FFI (GHC.Wasm.Prim, Control.Exception.Internal); do nothing without JavaScript. */
+void      *js_exn_string(void *);
+void       js_free_jsval(void *);
 
 void       ffe_push(struct node *);
 void       ffe_pop(void);
