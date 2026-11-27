@@ -48,7 +48,7 @@ import Data.Bits
 import Data.ByteString(packCStringLen)
 import Data.Char(toLower)
 import Data.Int(Int64)
-import Data.Maybe(fromMaybe, isJust)
+import Data.Maybe(fromMaybe, isJust, isNothing)
 import Data.Word(Word8, Word16)
 import Foreign.C.String(CString, peekCString)
 import Foreign.C.Types(CInt)
@@ -553,12 +553,15 @@ uses (Extraction es) = \ i -> fromMaybe 0 (M.lookup i us)
   where us = foldr (\ j -> M.insertWith (+) j 1) M.empty
                [ j | (_, e) <- M.toList es, entryWhy e == Copy, Index j <- [entryFun e, entryArg e] ]
 
--- | The extracted code as combinator code, for Mhs.Reflect.decompile.
+-- | The extracted code as combinator code, for Mhs.Reflect.decompile, and
+-- the cells that its free variables refer to.
 -- The root is self when the code refers to it.  A copied node that is used
 -- more than once is a definition, _i, where i is its entry.  A reference
--- is a variable, e.g., redex_i, except for a literal value.
-extractionProg :: Extraction -> Prog
-extractionProg x@(Extraction es) = Prog defs body
+-- is a free variable, e.g., redex_i, except for a literal value.
+-- The cells are only valid as long as the extracted value is alive, and
+-- a redex changes when it is evaluated.
+extractionProg :: Extraction -> (Prog, [(String, Ptr Cell)])
+extractionProg x@(Extraction es) = (Prog defs body, refs)
   where
     us = uses x
     shared i = i /= 0 && entryWhy (es M.! i) == Copy && us i > 1
@@ -578,6 +581,8 @@ extractionProg x@(Extraction es) = Prog defs body
     defs = [ (name 0, entryExp 0) | recursive ] ++
            [ (name i, entryExp i) | i <- M.keys es, shared i ]
     body = if recursive then Var (name 0) else entryExp 0
+    refs = [ (name i, entryNode e) | (i, e) <- M.toList es,
+                                     entryWhy e /= Copy, isNothing (entryValue e) ]
 
 -- | The number of entries of each kind.
 extractionSummary :: Extraction -> String

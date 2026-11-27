@@ -95,8 +95,12 @@ main = do
         case mx of
           Nothing -> putStrLn "not a partial application"
           Just x -> do
+            let (prog, refs) = extractionProg x
             putStrLn (extractionSummary x)
-            putStr (ppProg (decompile (extractionProg x)))
+            putStr (unlines (lines (ppProg (decompile prog))))
+            -- The free variables, and the kinds of their cells.
+            kinds <- mapM (\ (v, p) -> do c <- peek p; return (v ++ "=" ++ takeWhile (/= ' ') (show c))) refs
+            putStrLn (unwords ("free:" : kinds))
         putStrLn ""
   sh defaultLimit (len :: [Int] -> Int)
   sh defaultLimit evn

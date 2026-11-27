@@ -16,16 +16,25 @@ True
 
 2 nodes copied, 0 references back to the root, references that stopped the copy: whnf 1, redex 1, cycle 0, depth 0
 \x1 -> case x1 of { C_0_0 -> 0; C_1_2 x2 x3 -> redex_3 x2 x3 }
+free: redex_3=AP
+
 18 nodes copied, 1 references back to the root, references that stopped the copy: whnf 2, redex 0, cycle 0, depth 0
 let
   self = \x1 -> case (==) 0 x1 of { C_0_0 -> case (==) 0 (subtract 1 x1) of { C_0_0 -> self (subtract 1 (subtract 1 x1)); C_1_0 -> C_0_0 }; C_1_0 -> C_1_0 }
 in  self
+free:
 
 43 nodes copied, 0 references back to the root, references that stopped the copy: whnf 1, redex 0, cycle 0, depth 0
 \x1 -> let { x2 = \x3 -> case x3 of { C_0_0 -> whnf_13 x1 C_0_0; C_1_3 x4 x5 x6 -> case (<) x1 x5 of { C_0_0 -> case (>) x1 x5 of { C_0_0 -> x3; C_1_0 -> C_1_3 x4 x5 (x2 x6) }; C_1_0 -> C_1_3 (x2 x4) x5 x6 } } } in x2
+free: whnf_13=AP
+
 5 nodes copied, 0 references back to the root, references that stopped the copy: whnf 0, redex 0, cycle 0, depth 2
 \x1 -> let { x2 = depth_5 depth_6 x1 (\x3 -> x3) x2 } in x2
+free: depth_5=AP depth_6=AP
+
 2 nodes copied, 0 references back to the root, references that stopped the copy: whnf 0, redex 2, cycle 0, depth 0
 \x1 -> case x1 of { C_0_0 -> redex_2; C_1_0 -> redex_3 }
+free: redex_2=AP redex_3=AP
+
 not a partial application
 
