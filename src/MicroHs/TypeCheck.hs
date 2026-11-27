@@ -34,7 +34,7 @@ import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
-import qualified MicroHs.IntMap as IM
+import qualified Mhs.IntMap as IM
 import MicroHs.List
 import MicroHs.Names
 import MicroHs.Lex(readInt)

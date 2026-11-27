@@ -156,6 +156,8 @@ import Mhs.MutUArr
 import Mhs.UArr
 import Mhs.Print
 import Mhs.Reflect
+import Mhs.Extract
+import Mhs.IntMap
 import Prelude
 import Primitives
 import System.Compress

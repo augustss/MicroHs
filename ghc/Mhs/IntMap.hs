@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.IntMap(
+module Mhs.IntMap(
   IntMap,
   empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
@@ -83,7 +83,7 @@ keys = map fst . toList
 (!) m k =
   case lookup k m of
     Just i -> i
-    Nothing -> error "Data.IntMap.!"
+    Nothing -> error "Mhs.IntMap.!"
 
 insertWith :: forall a . (a -> a -> a) -> Int -> a -> IntMap a -> IntMap a
 insertWith comb ak a =

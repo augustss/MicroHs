@@ -268,6 +268,7 @@ Besides the usual modules, `base` has some modules that are specific to MicroHs:
 * `Data.TypeLits`, for [type-level literals](#type-level-literals).
 * `Mhs.Builtin` exports what the compiler refers to in the code it generates, e.g., in derived instances. It is imported automatically, qualified with a name that cannot be written in a program.
 * `Mhs.Print` has `cuprint` and `cprint`, which print the combinator graph of a value (see [Debugging](#debugging)).
+* `Mhs.Reflect` turns a value, or a combinator file, back into lambda expressions. `Mhs.Extract` reads the graph directly (with the primitive `nodeAddr`), and extracts the code of a function, i.e., the partial applications in the graph of its value that make up the function.
 * `System.Compress` compresses and decompresses strings of bytes, e.g., `compressLZMA` and `decompressLZMA`.
 * `System.IO.MD5` computes MD5 checksums of strings, files, and handles.
 * `System.IO.Serialize` writes and reads values, see [below](#serialization).

@@ -183,6 +183,8 @@ library base
         Mhs.UArr
         Mhs.Print
         Mhs.Reflect
+        Mhs.Extract
+        Mhs.IntMap
         Numeric
         Numeric.FormatFloat
         Numeric.Natural

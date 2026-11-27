@@ -5,7 +5,7 @@ module MicroHs.IntSet(
   empty, member, insert, fromList, toList
   ) where
 import qualified Prelude(); import MHSPrelude
-import qualified MicroHs.IntMap as M
+import qualified Mhs.IntMap as M
 
 newtype IntSet = I (M.IntMap ())
 

@@ -620,6 +620,7 @@ enum node_tag { D_NONE,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
+                T_NODEADDR, T_IO_RTSINFO, /* for reading the graph, see rts_info */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
                 T_LAST_TAG,
@@ -1113,6 +1114,42 @@ struct forptr {
   //  char          *desc;
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
+
+/*
+ * For Haskell code that reads the graph, see lib/Mhs/Extract.hs.
+ * The primitive nodeAddr gives the NODEPTR of a value, without evaluating it,
+ * and IO.rtsinfo a pointer to this: the tables and tags needed to make sense
+ * of the nodes.  Every field is a word, so field i is at offset i * sizeof(void*),
+ * and the Haskell code knows them by their positions; change the version
+ * when they change.  It also relies on the layout of struct case_arity and
+ * struct ffi_entry: three words each, with the fields in order.
+ */
+static struct {
+  uintptr_t                version;
+  /* The tables */
+  uintptr_t                last_tag;          /* T_LAST_TAG */
+  const char             **tag_names;         /* the name of each tag, or NULL */
+  const uint8_t           *tag_arity;         /* the arity of each tag, see arity_virt */
+  struct case_arity      **case_arities;      /* the table, which moves when it grows */
+  const struct ffi_entry  *ffi_table;         /* the FFI functions of the runtime, */
+  int                     *num_ffi;           /*   and how many there are, */
+  const struct ffi_entry **xffi_table;        /*   then those of the program, see FFI_IX */
+  /* Tags */
+  uintptr_t                d_ind, d_int, d_int64, d_dbl, d_flt32, d_forptr, d_io_ccall, d_baddyn, d_tick;
+  uintptr_t                v_constr, v_cased, v_lookd, v_cases, v_looks;
+  /* Bytestrings */
+  uintptr_t                forptr_finalizer;  /* offsetof(struct forptr, finalizer) */
+  uintptr_t                forptr_payload;    /* offsetof(struct forptr, payload) */
+  uintptr_t                final_fptype;      /* offsetof(struct final, fptype) */
+  uintptr_t                fp_bstr;           /* FP_BSTR */
+} rts_info = {
+  1,
+  T_LAST_TAG, tag_names, tag_arity, &case_arities, ffi_table, &num_ffi, &xffi_table,
+  D_IND, D_INT, D_INT64, D_DBL, D_FLT32, D_FORPTR, D_IO_CCALL, D_BADDYN, D_TICK,
+  V_CONSTR, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
+  offsetof(struct forptr, finalizer), offsetof(struct forptr, payload),
+  offsetof(struct final, fptype), FP_BSTR,
+};
 
 //REGISTER(counter_t num_reductions,r19);
 counter_t num_reductions = 0;
@@ -2880,6 +2917,8 @@ struct {
   { "IO.gc", T_IO_GC, 2 },
   { "IO.stats", T_IO_STATS, 1 },
   { "IO.pp", T_IO_PP, 2 },
+  { "nodeAddr", T_NODEADDR, 1 },
+  { "IO.rtsinfo", T_IO_RTSINFO, 1 },
   { "IO.lazyBind", T_IO_LAZYBIND, 3 },
   { "IO.lazyBindST", T_IO_LAZYBINDST, 3 },
   { "IO.strict", T_IO_STRICT, 2 },
@@ -6956,6 +6995,19 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     CHKARG2;
     pp(stderr, x);
     GOPAIRUNIT;
+
+  case T_NODEADDR:
+    /* The NODEPTR of the argument, which is not evaluated, as a Ptr. */
+    CHECK(1);
+    x = ARG(TOP(0));
+    n = POPTOP();
+    SETPTR(n, x.node_ptr);
+    RET;
+
+  case T_IO_RTSINFO:
+    GCCHECK(2);
+    CHKARG1;                    /* x = ST */
+    GOPAIR(mkPtr(&rts_info));
   case T_IO_PRINT:
     hdr = false;
     goto ser;
