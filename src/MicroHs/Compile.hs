@@ -51,7 +51,7 @@ import MicroHs.SymTab
 import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
 import MicroHs.Version
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 mhsVersion :: String
 mhsVersion = showVersion version

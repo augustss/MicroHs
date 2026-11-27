@@ -25,7 +25,7 @@ module MicroHs.Ident(
   ) where
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import MicroHs.List(dropEnd)
 
 import Data.Text(Text, pack, unpack, append, head, cons)

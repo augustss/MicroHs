@@ -17,7 +17,7 @@ import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
 import System.IO.Unsafe(unsafePerformIO)
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import Unsafe.Coerce
 import Debug.Trace
 

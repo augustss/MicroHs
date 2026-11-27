@@ -158,6 +158,9 @@ import Mhs.Print
 import Mhs.Reflect
 import Mhs.Extract
 import Mhs.IntMap
+import Mhs.Text.ParserComb
+import Mhs.Text.PrettyPrint.HughesPJLite
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import Prelude
 import Primitives
 import System.Compress

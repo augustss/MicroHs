@@ -41,7 +41,7 @@ import MicroHs.Lex(readInt)
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 --primitiveKinds :: [String]

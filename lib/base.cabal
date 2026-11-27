@@ -185,6 +185,9 @@ library base
         Mhs.Reflect
         Mhs.Extract
         Mhs.IntMap
+        Mhs.Text.ParserComb
+        Mhs.Text.PrettyPrint.HughesPJLite
+        Mhs.Text.PrettyPrint.HughesPJLiteClass
         Numeric
         Numeric.FormatFloat
         Numeric.Natural

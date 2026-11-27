@@ -25,7 +25,7 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import System.IO.Serialize(readSerializedBS)
 import System.IO.Unsafe(unsafePerformIO)
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 --import Debug.Trace
 
 newtype TranslateMap = TM (M.Map Exp)

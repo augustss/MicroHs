@@ -38,7 +38,7 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZMA, addBase64)
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
 main = do
