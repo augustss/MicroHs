@@ -684,7 +684,7 @@ Some important packages that are known to work: `containers`, `transformers`, `m
 
 ## Compiler
 
-The compiler is written in MicroHs and lives in `src/MicroHs/`. It can also be compiled with GHC (`make bin/gmhs`) and with a slightly patched Hugs (see below). When compiling with GHC, the `ghc/` directory provides some compatibility modules.
+The compiler is written in MicroHs and lives in `src/MicroHs/`. It can also be compiled with GHC (`make bin/gmhs`) and with a slightly patched Hugs (see below). When compiling with GHC, the `ghc/` directory provides some compatibility modules. The compiler also uses some modules of `base`, which are in `lib/libmhs`, so that GHC and Hugs can compile them too; they import `MiniPrelude`, which `ghc/` and `hugs/` provide as well.
 
 The compiler pipeline is:
 1. Lexing and layout processing (`Lex`), and parsing to an abstract syntax tree (`Parse`, `Expr`).

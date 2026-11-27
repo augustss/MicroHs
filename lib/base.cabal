@@ -17,9 +17,9 @@ flag gmp
 
 library base
     if flag(gmp)
-      hs-source-dirs: gmp .
+      hs-source-dirs: gmp . libmhs
     else
-      hs-source-dirs: .
+      hs-source-dirs: . libmhs
     exposed-modules:
         Control.Applicative
         Control.Arrow

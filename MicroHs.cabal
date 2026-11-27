@@ -107,6 +107,7 @@ executable mhs
                        Data.Integer
 --                       MhsEval
                        MHSPrelude
+                       MiniPrelude
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
@@ -115,7 +116,7 @@ executable mhs
                        Mhs.IntMap
 
   if impl(ghc)
-    hs-source-dirs:    ghc src
+    hs-source-dirs:    ghc src lib/libmhs
     build-depends:     base         >= 4.10 && < 4.29,
                        bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
@@ -132,7 +133,7 @@ executable mhs
 --    includes:          mhseval.h
 
   if impl(hugs)
-    hs-source-dirs:    hugs src
+    hs-source-dirs:    hugs src lib/libmhs
 
   if impl(mhs)
     hs-source-dirs:    mhs src

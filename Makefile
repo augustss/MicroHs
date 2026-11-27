@@ -28,7 +28,7 @@ CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) $(RTSINC) $(MAINC) $(RTS)/eval.c
 #
 GHC= ghc
-GHCINCS= -ighc -isrc
+GHCINCS= -ighc -isrc -ilib/libmhs
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
@@ -42,7 +42,7 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 # Hugs
 HUGS= runhugs
 FFIHUGS= ffihugs
-HUGSINCS= '+Phugs:mhs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w
+HUGSINCS= '+Phugs:mhs:src:lib/libmhs:{Hugs}/packages/*:hugs/obj' -98 +o +w
 #
 TIME=time
 
@@ -50,7 +50,7 @@ TIME=time
 NODE=node
 #NODEFLAGS=--stack_size=8192
 #
-MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
+MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib -ilib/libmhs
 MHSINC=$(MHSINCNP)
 MAINMODULE=MicroHs.Main
 #
@@ -129,17 +129,17 @@ bin/mhs.js:	mhs.js
 
 #######################
 # Compile mhs with ghc
-bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
+bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs lib/libmhs/*/*.hs
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) $(RTSINC) $(MAINMODULE) -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
-bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
+bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs lib/libmhs/*/*.hs
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) $(RTSINC) -fhpc $(MAINMODULE) -o bin/cmhs
 
 # Generate distribution C file
-generated/mhs.c:	bin/mhs src/*/*.hs
+generated/mhs.c:	bin/mhs src/*/*.hs lib/libmhs/*/*.hs
 	@mkdir -p generated
 	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
@@ -174,14 +174,14 @@ bootstrap:	bin/mhs-stage2
 	cp generated/mhs-stage2.c generated/mhs.c
 
 # Build stage1 compiler with existing compiler
-bin/mhs-stage1:	bin/mhs src/*/*.hs
+bin/mhs-stage1:	bin/mhs src/*/*.hs lib/libmhs/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
 	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c $(CCLIBS) -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
-bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
+bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs lib/libmhs/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage2 compiler, with stage1 compiler"
 	bin/mhs-stage1 -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage2.c
@@ -419,7 +419,7 @@ llvmpgo:
 #####
 # Hugs
 HUGS= runhugs
-HUGSINCS= '+Phugs:src:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
+HUGSINCS= '+Phugs:src:lib/libmhs:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 generated/hmhs.c:
 	@mkdir -p generated
