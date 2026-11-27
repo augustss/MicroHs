@@ -1,11 +1,13 @@
 -- Copyright 2026 Lennart Augustsson
 -- See LICENSE file for full license.
 --
--- Extracting the code of a function: the part of the graph of its value
--- that is code, i.e., the partial applications that make up the function.
--- The graph is read directly: nodeAddr gives the address of a node, and the
--- fields are read with peek.  See NODEPTR in eval.c for the encoding of the
--- nodes, and rts_info for the tables that describe them.
+-- Reading the graph, and extracting the code of a function: the part of the
+-- graph of its value that is code, i.e., the partial applications that make
+-- up the function.
+-- The graph is read directly: nodeAddr gives the NODEPTR of a value,
+-- decodeNodePtr says what it is, and a cell is read with peek.  See NODEPTR
+-- and struct node in eval.c for the encoding, and rts_info for the tables
+-- that describe it.
 --
 -- The graph is traversed depth first from the root, and the application
 -- nodes that are code, i.e., partial applications, are copied.
@@ -35,7 +37,9 @@
 -- and then frees them.  So indirections are skipped at once, and a field is
 -- read from its node just before the node it points to is visited.
 module Mhs.Extract(
-  Cell, nodeAddr,
+  -- The graph
+  nodeAddr, NodePtr(..), Comb(..), Cell(..), decodeNodePtr, encodeNodePtr,
+  -- Extraction
   Extraction(..), EntryNo, Entry(..), Why(..), Opnd(..),
   defaultLimit, extract, extractionProg, extractionSummary,
   ) where
@@ -43,6 +47,7 @@ import Control.Monad
 import Data.Bits
 import Data.ByteString(packCStringLen)
 import Data.Char(toLower)
+import Data.Int(Int64)
 import Data.Maybe(fromMaybe, isJust)
 import Data.Word(Word8, Word16)
 import Foreign.C.String(CString, peekCString)
@@ -54,9 +59,11 @@ import qualified Mhs.IntMap as M
 import Mhs.Reflect(Exp(..), Literal(..), Prog(..))
 import System.IO.Unsafe(unsafePerformIO)
 
--- | The NODEPTR of a value, without evaluating it: the address of its node,
--- or, for a combinator, primitive, or constructor, its encoding.
-nodeAddr :: a -> Ptr Cell
+-----------------------------------------------------------------------------
+-- The graph
+
+-- | The NODEPTR of a value, without evaluating it, see decodeNodePtr.
+nodeAddr :: a -> Int
 nodeAddr = _primitive "nodeAddr"
 
 primRtsInfo :: IO (Ptr ())
@@ -66,60 +73,144 @@ primRtsInfo = _primitive "IO.rtsinfo"
 keepAlive :: a -> IO ()
 keepAlive a = nodeAddr a `seq` return ()
 
------------------------------------------------------------------------------
--- The result
-
--- | What an entry of the extraction is.
-data Why
-  = Copy        -- a copied application, i.e., code
-  -- Why the copy stopped at a node, and refers to it instead:
-  | Whnf        -- data: a value, or a constructor with its fields
-  | Redex       -- an application that would reduce
-  | Cycle       -- a node that starts a cycle
-  | Depth       -- the size limit, since the nodes furthest from the root are cut
+-- | What a NODEPTR is.  Its two lowest bits tell.
+data NodePtr
+  = CellPtr (Ptr Cell)  -- ...00: a pointer to a cell
+  | Comb Comb           -- ...10: a combinator, primitive, constructor, or case,
+                        --   which is encoded in the NODEPTR instead of a cell
+  | ValueTag Int        -- ...11: only in the function field of a cell, which
+                        --   then holds a value instead of an application;
+                        --   the tag says what the value is, e.g., D_INT
   deriving (Eq, Show)
 
--- | The number of an entry of the extraction.  Entry 0 is the root.
-type EntryNo = Int
+-- | A combinator, primitive, constructor, or case.  The constructors and
+-- cases are families, e.g., C_k_n, so they are indexed.
+data Comb
+  = Prim Int            -- a combinator or primitive, e.g., S or +: its tag
+  | C Int Int           -- C_k_n: constructor number k, with n fields
+  | D Int               -- D_a0_..._am: a dense case: its index in the table of case arities
+  | E Int               -- E_k0_a0_..._km_am: a sparse case: ditto
+  deriving (Eq, Show)
 
--- | An operand of a copied application: an entry, or a leaf, i.e., a
--- combinator, primitive, constructor, FFI function, ..., which never changes.
-data Opnd = Index EntryNo | Leaf (Ptr Cell) Exp
-  deriving (Show)
+-- | A heap cell, i.e., a node: an application, or a value.  The values are
+-- named after their tags, e.g., D_INT.
+data Cell
+  = AP NodePtr NodePtr  -- the function and the argument
+  | IND NodePtr         -- an indirection
+  | INT Int
+  | INT64 Int64
+  | DBL Double
+  | FLT32 Float
+  | PTR (Ptr ())
+  | FUNPTR (FunPtr ())
+  | FORPTR (Ptr ())     -- a ForeignPtr or a ByteString: a struct forptr
+  | ARR (Ptr ())        -- an array: a struct ioarray
+  | THID (Ptr ())       -- a thread: a struct mthread
+  | MVAR (Ptr ())       -- a struct mvar
+  | WEAK (Ptr ())       -- a struct weak_ptr
+  | IO_CCALL Int        -- an FFI function: its number, see FFI_IX
+  | BADDYN CString      -- an unknown FFI function: its name
+  | TICK Int            -- a tick: its number in the tick table
+  | DATA Int Word       -- any other value: its tag, and the payload
+  deriving (Eq, Show)
 
-data Entry = Entry
-  { entryNode  :: Ptr Cell      -- the node it is a copy of, or refers to
-  , entryWhy   :: Why
-  , entryValue :: Maybe Exp     -- Whnf: the value, if it is a literal
-  , entryFun   :: Opnd          -- Copy: the function,
-  , entryArg   :: Opnd          --   and the argument
-  }
-  deriving (Show)
+-- | What a NODEPTR is.
+decodeNodePtr :: Int -> NodePtr
+decodeNodePtr w =
+  case w .&. 3 of
+    0 -> CellPtr (nullPtr `plusPtr` w)
+    2 -> Comb (virt ((w `shiftR` 2) .&. 0x7ff) (w `shiftR` 13))
+    3 -> ValueTag (w `shiftR` 2)
+    _ -> error ("Mhs.Extract.decodeNodePtr: not a NODEPTR: " ++ show w)
+  where
+    virt t x
+      | t == vConstr info = C (x .&. 0x7ff) ((x `shiftR` 11) .&. 0xff)
+      | t == vCaseD info  = D (x .&. 0x7ffff)
+      | t == vCaseS info  = E (x .&. 0x7ffff)
+      | otherwise         = Prim t
 
--- | The extracted subgraph: the entries, by their EntryNo.
-newtype Extraction = Extraction (IntMap Entry)
+-- | The NODEPTR of a NodePtr.
+encodeNodePtr :: NodePtr -> Int
+encodeNodePtr (CellPtr p) = p `minusPtr` nullPtr
+encodeNodePtr (ValueTag t) = t `shiftL` 2 .|. 3
+encodeNodePtr (Comb c) =
+  case c of
+    Prim t -> virt t 0
+    C k n  -> virt (vConstr info) (n `shiftL` 11 .|. k)
+    D i    -> virt (vCaseD info) i
+    E i    -> virt (vCaseS info) i
+  where virt t x = (x `shiftL` 11 .|. t) `shiftL` 2 .|. 2
 
--- | The default size limit.
-defaultLimit :: Int
-defaultLimit = 500
-
--- How many times the size limit to explore.
-exploreFactor :: Int
-exploreFactor = 4
+-- A cell is two NODEPTRs, the function and the argument, or a value tag and
+-- the payload, which can be wider than a NODEPTR.
+instance Storable Cell where
+  sizeOf _ = nodeSize info
+  alignment _ = wordBytes info
+  peek p = do
+    f <- field 0
+    case f of
+      ValueTag t -> value t
+      _          -> AP f <$> field (payload info)
+    where
+      field o = decodeNodePtr <$> peekByteOff p o
+      val :: forall a . Storable a => IO a
+      val = peekByteOff p (payload info)
+      value t
+        | t == dInd info     = IND <$> field (payload info)
+        | t == dInt info     = INT <$> val
+        | t == dInt64 info   = INT64 <$> val
+        | t == dDbl info     = DBL <$> val
+        | t == dFlt32 info   = FLT32 <$> val
+        | t == dPtr info     = PTR <$> val
+        | t == dFunPtr info  = FUNPTR <$> val
+        | t == dForPtr info  = FORPTR <$> val
+        | t == dArr info     = ARR <$> val
+        | t == dThid info    = THID <$> val
+        | t == dMVar info    = MVAR <$> val
+        | t == dWeak info    = WEAK <$> val
+        | t == dCCall info   = IO_CCALL <$> val
+        | t == dBadDyn info  = BADDYN <$> val
+        | t == dTick info    = TICK <$> val
+        | otherwise          = DATA t <$> val
+  poke p c =
+    case c of
+      AP f a     -> field 0 f >> field (payload info) a
+      IND a      -> tag dInd >> field (payload info) a
+      INT x      -> tag dInt >> val x
+      INT64 x    -> tag dInt64 >> val x
+      DBL x      -> tag dDbl >> val x
+      FLT32 x    -> tag dFlt32 >> val x
+      PTR x      -> tag dPtr >> val x
+      FUNPTR x   -> tag dFunPtr >> val x
+      FORPTR x   -> tag dForPtr >> val x
+      ARR x      -> tag dArr >> val x
+      THID x     -> tag dThid >> val x
+      MVAR x     -> tag dMVar >> val x
+      WEAK x     -> tag dWeak >> val x
+      IO_CCALL x -> tag dCCall >> val x
+      BADDYN x   -> tag dBadDyn >> val x
+      TICK x     -> tag dTick >> val x
+      DATA t x   -> field 0 (ValueTag t) >> val x
+    where
+      field o n = pokeByteOff p o (encodeNodePtr n)
+      tag d = field 0 (ValueTag (d info))
+      val :: forall a . Storable a => a -> IO ()
+      val = pokeByteOff p (payload info)
 
 -----------------------------------------------------------------------------
 -- The runtime's tables, see rts_info in eval.c.
 
 data Info = Info
-  { wordBytes :: Int
+  { wordBytes, nodeSize, payload :: Int
   , tagNames, tagArities, caseArities, ffiTable, numFfi, xffiTable :: Ptr ()
-  , dInd, dInt, dInt64, dDbl, dFlt32, dForPtr, dCCall, dBadDyn, dTick
-  , vConstr, vCaseD, vLookD, vCaseS, vLookS
+  , dInd, dInt, dInt64, dDbl, dFlt32, dPtr, dFunPtr, dForPtr
+  , dArr, dThid, dMVar, dWeak, dCCall, dBadDyn, dTick
+  , vConstr, vCaseD, vCaseS
   , forPtrFinalizer, forPtrPayload, finalFpType, fpBstr :: Int
   }
 
 rtsInfoVersion :: Int
-rtsInfoVersion = 1
+rtsInfoVersion = 2
 
 -- The unsafePerformIO is safe: rts_info is a static struct in the runtime,
 -- which is filled in before any Haskell code runs, and then never changes.
@@ -139,18 +230,20 @@ info = unsafePerformIO $ do
   v <- int 0
   when (v /= rtsInfoVersion) $
     error "Mhs.Extract: the runtime has another version of rts_info"
-  [names, arities, cases, ffi, nffi, xffi] <- mapM ptr [2..7]
-  [ind, i, i64, dbl, flt, fp, ccall, baddyn, tick,
-   con, cased, lookd, cases', looks,
-   fin, payload, fptype, bstr] <- mapM int [8 .. 25]
+  [size, pl] <- mapM int [1, 2]
+  [names, arities, cases, ffi, nffi, xffi] <- mapM ptr [4 .. 9]
+  [ind, i, i64, dbl, flt, ptr', funptr, fp, arr, thid, mvar, weak, ccall, baddyn, tick,
+   con, cased, cases',
+   fin, fppayload, fptype, bstr] <- mapM int [10 .. 31]
   return Info
-    { wordBytes = ws
+    { wordBytes = ws, nodeSize = size, payload = pl
     , tagNames = names, tagArities = arities, caseArities = cases
     , ffiTable = ffi, numFfi = nffi, xffiTable = xffi
-    , dInd = ind, dInt = i, dInt64 = i64, dDbl = dbl, dFlt32 = flt, dForPtr = fp
+    , dInd = ind, dInt = i, dInt64 = i64, dDbl = dbl, dFlt32 = flt, dPtr = ptr'
+    , dFunPtr = funptr, dForPtr = fp, dArr = arr, dThid = thid, dMVar = mvar, dWeak = weak
     , dCCall = ccall, dBadDyn = baddyn, dTick = tick
-    , vConstr = con, vCaseD = cased, vLookD = lookd, vCaseS = cases', vLookS = looks
-    , forPtrFinalizer = fin, forPtrPayload = payload, finalFpType = fptype, fpBstr = bstr
+    , vConstr = con, vCaseD = cased, vCaseS = cases'
+    , forPtrFinalizer = fin, forPtrPayload = fppayload, finalFpType = fptype, fpBstr = bstr
     }
 
 tagName :: Int -> IO String
@@ -176,58 +269,12 @@ ffiEntry i = do
   arity <- peekByteOff e ws :: IO CInt
   return (name, fromIntegral arity)
 
------------------------------------------------------------------------------
--- Nodes
-
--- | A heap cell, i.e., a node.  A Ptr Cell is a NODEPTR: the address of
--- a node, or a virtual one, i.e., an encoded tag.  See eval.c for the encoding.
-data Cell
-
-bitsOf :: Ptr Cell -> Word
-bitsOf p = fromIntegral (p `minusPtr` nullPtr)
-
-isVirt :: Ptr Cell -> Bool
-isVirt n = bitsOf n .&. 3 == 2
-
-virtTag :: Ptr Cell -> Int
-virtTag n = fromIntegral ((bitsOf n `shiftR` 2) .&. 0x7ff)
-
--- The bits of a virtual NODEPTR above the tag.
-virtInfo :: Ptr Cell -> Int
-virtInfo n = fromIntegral (bitsOf n `shiftR` 13)
-
--- For the FUN field of a node: is it an application?
-isAp :: Ptr Cell -> Bool
-isAp f = bitsOf f .&. 1 == 0
-
--- For the FUN field of a node: the tag of a data node, or 0 (D_NONE).
-dataTag :: Ptr Cell -> Int
-dataTag f = if bitsOf f .&. 3 == 3 then fromIntegral (bitsOf f `shiftR` 2) else 0
-
-peekFun :: Ptr Cell -> IO (Ptr Cell)
-peekFun n = peek (castPtr n)
-
-peekArg :: Ptr Cell -> IO (Ptr Cell)
-peekArg n = peekByteOff n (wordBytes info)
-
--- The payload of a data node.
-peekValue :: (Storable a) => Ptr Cell -> IO a
-peekValue n = peekByteOff n (wordBytes info)
-
-skipInd :: Ptr Cell -> IO (Ptr Cell)
-skipInd n
-  | isVirt n = return n
-  | otherwise = do
-      f <- peekFun n
-      if dataTag f == dInd info then peekArg n >>= skipInd else return n
-
--- The entry of the table of case arities of a V_CASED, V_CASES, or V_LOOKS:
--- the constructor numbers of the arms (for a sparse case), and their arities.
+-- Entry ix of the table of case arities: the constructor numbers of the
+-- arms (for a sparse case), and their arities.
 -- An entry is three words: the number of arms, the arities, and the tags.
-caseArity :: Ptr Cell -> IO (Maybe [Int], [Int])
-caseArity n = do
+caseArity :: Int -> IO (Maybe [Int], [Int])
+caseArity ix = do
   let ws = wordBytes info
-      ix = virtInfo n .&. 0x7ffff
   tbl <- peek (castPtr (caseArities info)) :: IO (Ptr ())
   let e = tbl `plusPtr` (ix * 3 * ws)
   m <- fromIntegral <$> (peek (castPtr e) :: IO Word16)
@@ -238,88 +285,132 @@ caseArity n = do
         else Just <$> mapM (fmap fromIntegral . peekElemOff tp) [0 .. m - 1]
   return (ts, as)
 
--- The number of arguments the virtual node needs before it reduces,
+-- The number of arguments a combinator needs before it reduces,
 -- or -1 if it never reduces (a constructor), see arity_virt.
-arityVirt :: Ptr Cell -> IO Int
-arityVirt n
-  | t == vConstr info || t == vLookD info || t == vLookS info = return (-1)
-  | t == vCaseD info = (+ 1) . length . snd <$> caseArity n
-  | t == vCaseS info = (+ 2) . length . snd <$> caseArity n
-  | otherwise = tagArity t
-  where t = virtTag n
+combArity :: Comb -> IO Int
+combArity c =
+  case c of
+    Prim t -> tagArity t
+    C _ _  -> return (-1)
+    D i    -> (+ 1) . length . snd <$> caseArity i
+    E i    -> (+ 2) . length . snd <$> caseArity i
 
--- A leaf: a virtual node, or the node of an FFI function or a tick.
-leafExp :: Ptr Cell -> IO Exp
-leafExp n
-  | isVirt n = virtExp
-  | otherwise = do
-      dt <- dataTag <$> peekFun n
-      if dt == dCCall info then Lit . LFFI . fst <$> (peekValue n >>= ffiEntry)
-      else if dt == dTick info then Lit . LTick . show <$> (peekValue n :: IO Int)
-      else error "Mhs.Extract: not a leaf"
+combExp :: Comb -> IO Exp
+combExp c =
+  case c of
+    Prim t -> tagName t >>= prim
+    C k n  -> return (Con k n)
+    D i    -> do (_, as) <- caseArity i; prim ('D' : nums as)
+    E i    -> do (ts, as) <- caseArity i
+                 prim ('E' : nums (concat (zipWith (\ k a -> [k, a]) (fromMaybe [] ts) as)))
   where
-    t = virtTag n
-    k = virtInfo n .&. 0x7ff
     prim = return . Lit . LPrim
     nums = concatMap (\ i -> '_' : show i)
-    virtExp
-      | t == vConstr info = return (Con k ((virtInfo n `shiftR` 11) .&. 0xff))
-      | t == vLookD info = prim ("L_" ++ show k)
-      | t == vCaseD info = do (_, as) <- caseArity n; prim ('D' : nums as)
-      | t == vCaseS info || t == vLookS info = do
-          (ts, as) <- caseArity n
-          prim ((if t == vCaseS info then 'E' else 'M') :
-                nums (concat (zipWith (\ k' a -> [k', a]) (fromMaybe [] ts) as)))
-      | otherwise = tagName t >>= prim
 
--- The value of a data node, if it is a literal.
-valueExp :: Ptr Cell -> IO (Maybe Exp)
-valueExp n = do
-  t <- dataTag <$> peekFun n
-  let lit l = return (Just (Lit l))
-  if t == dInt info then peekValue n >>= lit . LInt
-  else if t == dInt64 info then peekValue n >>= lit . LInt64
-  else if t == dDbl info then peekValue n >>= lit . LDouble
-  else if t == dFlt32 info then peekValue n >>= lit . LFloat
-  else if t == dForPtr info then do
-    fp <- peekValue n :: IO (Ptr ())
-    fin <- peekByteOff fp (forPtrFinalizer info) :: IO (Ptr ())
-    ty <- if fin == nullPtr then return (-1) else peekByteOff fin (finalFpType info) :: IO CInt
-    if fromIntegral ty /= fpBstr info then
-      return Nothing
-    else do
-      -- struct bytestring: the size, the capacity, and the bytes
-      let pl = fp `plusPtr` forPtrPayload info
-      size <- peekByteOff pl 0 :: IO Word
-      arr <- peekByteOff pl (2 * wordBytes info) :: IO CString
-      packCStringLen (arr, fromIntegral size) >>= lit . LBytes
-  else
-    return Nothing
+-- The value of a cell, if it is a literal.
+valueExp :: Cell -> IO (Maybe Exp)
+valueExp c =
+  case c of
+    INT x     -> lit (LInt x)
+    INT64 x   -> lit (LInt64 x)
+    DBL x     -> lit (LDouble x)
+    FLT32 x   -> lit (LFloat x)
+    FORPTR fp -> do
+      fin <- peekByteOff fp (forPtrFinalizer info) :: IO (Ptr ())
+      ty <- if fin == nullPtr then return (-1) else peekByteOff fin (finalFpType info) :: IO CInt
+      if fromIntegral ty /= fpBstr info then
+        return Nothing
+      else do
+        -- struct bytestring: the size, the capacity, and the bytes
+        let pl = fp `plusPtr` forPtrPayload info
+        size <- peekByteOff pl 0 :: IO Word
+        arr <- peekByteOff pl (2 * wordBytes info) :: IO CString
+        packCStringLen (arr, fromIntegral size) >>= lit . LBytes
+    _ -> return Nothing
+  where lit = return . Just . Lit
+
+skipInd :: NodePtr -> IO NodePtr
+skipInd n@(CellPtr p) = do
+  c <- peek p
+  case c of
+    IND a -> skipInd a
+    _     -> return n
+skipInd n = return n
+
+-- The function and the argument of an application.
+apFields :: Ptr Cell -> IO (NodePtr, NodePtr)
+apFields p = do
+  c <- peek p
+  case c of
+    AP f a -> return (f, a)
+    _      -> error "Mhs.Extract: not an application"
+
+notANode :: NodePtr -> a
+notANode n = error ("Mhs.Extract: not a node: " ++ show n)
+
+-----------------------------------------------------------------------------
+-- The result
+
+-- | What an entry of the extraction is.
+data Why
+  = Copy        -- a copied application, i.e., code
+  -- Why the copy stopped at a node, and refers to it instead:
+  | Whnf        -- data: a value, or a constructor with its fields
+  | Redex       -- an application that would reduce
+  | Cycle       -- a node that starts a cycle
+  | Depth       -- the size limit, since the nodes furthest from the root are cut
+  deriving (Eq, Show)
+
+-- | The number of an entry of the extraction.  Entry 0 is the root.
+type EntryNo = Int
+
+-- | An operand of a copied application: an entry, or a leaf, i.e., a
+-- combinator, primitive, constructor, FFI function, ..., which never changes.
+data Opnd = Index EntryNo | Leaf NodePtr Exp
+  deriving (Show)
+
+data Entry = Entry
+  { entryNode  :: Ptr Cell      -- the node it is a copy of, or refers to
+  , entryWhy   :: Why
+  , entryValue :: Maybe Exp     -- Whnf: the value, if it is a literal
+  , entryFun   :: Opnd          -- Copy: the function,
+  , entryArg   :: Opnd          --   and the argument
+  }
+  deriving (Show)
+
+-- | The extracted subgraph: the entries, by their EntryNo.
+newtype Extraction = Extraction (IntMap Entry)
+
+-- | The default size limit.
+defaultLimit :: Int
+defaultLimit = 500
+
+-- How many times the size limit to explore.
+exploreFactor :: Int
+exploreFactor = 4
 
 -----------------------------------------------------------------------------
 -- Extraction
 
--- What an application node is: code to copy, data, or a redex.
-classify :: Ptr Cell -> IO Why
+-- What an application is: code to copy, data, or a redex.  The arguments
+-- on the spine are counted, and compared with the arity of the head.
+classify :: NodePtr -> IO Why
 classify = go 0
   where
-    go :: Int -> Ptr Cell -> IO Why
-    go d n
-      | isVirt n = do
-          a <- arityVirt n
-          return $ if a < 0 then Whnf else if d < a then Copy else Redex
-      | otherwise = do
-          f <- peekFun n
-          let t = dataTag f
-          if isAp f then go (d + 1) f
-          else if t == dInd info then peekArg n >>= go d
-          else if t == dCCall info then do
-            (_, a) <- peekValue n >>= ffiEntry
-            return $ if d < a then Copy else Redex
-          else if t == dTick info then
-            return $ if d < 1 then Copy else Redex
-          else
-            return $ if d == 0 then Whnf else Redex     -- a value, or an error
+    go :: Int -> NodePtr -> IO Why
+    go d (Comb c) = do
+      a <- combArity c
+      return $ if a < 0 then Whnf else spine d a
+    go d (CellPtr p) = do
+      c <- peek p
+      case c of
+        AP f _     -> go (d + 1) f
+        IND a      -> go d a
+        IO_CCALL i -> spine d . snd <$> ffiEntry i
+        TICK _     -> return (spine d 1)
+        _          -> return (if d == 0 then Whnf else Redex)  -- a value, or an error
+    go _ n = notANode n
+    spine d a = if d < a then Copy else Redex
 
 -- An entry while the graph is traversed.
 data W = W
@@ -346,7 +437,7 @@ noOpnd = Index (-1)
 -- The key of a node in sNodes.  Nodes are at least 4 byte aligned, and the
 -- key must not be negative.
 nodeKey :: Ptr Cell -> Int
-nodeKey p = fromIntegral (bitsOf p `shiftR` 2)
+nodeKey p = fromIntegral ((fromIntegral (p `minusPtr` nullPtr) :: Word) `shiftR` 2)
 
 setEntry :: EntryNo -> W -> S -> S
 setEntry i w s = s{ sEntries = M.insert i w (sEntries s) }
@@ -366,40 +457,39 @@ lookupNode p s =
     _ -> Nothing
 
 -- Visit a node, and copy it if it is code.
-visit :: Int -> S -> Ptr Cell -> IO (S, Opnd)
-visit limit s p0 = do
-  p <- skipInd p0
-  let leaf = (,) s . Leaf p <$> leafExp p
-  if isVirt p then leaf else
-   case lookupNode p s of
-    Just i -> do
+visit :: Int -> S -> NodePtr -> IO (S, Opnd)
+visit limit s n0 = do
+  n <- skipInd n0
+  let leaf e = (s, Leaf n e)
+  case n of
+    Comb c -> leaf <$> combExp c
+    CellPtr p | Just i <- lookupNode p s -> do
       let w = sEntries s M.! i
       return (if wActive w && i /= 0 then setEntry i w{ wCycle = True } s else s, Index i)
-    Nothing -> do
-      f <- peekFun p
-      mk <-
-        if isAp f then
-          Just <$> classify p
-        else do
-          let dt = dataTag f
-          return $
-            if dt == dCCall info || dt == dTick info then Nothing  -- a function, which never changes
-            else if dt == dBadDyn info then Just Redex              -- evaluating it is an error
-            else Just Whnf
-      case mk of
-        Nothing -> leaf
-        Just k0 -> do
+    CellPtr p -> do
+      c <- peek p
+      case c of
+        -- A function, which never changes.
+        IO_CCALL i -> leaf . Lit . LFFI . fst <$> ffiEntry i
+        TICK i     -> return (leaf (Lit (LTick (show i))))
+        _ -> do
+          k0 <- case c of
+                  AP _ _   -> classify n
+                  BADDYN _ -> return Redex      -- evaluating it is an error
+                  _        -> return Whnf
           let k = if k0 == Copy && sMade s >= exploreFactor * limit then Depth else k0
-          v <- if k == Whnf && not (isAp f) then valueExp p else return Nothing
+          v <- if k == Whnf then valueExp c else return Nothing
           let (s1, i) = newEntry (W p k (k == Copy) False v noOpnd noOpnd) s
           if k /= Copy then return (s1, Index i) else do
-            (s2, fo) <- peekFun p >>= visit limit s1{ sMade = sMade s1 + 1 }
-            (s3, ao) <- peekArg p >>= visit limit s2
+            -- Each field is read again, just before it is visited, see above.
+            (s2, fo) <- fst <$> apFields p >>= visit limit s1{ sMade = sMade s1 + 1 }
+            (s3, ao) <- snd <$> apFields p >>= visit limit s2
             let w = sEntries s3 M.! i
                 s4 | wCycle w  = -- Drop the copy, and everything after it.
                                  (setEntry i (W p Cycle False False Nothing noOpnd noOpnd) s3){ sN = i + 1 }
                    | otherwise = setEntry i w{ wActive = False, wFun = fo, wArg = ao } s3
             return (s4, Index i)
+    _ -> notANode n
 
 -- Keep the copied nodes that are nearest the root, breadth first, up to
 -- the size limit.  A copied node that is used by a kept one, but is not
@@ -440,10 +530,14 @@ select limit s = Extraction (M.fromList (zip [0 ..] (map entry (M.keys used))))
 -- a partial application.
 extract :: Int -> a -> IO (Maybe Extraction)
 extract limit a = a `seq` do
-  r <- skipInd (nodeAddr a)
-  code <- if isVirt r then return False else do
-            f <- peekFun r
-            if isAp f then (== Copy) <$> classify r else return False
+  r <- skipInd (decodeNodePtr (nodeAddr a))
+  code <- case r of
+            CellPtr p -> do
+              c <- peek p
+              case c of
+                AP _ _ -> (== Copy) <$> classify r
+                _      -> return False
+            _ -> return False
   res <- if not code then return Nothing else do
     (s, _) <- visit limit (S M.empty 0 0 M.empty) r
     return (Just (select limit s))

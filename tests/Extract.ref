@@ -1,3 +1,19 @@
+Comb (C 1 0)
+INT 42
+DBL 1.5
+Comb (C 1 1)
+(True,True,True,True)
+(True,AP (Comb (C 1 2)) (Comb (D 3)))
+(True,IND (Comb (E 4)))
+(True,INT (-7))
+(True,INT64 (-3))
+(True,DBL 2.5)
+(True,FLT32 0.5)
+(True,IO_CCALL 1)
+(True,TICK 2)
+(True,DATA 0 5)
+True
+
 2 nodes copied, 0 references back to the root, references that stopped the copy: whnf 1, redex 1, cycle 0, depth 0
 \x1 -> case x1 of { C_0_0 -> 0; C_1_2 x2 x3 -> redex_3 x2 x3 }
 18 nodes copied, 1 references back to the root, references that stopped the copy: whnf 2, redex 0, cycle 0, depth 0

@@ -1118,14 +1118,18 @@ struct final *final_root = 0;   /* root of all allocated foreign pointers, linke
 /*
  * For Haskell code that reads the graph, see lib/Mhs/Extract.hs.
  * The primitive nodeAddr gives the NODEPTR of a value, without evaluating it,
- * and IO.rtsinfo a pointer to this: the tables and tags needed to make sense
- * of the nodes.  Every field is a word, so field i is at offset i * sizeof(void*),
- * and the Haskell code knows them by their positions; change the version
- * when they change.  It also relies on the layout of struct case_arity and
- * struct ffi_entry: three words each, with the fields in order.
+ * and IO.rtsinfo a pointer to this: the layout of the nodes, and the tables
+ * and tags needed to make sense of them.  Every field is a word, so field i
+ * is at offset i * sizeof(void*), and the Haskell code knows them by their
+ * positions; change the version when they change.  It also relies on the
+ * layout of struct case_arity and struct ffi_entry: three words each, with
+ * the fields in order.
  */
 static struct {
   uintptr_t                version;
+  /* The nodes */
+  uintptr_t                node_size;         /* sizeof(struct node) */
+  uintptr_t                node_payload;      /* offsetof(struct node, uarg) */
   /* The tables */
   uintptr_t                last_tag;          /* T_LAST_TAG */
   const char             **tag_names;         /* the name of each tag, or NULL */
@@ -1135,18 +1139,21 @@ static struct {
   int                     *num_ffi;           /*   and how many there are, */
   const struct ffi_entry **xffi_table;        /*   then those of the program, see FFI_IX */
   /* Tags */
-  uintptr_t                d_ind, d_int, d_int64, d_dbl, d_flt32, d_forptr, d_io_ccall, d_baddyn, d_tick;
-  uintptr_t                v_constr, v_cased, v_lookd, v_cases, v_looks;
+  uintptr_t                d_ind, d_int, d_int64, d_dbl, d_flt32, d_ptr, d_funptr, d_forptr,
+                           d_arr, d_thid, d_mvar, d_weak, d_io_ccall, d_baddyn, d_tick;
+  uintptr_t                v_constr, v_cased, v_cases;
   /* Bytestrings */
   uintptr_t                forptr_finalizer;  /* offsetof(struct forptr, finalizer) */
   uintptr_t                forptr_payload;    /* offsetof(struct forptr, payload) */
   uintptr_t                final_fptype;      /* offsetof(struct final, fptype) */
   uintptr_t                fp_bstr;           /* FP_BSTR */
 } rts_info = {
-  1,
+  2,
+  sizeof(struct node), offsetof(struct node, uarg),
   T_LAST_TAG, tag_names, tag_arity, &case_arities, ffi_table, &num_ffi, &xffi_table,
-  D_IND, D_INT, D_INT64, D_DBL, D_FLT32, D_FORPTR, D_IO_CCALL, D_BADDYN, D_TICK,
-  V_CONSTR, V_CASED, V_LOOKD, V_CASES, V_LOOKS,
+  D_IND, D_INT, D_INT64, D_DBL, D_FLT32, D_PTR, D_FUNPTR, D_FORPTR,
+  D_ARR, D_THID, D_MVAR, D_WEAK, D_IO_CCALL, D_BADDYN, D_TICK,
+  V_CONSTR, V_CASED, V_CASES,
   offsetof(struct forptr, finalizer), offsetof(struct forptr, payload),
   offsetof(struct final, fptype), FP_BSTR,
 };
@@ -6997,11 +7004,11 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     GOPAIRUNIT;
 
   case T_NODEADDR:
-    /* The NODEPTR of the argument, which is not evaluated, as a Ptr. */
+    /* The NODEPTR of the argument, which is not evaluated, as an Int. */
     CHECK(1);
     x = ARG(TOP(0));
     n = POPTOP();
-    SETPTR(n, x.node_ptr);
+    SETINT(n, (value_t)x.node_bits);
     RET;
 
   case T_IO_RTSINFO:

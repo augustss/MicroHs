@@ -1,4 +1,7 @@
 module Extract(main) where
+import Foreign.Marshal.Alloc(free, malloc)
+import Foreign.Ptr(Ptr)
+import Foreign.Storable
 import Mhs.Extract
 import Mhs.Reflect
 import Primitives(primIntAdd, primIntSub, primIntEQ, primIntLT, primIntGT)
@@ -30,8 +33,59 @@ insert x t@(Node l y r) | primIntLT x y = Node (insert x l) y r
 answer :: Bool -> String
 answer b = if b then "yes" else "no"
 
+-- Skip the indirections.
+skipInd :: NodePtr -> IO NodePtr
+skipInd n@(CellPtr p) = do
+  c <- peek p
+  case c of
+    IND n' -> skipInd n'
+    _      -> return n
+skipInd n = return n
+
+-- What a value is, after the indirections.
+nodeOf :: a -> IO NodePtr
+nodeOf a = skipInd (decodeNodePtr (nodeAddr a))
+
+-- The cell of a value.
+cellOf :: a -> IO Cell
+cellOf a = a `seq` do
+  n <- nodeOf a
+  case n of
+    CellPtr p -> peek p
+    _         -> error ("not a cell: " ++ show n)
+
+-- Reading and writing cells.
+cells :: IO ()
+cells = do
+  let i = 42 :: Int
+      d = 1.5 :: Double
+      j = Just i
+  nodeOf True >>= print
+  cellOf i >>= print
+  cellOf d >>= print
+  cj <- cellOf j
+  case cj of
+    AP f _ -> skipInd f >>= print
+    _      -> putStrLn "not an application"
+  -- encodeNodePtr is the inverse of decodeNodePtr
+  let inverse x = encodeNodePtr (decodeNodePtr (nodeAddr x)) == nodeAddr x
+  print (inverse True, inverse i, inverse j, inverse not)
+  -- poke and peek, outside the heap
+  p <- malloc :: IO (Ptr Cell)
+  let roundTrip c = do
+        poke p c
+        c' <- peek p
+        return (c' == c, c')
+  mapM_ (\ c -> roundTrip c >>= print)
+    [ AP (Comb (C 1 2)) (Comb (D 3)), IND (Comb (E 4)), INT (-7), INT64 (-3),
+      DBL 2.5, FLT32 0.5, IO_CCALL 1, TICK 2, DATA 0 5 ]
+  roundTrip (AP (CellPtr p) (CellPtr p)) >>= print . fst
+  free p
+  putStrLn ""
+
 main :: IO ()
 main = do
+  cells
   let sh :: Int -> a -> IO ()
       sh limit a = do
         -- See the Reflect test.
