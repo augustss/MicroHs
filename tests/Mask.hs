@@ -18,3 +18,14 @@ main = do
             printMaskingState "handler "
         )
   printMaskingState "end "
+  -- The thread is rescheduled inside the mask, and then the handler
+  -- must still restore the masking state from when catch was called.
+  catch (mask_ $ do
+            threadDelay 1000
+            printMaskingState "rescheduled "
+            error "b"
+        )
+        (\ (_ :: SomeException) -> do
+            printMaskingState "handler "
+        )
+  printMaskingState "end "

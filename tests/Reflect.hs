@@ -55,7 +55,7 @@ main = do
         -- as the loader to get the same result either way.
         performGCWithReduction
         performGCWithReduction
-        reflect a >>= putStr . ppProg >> putStrLn ""
+        reflect a >>= putStrLn . ppProg
   sh (swap :: (Int, Bool) -> (Bool, Int))
   sh isWarm
   sh (maybe False not)

@@ -16,7 +16,7 @@ import qualified Prelude(); import MHSPrelude
 import Data.List
 import Data.Maybe
 import qualified MicroHs.IntSet as IS
-import qualified MicroHs.IntMap as IM
+import qualified Mhs.IntMap as IM
 import MicroHs.List
 
 data Tree a = Node a [Tree a]

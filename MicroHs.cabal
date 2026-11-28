@@ -84,7 +84,6 @@ executable mhs
                        MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.IdentMap
-                       MicroHs.IntMap
                        MicroHs.IntSet
                        MicroHs.Interactive
                        MicroHs.Lex
@@ -100,22 +99,24 @@ executable mhs
                        MicroHs.Translate
                        MicroHs.TypeCheck
                        MicroHs.Version
-                       Text.ParserComb
-                       Text.PrettyPrint.HughesPJLite
-                       Text.PrettyPrint.HughesPJLiteClass
+                       Mhs.Text.ParserComb
+                       Mhs.Text.PrettyPrint.HughesPJLite
+                       Mhs.Text.PrettyPrint.HughesPJLiteClass
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
 --                       MhsEval
                        MHSPrelude
+                       MiniPrelude
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
                        System.IO.Transducers
                        System.Compress
+                       Mhs.IntMap
 
   if impl(ghc)
-    hs-source-dirs:    ghc src
+    hs-source-dirs:    ghc src lib/libmhs
     build-depends:     base         >= 4.10 && < 4.29,
                        bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
@@ -132,7 +133,7 @@ executable mhs
 --    includes:          mhseval.h
 
   if impl(hugs)
-    hs-source-dirs:    hugs src
+    hs-source-dirs:    hugs src lib/libmhs
 
   if impl(mhs)
     hs-source-dirs:    mhs src

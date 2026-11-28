@@ -25,7 +25,7 @@ import MicroHs.List
 import MicroHs.Names
 import MicroHs.State as S
 import MicroHs.TypeCheck
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 type LDef = (Ident, Exp)
 

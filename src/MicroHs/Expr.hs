@@ -66,7 +66,7 @@ import Data.Maybe
 import MicroHs.Builtin
 import MicroHs.Error(mhsErrorLoc)
 import MicroHs.Ident
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 
 type IdentModule = Ident
 

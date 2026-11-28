@@ -27,7 +27,7 @@ import MicroHs.Expr(Expr(..), EType, conIdent, getSLoc)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 
 -- Symbol table
 --

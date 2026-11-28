@@ -2,7 +2,7 @@
 -- 'The Design of a Pretty-printing Library' by
 -- John Hughes in Advanced Functional Programming, 1995.
 -- With inspiration and code from the from the Hackage package pretty.
-module Text.PrettyPrint.HughesPJLite(
+module Mhs.Text.PrettyPrint.HughesPJLite(
   Doc,
   text, empty,
   (<+>), ($$), ($+$),
@@ -17,7 +17,7 @@ module Text.PrettyPrint.HughesPJLite(
   Style,
   render, renderStyle,
   ) where
-import qualified Prelude(); import MHSPrelude
+import qualified Prelude(); import MiniPrelude
 
 infixr 6 <+>
 infixl 5 $$, $+$

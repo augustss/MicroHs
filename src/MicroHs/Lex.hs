@@ -13,7 +13,7 @@ import Data.List
 import Data.Maybe (fromJust, fromMaybe)
 import MicroHs.Error(mhsErrorLoc)
 import MicroHs.Ident
-import Text.ParserComb(TokenMachine(..))
+import Mhs.Text.ParserComb(TokenMachine(..))
 --import Debug.Trace
 
 data Token

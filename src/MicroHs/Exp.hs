@@ -16,7 +16,7 @@ import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), PrimOp(..), showLit, CType(..), lPrim)
 import MicroHs.List
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 data Exp

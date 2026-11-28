@@ -51,7 +51,7 @@ import MicroHs.SymTab
 import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
 import MicroHs.Version
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 mhsVersion :: String
 mhsVersion = showVersion version
@@ -617,13 +617,18 @@ unlit fn = unlines . un 1 True . lines
 
 ---------------
 
+-- The source directories of the library: lib, and lib/libmhs, with the
+-- modules that the compiler uses too.
+libDirs :: FilePath -> [FilePath]
+libDirs lib = [lib, lib </> "libmhs"]
+
 getPaths :: IO (FilePath, [FilePath], Maybe FilePath)
 getPaths = do
   mdir <- lookupEnv "MHSDIR"
   let srcs = ["."]
   case mdir of
     -- If MHSDIR is set, use that and no package directories
-    Just dir -> return (dir, srcs ++ [dir </> "lib"], Nothing)
+    Just dir -> return (dir, srcs ++ libDirs (dir </> "lib"), Nothing)
     Nothing -> do
       -- There are two scenarios: either we are running inplace or installed
       binDir <- takeDirectory <$> catch getExecutablePath (\ (_ :: SomeException) -> getProgName) -- ~/.mcabal/bin
@@ -633,7 +638,7 @@ getPaths = do
         let libDir = upDir </> "lib"
             nogmpDir | not (wantGMP || wantImath) = [libDir </> "no-gmp"]
                      | otherwise                  = []
-        return (upDir, srcs ++ nogmpDir ++ [libDir], Nothing)
+        return (upDir, srcs ++ nogmpDir ++ libDirs libDir, Nothing)
        else do
         let pkgDir = upDir </> "mhs-" ++ mhsVersion                                   -- ~/.mcabal/bin/../mhs-VERSION
             mhsDir = pkgDir </> "packages" </> "MicroHs-" ++ mhsVersion </> "data"    -- ~/.mcabal/bin/../mhs-VERSION/packages/MicroHs-VERSION/data

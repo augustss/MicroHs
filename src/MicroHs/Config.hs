@@ -5,7 +5,7 @@ module MicroHs.Config(
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.List
-import Text.ParserComb
+import Mhs.Text.ParserComb
 import MicroHs.Ident
 import MicroHs.Lex
 
