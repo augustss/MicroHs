@@ -1,4 +1,5 @@
 module Extract(main) where
+import Control.Monad((>=>))
 import Foreign.Marshal.Alloc(free, malloc)
 import Foreign.Ptr(Ptr)
 import Foreign.Storable
@@ -76,7 +77,7 @@ cells = do
         poke p c
         c' <- peek p
         return (c' == c, c')
-  mapM_ (\ c -> roundTrip c >>= print)
+  mapM_ (roundTrip >=> print)
     [ AP (Comb (C 1 2)) (Comb (D 3)), IND (Comb (E 4)), INT (-7), INT64 (-3),
       DBL 2.5, FLT32 0.5, IO_CCALL 1, TICK 2, DATA 0 5 ]
   roundTrip (AP (CellPtr p) (CellPtr p)) >>= print . fst

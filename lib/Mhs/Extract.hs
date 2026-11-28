@@ -482,8 +482,8 @@ visit limit s n0 = do
           let (s1, i) = newEntry (W p k (k == Copy) False v noOpnd noOpnd) s
           if k /= Copy then return (s1, Index i) else do
             -- Each field is read again, just before it is visited, see above.
-            (s2, fo) <- fst <$> apFields p >>= visit limit s1{ sMade = sMade s1 + 1 }
-            (s3, ao) <- snd <$> apFields p >>= visit limit s2
+            (s2, fo) <- apFields p >>= visit limit s1{ sMade = sMade s1 + 1 } . fst
+            (s3, ao) <- apFields p >>= visit limit s2 . snd
             let w = sEntries s3 M.! i
                 s4 | wCycle w  = -- Drop the copy, and everything after it.
                                  (setEntry i (W p Cycle False False Nothing noOpnd noOpnd) s3){ sN = i + 1 }
