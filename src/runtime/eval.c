@@ -650,6 +650,7 @@ enum node_tag { D_NONE,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
+                T_NODEADDR, T_IO_RTSINFO, /* for reading the graph, see rts_info */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
                 T_BALANCEL, T_BALANCER,  /* experiment: IdentMap balancing */
@@ -1215,6 +1216,49 @@ struct forptr {
   //  char          *desc;
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
+
+/*
+ * For Haskell code that reads the graph, see lib/Mhs/Extract.hs.
+ * The primitive nodeAddr gives the NODEPTR of a value, without evaluating it,
+ * and IO.rtsinfo a pointer to this: the layout of the nodes, and the tables
+ * and tags needed to make sense of them.  Every field is a word, so field i
+ * is at offset i * sizeof(void*), and the Haskell code knows them by their
+ * positions; change the version when they change.  It also relies on the
+ * layout of struct case_arity and struct ffi_entry: three words each, with
+ * the fields in order.
+ */
+static struct {
+  uintptr_t                version;
+  /* The nodes */
+  uintptr_t                node_size;         /* sizeof(struct node) */
+  uintptr_t                node_payload;      /* offsetof(struct node, uarg) */
+  /* The tables */
+  uintptr_t                last_tag;          /* T_LAST_TAG */
+  const char             **tag_names;         /* the name of each tag, or NULL */
+  const uint8_t           *tag_arity;         /* the arity of each tag, see arity_virt */
+  struct case_arity      **case_arities;      /* the table, which moves when it grows */
+  const struct ffi_entry  *ffi_table;         /* the FFI functions of the runtime, */
+  int                     *num_ffi;           /*   and how many there are, */
+  const struct ffi_entry **xffi_table;        /*   then those of the program, see FFI_IX */
+  /* Tags */
+  uintptr_t                d_ind, d_int, d_int64, d_dbl, d_flt32, d_ptr, d_funptr, d_forptr,
+                           d_arr, d_thid, d_mvar, d_weak, d_io_ccall, d_baddyn, d_tick;
+  uintptr_t                v_constr, v_cased, v_cases;
+  /* Bytestrings */
+  uintptr_t                forptr_finalizer;  /* offsetof(struct forptr, finalizer) */
+  uintptr_t                forptr_payload;    /* offsetof(struct forptr, payload) */
+  uintptr_t                final_fptype;      /* offsetof(struct final, fptype) */
+  uintptr_t                fp_bstr;           /* FP_BSTR */
+} rts_info = {
+  2,
+  sizeof(struct node), offsetof(struct node, uarg),
+  T_LAST_TAG, tag_names, tag_arity, &case_arities, ffi_table, &num_ffi, &xffi_table,
+  D_IND, D_INT, D_INT64, D_DBL, D_FLT32, D_PTR, D_FUNPTR, D_FORPTR,
+  D_ARR, D_THID, D_MVAR, D_WEAK, D_IO_CCALL, D_BADDYN, D_TICK,
+  V_CONSTR, V_CASED, V_CASES,
+  offsetof(struct forptr, finalizer), offsetof(struct forptr, payload),
+  offsetof(struct final, fptype), FP_BSTR,
+};
 
 //REGISTER(counter_t num_reductions,r19);
 counter_t num_reductions = 0;
@@ -3415,12 +3459,14 @@ struct {
   { "IO.gc", T_IO_GC, 2 },
   { "IO.stats", T_IO_STATS, 1 },
   { "IO.pp", T_IO_PP, 2 },
+  { "nodeAddr", T_NODEADDR, 1 },
+  { "IO.rtsinfo", T_IO_RTSINFO, 1 },
   { "IO.lazyBind", T_IO_LAZYBIND, 3 },
   { "IO.lazyBindST", T_IO_LAZYBINDST, 3 },
   { "IO.strict", T_IO_STRICT, 2 },
   { "raise", T_RAISE, 1 },
   { "catch", T_CATCH, 3 },
-  { "catchr", T_CATCHR, 3 },
+  { "catchr", T_CATCHR, 4 },
   { "A.alloc", T_ARR_ALLOC, 3 },
   { "A.copy", T_ARR_COPY, 2 },
   { "A.size", T_ARR_SIZE, 2 },
@@ -11591,6 +11637,19 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     CHKARG2;
     pp(stderr, x);
     GOPAIRUNIT;
+
+  case T_NODEADDR:
+    /* The NODEPTR of the argument, which is not evaluated, as an Int. */
+    CHECK(1);
+    x = ARG(TOP(0));
+    n = POPTOP();
+    SETINT(n, (value_t)x.node_bits);
+    RET;
+
+  case T_IO_RTSINFO:
+    GCCHECK(2);
+    CHKARG1;                    /* x = ST */
+    GOPAIR(mkPtr(&rts_info));
   case T_IO_PRINT:
     hdr = false;
     goto ser;
@@ -12010,18 +12069,21 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
     GOPAIRUNIT;
 
   case T_CATCH:
-    /* CATCH x y z --> CATCHR (x z) y z */
-    GCCHECK(3);
+    /* CATCH x y z --> CATCHR m (x z) y z
+     * where m is the current masking state, which the handler restores.
+     * It is kept in the graph rather than taken when CATCHR runs, because
+     * a rescheduled thread starts over from its root and runs CATCHR again,
+     * maybe with another masking state, e.g., inside a mask in the io. */
+    GCCHECK(5);
     CHKARG3;                    /* x=io, y=hdl, z=ST */
-    GOAP(new_ap(new_ap(combCATCHR, new_ap(x, z)), y), z);
+    GOAP(new_ap(new_ap(new_ap(combCATCHR, mkInt(runq.mq_head->mt_mask)), new_ap(x, z)), y), z);
   case T_CATCHR:
     {
-      CHKARG3NP;                /* x = (io st), y = hdl, z = st, n = (CATCHR (io st)) h */
+      CHKARG4NP;                /* x = mask, y = (io st), z = hdl, w = st, n = CATCHR m (io st) h st */
       struct handler *h = mmalloc(sizeof *h);
       h->hdl_old = cur_handler;
       cur_handler = h;
       stackptr_t ostack = stack_ptr;;    /* old stack pointer */
-      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
       if (setjmp(h->hdl_buf)) {
         /* An exception occurred: */
         stack_ptr = ostack;
@@ -12029,27 +12091,27 @@ evalprimop(NODEPTR n, enum node_tag tag, stackptr_t stk)
         NODEPTR exn = h->hdl_exn;       /* exception value */
         cur_handler = h->hdl_old;       /* reset handler */
         FREE(h);
-        GCCHECK(8);
-        POP(3);
+        GCCHECK(7);
+        POP(4);
         /*
          * Run:
          *  hdl exn `primBind` \ r ->
-         *  primSetMaskingState omask `primThen`
+         *  primSetMaskingState m `primThen`
          *  primReturn r
          * i.e.,
-         *  primBind (hdl exn) (B' primThen (primSetMaskingState omask) primReturn)
+         *  primBind (hdl exn) (B' primThen (primSetMaskingState m) primReturn)
          */
-        NODEPTR p = new_ap(combIOBIND, new_ap(y, exn));
-        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, mkInt(omask))), combIORETURN);
-        GOAP2(p, q, z);
+        NODEPTR p = new_ap(combIOBIND, new_ap(z, exn));
+        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, x)), combIORETURN);
+        GOAP2(p, q, w);
       } else {
         /* Normal execution: */
-        x = evali(x);             /* execute first argument */
+        y = evali(y);             /* execute the io */
         /* No exception occurred */
         cur_handler = h->hdl_old; /* restore old handler */
         FREE(h);
-        POP(3);
-        GOIND(x);
+        POP(4);
+        GOIND(y);
       }
     }
 

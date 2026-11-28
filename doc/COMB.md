@@ -10,6 +10,7 @@ A file has three parts:
 ## Producing combinator files
 
 * `mhs -oFILE.comb` writes a combinator file. With no `-o` flag the output goes to `out.comb`.
+* `mhs -oFILE.combffi` writes a combinator file, followed by the foreign imports and the names of the definitions, see [Foreign imports and names](#foreign-imports-and-names).
 * `mhs -oFILE.c` writes the combinator file as a C array of bytes. Compiling it together with the runtime gives an executable.
 * With `-z` the combinator code is compressed (LZMA), and with `-b64` it is Base64 encoded.
 * `mhseval +RTS -rFILE -RTS` runs a combinator file.
@@ -98,6 +99,22 @@ _2 @@@ }
 - Finally, the reference `_2` is the value of the whole graph.
 
 So each top level definition `e` with label `l` becomes `A e :l @`, and the main expression is last.
+
+## Foreign imports and names
+
+A `.combffi` file has two more sections after the end marker, which the runtime ignores. The first one has a line for each foreign import, with its name, how it is imported, and its type:
+```
+#####FFI
+memcpy = ImpStatic [] IFunc "memcpy" :: Ptr () -> Ptr () -> CSize -> IO ()
+...
+```
+The second one has the name of each definition, after its label:
+```
+#####Names
+21 Control.Applicative.pure
+...
+```
+`hReflect` in `Mhs.Reflect` uses the names, if they are there.
 
 ## Human readable format
 There is an alternative, more readable, format. It is used by `cprint` and `cuprint` from `Mhs.Print`, and when the runtime prints the program after loading it (with `+RTS -v -v -v -RTS`). It uses the same atoms, but

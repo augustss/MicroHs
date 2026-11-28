@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-noncanonical-monad-instances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-module Text.ParserComb(
+module Mhs.Text.ParserComb(
   Prsr, runPrsr,
   satisfy, satisfyM,
   many, optional, some,
@@ -17,7 +17,7 @@ module Text.ParserComb(
   TokenMachine(..),
   mapTokenState,
   ) where
-import qualified Prelude(); import MHSPrelude hiding (fail)
+import qualified Prelude(); import MiniPrelude hiding (fail)
 import Control.Applicative
 import Control.Monad.Fail as F
 import Control.Monad

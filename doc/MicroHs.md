@@ -268,6 +268,8 @@ Besides the usual modules, `base` has some modules that are specific to MicroHs:
 * `Data.TypeLits`, for [type-level literals](#type-level-literals).
 * `Mhs.Builtin` exports what the compiler refers to in the code it generates, e.g., in derived instances. It is imported automatically, qualified with a name that cannot be written in a program.
 * `Mhs.Print` has `cuprint` and `cprint`, which print the combinator graph of a value (see [Debugging](#debugging)).
+* `Mhs.IntMap` is a simple map from `Int`s that are not negative, `Mhs.Text.ParserComb` a parser combinator library, and `Mhs.Text.PrettyPrint.HughesPJLite` a pretty printer, with the class `Pretty` in `Mhs.Text.PrettyPrint.HughesPJLiteClass`. The compiler uses them too, see `lib/libmhs`.
+* `Mhs.Reflect` turns a value, or a combinator file, back into lambda expressions. `Mhs.Extract` reads the graph directly (with the primitive `nodeAddr`), and extracts the code of a function, i.e., the partial applications in the graph of its value that make up the function.
 * `System.Compress` compresses and decompresses strings of bytes, e.g., `compressLZMA` and `decompressLZMA`.
 * `System.IO.MD5` computes MD5 checksums of strings, files, and handles.
 * `System.IO.Serialize` writes and reads values, see [below](#serialization).
@@ -713,7 +715,7 @@ Some important packages that are known to work: `containers`, `transformers`, `m
 
 ## Compiler
 
-The compiler is written in MicroHs and lives in `src/MicroHs/`. It can also be compiled with GHC (`make bin/gmhs`) and with a slightly patched Hugs (see below). When compiling with GHC, the `ghc/` directory provides some compatibility modules.
+The compiler is written in MicroHs and lives in `src/MicroHs/`. It can also be compiled with GHC (`make bin/gmhs`) and with a slightly patched Hugs (see below). When compiling with GHC, the `ghc/` directory provides some compatibility modules. The compiler also uses some modules of `base`, which are in `lib/libmhs`, so that GHC and Hugs can compile them too; they import `MiniPrelude`, which `ghc/` and `hugs/` provide as well.
 
 The compiler pipeline is:
 1. Lexing and layout processing (`Lex`), and parsing to an abstract syntax tree (`Parse`, `Expr`).

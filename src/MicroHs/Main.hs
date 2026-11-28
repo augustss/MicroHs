@@ -38,7 +38,7 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.IO.Transducers(addLZMA, addBase64)
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 main :: IO ()
 main = do
@@ -414,10 +414,13 @@ mainCompile flags mn = do
       hPutStr h'' outData
       when (outFile `hasTheExtension` ".combffi") $ do
         -- add FFI info
-        hPutStrLn h'' "\n#####"
+        hPutStrLn h'' "\n#####FFI"
         let putFFI (_, Lit (LForImp _ i n t)) = hPutStrLn h'' $ n ++ " = " ++ show i ++ " :: " ++ prettyShow t
             putFFI _ = return ()
         mapM_ putFFI outDefs
+        -- add the names of the definitions, after their labels
+        hPutStrLn h'' "#####Names"
+        mapM_ (\ (l, i) -> hPutStrLn h'' $ l ++ " " ++ showIdent i) labelNames
       hClose h''
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode

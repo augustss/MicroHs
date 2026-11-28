@@ -12,12 +12,12 @@ import Data.List(nub)
 import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
-import qualified MicroHs.IntMap as IM
+import qualified Mhs.IntMap as IM
 import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
 import System.IO.Unsafe(unsafePerformIO)
-import Text.PrettyPrint.HughesPJLiteClass
+import Mhs.Text.PrettyPrint.HughesPJLiteClass
 import Unsafe.Coerce
 import Debug.Trace
 

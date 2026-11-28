@@ -10,7 +10,7 @@ import Data.Char
 import Data.Either
 import Data.List
 import Data.Maybe
-import Text.ParserComb as P
+import Mhs.Text.ParserComb as P
 import MicroHs.Builtin(builtinMdl)
 --import MicroHs.Error(MhsError(MhsSyntaxError))
 import MicroHs.Lex
@@ -18,7 +18,7 @@ import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
 import qualified MicroHs.Expr as E
 import MicroHs.Ident
-import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
+import Mhs.Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 --import Debug.Trace
 
 -- Hugs can't define the efficient *>

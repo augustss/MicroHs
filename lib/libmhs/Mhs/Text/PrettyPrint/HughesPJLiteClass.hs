@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Text.PrettyPrint.HughesPJClass
@@ -15,7 +16,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Text.PrettyPrint.HughesPJLiteClass (
+module Mhs.Text.PrettyPrint.HughesPJLiteClass (
     -- * Pretty typeclass
     Pretty(..),
 
@@ -26,11 +27,14 @@ module Text.PrettyPrint.HughesPJLiteClass (
     appPrec,
 
     -- re-export HughesPJ
-    module Text.PrettyPrint.HughesPJLite
+    module Mhs.Text.PrettyPrint.HughesPJLite
   ) where
-import qualified Prelude(); import MHSPrelude
+import qualified Prelude(); import MiniPrelude
+-- Integer and Double are not in the MiniPrelude of lib.  With GHC they are,
+-- so this import is redundant there, see the OPTIONS_GHC pragma.
+import Prelude(Integer, Double)
 
-import Text.PrettyPrint.HughesPJLite
+import Mhs.Text.PrettyPrint.HughesPJLite
 
 -- | Level of detail in the pretty printed output. Level 0 is the least
 -- detail.
